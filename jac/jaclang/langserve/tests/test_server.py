@@ -81,6 +81,17 @@ class TestJacLangServer(TestCase):
             str(lsp.get_definition(circle_file, lspt.Position(20, 16))),
         )
 
+        goto_defs_file = uris.from_fs_path(self.fixture_abs_path("goto_def_tests.jac"))
+        lsp.type_check_file(goto_defs_file)
+        self.assertIn(
+            "fixtures/goto_def_tests.jac:0:5-0:13",
+            str(lsp.get_definition(goto_defs_file, lspt.Position(6, 21))),
+        )
+        self.assertIn(
+            "fixtures/goto_def_tests.jac:1:8-1:17",
+            str(lsp.get_definition(goto_defs_file, lspt.Position(6, 30))),
+        )
+
     def test_go_to_definition_method_manual_impl(self) -> None:
         """Test that the go to definition is correct."""
         lsp = JacLangServer()
@@ -124,9 +135,9 @@ class TestJacLangServer(TestCase):
             (11, 47, "compiler/constant.py:5:0-34:9"),
             (13, 47, "compiler/type_system/type_utils.py:0:0-0:0"),
             (14, 34, "compiler/type_system/__init__.py:0:0-0:0"),
-            (14, 55, "compiler/type_system/types.py:154:0-266:8"),
+            (14, 55, "compiler/type_system/types.py:154:0-267:8"),
             (15, 34, "compiler/unitree.py:0:0-0:0"),
-            (15, 48, "compiler/unitree.py:304:0-504:11"),
+            (15, 48, "compiler/unitree.py:304:0-529:11"),
             (17, 22, "langserve/tests/fixtures/circle.jac:8:5-8:8"),
             (18, 38, "vendor/pygls/uris.py:0:0-0:0"),
             (19, 52, "vendor/pygls/server.py:351:0-615:13"),
