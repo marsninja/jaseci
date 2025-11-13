@@ -394,7 +394,7 @@ export default defineConfig({
             builder.cleanup_temp_dir()
 
     def test_spawn_operator(self) -> None:
-        """Test that spawn operator generates correct __jacSpawn calls."""
+        """Test that spawn operator generates correct __jacSpawn calls for both standard and reverse order."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
@@ -410,8 +410,8 @@ export default defineConfig({
                 vite_minify=False,
             )
 
-            # Import the test module with spawn operator usage
-            fixtures_dir = Path(__file__).parent / "fixtures" / "spawn_operator_test"
+            # Import the test module with both spawn operator orderings
+            fixtures_dir = Path(__file__).parent / "fixtures" / "spawn_test"
             (module,) = Jac.jac_import("app", str(fixtures_dir))
 
             # Build the bundle
@@ -422,8 +422,7 @@ export default defineConfig({
             self.assertEqual(bundle.module_name, "app")
             self.assertIn("app", bundle.client_functions)
 
-            # Verify __jacSpawn calls are generated correctly
-            # Should contain: __jacSpawn("test_walker", "", {})
+            # Verify __jacSpawn calls are generated for both orderings
             self.assertIn('__jacSpawn("test_walker"', bundle.code)
             self.assertIn('__jacSpawn("parameterized_walker"', bundle.code)
 
@@ -431,66 +430,17 @@ export default defineConfig({
             self.assertIn('__jacSpawn("test_walker", ""', bundle.code)
             self.assertIn('__jacSpawn("parameterized_walker", ""', bundle.code)
 
-            # Verify parameterized walker has correct fields object
-            # Note: Babel may format this differently
+            # Verify standard order parameters (node spawn walker)
             self.assertIn('value: 42', bundle.code)
 
-            # Verify the __jacSpawn calls are in the generated code
-            # The await may be transformed by Babel, so just check for the function calls
-            self.assertTrue(
-                bundle.code.count('__jacSpawn') >= 2,
-                "Expected at least 2 __jacSpawn calls in bundle"
-            )
-
-            # Verify that jacSpawn is NOT imported (we use __jacSpawn instead)
-            # The bundle should not contain import of jacSpawn from '@jac-client/utils'
-            # Note: __jacSpawn should be defined in the runtime, not imported
-
-            # Verify bundle was written to output directory
-            bundle_files = list(output_dir.glob("client.*.js"))
-            self.assertGreater(len(bundle_files), 0, "Expected at least one bundle file")
-
-            # Cleanup
-            builder.cleanup_temp_dir()
-
-    def test_reverse_spawn_operator(self) -> None:
-        """Test that reverse spawn operator (walker spawn node) generates correct __jacSpawn calls."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-
-            # Create project with Vite installed
-            package_json, output_dir = self._create_test_project_with_vite(temp_path)
-            runtime_path = Path(__file__).parent.parent / "plugin" / "client_runtime.jac"
-
-            # Initialize the Vite builder
-            builder = ViteClientBundleBuilder(
-                runtime_path=runtime_path,
-                vite_package_json=package_json,
-                vite_output_dir=output_dir,
-                vite_minify=False,
-            )
-
-            # Import the test module with reverse spawn operator usage
-            fixtures_dir = Path(__file__).parent / "fixtures" / "reverse_spawn_test"
-            (module,) = Jac.jac_import("app", str(fixtures_dir))
-
-            # Build the bundle
-            bundle = builder.build(module, force=True)
-
-            # Verify bundle structure
-            self.assertIsNotNone(bundle)
-            self.assertEqual(bundle.module_name, "app")
-            self.assertIn("app", bundle.client_functions)
-
-            # Verify __jacSpawn call is generated correctly for reverse spawn
-            # walker(params) spawn root should generate: __jacSpawn("walker", "", {params})
-            self.assertIn('__jacSpawn("test_walker"', bundle.code)
-
-            # Verify root is converted to empty string
-            self.assertIn('__jacSpawn("test_walker", ""', bundle.code)
-
-            # Verify walker parameters are in the fields object
+            # Verify reverse order parameters (walker spawn node)
             self.assertIn('message: "Reverse spawn!"', bundle.code)
+
+            # Verify we have at least 3 __jacSpawn calls (2 standard + 1 reverse)
+            self.assertTrue(
+                bundle.code.count('__jacSpawn') >= 3,
+                "Expected at least 3 __jacSpawn calls in bundle"
+            )
 
             # Verify bundle was written to output directory
             bundle_files = list(output_dir.glob("client.*.js"))
