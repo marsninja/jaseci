@@ -5,7 +5,13 @@ from pathlib import Path
 from jaclang.compiler.program import JacProgram
 
 
-FIXTURE_DIR = Path(__file__).resolve().parent.parent / "passes" / "ecmascript" / "tests" / "fixtures"
+FIXTURE_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "passes"
+    / "ecmascript"
+    / "tests"
+    / "fixtures"
+)
 
 
 def test_js_codegen_generates_js_and_manifest() -> None:
@@ -36,7 +42,7 @@ def test_js_codegen_generates_js_and_manifest() -> None:
     assert "ButtonProps" not in module.gen.client_manifest.params
 
     # Bug fixes
-    assert "let component = new MyComponent();" in module.gen.js
+    assert 'let component = new MyComponent({title: "Custom Title"});' in module.gen.js
 
 
 def test_compilation_skips_python_stubs() -> None:
@@ -89,7 +95,7 @@ cl def check_types() {
 }
 '''
 
-    with NamedTemporaryFile(mode='w', suffix='.jac', delete=False) as f:
+    with NamedTemporaryFile(mode="w", suffix=".jac", delete=False) as f:
         f.write(test_code)
         f.flush()
 
@@ -103,7 +109,9 @@ cl def check_types() {
         assert module.gen.js.count("typeof") == 4, "Should have 4 typeof expressions"
 
         # Verify no type() calls remain
-        assert "type(" not in module.gen.js, "No type() calls should remain in JavaScript"
+        assert (
+            "type(" not in module.gen.js
+        ), "No type() calls should remain in JavaScript"
 
         # Verify the typeof expressions are correctly formed
         assert "typeof x" in module.gen.js
@@ -113,4 +121,5 @@ cl def check_types() {
 
         # Clean up
         import os
+
         os.unlink(f.name)
