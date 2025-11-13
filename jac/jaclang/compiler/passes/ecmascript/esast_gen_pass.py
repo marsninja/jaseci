@@ -684,7 +684,7 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
             name = node.name_ref.sym_name
             self.client_manifest.exports.append(name)
             self.client_manifest.params[name] = (
-                [p.name.sym_name for p in node.signature.params if hasattr(p, "name")]
+                [p.name.sym_name for p in node.signature.params]
                 if isinstance(node.signature, uni.FuncSignature)
                 else []
             )
@@ -1062,7 +1062,7 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
             ),
         )
 
-        op_name = getattr(node.op, "name", None)
+        op_name = node.op.name
 
         if op_name == Tok.KW_SPAWN:
             # Spawn operator can work in two ways:
@@ -1350,7 +1350,7 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
 
         if isinstance(target, (uni.TupleVal, uni.ListVal)):
             elements: list[Optional[es.Pattern]] = []
-            for value in getattr(target, "values", []):
+            for value in target.values:
                 if value is None:
                     elements.append(None)
                     continue
@@ -1405,7 +1405,7 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
         if isinstance(target, uni.Name):
             names.append((target.sym_name, target))
         elif isinstance(target, (uni.TupleVal, uni.ListVal)):
-            for value in getattr(target, "values", []):
+            for value in target.values:
                 names.extend(self._collect_pattern_names(value))
         elif isinstance(target, uni.DictVal):
             for kv in target.kv_pairs:
@@ -1621,9 +1621,7 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
                         param_names: list[str] = []
                         if isinstance(ability_node.signature, uni.FuncSignature):
                             param_names = [
-                                p.name.sym_name
-                                for p in ability_node.signature.params
-                                if hasattr(p, "name")
+                                p.name.sym_name for p in ability_node.signature.params
                             ]
 
                         # Build args object {param1: arg1, param2: arg2, ...}
@@ -2359,14 +2357,14 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
         """Extract literal value from an expression."""
         if expr is None:
             return None
-        literal_attr = "lit_value"
-        if hasattr(expr, literal_attr):
-            return getattr(expr, literal_attr)
+        # Check for literal values on common literal types
+        if isinstance(expr, (uni.String, uni.Int, uni.Float, uni.Bool)):
+            return expr.lit_value
         if isinstance(expr, uni.MultiString):
             parts: list[str] = []
             for segment in expr.strings:
-                if hasattr(segment, literal_attr):
-                    parts.append(getattr(segment, literal_attr))
+                if isinstance(segment, uni.String):
+                    parts.append(segment.lit_value)
                 else:
                     return None
             return "".join(parts)
