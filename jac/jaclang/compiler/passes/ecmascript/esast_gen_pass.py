@@ -23,11 +23,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import Any, Callable, Optional, Sequence, Union, cast
 
 import jaclang.compiler.passes.ecmascript.estree as es
 import jaclang.compiler.unitree as uni
-from jaclang.compiler.constant import Tokens as Tok
+from jaclang.compiler.constant import SymbolType, Tokens as Tok
 from jaclang.compiler.passes.ast_gen import BaseAstGenPass
 from jaclang.compiler.passes.ast_gen.jsx_processor import EsJsxProcessor
 from jaclang.compiler.passes.ecmascript.es_unparse import es_to_js
@@ -87,6 +87,8 @@ ES_AUG_ASSIGN_OPS: dict[Tok, str] = {
     Tok.STAR_POW_EQ: "**=",
 }
 
+LiteralValue = Union[str, bool, int, float, None]
+
 
 @dataclass
 class ScopeInfo:
@@ -107,6 +109,31 @@ class AssignmentTargetInfo:
     decl_name: Optional[str]
     pattern_names: list[tuple[str, uni.Name]]
     is_first: bool
+
+
+@dataclass
+class SpawnWalkerInfo:
+    """Describes the walker-side of a spawn expression."""
+
+    call_node: uni.FuncCall
+    walker_name: str
+    fields_object: es.ObjectExpression
+
+
+@dataclass
+class SpawnTargetInfo:
+    """Describes the target-side of a spawn expression."""
+
+    node: uni.Expr
+    expression: es.Expression
+
+
+@dataclass
+class SpawnCallParts:
+    """Deconstructed spawn expression ready for runtime lowering."""
+
+    walker: SpawnWalkerInfo
+    target: SpawnTargetInfo
 
 
 class EsastGenPass(BaseAstGenPass[es.Statement]):
@@ -237,6 +264,221 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
     def _is_in_client_scope(self) -> bool:
         """Check if we're currently in a client-side function."""
         return any(self.client_scope_stack)
+
+    def _strip_spawn_await(
+        self, node_expr: uni.Expr, es_expr: es.Expression
+    ) -> tuple[uni.Expr, es.Expression]:
+        """Remove Jac/ES await wrappers for spawn analysis."""
+        cur_node = node_expr
+        cur_es = es_expr
+        while isinstance(cur_node, uni.AwaitExpr) and cur_node.target:
+            cur_node = cur_node.target
+            if isinstance(cur_es, es.AwaitExpression):
+                cur_es = cur_es.argument  # type: ignore[assignment]
+            else:
+                break
+        return cur_node, cur_es
+
+    def _resolve_expr_symbol(self, expr: uni.Expr) -> Optional[uni.Symbol]:
+        """Resolve a symbol from an expression (handles dotted access)."""
+        if isinstance(expr, uni.AstSymbolNode):
+            return expr.sym
+        if isinstance(expr, uni.AtomTrailer):
+            attrs = expr.as_attr_list
+            if attrs:
+                return attrs[-1].sym
+        return None
+
+    def _collect_walker_field_names(
+        self, walker_symbol: Optional[uni.Symbol]
+    ) -> list[str]:
+        """Collect walker has-var field names for positional argument mapping."""
+        if not walker_symbol:
+            return []
+        decl_owner = walker_symbol.decl.name_of
+        if (
+            isinstance(decl_owner, uni.Archetype)
+            and decl_owner.arch_type.name == Tok.KW_WALKER
+        ):
+            return [field.sym_name for field in decl_owner.get_has_vars()]
+        return []
+
+    def _expr_from_node(
+        self, node: Optional[uni.UniNode], default: LiteralValue = None
+    ) -> es.Expression:
+        """Return an expression ESTree node, synthesizing a literal if needed."""
+        generated = self._get_ast_or_default(
+            node,
+            default_factory=lambda src: es.Literal(value=default),
+        )
+        if isinstance(generated, es.Expression):
+            return generated
+        self.log_error("Expected expression in spawn argument.", node_override=node)
+        return self.sync_loc(es.Literal(value=default), jac_node=node or self.cur_node)
+
+    def _build_spawn_arg_object(
+        self, call_node: uni.FuncCall, walker_symbol: Optional[uni.Symbol]
+    ) -> es.ObjectExpression:
+        """Convert walker constructor arguments into a JSON payload."""
+        ordered_fields = self._collect_walker_field_names(walker_symbol)
+        properties: list[Union[es.Property, es.SpreadElement]] = []
+        positional_index = 0
+
+        for param in call_node.params:
+            if isinstance(param, uni.KWPair):
+                if param.key:
+                    key_expr = self.sync_loc(
+                        es.Literal(value=param.key.sym_name), jac_node=param.key
+                    )
+                    value_expr = self._expr_from_node(param.value)
+                    properties.append(
+                        self.sync_loc(
+                            es.Property(
+                                key=key_expr,
+                                value=value_expr,
+                                kind="init",
+                                method=False,
+                                shorthand=False,
+                                computed=False,
+                            ),
+                            jac_node=param,
+                        )
+                    )
+                else:
+                    spread_arg = self._expr_from_node(param.value)
+                    properties.append(
+                        self.sync_loc(
+                            es.SpreadElement(argument=spread_arg), jac_node=param
+                        )
+                    )
+                continue
+
+            key_name = (
+                ordered_fields[positional_index]
+                if positional_index < len(ordered_fields)
+                else f"arg{positional_index}"
+            )
+            if positional_index >= len(ordered_fields):
+                self.log_warning(
+                    "Walker spawn has more positional arguments than fields.",
+                    node_override=param,
+                )
+            positional_index += 1
+            key_expr = self.sync_loc(es.Literal(value=key_name), jac_node=param)
+            value_expr = self._expr_from_node(param)
+            properties.append(
+                self.sync_loc(
+                    es.Property(
+                        key=key_expr,
+                        value=value_expr,
+                        kind="init",
+                        method=False,
+                        shorthand=False,
+                        computed=False,
+                    ),
+                    jac_node=param,
+                )
+            )
+
+        return self.sync_loc(
+            es.ObjectExpression(properties=properties), jac_node=call_node
+        )
+
+    def _resolve_spawn_walker(
+        self, expr: uni.Expr, es_expr: es.Expression
+    ) -> Optional[SpawnWalkerInfo]:
+        """Return walker call info if the expression instantiates a walker."""
+        stripped_node, _ = self._strip_spawn_await(expr, es_expr)
+        if not isinstance(stripped_node, uni.FuncCall):
+            return None
+
+        target_symbol = self._resolve_expr_symbol(stripped_node.target)
+        if not target_symbol or target_symbol.sym_type != SymbolType.WALKER_ARCH:
+            return None
+
+        walker_name = target_symbol.sym_name
+        fields_obj = self._build_spawn_arg_object(stripped_node, target_symbol)
+        return SpawnWalkerInfo(
+            call_node=stripped_node,
+            walker_name=walker_name,
+            fields_object=fields_obj,
+        )
+
+    def _is_root_reference(self, expr: uni.Expr) -> bool:
+        """Check if an expression refers to the root node."""
+        if isinstance(expr, uni.Name) and expr.sym_name == "root":
+            return True
+        if isinstance(expr, uni.SpecialVarRef) and expr.sym_name == "root":
+            return True
+        return False
+
+    def _resolve_spawn_target(
+        self, expr: uni.Expr, es_expr: es.Expression
+    ) -> SpawnTargetInfo:
+        """Convert a spawn target expression into a runtime-ready reference."""
+        stripped_node, stripped_es = self._strip_spawn_await(expr, es_expr)
+        if self._is_root_reference(stripped_node):
+            literal = self.sync_loc(es.Literal(value=""), jac_node=stripped_node)
+            return SpawnTargetInfo(node=stripped_node, expression=literal)
+        return SpawnTargetInfo(node=stripped_node, expression=stripped_es)
+
+    def _prepare_spawn_call(
+        self,
+        node: uni.BinaryExpr,
+        left_expr: es.Expression,
+        right_expr: es.Expression,
+    ) -> Optional[SpawnCallParts]:
+        """Split a spawn expression into walker and target parts."""
+        left_walker = self._resolve_spawn_walker(node.left, left_expr)
+        right_walker = self._resolve_spawn_walker(node.right, right_expr)
+
+        if left_walker and right_walker:
+            self.log_warning(
+                "Both sides of spawn look like walker instantiations; "
+                "defaulting to the right-hand expression.",
+                node_override=node,
+            )
+            target = self._resolve_spawn_target(node.left, left_expr)
+            return SpawnCallParts(walker=right_walker, target=target)
+
+        if left_walker:
+            target = self._resolve_spawn_target(node.right, right_expr)
+            return SpawnCallParts(walker=left_walker, target=target)
+
+        if right_walker:
+            target = self._resolve_spawn_target(node.left, left_expr)
+            return SpawnCallParts(walker=right_walker, target=target)
+
+        self.log_error(
+            "Spawn expressions must include a walker constructor on one side.",
+            node_override=node,
+        )
+        return None
+
+    def _build_spawn_runtime_call(
+        self, node: uni.BinaryExpr, parts: SpawnCallParts
+    ) -> es.AwaitExpression:
+        """Emit the await __jacSpawn(...) expression for a spawn call."""
+        walker_literal = self.sync_loc(
+            es.Literal(value=parts.walker.walker_name),
+            jac_node=parts.walker.call_node,
+        )
+
+        spawn_call = self.sync_loc(
+            es.CallExpression(
+                callee=self.sync_loc(es.Identifier(name="__jacSpawn"), jac_node=node),
+                arguments=[
+                    walker_literal,
+                    parts.target.expression,
+                    parts.walker.fields_object,
+                ],
+            ),
+            jac_node=node,
+        )
+        return self.sync_loc(
+            es.AwaitExpression(argument=spawn_call),
+            jac_node=node,
+        )
 
     def _collect_stmt_body(
         self, body: Optional[Sequence[uni.UniNode]]
@@ -1045,20 +1287,26 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
 
     def exit_binary_expr(self, node: uni.BinaryExpr) -> None:
         """Process binary expression."""
-        left = self._get_ast_or_default(
-            node.left,
-            default_factory=lambda src: (
-                es.Identifier(name=src.sym_name)
-                if isinstance(src, uni.Name)
-                else es.Literal(value=0)
+        left = cast(
+            es.Expression,
+            self._get_ast_or_default(
+                node.left,
+                default_factory=lambda src: (
+                    es.Identifier(name=src.sym_name)
+                    if isinstance(src, uni.Name)
+                    else es.Literal(value=0)
+                ),
             ),
         )
-        right = self._get_ast_or_default(
-            node.right,
-            default_factory=lambda src: (
-                es.Identifier(name=src.sym_name)
-                if isinstance(src, uni.Name)
-                else es.Literal(value=0)
+        right = cast(
+            es.Expression,
+            self._get_ast_or_default(
+                node.right,
+                default_factory=lambda src: (
+                    es.Identifier(name=src.sym_name)
+                    if isinstance(src, uni.Name)
+                    else es.Literal(value=0)
+                ),
             ),
         )
 
@@ -1075,140 +1323,9 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
             #   - node_ref: node reference (empty string "" for root, or node identifier/expression)
             #   - fields_obj: object containing walker parameters as key-value pairs
 
-            # Determine which side has the walker call and which has the node
-            walker_on_left = isinstance(node.left, uni.FuncCall)
-            walker_on_right = isinstance(node.right, uni.FuncCall)
-
-            if walker_on_left and not walker_on_right:
-                # walker() spawn node - reverse order
-                walker_call_node = node.left
-                walker_call_es = left
-                node_expr_node = node.right
-                node_expr_es = right
-            elif walker_on_right and not walker_on_left:
-                # node spawn walker() - standard order
-                walker_call_node = node.right
-                walker_call_es = right
-                node_expr_node = node.left
-                node_expr_es = left
-            else:
-                # Edge case: both or neither are calls
-                # Default to standard order (walker on right)
-                walker_call_node = node.right
-                walker_call_es = right
-                node_expr_node = node.left
-                node_expr_es = left
-
-            # Extract walker name from the walker call
-            # Priority: Jac AST (more reliable) -> ES AST (fallback)
-            walker_name_str = ""
-
-            # Try to get walker name from Jac AST
-            if (
-                isinstance(walker_call_node, uni.FuncCall)
-                and walker_call_node.target
-                and isinstance(walker_call_node.target, uni.Name)
-            ):
-                walker_name_str = walker_call_node.target.sym_name
-
-            # Fallback to ES AST if Jac AST didn't provide the name
-            if (
-                not walker_name_str
-                and isinstance(walker_call_es, es.CallExpression)
-                and isinstance(walker_call_es.callee, es.Identifier)
-            ):
-                walker_name_str = walker_call_es.callee.name
-
-            walker_name = self.sync_loc(
-                es.Literal(value=walker_name_str),
-                jac_node=walker_call_node,
-            )
-
-            # Handle node reference
-            # Check the original Jac node to see if it's "root"
-            # Note: root might be wrapped in an AwaitExpr in the Jac AST
-            is_root = False
-            node_check = node_expr_node
-
-            # Unwrap AwaitExpr if present
-            if isinstance(node_check, uni.AwaitExpr) and node_check.target:
-                node_check = node_check.target
-
-            if isinstance(node_check, uni.Name) and node_check.sym_name == "root":
-                is_root = True
-
-            if is_root:
-                # root is a special keyword - use empty string for root node
-                node_ref = self.sync_loc(es.Literal(value=""), jac_node=node_expr_node)
-            else:
-                # For other nodes, use the node reference
-                # If it's an await expression, unwrap it since we don't need to await the node ref
-                if isinstance(node_expr_es, es.AwaitExpression):
-                    node_ref = node_expr_es.argument
-                else:
-                    node_ref = node_expr_es
-
-            # Convert walker arguments to fields object
-            # Extract keyword arguments from the walker call and build an ObjectExpression
-            # Note: Only keyword arguments are supported for walker spawning
-            # Example: walker(key1=val1, key2=val2) -> {key1: val1, key2: val2}
-            fields_props: list[Union[es.Property, es.SpreadElement]] = []
-
-            if isinstance(walker_call_node, uni.FuncCall):
-                # Process each parameter from the walker call
-                for param in walker_call_node.params:
-                    # Only process keyword arguments (key=value pairs)
-                    if isinstance(param, uni.KWPair):
-                        # Get the key expression
-                        key_expr = (
-                            param.key.gen.es_ast
-                            if param.key and param.key.gen.es_ast
-                            else self.sync_loc(
-                                es.Identifier(name="key"), jac_node=param
-                            )
-                        )
-                        # Get the value expression
-                        value_expr = (
-                            param.value.gen.es_ast
-                            if param.value and param.value.gen.es_ast
-                            else self.sync_loc(es.Literal(value=None), jac_node=param)
-                        )
-                        # Create a property for the fields object
-                        prop = self.sync_loc(
-                            es.Property(
-                                key=key_expr,
-                                value=value_expr,
-                                kind="init",
-                                method=False,
-                                shorthand=False,
-                                computed=False,
-                            ),
-                            jac_node=param,
-                        )
-                        fields_props.append(prop)
-
-            # Build the fields object
-            fields_obj = self.sync_loc(
-                es.ObjectExpression(properties=fields_props), jac_node=walker_call_node
-            )
-
-            # Create the __jacSpawn call
-            spawn_call_expr = self.sync_loc(
-                es.CallExpression(
-                    callee=self.sync_loc(
-                        es.Identifier(name="__jacSpawn"), jac_node=node
-                    ),
-                    arguments=[walker_name, node_ref, fields_obj],
-                ),
-                jac_node=node,
-            )
-
-            # Wrap in await expression since __jacSpawn is async
-            spawn_call = self.sync_loc(
-                es.AwaitExpression(argument=spawn_call_expr),
-                jac_node=node,
-            )
-            node.gen.es_ast = spawn_call
+            spawn_parts = self._prepare_spawn_call(node, left, right)
+            if spawn_parts:
+                node.gen.es_ast = self._build_spawn_runtime_call(node, spawn_parts)
             return
 
         if op_name == Tok.WALRUS_EQ and isinstance(left, es.Identifier):

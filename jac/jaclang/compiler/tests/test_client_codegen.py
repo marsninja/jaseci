@@ -125,3 +125,40 @@ cl def check_types() {
 
             # Clean up
             os.unlink(f.name)
+
+    def test_spawn_operator_supports_positional_and_spread(self) -> None:
+        """Ensure spawn lowering handles positional args and **kwargs."""
+        test_code = '''walker MixedWalker {
+    has label: str;
+    has count: int;
+    has meta: dict = {};
+    can execute with `root entry;
+}
+
+cl def spawn_client() {
+    let node_id = "abcd";
+    let extra = {"meta": {"source": "client"}};
+    let positional = node_id spawn MixedWalker("First", 3);
+    let spread = MixedWalker("Second", 1, **extra) spawn root;
+    return {"positional": positional, "spread": spread};
+}
+'''
+
+        with NamedTemporaryFile(mode="w", suffix=".jac", delete=False) as f:
+            f.write(test_code)
+            f.flush()
+
+            prog = JacProgram()
+            module = prog.compile(f.name)
+            js = module.gen.js
+
+            self.assertIn(
+                '__jacSpawn("MixedWalker", node_id, {"label": "First", "count": 3})',
+                js,
+            )
+            self.assertIn(
+                '__jacSpawn("MixedWalker", "", {"label": "Second", "count": 1, ...extra})',
+                js,
+            )
+
+            os.unlink(f.name)

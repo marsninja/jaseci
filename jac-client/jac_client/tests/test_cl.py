@@ -428,13 +428,13 @@ export default defineConfig({
 
             # Standard order: root spawn parameterized_walker(value=42)
             self.assertIn('__jacSpawn("parameterized_walker", "", {', bundle.code)
-            self.assertIn('value: 42', bundle.code)
+            self.assertIn('"value": 42', bundle.code)
 
             # Reverse order: test_walker(message="Reverse spawn!") spawn root
             # Should generate: __jacSpawn("test_walker", "", {message: "Reverse spawn!"})
             self.assertRegex(
                 bundle.code,
-                r'__jacSpawn\("test_walker",\s*"",\s*\{[^}]*message:\s*"Reverse spawn!"[^}]*\}\)'
+                r'__jacSpawn\("test_walker",\s*"",\s*\{[^}]*"message":\s*"Reverse spawn!"[^}]*\}\)'
             )
 
             # Verify UUID spawn scenarios with complete calls
@@ -447,14 +447,25 @@ export default defineConfig({
             # Should generate: __jacSpawn("parameterized_walker", another_node_id, {value: 100})
             self.assertRegex(
                 bundle.code,
-                r'__jacSpawn\("parameterized_walker",\s*another_node_id,\s*\{[^}]*value:\s*100[^}]*\}\)'
+                r'__jacSpawn\("parameterized_walker",\s*another_node_id,\s*\{[^}]*"value":\s*100[^}]*\}\)'
             )
             self.assertIn('"6ba7b810-9dad-11d1-80b4-00c04fd430c8"', bundle.code)
 
-            # Verify we have at least 5 __jacSpawn calls (2 root standard + 1 root reverse + 2 UUID)
+            # Verify positional argument mapping for walkers
+            self.assertRegex(
+                bundle.code,
+                r'__jacSpawn\("positional_walker",\s*node_id,\s*\{[^}]*"label":\s*"Node positional"[^}]*"count":\s*2',
+            )
+            # Verify spread (**kwargs) handling when walker is on left-hand side
+            self.assertRegex(
+                bundle.code,
+                r'__jacSpawn\("positional_walker",\s*"",\s*_objectSpread\(\{\s*"label":\s*"Spread order"[^}]*"count":\s*5\s*\},\s*extra_fields\)',
+            )
+
+            # Verify we have at least 7 __jacSpawn calls (previous cases + new positional/spread)
             self.assertTrue(
-                bundle.code.count('__jacSpawn') >= 5,
-                "Expected at least 5 __jacSpawn calls in bundle"
+                bundle.code.count('__jacSpawn') >= 7,
+                "Expected at least 7 __jacSpawn calls in bundle"
             )
 
             # Verify bundle was written to output directory

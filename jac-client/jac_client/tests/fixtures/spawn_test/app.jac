@@ -21,6 +21,20 @@ walker parameterized_walker {
     }
 }
 
+walker positional_walker {
+    has label: str;
+    has count: int;
+    has metadata: dict = {};
+
+    can execute with `root entry {
+        report {
+            "label": self.label,
+            "count": self.count,
+            "meta": self.metadata
+        } ;
+    }
+}
+
 # Client-side code testing both spawn orderings
 cl import from react {
     useState,
@@ -34,6 +48,8 @@ cl {
         let [reverseResult, setReverseResult] = useState(None);
         let [uuidResult, setUuidResult] = useState(None);
         let [reverseUuidResult, setReverseUuidResult] = useState(None);
+        let [positionalResult, setPositionalResult] = useState(None);
+        let [spreadResult, setSpreadResult] = useState(None);
 
         async def loadData()  -> None {
             # Test standard spawn order: node spawn walker()
@@ -56,6 +72,15 @@ cl {
             another_node_id = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
             data5 = parameterized_walker(value=100) spawn another_node_id;
             setReverseUuidResult(data5);
+
+            # Test positional walker arguments inferred from has fields
+            data6 = node_id spawn positional_walker("Node positional", 2);
+            setPositionalResult(data6);
+
+            # Test **kwargs via spread when walker is on left-hand side
+            extra_fields = {"metadata": {"source": "client-side"}};
+            data7 = positional_walker("Spread order", 5, **extra_fields) spawn root;
+            setSpreadResult(data7);
         }
 
         useEffect(lambda   -> None{ loadData();} , []);
@@ -90,6 +115,18 @@ cl {
             </h2>
             <div>
                 Result: {JSON.stringify(reverseUuidResult)}
+            </div>
+            <h2>
+                Positional Walker Arguments
+            </h2>
+            <div>
+                Result: {JSON.stringify(positionalResult)}
+            </div>
+            <h2>
+                Spread Walker Arguments
+            </h2>
+            <div>
+                Result: {JSON.stringify(spreadResult)}
             </div>
         </div>;
     }
