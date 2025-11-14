@@ -394,7 +394,7 @@ export default defineConfig({
             builder.cleanup_temp_dir()
 
     def test_spawn_operator(self) -> None:
-        """Test that spawn operator generates correct __jacSpawn calls for both standard and reverse order."""
+        """Test that spawn operator generates correct __jacSpawn calls for both orderings and node types (root and UUID)."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
@@ -422,24 +422,39 @@ export default defineConfig({
             self.assertEqual(bundle.module_name, "app")
             self.assertIn("app", bundle.client_functions)
 
-            # Verify __jacSpawn calls are generated for both orderings
-            self.assertIn('__jacSpawn("test_walker"', bundle.code)
-            self.assertIn('__jacSpawn("parameterized_walker"', bundle.code)
+            # Verify complete __jacSpawn calls for root spawn scenarios
+            # Standard order: root spawn test_walker()
+            self.assertIn('__jacSpawn("test_walker", "", {})', bundle.code)
 
-            # Verify root is converted to empty string (second parameter)
-            self.assertIn('__jacSpawn("test_walker", ""', bundle.code)
-            self.assertIn('__jacSpawn("parameterized_walker", ""', bundle.code)
-
-            # Verify standard order parameters (node spawn walker)
+            # Standard order: root spawn parameterized_walker(value=42)
+            self.assertIn('__jacSpawn("parameterized_walker", "", {', bundle.code)
             self.assertIn('value: 42', bundle.code)
 
-            # Verify reverse order parameters (walker spawn node)
-            self.assertIn('message: "Reverse spawn!"', bundle.code)
+            # Reverse order: test_walker(message="Reverse spawn!") spawn root
+            # Should generate: __jacSpawn("test_walker", "", {message: "Reverse spawn!"})
+            self.assertRegex(
+                bundle.code,
+                r'__jacSpawn\("test_walker",\s*"",\s*\{[^}]*message:\s*"Reverse spawn!"[^}]*\}\)'
+            )
 
-            # Verify we have at least 3 __jacSpawn calls (2 standard + 1 reverse)
+            # Verify UUID spawn scenarios with complete calls
+            # Standard UUID spawn: node_id spawn test_walker()
+            # Should generate: __jacSpawn("test_walker", node_id, {})
+            self.assertIn('__jacSpawn("test_walker", node_id, {})', bundle.code)
+            self.assertIn('"550e8400-e29b-41d4-a716-446655440000"', bundle.code)
+
+            # Reverse UUID spawn: parameterized_walker(value=100) spawn another_node_id
+            # Should generate: __jacSpawn("parameterized_walker", another_node_id, {value: 100})
+            self.assertRegex(
+                bundle.code,
+                r'__jacSpawn\("parameterized_walker",\s*another_node_id,\s*\{[^}]*value:\s*100[^}]*\}\)'
+            )
+            self.assertIn('"6ba7b810-9dad-11d1-80b4-00c04fd430c8"', bundle.code)
+
+            # Verify we have at least 5 __jacSpawn calls (2 root standard + 1 root reverse + 2 UUID)
             self.assertTrue(
-                bundle.code.count('__jacSpawn') >= 3,
-                "Expected at least 3 __jacSpawn calls in bundle"
+                bundle.code.count('__jacSpawn') >= 5,
+                "Expected at least 5 __jacSpawn calls in bundle"
             )
 
             # Verify bundle was written to output directory

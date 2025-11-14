@@ -9,7 +9,7 @@ walker test_walker {
     has message: str = "Hello from walker";
 
     can execute with `root entry {
-        report {"result": self.message};
+        report {"result": self.message} ;
     }
 }
 
@@ -17,20 +17,25 @@ walker parameterized_walker {
     has value: int;
 
     can execute with `root entry {
-        report {"computed": self.value * 2};
+        report {"computed": self.value * 2} ;
     }
 }
 
 # Client-side code testing both spawn orderings
-cl import from react {useState, useEffect}
+cl import from react {
+    useState,
+    useEffect
+}
 
 cl {
-    def app() -> any {
+    def app()  -> any {
         let [standardResult, setStandardResult] = useState(None);
         let [standardComputed, setStandardComputed] = useState(None);
         let [reverseResult, setReverseResult] = useState(None);
+        let [uuidResult, setUuidResult] = useState(None);
+        let [reverseUuidResult, setReverseUuidResult] = useState(None);
 
-        async def loadData() -> None {
+        async def loadData()  -> None {
             # Test standard spawn order: node spawn walker()
             data1 = root spawn test_walker();
             setStandardResult(data1);
@@ -41,19 +46,51 @@ cl {
             # Test reverse spawn order: walker() spawn node
             data3 = test_walker(message="Reverse spawn!") spawn root;
             setReverseResult(data3);
+
+            # Test spawn with UUID string: uuid_string spawn walker()
+            node_id = "550e8400-e29b-41d4-a716-446655440000";
+            data4 = node_id spawn test_walker();
+            setUuidResult(data4);
+
+            # Test reverse spawn with UUID string: walker() spawn uuid_string
+            another_node_id = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+            data5 = parameterized_walker(value=100) spawn another_node_id;
+            setReverseUuidResult(data5);
         }
 
-        useEffect(lambda -> None {
-            loadData();
-        }, []);
+        useEffect(lambda   -> None{ loadData();} , []);
 
         return <div>
-            <h1>Spawn Operator Test</h1>
-            <h2>Standard Order (node spawn walker)</h2>
-            <div>Result: {JSON.stringify(standardResult)}</div>
-            <div>Computed: {JSON.stringify(standardComputed)}</div>
-            <h2>Reverse Order (walker spawn node)</h2>
-            <div>Result: {JSON.stringify(reverseResult)}</div>
+            <h1>
+                Spawn Operator Test
+            </h1>
+            <h2>
+                Standard Order (node spawn walker)
+            </h2>
+            <div>
+                Result: {JSON.stringify(standardResult)}
+            </div>
+            <div>
+                Computed: {JSON.stringify(standardComputed)}
+            </div>
+            <h2>
+                Reverse Order (walker spawn node)
+            </h2>
+            <div>
+                Result: {JSON.stringify(reverseResult)}
+            </div>
+            <h2>
+                UUID Spawn (uuid spawn walker)
+            </h2>
+            <div>
+                Result: {JSON.stringify(uuidResult)}
+            </div>
+            <h2>
+                Reverse UUID Spawn (walker spawn uuid)
+            </h2>
+            <div>
+                Result: {JSON.stringify(reverseUuidResult)}
+            </div>
         </div>;
     }
 }

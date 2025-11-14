@@ -1062,7 +1062,7 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
             ),
         )
 
-        op_name = node.op.name
+        op_name = getattr(node.op, "name", None)
 
         if op_name == Tok.KW_SPAWN:
             # Spawn operator can work in two ways:
