@@ -272,14 +272,12 @@ class ClientBundleBuilder:
 
         # Filter out type/semantic errors - we only care about syntax errors for client bundles
         # Type and semantic errors in client code are acceptable for JS generation
+        from jaclang.compiler.passes.main import SemanticAnalysisPass, TypeCheckPass
+
         compilation_errors = [
             err
             for err in self._program.errors_had
-            if not err.msg.startswith("Cannot assign")
-            and not err.msg.startswith("Cannot return")
-            and not err.msg.startswith("Too many")
-            and not err.msg.startswith("Not all required")
-            and not err.msg.startswith("Connection left operand")
+            if err.from_pass not in (TypeCheckPass, SemanticAnalysisPass)
         ]
 
         if compilation_errors:
