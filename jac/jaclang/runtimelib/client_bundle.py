@@ -54,6 +54,7 @@ class ClientBundleBuilder:
             "client_runtime.jac"
         )
         self._cache: dict[str, _CachedBundle] = {}
+        self._program = JacProgram()  # Shared program for caching across compilations
 
     def build(self, module: ModuleType, force: bool = False) -> ClientBundle:
         """Build (or reuse) a client bundle for the supplied module."""
@@ -265,13 +266,30 @@ class ClientBundleBuilder:
         Returns:
             Tuple of (js_code, compiled_module) where compiled_module contains the client_manifest
         """
-        program = JacProgram()
-        mod = program.compile(str(source_path))
-        if program.errors_had:
-            formatted = "\n".join(str(err) for err in program.errors_had)
+        # Use shared program instance to enable caching across module compilations
+        # TypeCheckPass populates symbols as a side effect of type checking
+        mod = self._program.compile(str(source_path), type_check=True)
+
+        # Filter out type errors - we only care about compilation errors for client bundles
+        # Type errors in client_runtime.jac and user code are acceptable for JS generation
+        compilation_errors = [
+            err
+            for err in self._program.errors_had
+            if not err.msg.startswith("Cannot assign")
+            and not err.msg.startswith("Cannot return")
+            and not err.msg.startswith("Too many")
+            and not err.msg.startswith("Not all required")
+        ]
+
+        if compilation_errors:
+            formatted = "\n".join(str(err) for err in compilation_errors)
             raise ClientBundleError(
                 f"Failed to compile '{source_path}' for client bundle:\n{formatted}"
             )
+
+        # Clear errors for next compilation
+        self._program.errors_had.clear()
+
         return mod.gen.js or "", mod
 
     @staticmethod

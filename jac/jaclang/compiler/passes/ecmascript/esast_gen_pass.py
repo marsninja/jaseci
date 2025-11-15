@@ -31,7 +31,6 @@ from jaclang.compiler.constant import SymbolType, Tokens as Tok
 from jaclang.compiler.passes.ast_gen import BaseAstGenPass
 from jaclang.compiler.passes.ast_gen.jsx_processor import EsJsxProcessor
 from jaclang.compiler.passes.ecmascript.es_unparse import es_to_js
-from jaclang.compiler.type_system import types as jtypes
 from jaclang.utils import convert_to_js_import_path
 
 ES_LOGICAL_OPS: dict[Tok, str] = {Tok.KW_AND: "&&", Tok.KW_OR: "||"}
@@ -1822,17 +1821,26 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
                     ),
                     jac_node=node,
                 )
+        # Check if this is a class constructor call (should use 'new' in JS)
+        # Use symbol table info - DefUsePass populates symbols for all Name references
+        is_class_constructor = False
         if isinstance(node.target, uni.Name):
-            callee_type = self.prog.get_type_evaluator().get_type_of_expression(
-                node.target
-            )
-        else:
-            callee_type = None
+            target_sym = getattr(node.target, "sym", None)
+            if target_sym and target_sym.defn:
+                defn_node = target_sym.defn[0]
+                sym_cat = getattr(defn_node, "sym_category", None)
+                # Classes/archetypes have these symbol categories
+                is_class_constructor = sym_cat in (
+                    SymbolType.OBJECT_ARCH,
+                    SymbolType.NODE_ARCH,
+                    SymbolType.EDGE_ARCH,
+                    SymbolType.WALKER_ARCH,
+                    SymbolType.TYPE,
+                )
+
         args_obj = self.sync_loc(es.ObjectExpression(properties=props), jac_node=node)
-        if isinstance(callee_type, jtypes.ClassType) and isinstance(
-            callee, es.Expression
-        ):
-            # Ensure callee is an Expression for NewExpression
+        if is_class_constructor and isinstance(callee, es.Expression):
+            # Use NewExpression for class constructors
             node.gen.es_ast = self.sync_loc(
                 es.NewExpression(callee=callee, arguments=args_obj if props else args),
                 jac_node=node,
