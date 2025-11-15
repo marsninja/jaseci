@@ -344,7 +344,7 @@ class TypeEvaluator {
         # Module item can be both a module or a member of a module.
         # import from .. { mod }   # <-- Here mod is not a member but a module itself.
         # import from mod { item } # <-- Here item is not a module but a member of mod.
-        if node_.name.type is not None {
+        if isinstance(node_.name, uni.Name) and node_.name.type is not None {
             return node_.name.type;
         }
 
@@ -1055,7 +1055,7 @@ class TypeEvaluator {
             mod_item = sym.decl.find_parent_of_type(uni.ModuleItem);
             assert (mod_item is not None);
             self.get_type_of_module(mod_item.from_mod_path);
-            return (mod_item.name.sym or sym);
+            return (mod_item.name.sym or sym) if isinstance(mod_item.name, uni.Name) else sym;
         }
         return sym;
     }
