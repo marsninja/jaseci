@@ -125,12 +125,14 @@ class TypeCheckPass(UniPass):
 
         if fn := self.evaluator._get_enclosing_function(node):
             fn_type = self.evaluator.get_type_of_ability(fn)
-            return_type = self.evaluator._convert_to_instance(fn_type.return_type)
-            if not self.evaluator.assign_type(returning_type, return_type):
-                self.log_error(
-                    f"Cannot return {returning_type}, expected {fn_type.return_type}",
-                    node,
-                )
+            # Skip return type checking if function type is unknown
+            if isinstance(fn_type, jtypes.FunctionType):
+                return_type = self.evaluator._convert_to_instance(fn_type.return_type)
+                if not self.evaluator.assign_type(returning_type, return_type):
+                    self.log_error(
+                        f"Cannot return {returning_type}, expected {fn_type.return_type}",
+                        node,
+                    )
 
     def exit_formatted_value(self, node: uni.FormattedValue) -> None:
         """Handle the formatted value node."""

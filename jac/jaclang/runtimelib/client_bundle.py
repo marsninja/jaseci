@@ -270,8 +270,8 @@ class ClientBundleBuilder:
         # TypeCheckPass populates symbols as a side effect of type checking
         mod = self._program.compile(str(source_path), type_check=True)
 
-        # Filter out type errors - we only care about compilation errors for client bundles
-        # Type errors in client_runtime.jac and user code are acceptable for JS generation
+        # Filter out type/semantic errors - we only care about syntax errors for client bundles
+        # Type and semantic errors in client code are acceptable for JS generation
         compilation_errors = [
             err
             for err in self._program.errors_had
@@ -279,6 +279,7 @@ class ClientBundleBuilder:
             and not err.msg.startswith("Cannot return")
             and not err.msg.startswith("Too many")
             and not err.msg.startswith("Not all required")
+            and not err.msg.startswith("Connection left operand")
         ]
 
         if compilation_errors:

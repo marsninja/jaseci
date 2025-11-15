@@ -54,11 +54,10 @@ class ImportPassPassTests(TestCase):
         (prog := JacProgram()).build(self.fixture_abs_path("incautoimpl.jac"))
         count = 0
         all_mods = prog.mod.hub.values()
-        # Typechecked modules also will be present along with annex modules
+        # Annex modules discovered and loaded
         # ["incautoimpl", "autoimpl", "autoimpl.something.else.impl",
-        #  "autoimpl.impl", "autoimpl.empty.impl", "autoimpl.cl",
-        #  "getme.impl", "typing", "types", "builtins",]
-        self.assertEqual(len(all_mods), 10)
+        #  "autoimpl.impl", "autoimpl.empty.impl", "autoimpl.cl", "getme.impl"]
+        self.assertEqual(len(all_mods), 7)
         for main_mod in all_mods:
             for i in main_mod.impl_mod:
                 if i.name not in ["autoimpl", "incautoimpl"]:

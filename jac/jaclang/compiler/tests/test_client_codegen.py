@@ -26,7 +26,7 @@ class TestClientCodegen(TestCase):
         """Test JavaScript code generation produces valid output and manifest."""
         fixture = FIXTURE_DIR / "client_jsx.jac"
         prog = JacProgram()
-        module = prog.compile(str(fixture))
+        module = prog.compile(str(fixture), type_check=True)
 
         self.assertTrue(module.gen.js.strip(), "Expected JavaScript output for client declarations")
         self.assertIn("function component", module.gen.js)
@@ -149,7 +149,7 @@ cl def spawn_client() {
             f.flush()
 
             prog = JacProgram()
-            module = prog.compile(f.name)
+            module = prog.compile(f.name, type_check=True)
             js = module.gen.js
 
             self.assertIn(
