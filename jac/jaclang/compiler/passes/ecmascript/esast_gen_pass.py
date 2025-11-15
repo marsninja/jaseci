@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Sequence, Union, cast
 
 import jaclang.compiler.passes.ecmascript.estree as es
+import jaclang.compiler.type_system.types as jtypes
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import SymbolType, Tokens as Tok
 from jaclang.compiler.passes.ast_gen import BaseAstGenPass
@@ -1822,24 +1823,13 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
                     jac_node=node,
                 )
         # Check if this is a class constructor call (should use 'new' in JS)
-        # Use symbol table info - DefUsePass populates symbols for all Name references
-        is_class_constructor = False
-        if isinstance(node.target, uni.Name):
-            target_sym = getattr(node.target, "sym", None)
-            if target_sym and target_sym.defn:
-                defn_node = target_sym.defn[0]
-                sym_cat = getattr(defn_node, "sym_category", None)
-                # Classes/archetypes have these symbol categories
-                is_class_constructor = sym_cat in (
-                    SymbolType.OBJECT_ARCH,
-                    SymbolType.NODE_ARCH,
-                    SymbolType.EDGE_ARCH,
-                    SymbolType.WALKER_ARCH,
-                    SymbolType.TYPE,
-                )
+        # TypeCheckPass has already populated the type on the node
+        callee_type = node.target.type if isinstance(node.target, uni.Name) else None
 
         args_obj = self.sync_loc(es.ObjectExpression(properties=props), jac_node=node)
-        if is_class_constructor and isinstance(callee, es.Expression):
+        if isinstance(callee_type, jtypes.ClassType) and isinstance(
+            callee, es.Expression
+        ):
             # Use NewExpression for class constructors
             node.gen.es_ast = self.sync_loc(
                 es.NewExpression(callee=callee, arguments=args_obj if props else args),
