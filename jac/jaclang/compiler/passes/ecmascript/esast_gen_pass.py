@@ -150,6 +150,7 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
         self.scope_map: dict[uni.UniScopeNode, ScopeInfo] = {}
         self.client_manifest = ClientManifest()
         self.client_scope_stack: list[bool] = []  # Track client scope nesting
+        self.async_context_stack: list[bool] = []  # Track async function context
         self.jsx_processor = EsJsxProcessor(self)
 
     def enter_node(self, node: uni.UniNode) -> None:
@@ -264,6 +265,10 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
     def _is_in_client_scope(self) -> bool:
         """Check if we're currently in a client-side function."""
         return any(self.client_scope_stack)
+
+    def _is_in_async_context(self) -> bool:
+        """Check if we're currently in an async function/lambda."""
+        return any(self.async_context_stack)
 
     def _strip_spawn_await(
         self, node_expr: uni.Expr, es_expr: es.Expression
@@ -914,10 +919,12 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
         node.gen.es_ast = var_decl
 
     def enter_ability(self, node: uni.Ability) -> None:
-        """Track entry into ability to manage client scope."""
+        """Track entry into ability to manage client scope and async context."""
         # Push True if this is a client function, False otherwise
         is_client = getattr(node, "is_client_decl", False)
         self.client_scope_stack.append(is_client)
+        # Track async context
+        self.async_context_stack.append(node.is_async)
 
     def exit_ability(self, node: uni.Ability) -> None:
         """Process ability (function/method) declaration."""
@@ -976,6 +983,9 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
         # Pop the client scope stack
         if self.client_scope_stack:
             self.client_scope_stack.pop()
+        # Pop the async context stack
+        if self.async_context_stack:
+            self.async_context_stack.pop()
 
     def exit_func_signature(self, node: uni.FuncSignature) -> None:
         """Process function signature."""
@@ -1771,27 +1781,31 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
                         )
 
                         # Create __jacCallFunction(func_name, args_obj) call
-                        call_expr = self.sync_loc(
-                            es.AwaitExpression(
-                                argument=self.sync_loc(
-                                    es.CallExpression(
-                                        callee=self.sync_loc(
-                                            es.Identifier(name="__jacCallFunction"),
-                                            jac_node=node,
-                                        ),
-                                        arguments=[
-                                            self.sync_loc(
-                                                es.Literal(value=func_name),
-                                                jac_node=node,
-                                            ),
-                                            args_obj,
-                                        ],
-                                    ),
+                        jac_call = self.sync_loc(
+                            es.CallExpression(
+                                callee=self.sync_loc(
+                                    es.Identifier(name="__jacCallFunction"),
                                     jac_node=node,
-                                )
+                                ),
+                                arguments=[
+                                    self.sync_loc(
+                                        es.Literal(value=func_name),
+                                        jac_node=node,
+                                    ),
+                                    args_obj,
+                                ],
                             ),
                             jac_node=node,
                         )
+
+                        # Only wrap in await if we're in an async context
+                        if self._is_in_async_context():
+                            call_expr = self.sync_loc(
+                                es.AwaitExpression(argument=jac_call),
+                                jac_node=node,
+                            )
+                        else:
+                            call_expr = jac_call
                         node.gen.es_ast = call_expr
                         return
 
@@ -1945,6 +1959,12 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
                 # If right is a call or other expression, it should already be processed
                 node.gen.es_ast = node.right.gen.es_ast
 
+    def enter_lambda_expr(self, node: uni.LambdaExpr) -> None:
+        """Track entry into lambda to manage async context."""
+        # Lambdas are currently always non-async
+        # TODO: Support async lambdas in the future
+        self.async_context_stack.append(False)
+
     def exit_lambda_expr(self, node: uni.LambdaExpr) -> None:
         """Process lambda expression as arrow function."""
         # Extract parameters
@@ -1990,6 +2010,10 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
                 jac_node=node,
             )
             node.gen.es_ast = arrow_func
+
+        # Pop the async context stack
+        if self.async_context_stack:
+            self.async_context_stack.pop()
 
     def exit_atom_unit(self, node: uni.AtomUnit) -> None:
         """Process parenthesized atom."""
