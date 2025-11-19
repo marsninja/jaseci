@@ -63,7 +63,7 @@ class Identifier(Node):
     """Identifier node."""
 
     name: str = ""
-    type: TypingLiteral[Identifier] = field(default="Identifier", init=False)
+    type: str = field(default="Identifier", init=False)
 
 
 @dataclass
@@ -71,9 +71,7 @@ class PrivateIdentifier(Node):
     """Private identifier for class members (ES2022)."""
 
     name: str = ""
-    type: TypingLiteral[PrivateIdentifier] = field(
-        default="PrivateIdentifier", init=False
-    )
+    type: str = field(default="PrivateIdentifier", init=False)
 
 
 @dataclass
@@ -83,7 +81,7 @@ class Literal(Node):
     value: str | bool | None | int | float = None
     raw: str | None = None
     bigint: str | None = None  # ES2020: BigInt represented as string
-    type: TypingLiteral[Literal] = field(default="Literal", init=False)
+    type: str = field(default="Literal", init=False)
 
 
 @dataclass
@@ -91,7 +89,7 @@ class RegExpLiteral(Literal):
     """Regular expression literal."""
 
     regex: dict[str, str] = field(default_factory=dict)  # {pattern: str, flags: str}
-    type: TypingLiteral[Literal] = field(default="Literal", init=False)
+    type: str = field(default="Literal", init=False)
 
 
 # Program and Statements
@@ -104,7 +102,7 @@ class Program(Node):
 
     body: list[Statement | ModuleDeclaration] = field(default_factory=list)
     sourceType: SourceType = "script"  # noqa: N815
-    type: TypingLiteral[Program] = field(default="Program", init=False)
+    type: str = field(default="Program", init=False)
 
 
 @dataclass
@@ -112,9 +110,7 @@ class ExpressionStatement(Node):
     """Expression statement."""
 
     expression: Expression | None = None
-    type: TypingLiteral[ExpressionStatement] = field(
-        default="ExpressionStatement", init=False
-    )
+    type: str = field(default="ExpressionStatement", init=False)
 
 
 @dataclass
@@ -122,9 +118,7 @@ class Directive(ExpressionStatement):
     """Directive (e.g., 'use strict') - ES5."""
 
     directive: str = ""
-    type: TypingLiteral[ExpressionStatement] = field(
-        default="ExpressionStatement", init=False
-    )
+    type: str = field(default="ExpressionStatement", init=False)
 
 
 @dataclass
@@ -132,23 +126,21 @@ class BlockStatement(Node):
     """Block statement."""
 
     body: list[Statement] = field(default_factory=list)
-    type: TypingLiteral[BlockStatement] = field(default="BlockStatement", init=False)
+    type: str = field(default="BlockStatement", init=False)
 
 
 @dataclass
 class EmptyStatement(Node):
     """Empty statement (;)."""
 
-    type: TypingLiteral[EmptyStatement] = field(default="EmptyStatement", init=False)
+    type: str = field(default="EmptyStatement", init=False)
 
 
 @dataclass
 class DebuggerStatement(Node):
     """Debugger statement."""
 
-    type: TypingLiteral[DebuggerStatement] = field(
-        default="DebuggerStatement", init=False
-    )
+    type: str = field(default="DebuggerStatement", init=False)
 
 
 @dataclass
@@ -157,7 +149,7 @@ class WithStatement(Node):
 
     object: Expression | None = None
     body: Statement | None = None
-    type: TypingLiteral[WithStatement] = field(default="WithStatement", init=False)
+    type: str = field(default="WithStatement", init=False)
 
 
 @dataclass
@@ -165,7 +157,7 @@ class ReturnStatement(Node):
     """Return statement."""
 
     argument: Expression | None = None
-    type: TypingLiteral[ReturnStatement] = field(default="ReturnStatement", init=False)
+    type: str = field(default="ReturnStatement", init=False)
 
 
 @dataclass
@@ -174,9 +166,7 @@ class LabeledStatement(Node):
 
     label: Identifier | None = None
     body: Statement | None = None
-    type: TypingLiteral[LabeledStatement] = field(
-        default="LabeledStatement", init=False
-    )
+    type: str = field(default="LabeledStatement", init=False)
 
 
 @dataclass
@@ -184,7 +174,7 @@ class BreakStatement(Node):
     """Break statement."""
 
     label: Identifier | None = None
-    type: TypingLiteral[BreakStatement] = field(default="BreakStatement", init=False)
+    type: str = field(default="BreakStatement", init=False)
 
 
 @dataclass
@@ -192,9 +182,7 @@ class ContinueStatement(Node):
     """Continue statement."""
 
     label: Identifier | None = None
-    type: TypingLiteral[ContinueStatement] = field(
-        default="ContinueStatement", init=False
-    )
+    type: str = field(default="ContinueStatement", init=False)
 
 
 @dataclass
@@ -204,7 +192,7 @@ class IfStatement(Node):
     test: Expression | None = None
     consequent: Statement | None = None
     alternate: Statement | None = None
-    type: TypingLiteral[IfStatement] = field(default="IfStatement", init=False)
+    type: str = field(default="IfStatement", init=False)
 
 
 @dataclass
@@ -213,7 +201,7 @@ class SwitchStatement(Node):
 
     discriminant: Expression | None = None
     cases: list[SwitchCase] = field(default_factory=list)
-    type: TypingLiteral[SwitchStatement] = field(default="SwitchStatement", init=False)
+    type: str = field(default="SwitchStatement", init=False)
 
 
 @dataclass
@@ -222,7 +210,7 @@ class SwitchCase(Node):
 
     test: Expression | None = None  # null for default case
     consequent: list[Statement] = field(default_factory=list)
-    type: TypingLiteral[SwitchCase] = field(default="SwitchCase", init=False)
+    type: str = field(default="SwitchCase", init=False)
 
 
 @dataclass
@@ -230,7 +218,7 @@ class ThrowStatement(Node):
     """Throw statement."""
 
     argument: Expression | None = None
-    type: TypingLiteral[ThrowStatement] = field(default="ThrowStatement", init=False)
+    type: str = field(default="ThrowStatement", init=False)
 
 
 @dataclass
@@ -240,7 +228,7 @@ class TryStatement(Node):
     block: BlockStatement | None = None
     handler: CatchClause | None = None
     finalizer: BlockStatement | None = None
-    type: TypingLiteral[TryStatement] = field(default="TryStatement", init=False)
+    type: str = field(default="TryStatement", init=False)
 
 
 @dataclass
@@ -249,7 +237,7 @@ class CatchClause(Node):
 
     param: Pattern | None = None
     body: BlockStatement | None = None
-    type: TypingLiteral[CatchClause] = field(default="CatchClause", init=False)
+    type: str = field(default="CatchClause", init=False)
 
 
 @dataclass
@@ -258,7 +246,7 @@ class WhileStatement(Node):
 
     test: Expression | None = None
     body: Statement | None = None
-    type: TypingLiteral[WhileStatement] = field(default="WhileStatement", init=False)
+    type: str = field(default="WhileStatement", init=False)
 
 
 @dataclass
@@ -267,9 +255,7 @@ class DoWhileStatement(Node):
 
     body: Statement | None = None
     test: Expression | None = None
-    type: TypingLiteral[DoWhileStatement] = field(
-        default="DoWhileStatement", init=False
-    )
+    type: str = field(default="DoWhileStatement", init=False)
 
 
 @dataclass
@@ -280,7 +266,7 @@ class ForStatement(Node):
     test: Expression | None = None
     update: Expression | None = None
     body: Statement | None = None
-    type: TypingLiteral[ForStatement] = field(default="ForStatement", init=False)
+    type: str = field(default="ForStatement", init=False)
 
 
 @dataclass
@@ -290,7 +276,7 @@ class ForInStatement(Node):
     left: VariableDeclaration | Pattern | None = None
     right: Expression | None = None
     body: Statement | None = None
-    type: TypingLiteral[ForInStatement] = field(default="ForInStatement", init=False)
+    type: str = field(default="ForInStatement", init=False)
 
 
 @dataclass
@@ -301,7 +287,7 @@ class ForOfStatement(Node):
     right: Expression | None = None
     body: Statement | None = None
     await_: bool = False
-    type: TypingLiteral[ForOfStatement] = field(default="ForOfStatement", init=False)
+    type: str = field(default="ForOfStatement", init=False)
 
 
 # Declarations
@@ -317,9 +303,7 @@ class FunctionDeclaration(Node):
     body: BlockStatement | None = None
     generator: bool = False
     async_: bool = False
-    type: TypingLiteral[FunctionDeclaration] = field(
-        default="FunctionDeclaration", init=False
-    )
+    type: str = field(default="FunctionDeclaration", init=False)
 
 
 @dataclass
@@ -328,9 +312,7 @@ class VariableDeclaration(Node):
 
     declarations: list[VariableDeclarator] = field(default_factory=list)
     kind: VariableDeclarationKind = "var"
-    type: TypingLiteral[VariableDeclaration] = field(
-        default="VariableDeclaration", init=False
-    )
+    type: str = field(default="VariableDeclaration", init=False)
 
 
 @dataclass
@@ -339,9 +321,7 @@ class VariableDeclarator(Node):
 
     id: Pattern | None = None
     init: Expression | None = None
-    type: TypingLiteral[VariableDeclarator] = field(
-        default="VariableDeclarator", init=False
-    )
+    type: str = field(default="VariableDeclarator", init=False)
 
 
 # Expressions
@@ -352,7 +332,7 @@ class VariableDeclarator(Node):
 class ThisExpression(Node):
     """This expression."""
 
-    type: TypingLiteral[ThisExpression] = field(default="ThisExpression", init=False)
+    type: str = field(default="ThisExpression", init=False)
 
 
 @dataclass
@@ -360,7 +340,7 @@ class ArrayExpression(Node):
     """Array expression."""
 
     elements: list[Expression | SpreadElement | None] = field(default_factory=list)
-    type: TypingLiteral[ArrayExpression] = field(default="ArrayExpression", init=False)
+    type: str = field(default="ArrayExpression", init=False)
 
 
 @dataclass
@@ -368,9 +348,7 @@ class ObjectExpression(Node):
     """Object expression."""
 
     properties: list[Property | SpreadElement] = field(default_factory=list)
-    type: TypingLiteral[ObjectExpression] = field(
-        default="ObjectExpression", init=False
-    )
+    type: str = field(default="ObjectExpression", init=False)
 
 
 @dataclass
@@ -383,7 +361,7 @@ class Property(Node):
     method: bool = False
     shorthand: bool = False
     computed: bool = False
-    type: TypingLiteral[Property] = field(default="Property", init=False)
+    type: str = field(default="Property", init=False)
 
 
 @dataclass
@@ -395,9 +373,7 @@ class FunctionExpression(Node):
     body: BlockStatement | None = None
     generator: bool = False
     async_: bool = False
-    type: TypingLiteral[FunctionExpression] = field(
-        default="FunctionExpression", init=False
-    )
+    type: str = field(default="FunctionExpression", init=False)
 
 
 @dataclass
@@ -408,9 +384,7 @@ class ArrowFunctionExpression(Node):
     body: BlockStatement | Expression | None = None
     expression: bool = False
     async_: bool = False
-    type: TypingLiteral[ArrowFunctionExpression] = field(
-        default="ArrowFunctionExpression", init=False
-    )
+    type: str = field(default="ArrowFunctionExpression", init=False)
 
 
 @dataclass
@@ -420,7 +394,7 @@ class UnaryExpression(Node):
     operator: str = ""  # "-", "+", "!", "~", "typeof", "void", "delete"
     prefix: bool = True
     argument: Expression | None = None
-    type: TypingLiteral[UnaryExpression] = field(default="UnaryExpression", init=False)
+    type: str = field(default="UnaryExpression", init=False)
 
 
 @dataclass
@@ -431,9 +405,7 @@ class UpdateExpression(Node):
     operator: str = "++"
     argument: Expression | None = None
     prefix: bool = True
-    type: TypingLiteral[UpdateExpression] = field(
-        default="UpdateExpression", init=False
-    )
+    type: str = field(default="UpdateExpression", init=False)
 
 
 @dataclass
@@ -445,9 +417,7 @@ class BinaryExpression(Node):
     operator: str = ""
     left: Expression | None = None
     right: Expression | None = None
-    type: TypingLiteral[BinaryExpression] = field(
-        default="BinaryExpression", init=False
-    )
+    type: str = field(default="BinaryExpression", init=False)
 
 
 @dataclass
@@ -458,9 +428,7 @@ class AssignmentExpression(Node):
     operator: str = "="
     left: Pattern | Expression | None = None
     right: Expression | None = None
-    type: TypingLiteral[AssignmentExpression] = field(
-        default="AssignmentExpression", init=False
-    )
+    type: str = field(default="AssignmentExpression", init=False)
 
 
 @dataclass
@@ -471,9 +439,7 @@ class LogicalExpression(Node):
     operator: str = "&&"
     left: Expression | None = None
     right: Expression | None = None
-    type: TypingLiteral[LogicalExpression] = field(
-        default="LogicalExpression", init=False
-    )
+    type: str = field(default="LogicalExpression", init=False)
 
 
 @dataclass
@@ -484,9 +450,7 @@ class MemberExpression(Node):
     property: Expression | None = None
     computed: bool = False
     optional: bool = False
-    type: TypingLiteral[MemberExpression] = field(
-        default="MemberExpression", init=False
-    )
+    type: str = field(default="MemberExpression", init=False)
 
 
 @dataclass
@@ -496,9 +460,7 @@ class ConditionalExpression(Node):
     test: Expression | None = None
     consequent: Expression | None = None
     alternate: Expression | None = None
-    type: TypingLiteral[ConditionalExpression] = field(
-        default="ConditionalExpression", init=False
-    )
+    type: str = field(default="ConditionalExpression", init=False)
 
 
 @dataclass
@@ -508,7 +470,7 @@ class CallExpression(Node):
     callee: Expression | Super | None = None
     arguments: list[Expression | SpreadElement] = field(default_factory=list)
     optional: bool = False
-    type: TypingLiteral[CallExpression] = field(default="CallExpression", init=False)
+    type: str = field(default="CallExpression", init=False)
 
 
 @dataclass
@@ -516,7 +478,7 @@ class ChainExpression(Node):
     """Optional chaining expression (ES2020)."""
 
     expression: CallExpression | MemberExpression | None = None
-    type: TypingLiteral[ChainExpression] = field(default="ChainExpression", init=False)
+    type: str = field(default="ChainExpression", init=False)
 
 
 @dataclass
@@ -525,7 +487,7 @@ class NewExpression(Node):
 
     callee: Expression | None = None
     arguments: list[Expression | SpreadElement] = field(default_factory=list)
-    type: TypingLiteral[NewExpression] = field(default="NewExpression", init=False)
+    type: str = field(default="NewExpression", init=False)
 
 
 @dataclass
@@ -533,9 +495,7 @@ class SequenceExpression(Node):
     """Sequence expression."""
 
     expressions: list[Expression] = field(default_factory=list)
-    type: TypingLiteral[SequenceExpression] = field(
-        default="SequenceExpression", init=False
-    )
+    type: str = field(default="SequenceExpression", init=False)
 
 
 @dataclass
@@ -544,7 +504,7 @@ class YieldExpression(Node):
 
     argument: Expression | None = None
     delegate: bool = False
-    type: TypingLiteral[YieldExpression] = field(default="YieldExpression", init=False)
+    type: str = field(default="YieldExpression", init=False)
 
 
 @dataclass
@@ -552,7 +512,7 @@ class AwaitExpression(Node):
     """Await expression (ES2017)."""
 
     argument: Expression | None = None
-    type: TypingLiteral[AwaitExpression] = field(default="AwaitExpression", init=False)
+    type: str = field(default="AwaitExpression", init=False)
 
 
 @dataclass
@@ -561,7 +521,7 @@ class TemplateLiteral(Node):
 
     quasis: list[TemplateElement] = field(default_factory=list)
     expressions: list[Expression] = field(default_factory=list)
-    type: TypingLiteral[TemplateLiteral] = field(default="TemplateLiteral", init=False)
+    type: str = field(default="TemplateLiteral", init=False)
 
 
 @dataclass
@@ -570,7 +530,7 @@ class TemplateElement(Node):
 
     tail: bool = False
     value: dict[str, str] = field(default_factory=dict)  # {cooked: str, raw: str}
-    type: TypingLiteral[TemplateElement] = field(default="TemplateElement", init=False)
+    type: str = field(default="TemplateElement", init=False)
 
 
 @dataclass
@@ -579,9 +539,7 @@ class TaggedTemplateExpression(Node):
 
     tag: Expression | None = None
     quasi: TemplateLiteral | None = None
-    type: TypingLiteral[TaggedTemplateExpression] = field(
-        default="TaggedTemplateExpression", init=False
-    )
+    type: str = field(default="TaggedTemplateExpression", init=False)
 
 
 @dataclass
@@ -589,14 +547,14 @@ class SpreadElement(Node):
     """Spread element (ES6)."""
 
     argument: Expression | None = None
-    type: TypingLiteral[SpreadElement] = field(default="SpreadElement", init=False)
+    type: str = field(default="SpreadElement", init=False)
 
 
 @dataclass
 class Super(Node):
     """Super keyword."""
 
-    type: TypingLiteral[Super] = field(default="Super", init=False)
+    type: str = field(default="Super", init=False)
 
 
 @dataclass
@@ -605,7 +563,7 @@ class MetaProperty(Node):
 
     meta: Identifier | None = None
     property: Identifier | None = None
-    type: TypingLiteral[MetaProperty] = field(default="MetaProperty", init=False)
+    type: str = field(default="MetaProperty", init=False)
 
 
 # Patterns (ES6)
@@ -618,9 +576,7 @@ class AssignmentPattern(Node):
 
     left: Pattern | None = None
     right: Expression | None = None
-    type: TypingLiteral[AssignmentPattern] = field(
-        default="AssignmentPattern", init=False
-    )
+    type: str = field(default="AssignmentPattern", init=False)
 
 
 @dataclass
@@ -628,7 +584,7 @@ class ArrayPattern(Node):
     """Array destructuring pattern."""
 
     elements: list[Pattern | None] = field(default_factory=list)
-    type: TypingLiteral[ArrayPattern] = field(default="ArrayPattern", init=False)
+    type: str = field(default="ArrayPattern", init=False)
 
 
 @dataclass
@@ -636,7 +592,7 @@ class ObjectPattern(Node):
     """Object destructuring pattern."""
 
     properties: list[AssignmentProperty | RestElement] = field(default_factory=list)
-    type: TypingLiteral[ObjectPattern] = field(default="ObjectPattern", init=False)
+    type: str = field(default="ObjectPattern", init=False)
 
 
 @dataclass
@@ -649,7 +605,7 @@ class AssignmentProperty(Node):
     method: bool = False
     shorthand: bool = False
     computed: bool = False
-    type: TypingLiteral[Property] = field(default="Property", init=False)
+    type: str = field(default="Property", init=False)
 
 
 @dataclass
@@ -657,7 +613,7 @@ class RestElement(Node):
     """Rest element."""
 
     argument: Pattern | None = None
-    type: TypingLiteral[RestElement] = field(default="RestElement", init=False)
+    type: str = field(default="RestElement", init=False)
 
 
 # Classes (ES6)
@@ -671,9 +627,7 @@ class ClassDeclaration(Node):
     id: Identifier | None = None
     superClass: Expression | None = None  # noqa: N815
     body: ClassBody | None = None
-    type: TypingLiteral[ClassDeclaration] = field(
-        default="ClassDeclaration", init=False
-    )
+    type: str = field(default="ClassDeclaration", init=False)
 
 
 @dataclass
@@ -683,7 +637,7 @@ class ClassExpression(Node):
     id: Identifier | None = None
     superClass: Expression | None = None  # noqa: N815
     body: ClassBody | None = None
-    type: TypingLiteral[ClassExpression] = field(default="ClassExpression", init=False)
+    type: str = field(default="ClassExpression", init=False)
 
 
 @dataclass
@@ -693,7 +647,7 @@ class ClassBody(Node):
     body: list[MethodDefinition | PropertyDefinition | StaticBlock] = field(
         default_factory=list
     )
-    type: TypingLiteral[ClassBody] = field(default="ClassBody", init=False)
+    type: str = field(default="ClassBody", init=False)
 
 
 @dataclass
@@ -705,9 +659,7 @@ class MethodDefinition(Node):
     kind: MethodDefinitionKind = "method"
     computed: bool = False
     static: bool = False
-    type: TypingLiteral[MethodDefinition] = field(
-        default="MethodDefinition", init=False
-    )
+    type: str = field(default="MethodDefinition", init=False)
 
 
 @dataclass
@@ -718,9 +670,7 @@ class PropertyDefinition(Node):
     value: Expression | None = None
     computed: bool = False
     static: bool = False
-    type: TypingLiteral[PropertyDefinition] = field(
-        default="PropertyDefinition", init=False
-    )
+    type: str = field(default="PropertyDefinition", init=False)
 
 
 @dataclass
@@ -728,7 +678,7 @@ class StaticBlock(Node):
     """Static initialization block (ES2022)."""
 
     body: list[Statement] = field(default_factory=list)
-    type: TypingLiteral[StaticBlock] = field(default="StaticBlock", init=False)
+    type: str = field(default="StaticBlock", init=False)
 
 
 # Modules (ES6)
@@ -743,9 +693,7 @@ class ImportDeclaration(Node):
         ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier
     ] = field(default_factory=list)
     source: Literal | None = None
-    type: TypingLiteral[ImportDeclaration] = field(
-        default="ImportDeclaration", init=False
-    )
+    type: str = field(default="ImportDeclaration", init=False)
 
 
 @dataclass
@@ -753,9 +701,7 @@ class ImportExpression(Node):
     """Dynamic import expression (ES2020)."""
 
     source: Expression | None = None
-    type: TypingLiteral[ImportExpression] = field(
-        default="ImportExpression", init=False
-    )
+    type: str = field(default="ImportExpression", init=False)
 
 
 @dataclass
@@ -764,7 +710,7 @@ class ImportSpecifier(Node):
 
     imported: Identifier | None = None
     local: Identifier | None = None
-    type: TypingLiteral[ImportSpecifier] = field(default="ImportSpecifier", init=False)
+    type: str = field(default="ImportSpecifier", init=False)
 
 
 @dataclass
@@ -772,9 +718,7 @@ class ImportDefaultSpecifier(Node):
     """Import default specifier."""
 
     local: Identifier | None = None
-    type: TypingLiteral[ImportDefaultSpecifier] = field(
-        default="ImportDefaultSpecifier", init=False
-    )
+    type: str = field(default="ImportDefaultSpecifier", init=False)
 
 
 @dataclass
@@ -782,9 +726,7 @@ class ImportNamespaceSpecifier(Node):
     """Import namespace specifier."""
 
     local: Identifier | None = None
-    type: TypingLiteral[ImportNamespaceSpecifier] = field(
-        default="ImportNamespaceSpecifier", init=False
-    )
+    type: str = field(default="ImportNamespaceSpecifier", init=False)
 
 
 @dataclass
@@ -794,9 +736,7 @@ class ExportNamedDeclaration(Node):
     declaration: Declaration | Expression | None = None
     specifiers: list[ExportSpecifier] = field(default_factory=list)
     source: Literal | None = None
-    type: TypingLiteral[ExportNamedDeclaration] = field(
-        default="ExportNamedDeclaration", init=False
-    )
+    type: str = field(default="ExportNamedDeclaration", init=False)
 
 
 @dataclass
@@ -805,7 +745,7 @@ class ExportSpecifier(Node):
 
     exported: Identifier | None = None
     local: Identifier | None = None
-    type: TypingLiteral[ExportSpecifier] = field(default="ExportSpecifier", init=False)
+    type: str = field(default="ExportSpecifier", init=False)
 
 
 @dataclass
@@ -813,9 +753,7 @@ class ExportDefaultDeclaration(Node):
     """Export default declaration."""
 
     declaration: Declaration | Expression | None = None
-    type: TypingLiteral[ExportDefaultDeclaration] = field(
-        default="ExportDefaultDeclaration", init=False
-    )
+    type: str = field(default="ExportDefaultDeclaration", init=False)
 
 
 @dataclass
@@ -824,9 +762,7 @@ class ExportAllDeclaration(Node):
 
     source: Literal | None = None
     exported: Identifier | None = None
-    type: TypingLiteral[ExportAllDeclaration] = field(
-        default="ExportAllDeclaration", init=False
-    )
+    type: str = field(default="ExportAllDeclaration", init=False)
 
 
 # Type Aliases for Union Types
