@@ -7,7 +7,8 @@ and to validate instances against these schemas.
 from dataclasses import is_dataclass
 from enum import Enum
 from types import FunctionType, MethodType, UnionType
-from typing import Callable, Union, get_args, get_origin, get_type_hints
+from typing import Union, get_args, get_origin, get_type_hints
+from collections.abc import Callable
 
 from pydantic import TypeAdapter
 

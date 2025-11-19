@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import Optional
+
 from dataclasses import dataclass
 
 from lsprotocol.types import (
@@ -30,7 +30,7 @@ def create_temp_jac_file(initial_content: str = "") -> str:
 
 def load_jac_template(template_file: str, code: str = "") -> str:
     """Load a Jac template file and inject code into placeholder."""
-    with open(template_file, "r") as f:
+    with open(template_file) as f:
         jac_template = f.read()
     return jac_template.replace("#{{INJECT_CODE}}", code)
 
@@ -104,7 +104,7 @@ class LanguageServerTestHelper:
         await did_open(self.ls, params)
         await self.ls.wait_till_idle()
 
-    async def save_document(self, code: Optional[str] = None) -> None:
+    async def save_document(self, code: str | None = None) -> None:
         """Save a document in the language server."""
         from jaclang.langserve.server import did_save
 
@@ -166,7 +166,7 @@ class LanguageServerTestHelper:
         ), f"Expected no diagnostics, found {len(diagnostics)}"
 
     def assert_has_diagnostics(
-        self, count: int = 1, message_contains: Optional[str] = None
+        self, count: int = 1, message_contains: str | None = None
     ) -> None:
         """Assert that diagnostics exist with optional message validation."""
         diagnostics = self.get_diagnostics()

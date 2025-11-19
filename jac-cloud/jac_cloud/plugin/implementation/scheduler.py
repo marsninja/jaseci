@@ -6,7 +6,8 @@ from enum import StrEnum
 from logging import WARNING, getLogger
 from os import getenv
 from traceback import format_exception
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler

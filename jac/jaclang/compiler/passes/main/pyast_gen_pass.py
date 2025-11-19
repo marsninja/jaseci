@@ -22,7 +22,8 @@ import ast as ast3
 import copy
 import textwrap
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, TypeVar, Union, cast
+from typing import TypeVar, cast
+from collections.abc import Sequence
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Constants as Con, EdgeDir, Tokens as Tok
@@ -316,7 +317,7 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
         )
 
     def sync(
-        self, py_node: T, jac_node: Optional[uni.UniNode] = None, deep: bool = False
+        self, py_node: T, jac_node: uni.UniNode | None = None, deep: bool = False
     ) -> T:
         """Sync ast locations."""
         if not jac_node:
@@ -461,7 +462,7 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
     def resolve_stmt_block(
         self,
         node: Sequence[uni.CodeBlockStmt] | Sequence[uni.EnumBlockStmt] | None,
-        doc: Optional[uni.String] = None,
+        doc: uni.String | None = None,
     ) -> list[ast3.AST]:
         """Unwind codeblock."""
         items = list(node) if node else []
@@ -1857,9 +1858,7 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
             node.gen.py_ast = [self.sync(ast3.Return(value=None))]
 
     def exit_delete_stmt(self, node: uni.DeleteStmt) -> None:
-        def set_ctx(
-            targets: Union[ast3.AST, List[ast3.AST]], ctx: type
-        ) -> List[ast3.AST]:
+        def set_ctx(targets: ast3.AST | list[ast3.AST], ctx: type) -> list[ast3.AST]:
             """Set the given ctx (Load, Del) to AST node(s)."""
             if not isinstance(targets, list):
                 targets = [targets]

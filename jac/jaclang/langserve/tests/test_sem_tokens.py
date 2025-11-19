@@ -5,8 +5,6 @@ import lsprotocol.types as lspt
 from jaclang.utils.test import TestCase
 from jaclang.langserve.sem_manager import SemTokManager
 
-from typing import Tuple
-
 
 class TestUpdateSemTokens(TestCase):
     """Test update semantic tokens"""
@@ -31,7 +29,7 @@ class TestUpdateSemTokens(TestCase):
             " ",
         ]
 
-    def check_semantic_token_update(self, case: Tuple, expected_output: str) -> None:
+    def check_semantic_token_update(self, case: tuple, expected_output: str) -> None:
         """Check semantic token update."""
         doc_lines = copy.deepcopy(self.document_lines)
 

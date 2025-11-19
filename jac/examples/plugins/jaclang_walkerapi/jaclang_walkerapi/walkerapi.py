@@ -3,7 +3,8 @@ from jaclang.runtimelib.machine import Archetype, WalkerArchetype, ObjectSpatial
 
 from dataclasses import dataclass
 from functools import wraps
-from typing import Type, Callable
+from typing import Type
+from collections.abc import Callable
 
 
 class JacMachine:
@@ -14,7 +15,7 @@ class JacMachine:
     ) -> Callable[[type], type]:
         """Create a walker archetype."""
 
-        def decorator(cls: Type[Archetype]) -> Type[Archetype]:
+        def decorator(cls: type[Archetype]) -> type[Archetype]:
             """Decorate class."""
             cls = dataclass(eq=False)(cls)
             for i in on_entry + on_exit:

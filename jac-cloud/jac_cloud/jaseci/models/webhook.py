@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Generator, Mapping, cast
+from typing import Any, cast
+from collections.abc import Generator, Mapping
 
 from bson import ObjectId
 
@@ -49,7 +50,7 @@ class Webhook:
             return Webhook(id=doc.pop("_id"), **doc)
 
         @classmethod
-        def find_by_root_id(cls, root_id: ObjectId) -> Generator["Webhook", None, None]:
+        def find_by_root_id(cls, root_id: ObjectId) -> Generator[Webhook]:
             """Retrieve webhook via root_id."""
             return cls.find({"root_id": root_id})
 

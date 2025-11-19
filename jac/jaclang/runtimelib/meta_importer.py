@@ -13,7 +13,8 @@ import importlib.util
 import os
 import sys
 from types import ModuleType
-from typing import Optional, Sequence
+
+from collections.abc import Sequence
 
 from jaclang.runtimelib.machine import JacMachine as Jac
 from jaclang.runtimelib.machine import JacMachineInterface
@@ -44,9 +45,7 @@ class _ByllmFallbackClass:
 class ByllmFallbackLoader(importlib.abc.Loader):
     """Fallback loader for byllm when it's not installed."""
 
-    def create_module(
-        self, spec: importlib.machinery.ModuleSpec
-    ) -> Optional[ModuleType]:
+    def create_module(self, spec: importlib.machinery.ModuleSpec) -> ModuleType | None:
         """Create a placeholder module."""
         return None  # use default machinery
 
@@ -73,9 +72,9 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
     def find_spec(
         self,
         fullname: str,
-        path: Optional[Sequence[str]] = None,
-        target: Optional[ModuleType] = None,
-    ) -> Optional[importlib.machinery.ModuleSpec]:
+        path: Sequence[str] | None = None,
+        target: ModuleType | None = None,
+    ) -> importlib.machinery.ModuleSpec | None:
         """Find the spec for the module."""
         # Handle case where no byllm plugin is installed
         if fullname == "byllm" or fullname.startswith("byllm."):
@@ -158,9 +157,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                     )
         return None
 
-    def create_module(
-        self, spec: importlib.machinery.ModuleSpec
-    ) -> Optional[ModuleType]:
+    def create_module(self, spec: importlib.machinery.ModuleSpec) -> ModuleType | None:
         """Create the module."""
         return None  # use default machinery
 

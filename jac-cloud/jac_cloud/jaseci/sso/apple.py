@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from json import dumps
 from os import getenv
-from typing import Any, ClassVar, Dict, List, Literal, cast
+from typing import Any, ClassVar, Literal, cast
 from warnings import warn
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
@@ -40,7 +40,7 @@ class AppleSSO(SSOBase):
         redirect_uri: AnyHttpUrl | str | None = None,
         allow_insecure_http: bool = False,
         use_state: bool = False,
-        scope: List[str] | None = None,
+        scope: list[str] | None = None,
     ) -> None:
         """Apple SSO init."""
         if not client_secret:
@@ -64,7 +64,7 @@ class AppleSSO(SSOBase):
                 self.client_team_id = client_team_id
                 self.client_key = client_key
                 if client_certificate_path:
-                    with open(client_certificate_path, "r") as cstream:
+                    with open(client_certificate_path) as cstream:
                         client_certificate = cstream.read()
                 self.client_certificate = client_certificate
             else:
@@ -127,11 +127,11 @@ class AppleSSO(SSOBase):
         self,
         request: Request,
         *,
-        params: Dict[str, Any] | None = None,
-        headers: Dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
         redirect_uri: str | None = None,
         convert_response: Literal[True] | Literal[False] = True,
-    ) -> OpenID | Dict[str, Any] | None:
+    ) -> OpenID | dict[str, Any] | None:
         """Verify and process Apple SSO."""
         if id_token := request.query_params.get("id_token"):
             return await self.get_open_id(id_token, params or {})
@@ -148,12 +148,12 @@ class AppleSSO(SSOBase):
         code: str,
         request: Request,
         *,
-        params: Dict[str, Any] | None = None,
-        additional_headers: Dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        additional_headers: dict[str, Any] | None = None,
         redirect_uri: str | None = None,
         pkce_code_verifier: str | None = None,
         convert_response: Literal[True] | Literal[False] = True,
-    ) -> OpenID | Dict[str, Any] | None:
+    ) -> OpenID | dict[str, Any] | None:
         """Process login for Apple SSO."""
         if self._oauth_client is not None:  # type: ignore[has-type]
             self._oauth_client = None
@@ -213,7 +213,7 @@ class AppleSSO(SSOBase):
                 return await self.get_open_id(id_token, params)
             raise HTTPException(401, "Failed to get access token!")
 
-    async def get_open_id(self, id_token: str, params: Dict[str, Any]) -> OpenID:
+    async def get_open_id(self, id_token: str, params: dict[str, Any]) -> OpenID:
         """Get OpenID from id_tokens provided by Apple."""
         raw: dict = decode(
             id_token,

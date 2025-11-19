@@ -9,7 +9,7 @@ from __future__ import annotations
 # flake8: noqa: E402
 
 import os
-from typing import Generator
+from collections.abc import Generator
 
 from byllm.mtir import MTIR
 
@@ -98,6 +98,6 @@ class Model:
         """Perform a completion request with the LLM."""
         return self.llm_connector.dispatch_no_streaming(mtir)
 
-    def _completion_streaming(self, mtir: MTIR) -> Generator[str, None, None]:
+    def _completion_streaming(self, mtir: MTIR) -> Generator[str]:
         """Perform a streaming completion request with the LLM."""
         return self.llm_connector.dispatch_streaming(mtir)

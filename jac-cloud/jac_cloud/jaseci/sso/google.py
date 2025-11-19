@@ -1,6 +1,6 @@
 """Google SSO."""
 
-from typing import Any, Dict, Literal
+from typing import Any, Literal
 
 from fastapi import HTTPException, Request
 
@@ -22,11 +22,11 @@ class GoogleSSO(_GoogleSSO):
         self,
         request: Request,
         *,
-        params: Dict[str, Any] | None = None,
-        headers: Dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
         redirect_uri: str | None = None,
         convert_response: Literal[True] | Literal[False] = True,
-    ) -> OpenID | Dict[str, Any] | None:
+    ) -> OpenID | dict[str, Any] | None:
         """Verify and process Apple SSO."""
         if id_token := request.query_params.get("id_token"):
             return await self.get_open_id(id_token)

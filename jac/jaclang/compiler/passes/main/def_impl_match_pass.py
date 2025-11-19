@@ -17,7 +17,7 @@ developers to define archetype and ability interfaces in one file while implemen
 their behavior in separate files.
 """
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Tokens as Tok

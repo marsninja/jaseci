@@ -184,7 +184,7 @@ def authenticate_websocket(
     """Authenticate websocket connection."""
     if (
         authorization
-        or ((authorization := websocket.headers.get("Authorization")))
+        or (authorization := websocket.headers.get("Authorization"))
         and authorization.lower().startswith("bearer")
     ):
         token = authorization.split(" ", 1)[-1]

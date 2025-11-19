@@ -1,7 +1,7 @@
 """Pytorch Fix Pass."""
 
 import ast as ast3
-from typing import Optional, TypeVar, cast
+from typing import TypeVar, cast
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Tokens as Tok
@@ -68,7 +68,7 @@ class PreDynamoPass(UniPass):
 
     def check_same_lhs(
         self, assign_a: uni.UniNode, assign_b: uni.UniNode
-    ) -> Optional[uni.Name]:
+    ) -> uni.Name | None:
         """Return the common LHS target if both are simple assignment with same target."""
         if not (
             isinstance(assign_a, uni.Assignment)
@@ -82,7 +82,7 @@ class PreDynamoPass(UniPass):
             return None
         return ta  # common target
 
-    def check_call(self, node: uni.ExprStmt) -> Optional[tuple]:
+    def check_call(self, node: uni.ExprStmt) -> tuple | None:
         """Return (target, name, tensor_expr, kwargs) if node is target(name, tensor_expr, **kwargs)."""
         if isinstance(node, uni.ExprStmt) and isinstance(node.expr, uni.FuncCall):
             call = node.expr

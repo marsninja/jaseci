@@ -5,7 +5,7 @@ import argparse
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 tabel_css = """
 <style>
@@ -80,7 +80,7 @@ tabel_css = """
 """
 
 
-def get_commits_from_git(days: int) -> List[Dict[str, str]]:
+def get_commits_from_git(days: int) -> list[dict[str, str]]:
     """Get commits from local git repository for the specified number of days."""
     since_date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime(
         "%Y-%m-%d"
@@ -118,12 +118,12 @@ def get_commits_from_git(days: int) -> List[Dict[str, str]]:
 
 
 def process_contributors(
-    commits: List[Dict[str, str]], days: int
-) -> List[Dict[str, Any]]:
+    commits: list[dict[str, str]], days: int
+) -> list[dict[str, Any]]:
     """Process commits to get contributor stats for a specific period."""
     since_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
     # Group by email to deduplicate same person with different names
-    contributors: Dict[str, Dict[str, Any]] = defaultdict(
+    contributors: dict[str, dict[str, Any]] = defaultdict(
         lambda: {"commits": 0, "active_days": set(), "names": defaultdict(int)}
     )
 
@@ -157,7 +157,7 @@ def process_contributors(
     )
 
 
-def generate_html_table(contributors: List[Dict[str, Any]], days: int) -> str:
+def generate_html_table(contributors: list[dict[str, Any]], days: int) -> str:
     """Generate an HTML table from contributor data and return as string."""
     if not contributors:
         return f"<p>No contributions found in the last {days} days.</p>"

@@ -2,7 +2,7 @@
 
 from concurrent.futures import Future
 from contextlib import suppress
-from typing import Callable, Type
+from collections.abc import Callable
 
 from jaclang.runtimelib.archetype import Archetype, ObjectSpatialDestination
 from jaclang.runtimelib.machine import (
@@ -280,7 +280,7 @@ class JacPlugin(JacAccessValidationPlugin, JacNodePlugin, JacEdgePlugin):
     @hookimpl
     def build_edge(
         is_undirected: bool,
-        conn_type: Type[EdgeArchetype] | EdgeArchetype | None,
+        conn_type: type[EdgeArchetype] | EdgeArchetype | None,
         conn_assign: tuple[tuple, tuple] | None,
     ) -> Callable[[NodeAnchor, NodeAnchor], EdgeArchetype]:
         """Jac's root getter."""

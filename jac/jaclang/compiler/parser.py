@@ -7,7 +7,8 @@ import os
 import sys
 from dataclasses import dataclass
 from threading import Event
-from typing import Callable, Optional, Sequence, TYPE_CHECKING, TypeAlias, TypeVar, cast
+from typing import TYPE_CHECKING, TypeAlias, TypeVar, cast
+from collections.abc import Callable, Sequence
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler import TOKEN_MAP, jac_lark as jl
@@ -2419,7 +2420,7 @@ class JacParser(Transform[uni.Source, uni.Module]):
 
         def _process_fstring(
             self, start_tok: list[Tok], end_tok: Tok
-        ) -> Optional[uni.FString]:
+        ) -> uni.FString | None:
             """Process fstring nodes."""
             tok_start = self.match_token(start_tok[0]) or self.match_token(start_tok[1])
             if not tok_start:

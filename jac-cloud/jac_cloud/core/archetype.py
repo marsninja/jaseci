@@ -21,14 +21,13 @@ from types import GenericAlias, UnionType
 from typing import (
     Any,
     ClassVar,
-    Iterable,
-    Mapping,
     TypeVar,
     cast,
     get_args,
     get_origin,
     get_type_hints,
 )
+from collections.abc import Iterable, Mapping
 
 from bson import ObjectId
 
@@ -208,7 +207,7 @@ class BulkWrite:
     )
 
     operations: dict[
-        type["BaseAnchor"],
+        type[BaseAnchor],
         list[InsertOne[Any] | DeleteMany | DeleteOne | UpdateMany | UpdateOne],
     ] = field(
         default_factory=lambda: {
@@ -218,7 +217,7 @@ class BulkWrite:
             ObjectAnchor: [],
         }
     )
-    schedules: list["WalkerAnchor"] = field(default_factory=list)
+    schedules: list[WalkerAnchor] = field(default_factory=list)
 
     del_ops_nodes: list[ObjectId] = field(default_factory=list)
     del_ops_edges: list[ObjectId] = field(default_factory=list)
@@ -731,7 +730,7 @@ class NodeAnchor(BaseAnchor, _NodeAnchor):  # type: ignore[misc]
     """Node Anchor."""
 
     archetype: NodeArchetype
-    edges: list["EdgeAnchor"]  # type: ignore[assignment]
+    edges: list[EdgeAnchor]  # type: ignore[assignment]
 
     class Collection(BaseCollection["NodeAnchor"]):
         """NodeAnchor collection interface."""
@@ -1048,7 +1047,7 @@ class ObjectAnchor(BaseAnchor, _ObjectAnchor):  # type: ignore[misc]
 class BaseArchetype:
     """Archetype Protocol."""
 
-    __jac_classes__: dict[str, type["BaseArchetype"]]
+    __jac_classes__: dict[str, type[BaseArchetype]]
     __jac_hintings__: dict[str, type]
     # __constraints__: type
 

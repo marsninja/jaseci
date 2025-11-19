@@ -4,15 +4,11 @@ from os import getenv
 from tempfile import gettempdir
 from typing import (
     Any,
-    AsyncGenerator,
-    Generator,
     Generic,
-    Iterable,
-    Mapping,
-    Type,
     TypeVar,
     cast,
 )
+from collections.abc import AsyncGenerator, Generator, Iterable, Mapping
 
 
 from bson import ObjectId
@@ -142,7 +138,7 @@ class Collection(Generic[T]):
                 cls.collection().create_indexes(idxs)
 
     @classmethod
-    def apply_partial_indexes(cls, type: Type) -> None:
+    def apply_partial_indexes(cls, type: type) -> None:
         """Apply Partial Indexes."""
         constraints = getattr(type, "__constraints__", None)
         if constraints:

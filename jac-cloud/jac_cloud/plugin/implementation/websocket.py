@@ -3,7 +3,8 @@
 from dataclasses import MISSING
 from os import getenv
 from traceback import format_exception
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 from uuid import uuid4
 
 from anyio import to_thread

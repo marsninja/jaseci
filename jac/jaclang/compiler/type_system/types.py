@@ -349,7 +349,7 @@ class FunctionType(TypeBase):
         self.return_type = return_type
         self.parameters = parameters or []
 
-    def specialize(self, class_type: ClassType) -> "FunctionType":
+    def specialize(self, class_type: ClassType) -> FunctionType:
         """Specialize the function type based on the given class type."""
         clone = FunctionType(
             func_name=self.func_name,

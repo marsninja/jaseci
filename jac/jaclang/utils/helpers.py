@@ -69,7 +69,7 @@ def get_uni_nodes_as_snake_case() -> list[str]:
 
 def extract_headings(file_path: str) -> dict[str, tuple[int, int]]:
     """Extract headings of contetnts in Jac grammer."""
-    with open(file_path, "r") as file:
+    with open(file_path) as file:
         lines = file.readlines()
     headings = {}
     current_heading = None
@@ -169,7 +169,7 @@ def dump_traceback(e: Exception) -> str:
             jac_filename = py_filename.replace("__jac_gen__", "").replace(".py", ".jac")
             if os.path.exists(jac_filename):
                 try:
-                    with open(jac_filename, "r") as f:
+                    with open(jac_filename) as f:
                         jac_source = f.read()
                     return jac_filename, jac_source
                 except Exception:
@@ -243,7 +243,7 @@ def dump_traceback(e: Exception) -> str:
                 file_source = display_source
                 if file_source is None:
                     try:
-                        with open(frame.filename, "r") as file:
+                        with open(frame.filename) as file:
                             file_source = file.read()
                     except Exception:
                         file_source = ""

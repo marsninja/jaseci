@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-with open(__file__, "r") as f:
+with open(__file__) as f:
     print("file opened")
-with open(__file__, "r") as f1, open(__file__, "r") as f2:
+with open(__file__) as f1, open(__file__) as f2:
     print("multiple files")
 
 

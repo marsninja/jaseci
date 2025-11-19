@@ -8,7 +8,6 @@ import sys
 import types
 from importlib.metadata import version as pkg_version
 from pathlib import Path
-from typing import Optional
 
 import jaclang.compiler.unitree as uni
 from jaclang.cli.cmdreg import cmd_registry
@@ -80,7 +79,7 @@ def format(path: str, outfile: str = "", to_screen: bool = False) -> None:
 
 
 def proc_file_sess(
-    filename: str, session: str, root: Optional[str] = None
+    filename: str, session: str, root: str | None = None
 ) -> tuple[str, str, ExecutionContext]:
     """Create JacMachine and return the base path, module name, and machine state."""
     if session == "":
@@ -456,7 +455,7 @@ def test(
 
 
 @cmd_registry.register
-def tool(tool: str, args: Optional[list] = None) -> None:
+def tool(tool: str, args: list | None = None) -> None:
     """Run the specified AST tool with optional arguments.
 
     Executes specialized tools for working with Jac's Abstract Syntax Tree (AST).

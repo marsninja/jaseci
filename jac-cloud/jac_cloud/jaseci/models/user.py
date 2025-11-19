@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import MISSING, asdict, dataclass, field, fields
-from typing import Any, Mapping, Type, cast, get_type_hints
+from typing import Any, cast, get_type_hints
+from collections.abc import Mapping
 
 from bson import ObjectId
 
@@ -92,14 +93,14 @@ class User:
         return data
 
     @staticmethod
-    def model() -> Type["User"]:
+    def model() -> type[User]:
         """Retrieve the preferred User Model from subclasses else this class."""
         if subs := User.__subclasses__():
             return dataclass(kw_only=True)(subs[-1])
         return User
 
     @staticmethod
-    def register_type() -> Type[UserRegistration]:
+    def register_type() -> type[UserRegistration]:
         """Generate User Registration Model based on preferred User Model for FastAPI endpoint validation."""
         target_user_model = User.model()
         target_user_hintings = get_type_hints(target_user_model)

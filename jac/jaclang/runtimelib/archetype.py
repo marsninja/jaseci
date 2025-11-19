@@ -9,7 +9,8 @@ from inspect import _empty, signature
 from logging import getLogger
 from pickle import dumps
 from types import UnionType
-from typing import Any, Callable, ClassVar, Optional, TypeAlias, TypeVar
+from typing import Any, ClassVar, TypeAlias, TypeVar
+from collections.abc import Callable
 from uuid import UUID, uuid4
 
 from ..compiler.constant import EdgeDir
@@ -79,8 +80,8 @@ class ObjectSpatialDestination:
     """Object-Spatial Destination."""
 
     direction: EdgeDir
-    edge: Callable[["Archetype"], bool] | None = None
-    node: Callable[["Archetype"], bool] | None = None
+    edge: Callable[[Archetype], bool] | None = None
+    node: Callable[[Archetype], bool] | None = None
 
     def edge_filter(self, arch: Archetype) -> bool:
         """Filter edge."""
@@ -116,7 +117,7 @@ class ObjectSpatialPath:
     def convert(
         self,
         filter: ObjectSpatialFilter,
-    ) -> Callable[["Archetype"], bool] | None:
+    ) -> Callable[[Archetype], bool] | None:
         """Convert filter."""
         if not filter:
             return None
@@ -194,7 +195,7 @@ class Anchor:
 
     archetype: Archetype
     id: UUID = field(default_factory=uuid4)
-    root: Optional[UUID] = None
+    root: UUID | None = None
     access: Permission = field(default_factory=Permission)
     persistent: bool = False
     hash: int = 0

@@ -10,7 +10,7 @@ The CFG provides a foundation for data flow analysis, optimization, and understa
 The pass also includes functionality to coalesce basic blocks and generate visual representations of the CFG.
 """
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.passes import UniPass
@@ -307,7 +307,7 @@ def cfg_dot_from_file(file_name: str) -> str:
     """Print the control flow graph."""
     from jaclang.compiler.program import JacProgram
 
-    with open(file_name, "r") as f:
+    with open(file_name) as f:
         file_source = f.read()
 
     ir = (prog := JacProgram()).compile(use_str=file_source, file_path=file_name)

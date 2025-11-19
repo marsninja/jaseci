@@ -1,7 +1,7 @@
 import bdb
 import json
 from types import FrameType
-from typing import Callable
+from collections.abc import Callable
 
 
 class DebuggerTerminated(Exception):
@@ -58,7 +58,7 @@ class Debugger(bdb.Bdb):
     def set_code(self, code: str, filepath: str) -> None:
         self.filepath = filepath
 
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             source = f.read()
             self.total_lines = len(source.splitlines())
         self.code = code

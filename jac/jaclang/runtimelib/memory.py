@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pickle import dumps
 from shelve import Shelf, open
-from typing import Any, Callable, Generator, Generic, Iterable, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast
+from collections.abc import Callable, Generator, Iterable
 from uuid import UUID
 
 from .archetype import Anchor, NodeAnchor, Root, TANCH
@@ -29,15 +30,13 @@ class Memory(Generic[ID, TANCH]):
         """Check if id if already cached."""
         return id in self.__mem__
 
-    def query(
-        self, filter: Callable[[TANCH], bool] | None = None
-    ) -> Generator[TANCH, None, None]:
+    def query(self, filter: Callable[[TANCH], bool] | None = None) -> Generator[TANCH]:
         """Find anchors from memory with filter."""
         return (
             anchor for anchor in self.__mem__.values() if not filter or filter(anchor)
         )
 
-    def all_root(self) -> Generator[Root, None, None]:
+    def all_root(self) -> Generator[Root]:
         """Get all the roots."""
         for anchor in self.query(lambda anchor: isinstance(anchor.archetype, Root)):
             yield cast(Root, anchor.archetype)
@@ -46,7 +45,7 @@ class Memory(Generic[ID, TANCH]):
         self,
         ids: ID | Iterable[ID],
         filter: Callable[[TANCH], TANCH] | None = None,
-    ) -> Generator[TANCH, None, None]:
+    ) -> Generator[TANCH]:
         """Find anchors from memory by ids with filter."""
         if not isinstance(ids, Iterable):
             ids = [ids]
@@ -168,9 +167,7 @@ class ShelfStorage(Memory[UUID, Anchor]):
                     ):
                         self.__shelf__[_id] = d
 
-    def query(
-        self, filter: Callable[[Anchor], bool] | None = None
-    ) -> Generator[Any, None, None]:
+    def query(self, filter: Callable[[Anchor], bool] | None = None) -> Generator[Any]:
         """Find anchors from memory with filter."""
         if isinstance(self.__shelf__, Shelf):
             for anchor in self.__shelf__.values():
@@ -185,7 +182,7 @@ class ShelfStorage(Memory[UUID, Anchor]):
         self,
         ids: UUID | Iterable[UUID],
         filter: Callable[[Anchor], Anchor] | None = None,
-    ) -> Generator[Anchor, None, None]:
+    ) -> Generator[Anchor]:
         """Find anchors from datasource by ids with filter."""
         if not isinstance(ids, Iterable):
             ids = [ids]

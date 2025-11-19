@@ -6,7 +6,7 @@ from annotated_types import Len
 
 from pydantic import BaseModel, Field, StringConstraints
 
-from typing_extensions import Annotated
+from typing import Annotated
 
 
 class Expiration(BaseModel):

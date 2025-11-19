@@ -14,7 +14,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
 from io import BytesIO
-from typing import Callable, IO, TypeAlias, get_type_hints
+from typing import IO, TypeAlias, get_type_hints
+from collections.abc import Callable
 
 from PIL.Image import Image as PILImageCls
 from PIL.Image import open as open_image
@@ -44,7 +45,7 @@ class Message:
     """Message class for LLM interactions."""
 
     role: MessageRole
-    content: "str | list[Media]"
+    content: str | list[Media]
 
     def to_dict(self) -> dict[str, object]:
         """Convert the message to a dictionary."""
@@ -259,8 +260,15 @@ class Image(Media):
     """Class representing an image."""
 
     url: (
-        "str | bytes | bytearray | memoryview | BytesIO | IO[bytes] | "
-        "os.PathLike[str] | os.PathLike[bytes] | PILImageCls"
+        str
+        | bytes
+        | bytearray
+        | memoryview
+        | BytesIO
+        | IO[bytes]
+        | os.PathLike[str]
+        | os.PathLike[bytes]
+        | PILImageCls
     )  # type: ignore[name-defined]
     mime_type: str | None = None
 

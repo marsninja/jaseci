@@ -3,14 +3,11 @@
 from dataclasses import dataclass
 from os import getenv
 from typing import (
-    Callable,
-    Generator,
-    Iterable,
     TypeVar,
-    Union,
     cast,
     overload,
 )
+from collections.abc import Callable, Generator, Iterable
 
 from bson import ObjectId
 
@@ -112,7 +109,7 @@ class MongoDB(Memory[ObjectId, BaseAnchor]):
     def find_by_id(self, id_or_anchor: ObjectId) -> BaseAnchor | None:  # type: ignore[override]
         ...
 
-    def find_by_id(self, id_or_anchor: Union[ObjectId, BA]) -> Union[BaseAnchor, BA, None]:  # type: ignore[override]
+    def find_by_id(self, id_or_anchor: ObjectId | BA) -> BaseAnchor | BA | None:  # type: ignore[override]
         """Find one by id."""
         if isinstance(id_or_anchor, ObjectId):
             return super().find_by_id(id_or_anchor)  # type: ignore[arg-type]

@@ -1,6 +1,6 @@
 """Jaseci SSO DTOs."""
 
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from annotated_types import Len
 
@@ -59,13 +59,13 @@ class WebSocketEvent(BaseModel):
 
     instance_id: str | None = None
     event: Annotated[
-        Union[
-            ConnectionEvent,
-            WalkerEvent,
-            UserEvent,
-            ChannelEvent,
-            ClientEvent,
-            ChangeUserEvent,
-        ],
+        (
+            ConnectionEvent
+            | WalkerEvent
+            | UserEvent
+            | ChannelEvent
+            | ClientEvent
+            | ChangeUserEvent
+        ),
         Field(discriminator="type"),
     ]

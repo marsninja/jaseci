@@ -938,7 +938,7 @@ class JacLanguageTests(TestCase):
         """
 
         # Backup the original file content
-        with open(bar_file_path, "r") as bar_file:
+        with open(bar_file_path) as bar_file:
             original_content = bar_file.read()
 
         # Update the bar.jac file with new behavior

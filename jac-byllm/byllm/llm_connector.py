@@ -14,7 +14,8 @@ import os
 import random
 import time
 from abc import ABC, abstractmethod
-from typing import Generator, override
+from typing import override
+from collections.abc import Generator
 
 # This will prevent LiteLLM from fetching pricing information from
 # the bellow URL every time we import the litellm and use a cached
@@ -94,7 +95,7 @@ class LLMConnector(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def dispatch_streaming(self, mtir: MTIR) -> Generator[str, None, None]:
+    def dispatch_streaming(self, mtir: MTIR) -> Generator[str]:
         """Dispatch the LLM call with streaming."""
         raise NotImplementedError()
 
@@ -129,7 +130,7 @@ class MockLLMConnector(LLMConnector):
         )
 
     @override
-    def dispatch_streaming(self, mtir: MTIR) -> Generator[str, None, None]:
+    def dispatch_streaming(self, mtir: MTIR) -> Generator[str]:
         """Dispatch the mock LLM call with the given request."""
         output = self.config["outputs"].pop(0)  # type: ignore
         if mtir.stream:
@@ -206,7 +207,7 @@ class LiteLLMConnector(LLMConnector):
         )
 
     @override
-    def dispatch_streaming(self, mtir: MTIR) -> Generator[str, None, None]:
+    def dispatch_streaming(self, mtir: MTIR) -> Generator[str]:
         """Dispatch the LLM call with streaming."""
         # Construct the parameters for the LLM call
         params = self.make_model_params(mtir)

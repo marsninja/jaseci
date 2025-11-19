@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from threading import current_thread
-from typing import Any, Mapping, Sequence
+from typing import Any
+from collections.abc import Mapping, Sequence
 
 from montydb import MontyClient as _MontyClient, set_storage  # type: ignore[import-untyped]
 from montydb.collection import MontyCollection as _MontyCollection  # type: ignore[import-untyped]

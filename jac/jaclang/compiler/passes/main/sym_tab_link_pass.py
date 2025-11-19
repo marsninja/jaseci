@@ -19,7 +19,7 @@ to reference symbols defined in other modules while maintaining proper scoping r
 """
 
 import os
-from typing import Optional
+
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.passes import Transform
@@ -64,7 +64,7 @@ class SymTabLinkPass(Transform[uni.Module, uni.Module]):
 
     def _get_module_path(
         self, mod: uni.Module, node: uni.ModulePath, imp_node: uni.Import
-    ) -> Optional[str]:
+    ) -> str | None:
         """Get the path to the imported module."""
         if imp_node.is_jac:
             rel_path = node.resolve_relative_path()

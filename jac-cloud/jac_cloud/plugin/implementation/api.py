@@ -4,7 +4,8 @@ from dataclasses import Field, MISSING, fields, is_dataclass
 from enum import StrEnum
 from os import getenv
 from re import compile
-from typing import Any, Callable, Type, cast, get_type_hints
+from typing import Any, cast, get_type_hints
+from collections.abc import Callable
 
 from asyncer import syncify
 
@@ -92,7 +93,7 @@ class DefaultSpecs:
     schedule: dict[str, Any] | None = None
 
 
-def get_specs(cls: type) -> Type["DefaultSpecs"] | None:
+def get_specs(cls: type) -> type["DefaultSpecs"] | None:
     """Get Specs and inherit from DefaultSpecs."""
     specs = getattr(cls, "__specs__", None)
     if specs is None:
@@ -125,7 +126,7 @@ def gen_model_field(cls: type, field: Field, is_file: bool = False) -> tuple[typ
     return consts
 
 
-def populate_apis(cls: Type[WalkerArchetype]) -> None:
+def populate_apis(cls: type[WalkerArchetype]) -> None:
     """Generate FastAPI endpoint based on WalkerArchetype class."""
     if not (specs := get_specs(cls)):
         return
@@ -358,7 +359,7 @@ def populate_apis(cls: Type[WalkerArchetype]) -> None:
 
 
 def specs(
-    cls: Type[WalkerArchetype] | None = None,
+    cls: type[WalkerArchetype] | None = None,
     *,
     path: str = "",
     methods: list[str] = ["post"],  # noqa: B006
@@ -384,7 +385,7 @@ def specs(
 ) -> Callable:
     """Walker Decorator."""
 
-    def wrapper(cls: Type[WalkerArchetype]) -> Type[WalkerArchetype]:
+    def wrapper(cls: type[WalkerArchetype]) -> type[WalkerArchetype]:
         if get_specs(cls) is None:
             _path = path
             _methods = methods

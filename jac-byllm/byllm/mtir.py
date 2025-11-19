@@ -6,7 +6,8 @@ import inspect
 import json
 from dataclasses import dataclass
 from types import MethodType
-from typing import Callable, get_type_hints
+from typing import get_type_hints
+from collections.abc import Callable
 
 from byllm.schema import json_to_instance, type_to_schema
 from byllm.types import (

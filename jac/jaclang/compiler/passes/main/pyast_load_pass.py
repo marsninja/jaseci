@@ -18,7 +18,8 @@ import ast as py_ast
 import os
 import re
 from threading import Event
-from typing import Optional, Sequence, TYPE_CHECKING, TypeAlias, TypeVar, cast
+from typing import TYPE_CHECKING, TypeAlias, TypeVar, cast
+from collections.abc import Sequence
 
 import jaclang.compiler.unitree as uni
 from jaclang.compiler.constant import Tokens as Tok
@@ -186,7 +187,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             raise self.ice("Length mismatch in decorators on function")
         valid_decorators = valid_dec if valid_dec else None
         res = self.convert(node.args)
-        sig: Optional[uni.FuncSignature] = (
+        sig: uni.FuncSignature | None = (
             res if isinstance(res, uni.FuncSignature) else None
         )
         ret_sig = self.convert(node.returns) if node.returns else None
@@ -612,7 +613,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
         if valid_orelse:
             first_elm = valid_orelse[0]
             if isinstance(first_elm, uni.IfStmt):
-                else_body: Optional[uni.ElseIf | uni.ElseStmt] = uni.ElseIf(
+                else_body: uni.ElseIf | uni.ElseStmt | None = uni.ElseIf(
                     condition=first_elm.condition,
                     body=first_elm.body,
                     else_body=first_elm.else_body,
@@ -1964,7 +1965,7 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             ]
             if len(finalbody) != len(valid_finalbody):
                 raise self.ice("Length mismatch in try finalbody")
-            finally_stmt_obj: Optional[uni.FinallyStmt] = (
+            finally_stmt_obj: uni.FinallyStmt | None = (
                 fin_append := uni.FinallyStmt(
                     body=valid_finalbody,
                     kid=valid_finalbody,

@@ -2,7 +2,8 @@
 
 import inspect
 import os
-from typing import Callable, Optional
+
+from collections.abc import Callable
 from unittest import TestCase as _TestCase
 
 from _pytest.logging import LogCaptureFixture
@@ -94,7 +95,7 @@ class TestCase(_TestCase):
 class TestCaseMicroSuite(TestCase):
     """Base test case for Jaseci."""
 
-    test_micro_jac_files_fully_tested: Optional[Callable[[TestCase], None]] = None
+    test_micro_jac_files_fully_tested: Callable[[TestCase], None] | None = None
     methods: list[str] = []
 
     @classmethod
@@ -131,7 +132,7 @@ class TestCaseMicroSuite(TestCase):
 class AstSyncTestMixin:
     """Mixin for testing AST sync."""
 
-    TargetPass: Optional[UniPass] = None
+    TargetPass: UniPass | None = None
 
     def test_pass_ast_complete(self) -> None:
         """Test for enter/exit name diffs with parser."""

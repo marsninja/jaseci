@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 from os import getenv
 from ssl import CERT_NONE
 from traceback import format_exception
-from typing import Any, AsyncGenerator, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import AsyncGenerator
 
 from anyio import create_task_group
 

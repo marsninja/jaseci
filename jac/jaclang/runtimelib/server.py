@@ -11,7 +11,8 @@ import secrets
 from contextlib import suppress
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any, Callable, Literal, TypeAlias, get_type_hints
+from typing import Any, Literal, TypeAlias, get_type_hints
+from collections.abc import Callable
 from urllib.parse import parse_qs, urlparse
 
 from jaclang.runtimelib.client_bundle import ClientBundleError
