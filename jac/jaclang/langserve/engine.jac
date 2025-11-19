@@ -592,12 +592,25 @@ class JacLangServer(JacProgram , LanguageServer) {
     }
 
 
+    """Shutdown the language server and clean up resources."""
     def shutdown(self: JacLangServer) -> None {
         try {
-            self.queue.put(None);  # Signal the worker thread to exit
-            self.worker_thread.join(timeout=1.0);  # Wait for the worker thread to finish
-        } finally {
+            # Signal the worker thread to exit
+            self.queue.put(None);
+            # Wait for the worker thread to finish with a timeout
+            if self.worker_thread.is_alive() {
+                self.worker_thread.join(timeout=2.0);
+            }
+        } except Exception as e {
+            self.debug(f"Error during worker thread shutdown: {e}");
+        }
+
+        try {
+            # Call parent class shutdown to clean up server resources
+            # This will close the event loop if we own it
             super.shutdown();
+        } except Exception as e {
+            self.debug(f"Error during parent shutdown: {e}");
         }
     }
 
