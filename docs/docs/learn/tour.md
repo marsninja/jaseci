@@ -18,9 +18,49 @@ We will discuss the four foundational pillars of Jac’s design and how each pil
 
 Jac introduces a new programming model that lets developers articulate **relationships between objects** in a **graph-like structure** and express computation as **walkers** that traverse this graph.
 
-This model is particularly effective for applications involving **connected data**, such as social networks, knowledge graphs, or file systems, and can greatly reduce code complexity. OSP also provides the foundation for **agentic workflows** and enables **Jaseci’s scale-native execution**, reducing backend development and deployment overhead.
+This model is particularly effective for applications involving **connected data**, such as social networks, knowledge graphs, or file systems, and can greatly reduce code complexity. OSP also provides the foundation for **agentic workflows** and enables **Jaseci's scale-native execution**, reducing backend development and deployment overhead.
 
-<!--  TODO: Insert illustrative graph diagram here -->
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'fontSize':'16px'}}}%%
+graph LR
+    OSP["<b>Object-Spatial Programming</b><br/><br/>Graph-Native Model<br/>Nodes • Edges • Walkers<br/><br/>Foundation for all capabilities"]
+
+    subgraph Circle1["🤖 AI-Enabled Applications"]
+        AI["<b>AI Programming</b><br/><br/>• Agentic Workflows<br/>• Multi-Agent Orchestration<br/>• Context-Aware Traversals<br/>• Graph-Based Memory"]
+    end
+
+    subgraph Circle2["⚡ Scale-Native Systems"]
+        Scale["<b>Scale Features</b><br/><br/>• Automated DB Organization<br/>• Persistent Graph Structures<br/>• Zero-Code Scaling<br/>• User Data Isolation"]
+    end
+
+    subgraph Circle3["🐍 Enhanced Python"]
+        Python["<b>Python Enhancement</b><br/><br/>• Natural Graph Syntax<br/>• Spatial Relationships<br/>• Declarative Traversal<br/>• Reduced Complexity"]
+    end
+
+    OSP -.->|enables| AI
+    OSP -.->|powers| Scale
+    OSP -.->|enhances| Python
+
+    AI -.-> OSP
+    Scale -.-> OSP
+    Python -.-> OSP
+
+    style OSP fill:#ff8c00,stroke:#ff6600,stroke-width:6px,rx:20,ry:20
+
+    style Circle1 fill:#4a90e218,stroke:#4a90e2,stroke-width:5px,stroke-dasharray: 5 5,rx:25,ry:25
+    style Circle2 fill:#50c87818,stroke:#50c878,stroke-width:5px,stroke-dasharray: 5 5,rx:25,ry:25
+    style Circle3 fill:#9b59b618,stroke:#9b59b6,stroke-width:5px,stroke-dasharray: 5 5,rx:25,ry:25
+
+    style AI fill:#4a90e235,stroke:#2e5c8a,stroke-width:3px,rx:15,ry:15
+    style Scale fill:#50c87835,stroke:#2e7d4e,stroke-width:3px,rx:15,ry:15
+    style Python fill:#9b59b635,stroke:#6c3483,stroke-width:3px,rx:15,ry:15
+```
+
+**OSP serves as the foundational enabler** across three critical dimensions:
+
+- **🤖 AI Programming**: Walkers and graph traversals naturally express agentic workflows, enabling complex multi-agent systems with shared context and memory
+- **⚡ Scale-Native**: Graph structures map directly to database schemas, allowing runtime automation of persistence strategies without code changes
+- **🐍 Python Enhancement**: Spatial constructs (nodes, edges, walkers) provide an intuitive programming model for expressing solutions to graph-based problems
 
 ---
 ### 2. Programming Abstractions for AI
