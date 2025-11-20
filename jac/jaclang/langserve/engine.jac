@@ -595,7 +595,7 @@ class JacLangServer(JacProgram , LanguageServer) {
 
     def shutdown(self: JacLangServer) -> None {
         try {
-            if self.worker_thread.is_alive() {
+            if hasattr(self, 'worker_thread') and self.worker_thread.is_alive() {
                 self.queue.put(None);  # Signal the worker thread to exit
                 self.worker_thread.join();  # Wait for the worker thread to finish
             }
