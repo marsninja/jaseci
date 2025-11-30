@@ -719,7 +719,7 @@ def test_cli_error_exit_codes(fixture_path) -> None:
     assert process.returncode == 1, (
         "check command should exit with code 1 on invalid file type"
     )
-    assert "Not a .jac file" in stderr
+    assert "is not a .jac file" in stderr
 
     # Test tool command with non-existent tool
     process = subprocess.Popen(
