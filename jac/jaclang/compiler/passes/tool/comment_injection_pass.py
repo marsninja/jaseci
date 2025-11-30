@@ -590,7 +590,7 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
                     if part_line < body_item.loc.first_line:
                         break
 
-                    prev_item_line = (
+                    prev_item_line: int | None = (
                         body[body_idx - 1].loc.last_line
                         if body_idx > 0 and body[body_idx - 1].loc
                         else current_line - 1
