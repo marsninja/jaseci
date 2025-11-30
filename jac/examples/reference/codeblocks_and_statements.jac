@@ -14,7 +14,7 @@ with entry {
     # Various statement types can appear in code blocks
     x = 42;  # Assignment statement
     if x > 0 {  # If statement
-
+    
         print("Positive");
     }
 }

@@ -21,7 +21,7 @@ def switch_case(fruit: str) {
         default:
             print("No match found for value: " + str(fruit));
 
-    }
+        }
 }
 
 with entry {

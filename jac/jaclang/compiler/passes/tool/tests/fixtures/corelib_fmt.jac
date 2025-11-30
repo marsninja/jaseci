@@ -437,7 +437,7 @@ impl JacPlugin.bind_archetype(
         case _:
             raise ("Invalid archetype type") :> TypeError ;
 
-    }
+        }
     return True;
 }
 

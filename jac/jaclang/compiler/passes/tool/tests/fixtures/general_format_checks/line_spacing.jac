@@ -43,8 +43,8 @@ walker decorator_walk {
         decorated_greeter = hash(exclaim(tilde(greeter)));
 
         # Call the decorated greeter function
-        decorated_greeter("World");
-        # this is another comment
+        decorated_greeter("World");# this is another comment
+
     }
 }
 

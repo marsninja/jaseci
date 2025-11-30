@@ -11,13 +11,13 @@ node A {
         ###############################################
 
         # Allowed string return "NO_ACCESS", "READ", "CONNECT", "WRITE"
-        return self.val1;
-        # Allowed enum return AccessLevel.NO_ACCESS, AccessLevel.READ, AccessLevel.CONNECT, AccessLevel.WRITE
+        return self.val1; # Allowed enum return AccessLevel.NO_ACCESS, AccessLevel.READ, AccessLevel.CONNECT, AccessLevel.WRITE
         # return AccessLevel.NO_ACCESS;
 
         # Not recommended as it may change in the future
         # Allowed int return -1 (NO_ACCESS), 0 (READ), 1 (CONNECT), 2 (WRITE)
         # return -1;
+
     }
 }
 

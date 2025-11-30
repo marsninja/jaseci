@@ -21,7 +21,7 @@ def switch_case(Num: int) {
         default:
             print("No match found for value: " + str(Num));
 
-    }
+        }
 }
 
 with entry {

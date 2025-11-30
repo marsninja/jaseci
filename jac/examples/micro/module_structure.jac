@@ -9,18 +9,21 @@ module
 #* This is
 A Multiline
 Comment *#
-
 glob ver = "0.0.1";  # global variable
 
+
 import defs.utils;  # import a module
-import os; # import a python module
+import os;  # import a python module
 import defs.mod_defs;  # includes a file
 
 obj mytype {}  # define a new type
 
-node mynode(this,that) {}  # define a new node
+
+node mynode(this , that) {}  # define a new node
+
 
 edge parent {}  # define a new edge
+
 
 """
 Doc strings can only appear before
@@ -33,19 +36,20 @@ walker travelor {  # define a new walker
 
 #* Declarations and definitions
 can be separate in Jac *#
-impl travelor.say_hello {
+impl travelor.say_hello{
     "Hello" |> print;  # |> is a pipe forward operator
 }
 
-def myablty -> int {} # define a data spacial freestyle ability
+def myablty -> int { }  # define a data spacial freestyle ability
 
-def myfunc() -> None {} # define a function
+
+def myfunc()  -> None { }  # define a function
+
 
 with entry {
     # module level freestyle code
 }
 
 """A test of my functionality"""
-test mytest {
-   # test code here
-}
+test mytest { }
+# test code here

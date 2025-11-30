@@ -4,3 +4,4 @@ glob i: int = alias;  # <-- Ok
 
 
 glob s: str = alias;  # <-- Error
+

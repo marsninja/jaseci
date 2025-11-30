@@ -59,8 +59,7 @@ with entry {
     );
     print(d3.count('a(val') == 6, d3.count('label=""') == 5, d3.count('#F5E5FF') == 1);
     print(d4.count("a(val") == 25, d4.count('label=""') == 66, d4.count('#FFF0F') == 3);
-    print(d5.count("Edge1(val=6)") == 2, d5.count('label=""') == 24);
-    # print(l3<l2);
+    print(d5.count("Edge1(val=6)") == 2, d5.count('label=""') == 24);# print(l3<l2);
 
     # print(d1);
 
@@ -71,4 +70,5 @@ with entry {
     # print(d4);
 
     # print(printgraph(node=b[2],bfs=True,depth=3.96,edge_limit=12,node_limit=12.96));
+
 }

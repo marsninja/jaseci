@@ -19,3 +19,4 @@ with entry {
 with entry {
     print(len("hello"));
 }  # same, but no pipe
+

@@ -32,7 +32,6 @@ cl {
                 <strong>
                     HashRouter
                 </strong>
-                #  for client-side routing.
             </p>
             <p>
                 Current path:
@@ -204,7 +203,7 @@ cl {
                 <code>
                     {location.pathname}
                 </code>
-                 does not exist.
+                does not exist.
             </p>
             <button
                 onClick={goHome}
@@ -321,3 +320,4 @@ cl {
         </Router>;
     }
 }
+#  for client-side routing.

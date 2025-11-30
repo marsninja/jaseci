@@ -47,6 +47,6 @@ impl Creator.travel{
 
 with entry {
     random.seed(1);
-    root spawn Creator();
-    #print(root._jac_.gen_dot());
+    root spawn Creator();#print(root._jac_.gen_dot());
+
 }

@@ -65,9 +65,9 @@ walker walker4 {
             x = list1[j];
             list1[j] = list1[j + 1];
             list1[j + 1] = x;
-        }
-        #uncomment below to see the swap in each inner nodes
+        }#uncomment below to see the swap in each inner nodes
         # print(list1);
+
     }
 }
 

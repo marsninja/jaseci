@@ -461,14 +461,16 @@ with entry {
 # Match statement comment preservation
 def test_match_comments(x: int) {
     match x {
-        # comment before first case
         case 1:
-            # comment in case body
             print("one");
 
-        # comment between cases
         case _:
             print("other");
 
-    }
+        }
 }
+# comment before first case
+
+# comment in case body
+
+# comment between cases
