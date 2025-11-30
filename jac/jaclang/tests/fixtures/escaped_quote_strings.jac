@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 with entry {
     # Test escaped double quotes
     s1 = "He said \"Hello World\"";
@@ -25,4 +23,3 @@ with entry {
     s6 = "Path: C:\\Users\\Documents\\file.txt";
     print(s6);
 }
->>>>>>> f37434486 (fixing jac fixes)
