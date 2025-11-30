@@ -488,8 +488,10 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
         elif isinstance(node, uni.JsxElement) and node.children:
             body = node.children
 
-        if body is None or not isinstance(body, Sequence) or not isinstance(
-            indent.contents, doc.Concat
+        if (
+            body is None
+            or not isinstance(body, Sequence)
+            or not isinstance(indent.contents, doc.Concat)
         ):
             return indent
 
