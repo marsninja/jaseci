@@ -752,7 +752,7 @@ class TypeEvaluator {
                         );
                         return self._convert_to_instance(annotation_type);
                     } else {  # Assignment without a type annotation.
-                    
+
                         if node_.parent.value is not None {
                             return self.get_type_of_expression(node_.parent.value);
                         }
@@ -847,7 +847,7 @@ class TypeEvaluator {
                 base_type = self.get_type_of_expression(expr.target);
 
                 if expr.is_attr {  # <expr>.member
-                
+
                     assert isinstance(expr.right, uni.Name);
                     if isinstance(base_type, types.ModuleType) {
                         # getTypeOfMemberAccessWithBaseType()
@@ -925,7 +925,7 @@ class TypeEvaluator {
                     }
                     return base_type;
                 } else {  # <expr>[<expr>]
-                
+
                     # if <expr> is a class type, the atom trailer will be the type params.
                     if isinstance(base_type, types.ClassType)
                     and base_type.is_instantiable_class() {
@@ -1209,7 +1209,7 @@ class TypeEvaluator {
                     matching_param = param_tracker.match_named_argument(arg);
                     arg_params[arg] = matching_param;
                 } else {  # Match parameter based on the position of the argument.
-                
+
                     matching_param = param_tracker.match_positional_argument(arg);
                     arg_params[arg] = matching_param;
                 }
