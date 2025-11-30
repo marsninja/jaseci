@@ -205,8 +205,8 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
                     comment_preview += "..."
                 self.log_error(
                     f"Comment could not be placed and would float to bottom: "
-                    f"{comment_preview!r} at line {info.first_line}",
-                    node_override=ir_in,
+                    f"{comment_preview!r}",
+                    node_override=info.token,
                 )
 
             # Still append comments to output (so they're not lost)
@@ -252,7 +252,12 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
 
         elif isinstance(node, doc.Indent):
             ctx = node.ast_node if node.ast_node else ctx
-            if node.ast_node and getattr(ctx, "body", None) is not None:
+            # Check for body (functions, classes) or children (JSX elements)
+            has_body = node.ast_node and (
+                getattr(ctx, "body", None) is not None
+                or (isinstance(ctx, uni.JsxElement) and ctx.children)
+            )
+            if has_body:
                 return self._handle_body_comments(ctx, node)
             return doc.Indent(self._process(ctx, node.contents), ast_node=ctx)
 
@@ -476,10 +481,14 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
         self, node: uni.UniNode, indent: doc.Indent
     ) -> doc.Indent:
         """Handle comment injection within bodies (functions, classes, etc)."""
-        if not hasattr(node, "body"):
-            return indent
-        body = node.body  # type: ignore[attr-defined]
-        if not isinstance(body, Sequence) or not isinstance(
+        # Support both 'body' (functions, classes) and 'children' (JSX elements)
+        body: Sequence[uni.UniNode] | None = None
+        if hasattr(node, "body"):
+            body = node.body  # type: ignore[attr-defined]
+        elif isinstance(node, uni.JsxElement) and node.children:
+            body = node.children
+
+        if body is None or not isinstance(body, Sequence) or not isinstance(
             indent.contents, doc.Concat
         ):
             return indent
@@ -517,6 +526,36 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
                 body_end = body[-1].loc.last_line + 1
             elif node.loc:
                 body_end = node.loc.last_line + 1
+
+        # For JSX elements that use JSX_TAG_END (>) and JSX_CLOSE_START (</) as delimiters
+        # JSX structure: kid[0]=opening tag (contains JSX_TAG_END), kid[-1]=closing tag
+        if body_start is None and isinstance(node, uni.JsxElement) and node.kid:
+            # Find JSX_TAG_END in the opening tag (first kid)
+            opening_tag = node.kid[0]
+            if isinstance(opening_tag, uni.JsxElement):
+                body_start = next(
+                    (
+                        k.loc.last_line + 1
+                        for k in opening_tag.kid
+                        if isinstance(k, uni.Token)
+                        and k.name == Tok.JSX_TAG_END
+                        and k.loc
+                    ),
+                    None,
+                )
+            # Find JSX_CLOSE_START in the closing tag (last kid)
+            closing_tag = node.kid[-1]
+            if isinstance(closing_tag, uni.JsxElement):
+                body_end = next(
+                    (
+                        k.loc.first_line
+                        for k in closing_tag.kid
+                        if isinstance(k, uni.Token)
+                        and k.name == Tok.JSX_CLOSE_START
+                        and k.loc
+                    ),
+                    None,
+                )
 
         if body_start is None:
             return indent
