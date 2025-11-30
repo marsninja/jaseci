@@ -37,18 +37,18 @@ repos:
     hooks:
       - id: jac-format
         name: Jac Format
-        entry: bash -c 'jac format "$@"' --
+        entry: bash -c '~/.fresh/bin/jac format "$@"' --
         language: system
         types: [file]
         files: \.jac$
-        exclude: (/fixtures/|_err\.jac$|_syntax_err\.jac$)
+        exclude: (/fixtures/|_err\.jac$|_syntax_err\.jac$|jac-client/jac_client/examples/)
       - id: jac-check
         name: Jac Check
-        entry: bash -c 'jac check "$@"' --
+        entry: bash -c '~/.fresh/bin/jac check "$@"' --
         language: system
         types: [file]
         files: \.jac$
-        exclude: (/fixtures/|_err\.jac$|_syntax_err\.jac$)
+        exclude: (/fixtures/|_err\.jac$|_syntax_err\.jac$|jac-client/jac_client/examples/)
   # Remote repo for CI (uncomment when not developing locally)
   # - repo: https://github.com/jaseci-labs/jac-pre-commit
   #   rev: v0.9.1

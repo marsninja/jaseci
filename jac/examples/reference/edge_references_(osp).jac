@@ -121,8 +121,12 @@ walker EdgeRefWalker {
                 print(f"  Iterating: {person.name}");
             }
             # In visit statement (most common)
+<<<<<<< HEAD
             print("\nVisit statement: visit [->:Friend:->]");# visit [->:Friend:->];  # Would visit friends
 
+=======
+            print("\nVisit statement: visit [->:Friend:->]");  # visit [->:Friend:->];  # Would visit friends
+>>>>>>> c690ab9f4 (ok, hooks running internally)
         }
 
         disengage;

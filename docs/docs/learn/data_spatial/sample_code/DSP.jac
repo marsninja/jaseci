@@ -5,18 +5,22 @@ node test_node {
         print(f">>> Some Walker entered the node: ", self);
     }
 
+
     can log_test_walker_entry with test_walker entry {
         print(f">>> {visitor} entered the node {visitor}");
         visitor.callable();
     }
 
+
     can log_test_walker_exit with test_walker exit {
         print(f"<<< {visitor} exited the node {self}");
     }
 
+
     can log_exit with exit {
         print(f"<<< Some Walker exited the node {self}");
     }
+
 
     def callable {
         print(f"===== Callable on {self}");
@@ -28,6 +32,7 @@ walker test_walker {
 
     can traverse with `root entry {
         for i in range(2) {
+            root ++> (next := test_node(value=i));
             root ++> (next := test_node(value=i));
         }
         visit [-->](`?test_node);
@@ -56,6 +61,5 @@ walker test_walker {
 }
 
 with entry {
-    wlk_obj = root spawn test_walker(walker_id=381);# print(wlk_obj);
-
+    wlk_obj = root spawn test_walker(walker_id=381);  # print(wlk_obj);
 }

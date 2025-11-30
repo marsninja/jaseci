@@ -5,8 +5,12 @@ import os;
 def clear_terminal()  -> None {
     # For Windows
     if os.name == "nt" {
+<<<<<<< HEAD
         os.system("cls");# For macOS / Linux
 
+=======
+        os.system("cls");  # For macOS / Linux
+>>>>>>> c690ab9f4 (ok, hooks running internally)
     } else {
         os.system("clear");
     }

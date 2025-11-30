@@ -15,6 +15,10 @@ with entry {
     "hello" |> len |> print;
 }  # more concise
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> c690ab9f4 (ok, hooks running internally)
 with entry {
     print(len("hello"));
 }  # same, but no pipe

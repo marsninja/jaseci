@@ -13,6 +13,7 @@ node epoc {
 node life(epoc) {
     def quantize { }
 }
+<<<<<<< HEAD
 node year(epoc) {
     def quantize { }
 }
@@ -22,6 +23,21 @@ node month(epoc) {
 node week(epoc) {
     def quantize { }
 }
+=======
+
+node year(epoc) {
+    def quantize { }
+}
+
+node month(epoc) {
+    def quantize { }
+}
+
+node week(epoc) {
+    def quantize { }
+}
+
+>>>>>>> c690ab9f4 (ok, hooks running internally)
 node day(epoc) {
     def quantize { }
 }

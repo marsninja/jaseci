@@ -195,9 +195,21 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
         # Process the document IR
         processed = self._process(ir_in, ir_in.gen.doc_ir)
 
-        # Append any leftover comments (safety net)
+        # Check for any leftover comments that couldn't be placed
         leftovers = self._comments.drain_unattached()
         if leftovers:
+            # Emit errors for each unplaced comment
+            for info in leftovers:
+                comment_preview = info.token.value[:50]
+                if len(info.token.value) > 50:
+                    comment_preview += "..."
+                self.log_error(
+                    f"Comment could not be placed and would float to bottom: "
+                    f"{comment_preview!r} at line {info.first_line}",
+                    node_override=ir_in,
+                )
+
+            # Still append comments to output (so they're not lost)
             sink: list[doc.DocType] = [processed]
             self._emit_standalone_comments(
                 sink,
@@ -409,9 +421,7 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
 
         # Get cases from the match statement
         cases: list[uni.UniNode] = []
-        if isinstance(match_node, uni.MatchStmt) or isinstance(
-            match_node, uni.SwitchStmt
-        ):
+        if isinstance(match_node, uni.MatchStmt | uni.SwitchStmt):
             cases = list(match_node.cases)
 
         # Find the opening brace line
