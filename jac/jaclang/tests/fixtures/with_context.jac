@@ -18,9 +18,10 @@ with entry {
     init();
 }
 
-impl init{
+impl init {
     print("init");
 }
+
 
 with entry {
     x = ["apple", "banana", "cherry"];

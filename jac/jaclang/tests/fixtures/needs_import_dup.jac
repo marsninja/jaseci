@@ -5,6 +5,7 @@ import random;
 import from jaclang.tests.fixtures.pyfunc { my_print }
 
 with entry {
+
     pyfunc.__name__ = "pyfunc";
     pyfunc.__spec__ = None;
     my_print(pyfunc);

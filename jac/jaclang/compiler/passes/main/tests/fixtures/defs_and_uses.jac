@@ -4,7 +4,8 @@
 def my_print(messag: str) -> str;
 
 # Definitions
-impl my_print(message: str) -> str {
+impl my_print
+(message: str) -> str {
     output = f"from me: {message}";
     print("from me: {message}");
     return output;
@@ -13,18 +14,18 @@ impl my_print(message: str) -> str {
 # Declaration
 obj MyPrinter {
     has thing_to_print: str;
-
-    def my_print(messag: str) -> str;  # method declaration
-
+    def my_print(messag: str) -> str; # method declaration
 }
 
 # Definition
-impl MyPrinter.my_print(message: str) -> str {
+impl MyPrinter.my_print
+(message: str) -> str {
     y = ".".join([i for i in range(10)]);
     output = f"from me: {message} {y}";
     print(f"from me: {output}");
     return output;
 }
+
 
 # Decl/Def Combined
 def your_print(messag: str) -> str {

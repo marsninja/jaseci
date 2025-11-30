@@ -1,5 +1,8 @@
+
+
+
 glob a = 89;
 
-def foo {
+def foo{
     return a;
 }

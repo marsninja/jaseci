@@ -3,17 +3,11 @@
 def double(x: int) -> int {
     return x * 2;
 }
-<<<<<<< HEAD
-def triple(x: int) -> int {
-    return x * 3;
-}
-=======
 
 def triple(x: int) -> int {
     return x * 3;
 }
 
->>>>>>> c690ab9f4 (ok, hooks running internally)
 def add_five(x: int) -> int {
     return x + 5;
 }

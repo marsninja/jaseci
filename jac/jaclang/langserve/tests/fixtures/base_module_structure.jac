@@ -10,6 +10,7 @@ def add(a: int, b: int) -> int {
     return a + b;
 }
 # No docstring for subtract function
+
 def subtract(a: int, b: int) -> int {
     return a - b;
 }
@@ -20,7 +21,11 @@ with entry:__main__ {
 
 glob x: int = 10;
 
-enum Colorenum { RED, GREEN, BLUE }
+enum Colorenum {
+    RED,
+    GREEN,
+    BLUE
+}
 
 obj Colour1 {
     has color1: Colorenum,
@@ -30,6 +35,7 @@ obj Colour1 {
 }
 
 impl Colour1.get_color1 -> Colorenum {
+
     return self.color1;
 }
 
@@ -39,24 +45,27 @@ obj red(Colour1) {
 
     obj inner_red {
         has color22: enum_red = enum_red.BLUE22,
-            doublepoint22: doubleinner.double = 2,
+            doublepoint22:doubleinner.double  = 2,
             point22: int = 20;
 
         def apply_inner_red -> enum_red {
             return self.color22;
         }
-
-        enum enum_red { RED22, GREEN22, BLUE22 }
+        enum enum_red {
+            RED22,
+            GREEN22,
+            BLUE22
+        }
     }
-
     class doubleinner {
         has double: int = 2;
     }
 
     def apply_red -> int {
-        x = self.inner_red.color22.GREEN22;
+        x =
+        self.inner_red.color22.GREEN22;
         return self.point1 + self.pointred;
-    }
+        }
 }
 
 with entry:__main__ {

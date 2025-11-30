@@ -10,4 +10,5 @@ obj Test {
 with entry {
     print(f"{mine}");
 }
+
 # import impl.imps;

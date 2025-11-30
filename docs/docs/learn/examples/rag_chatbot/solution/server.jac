@@ -49,10 +49,7 @@ node ImageChat(Chat) {
     def respond_with_image(img: Image, text: Text, chat_history: list[dict]) -> str by llm(
         tools=([use_mcp_tool, list_mcp_tools])
     );
-<<<<<<< HEAD
-=======
 
->>>>>>> c690ab9f4 (ok, hooks running internally)
     can chat with infer entry;
 }
 

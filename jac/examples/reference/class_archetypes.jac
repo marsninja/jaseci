@@ -43,17 +43,11 @@ obj Mammal {
 node Pet(Animal , Domesticated , Mammal) {
     has name: str = "Unnamed";
     has favorite_toy: str = "ball";
-<<<<<<< HEAD
-=======
 
     def play {
         print(f"{self.name} plays with {self.favorite_toy}");
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
-    def play {
-        print(f"{self.name} plays with {self.favorite_toy}");
-    }
     can greet_person with Person entry {
         print(f"  {self.name} wags tail at {visitor.name}");
     }
@@ -135,17 +129,11 @@ async walker AsyncInspector {
 obj : priv PrivateConfig {
     has secret_key: str = "hidden";
 }
-<<<<<<< HEAD
-obj : pub PublicAPI {
-    has version: str = "1.0";
-}
-=======
 
 obj : pub PublicAPI {
     has version: str = "1.0";
 }
 
->>>>>>> c690ab9f4 (ok, hooks running internally)
 obj : protect ProtectedResource {
     has resource_id: int = 0;
 }

@@ -1,9 +1,12 @@
 obj Calc {
-    static def add(a: int, b: int) -> int {
+    @staticmethod
+    def add(a: int, b: int) -> int {
         return a + b;
     }
 
-    static def sub(a: int, b: int) -> int {
+    @staticmethod
+    static
+    def sub(a: int, b: int) -> int {
         return a - b;
     }
 }

@@ -21,11 +21,7 @@ def switch_case(Num: int) {
         default:
             print("No match found for value: " + str(Num));
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 }
 
 with entry {

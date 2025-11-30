@@ -1,6 +1,7 @@
 import blip;
 
-with entry {
+
+with entry{
     kl = blip;
-    l1 = l2=blip;
+    l1 = l2 = blip;
 }

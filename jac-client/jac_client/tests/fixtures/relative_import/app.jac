@@ -1,11 +1,13 @@
-cl import from .button { CustomButton }
+cl import from .button {
+    CustomButton
+}
 
-cl def RelativeImport()  -> any {
+cl def RelativeImport() -> any {
     return <div>
         <CustomButton />
     </div>;
 }
 
-cl def app()  -> any {
+cl def app() -> any {
     return <RelativeImport />;
 }

@@ -1,6 +1,7 @@
 with entry:__main__ {
     app = App();
-    app.run();# ray.init_window(800, 450, "Hello");
+    app.run();
+    # ray.init_window(800, 450, "Hello");
     # while not ray.window_should_close() {
     #     ray.begin_drawing();
     #     ray.clear_background(ray.WHITE);
@@ -9,5 +10,4 @@ with entry:__main__ {
     # }
 
     # ray.close_window();
-
 }

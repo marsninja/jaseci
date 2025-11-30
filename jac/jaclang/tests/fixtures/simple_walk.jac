@@ -4,7 +4,9 @@ node Item {
     has value: int = 1;
 }
 
+
 edge Checking {}
+
 
 walker Creator {
     has count: int = 0;
@@ -17,6 +19,7 @@ walker Creator {
         }
     }
 }
+
 
 walker Walk {
     has count: int = 0;
@@ -37,11 +40,13 @@ walker Walk {
     }
 }
 
+
 def test_run {
     root spawn Creator();
     Walk() spawn root;
 }
 
-with entry:__main__ {
+
+with entry : __main__ {
     test_run();
 }

@@ -1,3 +1,5 @@
-def foo()  -> str {
+
+
+def foo() -> str {
     return "foo";
 }

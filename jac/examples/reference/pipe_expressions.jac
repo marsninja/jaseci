@@ -3,17 +3,11 @@
 def square(x: int) -> int {
     return x ** 2;
 }
-<<<<<<< HEAD
-def double(x: int) -> int {
-    return x * 2;
-}
-=======
 
 def double(x: int) -> int {
     return x * 2;
 }
 
->>>>>>> c690ab9f4 (ok, hooks running internally)
 def add_ten(x: int) -> int {
     return x + 10;
 }

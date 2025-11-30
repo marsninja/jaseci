@@ -1,140 +1,130 @@
 """Test declarative routing system."""
 
-cl import from jac:client_runtime { createRouter, Route, Link, navigate, createSignal, }
+cl import from jac:client_runtime {
+    createRouter,
+    Route,
+    Link,
+    navigate,
+    createSignal,
+}
 
 cl {
-    # Mock components for testing
-    def HomePage()  -> any {
-        return <div id="home-page">
-            Home Page
-        </div>;
-    }
+# Mock components for testing
+def HomePage() -> any {
+    return <div id="home-page">Home Page</div>;
+}
 
-    def AboutPage()  -> any {
-        return <div id="about-page">
-            About Page
-        </div>;
-    }
+def AboutPage() -> any {
+    return <div id="about-page">About Page</div>;
+}
 
-    def ProfilePage()  -> any {
-        return <div id="profile-page">
-            Profile Page
-        </div>;
-    }
+def ProfilePage() -> any {
+    return <div id="profile-page">Profile Page</div>;
+}
 
-    def LoginPage()  -> any {
-        return <div id="login-page">
-            Login Page
-        </div>;
-    }
+def LoginPage() -> any {
+    return <div id="login-page">Login Page</div>;
+}
 
-    # Guard function
-    def requireAuth()  -> bool {
-        # Mock auth check
-        return True;
-    }
+# Guard function
+def requireAuth() -> bool {
+    # Mock auth check
+    return True;
+}
 
-    # Test 1: Basic router creation and rendering
-    def test_router_basic()  -> dict {
-        router = createRouter(
-            [
-                Route(path="/home", component=HomePage),
-                Route(path="/about", component=AboutPage),
+# Test 1: Basic router creation and rendering
+def test_router_basic() -> dict {
+    router = createRouter([
+        Route(path="/home", component=HomePage),
+        Route(path="/about", component=AboutPage),
+    ], defaultRoute="/home");
 
-            ],
-            defaultRoute="/home"
-        );
+    # Get initial component
+    initialComponent = router.render();
 
-        # Get initial component
-        initialComponent = router.render();
+    return {
+        "hasRouter": router != None,
+        "hasRenderMethod": router.render != None,
+        "hasNavigateMethod": router.navigate != None,
+        "hasPathSignal": router.path != None
+    };
+}
 
-        return {
-            "hasRouter": router != None,
-            "hasRenderMethod": router.render != None,
-            "hasNavigateMethod": router.navigate != None,
-            "hasPathSignal": router.path != None
-        };
-    }
+# Test 2: Router navigation
+def test_router_navigation() -> dict {
+    router = createRouter([
+        Route(path="/home", component=HomePage),
+        Route(path="/about", component=AboutPage),
+        Route(path="/profile", component=ProfilePage),
+    ], defaultRoute="/home");
 
-    # Test 2: Router navigation
-    def test_router_navigation()  -> dict {
-        router = createRouter(
-            [
-                Route(path="/home", component=HomePage),
-                Route(path="/about", component=AboutPage),
-                Route(path="/profile", component=ProfilePage),
+    # Initial route
+    initialPath = router.path()();
 
-            ],
-            defaultRoute="/home"
-        );
+    # Navigate to about
+    router.navigate("/about");
+    aboutPath = router.path()();
 
-        # Initial route
-        initialPath = router.path()();
+    # Navigate to profile
+    router.navigate("/profile");
+    profilePath = router.path()();
 
-        # Navigate to about
-        router.navigate("/about");
-        aboutPath = router.path()();
+    return {
+        "initialPath": initialPath,
+        "aboutPath": aboutPath,
+        "profilePath": profilePath
+    };
+}
 
-        # Navigate to profile
-        router.navigate("/profile");
-        profilePath = router.path()();
+# Test 3: Route guards
+def test_router_guards() -> dict {
+    router = createRouter([
+        Route(path="/home", component=HomePage),
+        Route(path="/profile", component=ProfilePage, guard=requireAuth),
+    ], defaultRoute="/home");
 
-        return {
-            "initialPath": initialPath,
-            "aboutPath": aboutPath,
-            "profilePath": profilePath
-        };
-    }
+    # Navigate to guarded route
+    router.navigate("/profile");
 
-    # Test 3: Route guards
-    def test_router_guards()  -> dict {
-        router = createRouter(
-            [
-                Route(path="/home", component=HomePage),
-                Route(path="/profile", component=ProfilePage, guard=requireAuth),
+    return {
+        "currentPath": router.path()()
+    };
+}
 
-            ],
-            defaultRoute="/home"
-        );
+# Test 4: Link component generation
+def test_link_component() -> any {
+    link = Link("/about", "Go to About");
 
-        # Navigate to guarded route
-        router.navigate("/profile");
+    return {
+        "hasLink": link != None,
+        "isJSX": link.tag == "a"
+    };
+}
 
-        return {"currentPath": router.path()()};
-    }
+# Test 5: 404 handling
+def test_router_404() -> dict {
+    router = createRouter([
+        Route(path="/home", component=HomePage),
+        Route(path="/about", component=AboutPage),
+    ], defaultRoute="/home");
 
-    # Test 4: Link component generation
-    def test_link_component()  -> any {
-        link = Link("/about", "Go to About");
+    # Navigate to non-existent route
+    router.navigate("/nonexistent");
+    component = router.render();
 
-        return {"hasLink": link != None, "isJSX": link.tag == "a"};
-    }
+    return {
+        "currentPath": router.path()(),
+        "has404": component != None
+    };
+}
 
-    # Test 5: 404 handling
-    def test_router_404()  -> dict {
-        router = createRouter(
-            [
-                Route(path="/home", component=HomePage),
-                Route(path="/about", component=AboutPage),
-
-            ],
-            defaultRoute="/home"
-        );
-
-        # Navigate to non-existent route
-        router.navigate("/nonexistent");
-        component = router.render();
-
-        return {"currentPath": router.path()(), "has404": component != None};
-    }
-
-    # Test entry point
-    def test_all_router_features()  -> dict {
-        return {
-            "basic": test_router_basic(),
-            "navigation": test_router_navigation(),
-            "guards": test_router_guards(),
-            "404": test_router_404()
-        };
-    }
+# Test entry point
+def test_all_router_features() -> dict {
+    return {
+        "basic": test_router_basic(),
+        "navigation": test_router_navigation(),
+        "guards": test_router_guards(),
+        "404": test_router_404()
+    };
+}
 }

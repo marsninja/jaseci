@@ -16,10 +16,7 @@ obj Map {
     has level: Level,
         walls: list[Wall],
         small_obstacles: list[Position];
-<<<<<<< HEAD
-=======
 
->>>>>>> c690ab9f4 (ok, hooks running internally)
     has enemies: list[Position];
     has player_pos: Position;
 }
@@ -27,18 +24,12 @@ obj Map {
 obj Level {
     has name: str,
         difficulty: int;
-<<<<<<< HEAD
-=======
 
->>>>>>> c690ab9f4 (ok, hooks running internally)
     has width: int,
         height: int,
         num_wall: int,
         num_enemies: int;
-<<<<<<< HEAD
-=======
 
->>>>>>> c690ab9f4 (ok, hooks running internally)
     has time_countdown: int,
         n_retries_allowed: int;
 }

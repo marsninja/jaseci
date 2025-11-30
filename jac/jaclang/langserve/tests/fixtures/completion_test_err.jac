@@ -1,3 +1,4 @@
+
 class Foo {
     has bar: int;
     has baz: int;
@@ -5,5 +6,5 @@ class Foo {
 
 with entry {
     foo = Foo();
-    foo.recover_name_token;
+    foo.
 }

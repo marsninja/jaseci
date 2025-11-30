@@ -133,7 +133,9 @@ obj MTIR {
             "tools": self.get_tool_list() or None,
             "response_format": self.get_output_schema(),
             "temperature": self.call_params.get("temperature", 0.7),
-
+            # "max_tokens": self.call_params.get("max_tokens", 100),
+            # "top_k": self.call_params.get("top_k", 50),
+            # "top_p": self.call_params.get("top_p", 0.9),
         };
         return params;
     }
@@ -144,7 +146,7 @@ obj MTIR {
     }
 
     """Return the messages in a format suitable for LLM API."""
-    def get_msg_list()  -> list[dict[str, object] | LiteLLMMessage] {
+    def get_msg_list() -> list[dict[str, object] | LiteLLMMessage] {
         return [
             msg.to_dict() if isinstance(msg, Message) else msg for msg in self.messages
         ];
@@ -196,6 +198,3 @@ obj MTIR {
         return None;
     }
 }
-# "max_tokens": self.call_params.get("max_tokens", 100),
-# "top_k": self.call_params.get("top_k", 50),
-# "top_p": self.call_params.get("top_p", 0.9),

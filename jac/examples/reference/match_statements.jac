@@ -36,11 +36,7 @@ with entry {
         case _:
             print("Other status");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Float literal patterns
     pi = 3.14;
@@ -54,11 +50,7 @@ with entry {
         case _:
             print("Other number");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # String literal patterns
     command = "start";
@@ -75,11 +67,7 @@ with entry {
         case _:
             print("Unknown command");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # ========================================
     # SINGLETON PATTERNS
@@ -94,11 +82,7 @@ with entry {
         case False:
             print("Flag is False");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # None singleton pattern
     optional_value = None;
@@ -109,11 +93,7 @@ with entry {
         case _:
             print("Value exists");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # ========================================
     # CAPTURE PATTERNS
@@ -125,11 +105,7 @@ with entry {
         case x:
             print(f"Captured value: {x}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Wildcard pattern (_) - matches anything without binding
     day = "sunday";
@@ -140,11 +116,7 @@ with entry {
         case _:
             print("Not Monday");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # AS pattern - capture with explicit naming
     number = 100;
@@ -152,11 +124,7 @@ with entry {
         case x as captured_num:
             print(f"Captured as: {captured_num}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # ========================================
     # SEQUENCE PATTERNS
@@ -171,11 +139,7 @@ with entry {
         case _:
             print("Different sequence");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Sequence with variable binding
     point = [10, 20];
@@ -183,11 +147,7 @@ with entry {
         case [ x , y ]:
             print(f"Point at ({x}, {y})");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Star pattern (*) - captures remaining elements
     numbers = [1, 2, 3, 4, 5];
@@ -198,11 +158,7 @@ with entry {
         case [ * all_items ]:
             print(f"All items: {all_items}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Star at different positions
     data = [100, 200, 300, 400];
@@ -213,11 +169,7 @@ with entry {
         case [ 100 , * rest ]:
             print(f"Starts with 100, rest: {rest}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Nested sequence patterns
     matrix = [[1, 2], [3, 4]];
@@ -225,11 +177,7 @@ with entry {
         case [ [ a , b ] , [ c , d ] ]:
             print(f"2x2 matrix: [{a},{b}], [{c},{d}]");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # ========================================
     # MAPPING PATTERNS
@@ -244,11 +192,7 @@ with entry {
         case _:
             print("Different user");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Mapping with value capture
     person = {"id": 123, "role": "admin"};
@@ -256,11 +200,7 @@ with entry {
         case { "id" : user_id , "role" : user_role }:
             print(f"User {user_id} is {user_role}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Double-star pattern (**) - captures remaining key-value pairs
     config = {"host": "localhost", "port": 8080, "debug": True, "timeout": 30};
@@ -268,11 +208,7 @@ with entry {
         case { "host" : h , "port" : p , ** rest }:
             print(f"Server: {h}:{p}, other settings: {rest}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Nested mapping patterns
     response = {"status": 200, "data": {"name": "Bob", "score": 95}};
@@ -280,11 +216,7 @@ with entry {
         case { "status" : 200 , "data" : { "name" : n , "score" : s } }:
             print(f"Success: {n} scored {s}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # ========================================
     # CLASS PATTERNS
@@ -296,11 +228,7 @@ with entry {
         case Point(x = x_val, y = y_val):
             print(f"Point at ({x_val}, {y_val})");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Class pattern with specific value matching
     origin = Point(x=0.0, y=0.0);
@@ -317,11 +245,7 @@ with entry {
         case _:
             print("Point elsewhere");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Nested class patterns
     circle = Circle(center=Point(x=3.0, y=4.0), radius=5.0);
@@ -329,11 +253,7 @@ with entry {
         case Circle(center = Point(x = cx, y = cy), radius = r):
             print(f"Circle at ({cx}, {cy}) with radius {r}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Class pattern with AS capture
     rect = Rectangle(width=10.0, height=20.0);
@@ -341,11 +261,7 @@ with entry {
         case Rectangle(width = w, height = h) as captured_rect:
             print(f"Rectangle {w}x{h}, object: {captured_rect}");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # ========================================
     # OR PATTERNS
@@ -366,11 +282,7 @@ with entry {
         case _:
             print("Other code");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # ========================================
     # GUARD CLAUSES (if conditions)
@@ -388,11 +300,7 @@ with entry {
         case x:
             print("Senior");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Complex guard with multiple conditions
     score = 85;
@@ -412,11 +320,7 @@ with entry {
         case _:
             print("Grade: F");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # ========================================
     # COMBINED PATTERNS
@@ -434,11 +338,7 @@ with entry {
         case _:
             print("Unknown shape");
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     # Multiple statements in case block
     result = "success";
@@ -457,11 +357,7 @@ with entry {
             print("Unknown result");
             status_val = 0;
 
-<<<<<<< HEAD
-        }
-=======
     }
->>>>>>> c690ab9f4 (ok, hooks running internally)
 
     print("Match patterns demonstration complete");
 }

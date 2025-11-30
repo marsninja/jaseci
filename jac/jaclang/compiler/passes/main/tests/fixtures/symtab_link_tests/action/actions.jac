@@ -1,5 +1,6 @@
-node LLM {
-    can infer with AgentNode entry {
+node LLM{
+
+    can infer with AgentNode entry{
         return "LLM's response";
     }
 
@@ -8,10 +9,11 @@ node LLM {
     }
 }
 
-walker Agent {
-    has describ: str = "AgentNode";
 
-    can connect with LLM entry {
+walker Agent{
+    has describ :str = "AgentNode";
+
+    can connect with LLM entry{
         return "AgentNode's response";
     }
 }

@@ -27,7 +27,11 @@ walker positional_walker {
     has metadata: dict = {};
 
     can execute with `root entry {
-        report {"label": self.label, "count": self.count, "meta": self.metadata} ;
+        report {
+            "label": self.label,
+            "count": self.count,
+            "meta": self.metadata
+        } ;
     }
 }
 

@@ -1,4 +1,4 @@
-import from jaclang.runtimelib.archetype { AccessLevel }
+import from jaclang.runtimelib.archetype {AccessLevel}
 
 node A {
     has val1: str = "NO_ACCESS";
@@ -6,12 +6,14 @@ node A {
 
     # suggested to be `with access {}`
     def __jac_access__ {
+
         ###############################################
         #              YOUR PROCESS HERE              #
         ###############################################
 
         # Allowed string return "NO_ACCESS", "READ", "CONNECT", "WRITE"
         return self.val1;
+
         # Allowed enum return AccessLevel.NO_ACCESS, AccessLevel.READ, AccessLevel.CONNECT, AccessLevel.WRITE
         # return AccessLevel.NO_ACCESS;
 
@@ -36,6 +38,7 @@ walker create {
         print(a[0].__jac__.id);
     }
 }
+
 
 walker update {
     has val1: str | None = None;
