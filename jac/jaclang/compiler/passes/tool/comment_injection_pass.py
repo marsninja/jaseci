@@ -602,6 +602,9 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
                         comments,
                         prev_item_line=last_body_line,
                     )
+                    # Remove trailing line (will be added outside Indent)
+                    if result and self._is_comment_with_line(result[-1]):
+                        result[-1] = self._strip_trailing_line_from_comment(result[-1])
             else:
                 # Empty body: inject comments between braces
                 comments = []
@@ -762,10 +765,15 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
             ) or (last_line is not None and comment_line > last_line + 1)
 
             if should_add_line:
-                if not self._ends_with_hard_line(sink):
+                # Blank line gap in source - add line if sink doesn't end with explicit Line
+                # (Concat's trailing hard line is not a blank line, just line break)
+                if not sink or not isinstance(sink[-1], doc.Line):
                     sink.append(doc.Line(hard=True))
             else:
                 self._collapse_duplicate_hard_lines(sink)
+                # Ensure at least one hard line before comment (but not at start of file)
+                if sink and not self._ends_with_hard_line(sink):
+                    sink.append(doc.Line(hard=True))
 
             sink.append(self._make_standalone_comment(info.token))
             last_line = info.last_line
@@ -839,7 +847,17 @@ class CommentInjectionPass(Transform[uni.Module, uni.Module]):
 
     def _ends_with_hard_line(self, sink: Sequence[doc.DocType]) -> bool:
         """Return True when the sink already ends with a hard line break."""
-        return bool(sink) and isinstance(sink[-1], doc.Line) and sink[-1].hard
+        if not sink:
+            return False
+        last = sink[-1]
+        if isinstance(last, doc.Line) and last.hard:
+            return True
+        # Check inside Concat (e.g., standalone comments end with hard line)
+        if isinstance(last, doc.Concat) and last.parts:
+            last_part = last.parts[-1]
+            if isinstance(last_part, doc.Line) and last_part.hard:
+                return True
+        return False
 
     def _collapse_duplicate_hard_lines(self, sink: list[doc.DocType]) -> None:
         """Ensure we never end up with consecutive hard lines from injection."""
