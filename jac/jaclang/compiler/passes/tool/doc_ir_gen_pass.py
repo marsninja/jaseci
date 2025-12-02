@@ -113,17 +113,21 @@ class DocIRGenPass(UniPass):
     def _assign_concat(self, node: uni.UniNode) -> None:
         """Assign a simple Concat of child documents."""
 
-        node.gen.doc_ir = self.concat(self._child_docs(node))
+        node.gen.doc_ir = self.concat(self._child_docs(node), ast_node=node)
 
     def _assign_group_concat(self, node: uni.UniNode) -> None:
         """Assign a grouped Concat of child documents."""
 
-        node.gen.doc_ir = self.group(self.concat(self._child_docs(node)))
+        node.gen.doc_ir = self.group(
+            self.concat(self._child_docs(node), ast_node=node), ast_node=node
+        )
 
     def _assign_space_group(self, node: uni.UniNode) -> None:
         """Assign a grouped, space-joined document for the children."""
 
-        node.gen.doc_ir = self.group(self.join_with_space(self._child_docs(node)))
+        node.gen.doc_ir = self.group(
+            self.join_with_space(self._child_docs(node)), ast_node=node
+        )
 
     def intersperse(
         self, items: list[doc.DocType], separator: doc.DocType
@@ -702,7 +706,7 @@ class DocIRGenPass(UniPass):
         for i in node.kid:
             parts.append(i.gen.doc_ir)
             parts.append(self.space())
-        node.gen.doc_ir = self.group(self.concat(parts))
+        node.gen.doc_ir = self.group(self.concat(parts), ast_node=node)
 
     def exit_return_stmt(self, node: uni.ReturnStmt) -> None:
         """Generate DocIR for return statements."""
@@ -714,7 +718,7 @@ class DocIRGenPass(UniPass):
             else:
                 parts.append(i.gen.doc_ir)
             parts.append(self.space())
-        node.gen.doc_ir = self.group(self.concat(parts))
+        node.gen.doc_ir = self.group(self.concat(parts, ast_node=node), ast_node=node)
 
     def exit_func_call(self, node: uni.FuncCall) -> None:
         """Generate DocIR for function calls."""
