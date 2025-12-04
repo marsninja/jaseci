@@ -48,18 +48,4 @@ TOKEN_MAP.update(
 )
 # fmt: on
 
-
-def get_ts_token_map() -> dict[str, str]:
-    """Get TypeScript token map (lazy loaded)."""
-    try:
-        from jaclang.compiler.larkparse import ts_parser as ts_lark
-
-        return {
-            x.name: x.pattern.value
-            for x in ts_lark.Lark_StandAlone().parser.lexer_conf.terminals
-        }
-    except (ModuleNotFoundError, ImportError):
-        return {}
-
-
 __all__ = ["jac_lark", "TOKEN_MAP", "generate_ts_static_parser", "get_ts_token_map"]
