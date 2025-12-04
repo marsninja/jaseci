@@ -15,13 +15,9 @@ class BuildPyWithParser(build_py):
 
     def run(self) -> None:
         """Generate static parsers, then run the standard build_py."""
-        from jaclang.compiler.generate import (
-            generate_static_parser,
-            generate_ts_static_parser,
-        )
+        from jaclang.compiler import gen_all_parsers
 
-        generate_static_parser(force=True)
-        generate_ts_static_parser(force=True)
+        gen_all_parsers()
         super().run()
 
 
