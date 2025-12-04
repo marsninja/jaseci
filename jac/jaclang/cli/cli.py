@@ -28,13 +28,9 @@ def _ensure_jac_runtime() -> None:
 @cmd_registry.register
 def gen_parser() -> str:
     """Generate static parser."""
-    from jaclang.compiler.generate import (
-        generate_static_parser,
-        generate_ts_static_parser,
-    )
+    from jaclang.compiler import gen_all_parsers
 
-    generate_static_parser(force=True)
-    generate_ts_static_parser(force=True)
+    gen_all_parsers()
     return "Parser generated."
 
 
