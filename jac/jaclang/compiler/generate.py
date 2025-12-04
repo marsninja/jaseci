@@ -4,10 +4,15 @@ import os
 import shutil
 import sys
 
+# Add vendor directory to sys.path for direct lark imports
+_vendor_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "vendor"))
+if _vendor_dir not in sys.path:
+    sys.path.insert(0, _vendor_dir)
+
 
 def generate_static_parser(force: bool = False) -> None:
     """Generate static parser for Jac."""
-    from jaclang.vendor.lark.tools import standalone
+    from lark.tools import standalone
 
     cur_dir = os.path.dirname(__file__)
     if force or not os.path.exists(os.path.join(cur_dir, "larkparse", "jac_parser.py")):
@@ -30,7 +35,7 @@ def generate_static_parser(force: bool = False) -> None:
 
 def generate_ts_static_parser(force: bool = False) -> None:
     """Generate static parser for TypeScript/JavaScript."""
-    from jaclang.vendor.lark.tools import standalone
+    from lark.tools import standalone
 
     cur_dir = os.path.dirname(__file__)
     ts_parser_path = os.path.join(cur_dir, "larkparse", "ts_parser.py")

@@ -1,7 +1,13 @@
 """Jac compiler tools."""
 
 import logging
+import os
 import sys
+
+# Add vendor directory to sys.path for lark (needed for unpickling parser data)
+_vendor_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "vendor"))
+if _vendor_dir not in sys.path:
+    sys.path.insert(0, _vendor_dir)
 
 try:
     from jaclang.compiler.larkparse import jac_parser as jac_lark
