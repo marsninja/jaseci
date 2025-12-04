@@ -1,7 +1,13 @@
 """Setup script with custom build hook for parser generation."""
 
+import os
+import sys
+
 from setuptools import setup
 from setuptools.command.build_py import build_py
+
+# Add source directory to path for build-time imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 class BuildPyWithParser(build_py):
@@ -9,7 +15,10 @@ class BuildPyWithParser(build_py):
 
     def run(self) -> None:
         """Generate static parsers, then run the standard build_py."""
-        from jaclang.compiler import generate_static_parser, generate_ts_static_parser
+        from jaclang.compiler.generate import (
+            generate_static_parser,
+            generate_ts_static_parser,
+        )
 
         generate_static_parser(force=True)
         generate_ts_static_parser(force=True)
