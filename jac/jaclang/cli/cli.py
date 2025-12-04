@@ -11,19 +11,18 @@ from pathlib import Path
 
 from jaclang.cli.cmdreg import cmd_registry
 
-# Jac runtime initialization state
-_jac_initialized = False
+_runtime_initialized = False
 
 
-def _ensure_jac_initialized() -> None:
+def _ensure_jac_runtime() -> None:
     """Initialize Jac runtime once on first use."""
-    global _jac_initialized
-    if not _jac_initialized:
+    global _runtime_initialized
+    if not _runtime_initialized:
         from jaclang.runtimelib.runtime import JacRuntime as Jac
 
         Jac.create_cmd()
         Jac.setup()
-        _jac_initialized = True
+        _runtime_initialized = True
 
 
 @cmd_registry.register
@@ -184,6 +183,7 @@ def run(
         jac run myprogram.jac --session mysession
         jac run myprogram.jac --no-main
     """
+    _ensure_jac_runtime()
     from jaclang.runtimelib.runtime import JacRuntime as Jac
 
     base, mod, mach = proc_file_sess(filename, session)
@@ -234,6 +234,7 @@ def get_object(filename: str, id: str, session: str = "", main: bool = True) -> 
         jac get_object myprogram.jac obj123
         jac get_object myprogram.jac obj123 --session mysession
     """
+    _ensure_jac_runtime()
     from jaclang.runtimelib.runtime import JacRuntime as Jac
 
     base, mod, mach = proc_file_sess(filename, session)
@@ -421,6 +422,7 @@ def enter(
         jac enter myprogram.jac main_function arg1 arg2
         jac enter myprogram.jac process_data --node data_node data.json
     """
+    _ensure_jac_runtime()
     from jaclang.runtimelib.constructs import WalkerArchetype
     from jaclang.runtimelib.runtime import JacRuntime as Jac
 
@@ -490,6 +492,7 @@ def test(
         jac test --xit               # Stop on first failure
         jac test --verbose           # Show detailed output
     """
+    _ensure_jac_runtime()
     from jaclang.runtimelib.runtime import JacRuntime as Jac
 
     failcount = Jac.run_test(
@@ -624,6 +627,7 @@ def dot(
         jac dot myprogram.jac --saveto graph.dot
         jac dot myprogram.jac --to_screen
     """
+    _ensure_jac_runtime()
     from jaclang.runtimelib.builtin import printgraph
     from jaclang.runtimelib.runtime import JacRuntime as Jac
 
@@ -801,6 +805,7 @@ def serve(
         jac serve myprogram.jac --session myapp.session
         jac serve myprogram.jac --faux
     """
+    _ensure_jac_runtime()
     from jaclang.runtimelib.runtime import JacRuntime as Jac
     from jaclang.runtimelib.server import JacAPIServer
 
@@ -848,8 +853,6 @@ def serve(
 
 def start_cli() -> None:
     """Start the command line interface."""
-    # Initialize Jac runtime and finalize registry
-    _ensure_jac_initialized()
     cmd_registry.finalize()
 
     parser = cmd_registry.parser

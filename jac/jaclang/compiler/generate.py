@@ -53,3 +53,9 @@ def generate_ts_static_parser(force: bool = False) -> None:
         ]
         standalone.main()
         sys.argv = save_argv
+
+
+if __name__ == "__main__":
+    generate_static_parser(force=True)
+    generate_ts_static_parser(force=True)
+    print("Parser generated.")

@@ -1,28 +1,20 @@
 """Jac compiler tools."""
 
-import contextlib
 import logging
-
-from jaclang.compiler.generate import generate_static_parser, generate_ts_static_parser
+import sys
 
 try:
     from jaclang.compiler.larkparse import jac_parser as jac_lark
-except ModuleNotFoundError:
-    generate_static_parser(force=True)
-    from jaclang.compiler.larkparse import jac_parser as jac_lark
 
-if not hasattr(jac_lark, "Lark_StandAlone"):
-    generate_static_parser(force=True)
-    from jaclang.compiler.larkparse import jac_parser as jac_lark
-
-with contextlib.suppress(AttributeError):
     jac_lark.logger.setLevel(logging.DEBUG)
-contextlib.suppress(ModuleNotFoundError)
 
-TOKEN_MAP = {
-    x.name: x.pattern.value
-    for x in jac_lark.Lark_StandAlone().parser.lexer_conf.terminals
-}
+    TOKEN_MAP = {
+        x.name: x.pattern.value
+        for x in jac_lark.Lark_StandAlone().parser.lexer_conf.terminals
+    }
+except (ModuleNotFoundError, ImportError) as e:
+    print(f"Warning: Parser not loaded: {e}", file=sys.stderr)
+    TOKEN_MAP = {}
 
 # fmt: off
 TOKEN_MAP.update(
@@ -48,4 +40,4 @@ TOKEN_MAP.update(
 )
 # fmt: on
 
-__all__ = ["jac_lark", "TOKEN_MAP", "generate_ts_static_parser", "get_ts_token_map"]
+__all__ = ["jac_lark", "TOKEN_MAP"]
