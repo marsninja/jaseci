@@ -17,7 +17,7 @@ repos:
         args: [--fix=lf]
       - id: end-of-file-fixer
   - repo: https://github.com/marsninja/juff
-    rev: 6bdc3ce97a7c886205fbc3ee310c970a33e88136
+    rev: a86212b89c5cdb328fceaa61e506070623b81a6a
     hooks:
       - id: juff-check-fix
       - id: juff-format
