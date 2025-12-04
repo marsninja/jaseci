@@ -20,7 +20,6 @@ def _ensure_jac_runtime() -> None:
     if not _runtime_initialized:
         from jaclang.runtimelib.runtime import JacRuntime as Jac
 
-        Jac.create_cmd()
         Jac.setup()
         _runtime_initialized = True
 
@@ -849,6 +848,10 @@ def serve(
 
 def start_cli() -> None:
     """Start the command line interface."""
+    # Load plugin commands before finalizing the registry
+    from jaclang.runtimelib.runtime import JacRuntime as Jac
+
+    Jac.create_cmd()
     cmd_registry.finalize()
 
     parser = cmd_registry.parser
