@@ -1,8 +1,30 @@
 """Test Jac Plugins."""
 
+import inspect
+import os
 import subprocess
+from collections.abc import Callable
 
+import pytest
 from jaclang_streamlit import AppTest
+
+
+@pytest.fixture
+def fixture_path() -> Callable[[str], str]:
+    """Get absolute path to fixture file."""
+
+    def _fixture_path(fixture: str) -> str:
+        frame = inspect.currentframe()
+        if frame is None or frame.f_back is None:
+            raise ValueError("Unable to get the previous stack frame.")
+        module = inspect.getmodule(frame.f_back)
+        if module is None or module.__file__ is None:
+            raise ValueError("Unable to determine the file of the module.")
+        fixture_src = module.__file__
+        file_path = os.path.join(os.path.dirname(fixture_src), "fixtures", fixture)
+        return os.path.abspath(file_path)
+
+    return _fixture_path
 
 
 def test_streamlit() -> None:
@@ -30,7 +52,7 @@ def test_streamlit() -> None:
     assert "filename" in dot_result.stdout
 
 
-def test_app(fixture_path) -> None:
+def test_app(fixture_path: Callable[[str], str]) -> None:
     """Test Jac Streamlit App."""
     fixture_abs_path = fixture_path("sample.jac")
     app: AppTest = AppTest.from_jac_file(fixture_abs_path).run()
