@@ -63,10 +63,10 @@ def test_modules_correct(fixture_abs_path: Callable[[str], str]) -> None:
         JacProgram(),
     )
     Jac.jac_import("fixtures.hello_world", base_path=__file__)
-    assert "module 'fixtures.hello_world'" in str(Jac.loaded_modules)
-    assert "/tests/fixtures/hello_world.jac" in str(Jac.loaded_modules).replace(
-        "\\\\", "/"
-    )
+    assert "fixtures.hello_world" in sys.modules
+    module = sys.modules["fixtures.hello_world"]
+    assert module.__file__ is not None
+    assert "/tests/fixtures/hello_world.jac" in module.__file__.replace("\\\\", "/")
 
 
 def test_jac_py_import(fixture_abs_path: Callable[[str], str]) -> None:

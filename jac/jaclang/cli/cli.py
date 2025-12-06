@@ -634,7 +634,7 @@ def dot(
 
     if filename.endswith(".jac"):
         Jac.jac_import(target=mod, base_path=base, override_name="__main__")
-        module = Jac.loaded_modules.get("__main__")
+        module = sys.modules.get("__main__")
         mod_ns = vars(module) if module else {}
         try:
             node = mod_ns.get(initial, eval(initial, mod_ns)) if initial else None

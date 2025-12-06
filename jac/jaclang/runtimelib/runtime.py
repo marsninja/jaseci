@@ -1056,9 +1056,6 @@ class JacBasics:
                 if spec.submodule_search_locations:
                     module.__path__ = spec.submodule_search_locations
 
-                # Register in JacRuntime
-                JacRuntimeInterface.load_module("__main__", module)
-
                 # Execute the module
                 if spec.loader:
                     spec.loader.exec_module(module)
@@ -1618,23 +1615,9 @@ class JacUtils:
         JacRuntime.program = jac_program
 
     @staticmethod
-    def load_module(
-        module_name: str, module: types.ModuleType, force: bool = False
-    ) -> None:
-        """Load a module into the machine."""
-        if module_name not in JacRuntime.loaded_modules or force:
-            JacRuntime.loaded_modules[module_name] = module
-            sys.modules[module_name] = module  # TODO: May want to nuke this one day
-
-    @staticmethod
-    def list_modules() -> list[str]:
-        """List all loaded modules."""
-        return list(JacRuntime.loaded_modules.keys())
-
-    @staticmethod
     def list_walkers(module_name: str) -> list[str]:
         """List all walkers in a specific module."""
-        module = JacRuntime.loaded_modules.get(module_name)
+        module = sys.modules.get(module_name)
         if module:
             walkers = []
             for name, obj in inspect.getmembers(module):
@@ -1650,7 +1633,7 @@ class JacUtils:
     @staticmethod
     def list_nodes(module_name: str) -> list[str]:
         """List all nodes in a specific module."""
-        module = JacRuntime.loaded_modules.get(module_name)
+        module = sys.modules.get(module_name)
         if module:
             nodes = []
             for name, obj in inspect.getmembers(module):
@@ -1666,7 +1649,7 @@ class JacUtils:
     @staticmethod
     def list_edges(module_name: str) -> list[str]:
         """List all edges in a specific module."""
-        module = JacRuntime.loaded_modules.get(module_name)
+        module = sys.modules.get(module_name)
         if module:
             edges = []
             for name, obj in inspect.getmembers(module):
@@ -1698,7 +1681,9 @@ class JacUtils:
         if base_path and not os.path.exists(base_path):
             os.makedirs(base_path)
         if not module_name:
-            module_name = f"_dynamic_module_{len(JacRuntime.loaded_modules)}"
+            import uuid
+
+            module_name = f"_dynamic_module_{uuid.uuid4().hex[:8]}"
 
         with tempfile.NamedTemporaryFile(
             mode="w",
@@ -1722,9 +1707,6 @@ class JacUtils:
                 lng="jac",
             )
             module = result[0] if result else None
-
-            if module:
-                JacRuntime.loaded_modules[module_name] = module
             return module
         except Exception as e:
             logger.error(f"Error importing dynamic module '{module_name}': {e}")
@@ -1739,9 +1721,9 @@ class JacUtils:
         items: dict[str, str | str | None] | None,
     ) -> tuple[types.ModuleType, ...]:
         """Reimport the module using Python's reload mechanism."""
-        if module_name in JacRuntime.loaded_modules:
+        if module_name in sys.modules:
             try:
-                old_module = JacRuntime.loaded_modules[module_name]
+                old_module = sys.modules[module_name]
 
                 # Use jac_import with reload flag
                 result = JacRuntimeInterface.jac_import(
@@ -1766,7 +1748,7 @@ class JacUtils:
             except Exception as e:
                 logger.error(f"Failed to update module {module_name}: {e}")
         else:
-            logger.warning(f"Module {module_name} not found in loaded modules.")
+            logger.warning(f"Module {module_name} not found in sys.modules.")
         return ()
 
     @staticmethod
@@ -1804,7 +1786,7 @@ class JacUtils:
     @staticmethod
     def get_archetype(module_name: str, archetype_name: str) -> Archetype | None:
         """Retrieve an archetype class from a module."""
-        module = JacRuntime.loaded_modules.get(module_name)
+        module = sys.modules.get(module_name)
         if module:
             return getattr(module, archetype_name, None)
         return None
@@ -1951,7 +1933,6 @@ plugin_manager.add_hookspecs(JacRuntimeSpec)
 class JacRuntime(JacRuntimeInterface):
     """Jac Machine State."""
 
-    loaded_modules: dict[str, types.ModuleType] = {}
     base_path_dir: str = os.getcwd()
     program: JacProgram = JacProgram()
     pool: ThreadPoolExecutor = ThreadPoolExecutor()
@@ -1972,13 +1953,6 @@ class JacRuntime(JacRuntimeInterface):
     @staticmethod
     def reset_machine() -> None:
         """Reset the machine."""
-        # Remove Jac modules from sys.modules, but skip special module names
-        # that Python relies on (like __main__, __mp_main__, etc.)
-        special_modules = {"__main__", "__mp_main__", "builtins"}
-        for i in JacRuntime.loaded_modules.values():
-            if i.__name__ not in special_modules:
-                sys.modules.pop(i.__name__, None)
-        JacRuntime.loaded_modules.clear()
         JacRuntime.base_path_dir = os.getcwd()
         JacRuntime.program = JacProgram()
         JacRuntime.pool = ThreadPoolExecutor()

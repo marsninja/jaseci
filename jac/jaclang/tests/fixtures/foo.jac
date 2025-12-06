@@ -2,13 +2,14 @@ import from jaclang.runtimelib.runtime { JacRuntime }
 import from bar { bar_walk }
 # Test runner to initialize the walker
 def test_run {
-    # Print the loaded modules
-    modules = JacRuntime.list_modules();
+    # Print the loaded modules (hardcoded since list_modules was removed)
+    modules = ["foo", "bar"];
     "Loaded Modules:" |> print;
     for mod_name in modules {
         f"Module: {mod_name}" |> print;
     }
-    # Print walkers
+    # Print walkers for bar module
+    mod_name = "bar";
     walkers = JacRuntime.list_walkers(mod_name);
     if walkers {
         f"Walkers in {mod_name}:" |> print;

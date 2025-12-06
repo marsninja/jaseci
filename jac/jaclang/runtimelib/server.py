@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 import secrets
+import sys
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -293,7 +294,7 @@ class ModuleIntrospector:
 
     def load(self, force_reload: bool = False) -> None:
         """Load module and refresh caches."""
-        needs_import = force_reload or self.module_name not in Jac.loaded_modules
+        needs_import = force_reload or self.module_name not in sys.modules
 
         if needs_import and self.base_path:
             Jac.jac_import(
@@ -303,7 +304,7 @@ class ModuleIntrospector:
                 reload_module=force_reload,
             )
 
-        module = Jac.loaded_modules.get(self.module_name)
+        module = sys.modules.get(self.module_name)
         if not module or self._module is module and not needs_import:
             return
 
