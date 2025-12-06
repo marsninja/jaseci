@@ -66,3 +66,108 @@ def test_fstring_triple_quotes(fixture_path: Callable[[str], str]) -> None:
     assert 'f"""Hello\n{name}"""' in code
     assert "f'''Hello\n{name}'''''''" not in code
     assert 'f"""Hello\n{name}"""""""' not in code
+
+
+def test_py2jac_augmented_assignment() -> None:
+    """Test that augmented assignments don't get 'let' prefix."""
+    source = """
+x = 0
+x += 1
+x -= 2
+"""
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source),
+            orig_src=Source(source, "test.py"),
+        ),
+        prog=JacProgram(),
+    ).ir_out.unparse()
+    # Regular assignment should have 'let'
+    assert "let x = 0" in code
+    # Augmented assignments should NOT have 'let'
+    assert "x += 1" in code
+    assert "x -= 2" in code
+    assert "let x +=" not in code
+    assert "let x -=" not in code
+    # Verify it parses without errors
+    prog = JacProgram.jac_str_formatter(source_str=code, file_path="test.jac")
+    assert not prog.errors_had
+
+
+def test_py2jac_multiline_fstring() -> None:
+    """Test that non-triple-quoted f-strings have escaped newlines."""
+    # Use a regular string assignment that contains a newline character
+    # which would be in a non-triple-quoted context after conversion
+    source = 'x = f"hello\\nworld"'
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source),
+            orig_src=Source(source, "test.py"),
+        ),
+        prog=JacProgram(),
+    ).ir_out.unparse()
+    # Newlines should be escaped in output for non-triple-quoted strings
+    assert "\\n" in code
+    # Verify it parses without errors
+    prog = JacProgram.jac_str_formatter(source_str=code, file_path="test.jac")
+    assert not prog.errors_had
+
+
+def test_py2jac_triple_quoted_fstring_preserves_newlines() -> None:
+    """Test that triple-quoted f-strings preserve actual newlines."""
+    source = '''
+x = f"""hello
+world"""
+'''
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source),
+            orig_src=Source(source, "test.py"),
+        ),
+        prog=JacProgram(),
+    ).ir_out.unparse()
+    # Triple-quoted strings should preserve actual newlines
+    assert 'f"""hello\nworld"""' in code
+    # Verify it parses without errors
+    prog = JacProgram.jac_str_formatter(source_str=code, file_path="test.jac")
+    assert not prog.errors_had
+
+
+def test_py2jac_fstring_with_hash() -> None:
+    """Test that f-strings with # character parse correctly."""
+    source = '''
+x = f"# heading {name}"
+'''
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source),
+            orig_src=Source(source, "test.py"),
+        ),
+        prog=JacProgram(),
+    ).ir_out.unparse()
+    # Verify it parses without errors (# should not be treated as comment)
+    prog = JacProgram.jac_str_formatter(source_str=code, file_path="test.jac")
+    assert not prog.errors_had
+
+
+def test_py2jac_nested_function_docstring() -> None:
+    """Test that nested function docstrings have semicolons."""
+    source = '''
+def outer():
+    """Outer doc."""
+    def inner():
+        """Inner doc."""
+        pass
+'''
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source),
+            orig_src=Source(source, "test.py"),
+        ),
+        prog=JacProgram(),
+    ).ir_out.unparse()
+    # Inner docstring should be followed by semicolon
+    assert '"""Inner doc.""";' in code or '"""Inner doc.""" ;' in code
+    # Verify it parses without errors
+    prog = JacProgram.jac_str_formatter(source_str=code, file_path="test.jac")
+    assert not prog.errors_had

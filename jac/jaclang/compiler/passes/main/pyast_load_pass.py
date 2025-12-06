@@ -1385,14 +1385,41 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
             __match_args__ = ("values",)
         values: list[expr]
         """
+        # Detect quote style first to know if we need to escape newlines
+        ast_seg = py_ast.get_source_segment(self.orig_src.code, node)
+        if ast_seg is None:
+            ast_seg = 'f""'
+        match = re.match(r"(?i)(fr|rf|f)('{3}|\"{3}|'|\")", ast_seg)
+        if match:
+            prefix, quote = match.groups()
+            start = match.group(0)
+            end = quote
+        else:
+            start = "f'"
+            end = "'"
+        # Triple-quoted strings can have actual newlines
+        is_triple_quoted = len(end) == 3
+
         valid: list[uni.String | uni.FormattedValue] = []
         for i in node.values:
             if isinstance(i, py_ast.Constant) and isinstance(i.value, str):
+                # Escape special characters in f-string parts to prevent
+                # newlines from breaking the unparsed output.
+                # Triple-quoted strings can preserve actual newlines.
+                if is_triple_quoted:
+                    escaped_value = i.value
+                else:
+                    escaped_value = (
+                        i.value.replace("\\", "\\\\")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("\t", "\\t")
+                    )
                 valid.append(
                     uni.String(
                         orig_src=self.orig_src,
                         name="STRING",
-                        value=i.value,
+                        value=escaped_value,
                         line=i.lineno,
                         end_line=i.end_lineno if i.end_lineno else i.lineno,
                         col_start=i.col_offset,
@@ -1407,17 +1434,6 @@ class PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]):
                     valid.append(converted)
             else:
                 raise self.ice("Invalid node in joined str")
-        ast_seg = py_ast.get_source_segment(self.orig_src.code, node)
-        if ast_seg is None:
-            ast_seg = 'f""'
-        match = re.match(r"(?i)(fr|rf|f)('{3}|\"{3}|'|\")", ast_seg)
-        if match:
-            prefix, quote = match.groups()
-            start = match.group(0)
-            end = quote
-        else:
-            start = "f'"
-            end = "'"
         tok_start = self.operator(Tok.STRING, start)
         tok_end = self.operator(Tok.STRING, end)
         fstr = uni.FString(

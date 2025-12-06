@@ -5,6 +5,11 @@ This document provides a summary of new features, improvements, and bug fixes in
 ## jaclang 0.9.4 (Unreleased)
 
 - **Format Command Enhancements**: The `jac format` command now tracks and reports which files were actually changed during formatting. The summary output shows both total files processed and the count of files that were modified (e.g., `Formatted 10/12 '.jac' files (3 changed).`). Additionally, syntax errors encountered during formatting are now printed with full error details.
+- **Py2Jac Conversion Fixes**: Fixed multiple issues in the `jac py2jac` command that caused conversion failures for complex Python files:
+  - Fixed augmented assignments (`+=`, `-=`, etc.) incorrectly receiving a `let` prefix
+  - Fixed multiline f-strings breaking the parser by properly escaping newlines in non-triple-quoted strings
+  - Fixed `#` characters inside f-strings being incorrectly treated as comments
+  - Fixed nested function docstrings missing required semicolons
 
 ## jaclang 0.9.3 (Latest Release)
 

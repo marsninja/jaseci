@@ -2117,6 +2117,9 @@ class Ability(
         new_kid: list[UniNode] = []
         if self.doc:
             new_kid.append(self.doc)
+            # Add semicolon after docstring if inside a code block (nested function)
+            if isinstance(self.parent, Ability):
+                new_kid.append(self.gen_token(Tok.SEMI))
         client_tok = self._source_client_token()
         if self.is_client_decl and (client_tok is not None or not self.in_client_block):
             new_kid.append(client_tok if client_tok else self.gen_token(Tok.KW_CLIENT))
@@ -3245,7 +3248,7 @@ class Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt):
             res = res and self.type_tag.normalize(deep) if self.type_tag else res
             res = res and self.aug_op.normalize(deep) if self.aug_op else res
         new_kid: list[UniNode] = []
-        if self.mutable and not self.is_enum_stmt:
+        if self.mutable and not self.is_enum_stmt and not self.aug_op:
             new_kid.append(self.gen_token(Tok.KW_LET))
         for idx, targ in enumerate(self.target):
             new_kid.append(targ)

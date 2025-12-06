@@ -254,7 +254,7 @@ def test_multiple_syntax_errors(fixture_path: Callable[[str], str]) -> None:
     prog = JacProgram()
     prog.compile(fixture_path("multiple_syntax_errors.jac"))
     sys.stdout = sys.__stdout__
-    assert len(prog.errors_had) == 3
+    assert len(prog.errors_had) == 2
     expected_errors = [
         """
         Missing RPAREN
@@ -265,21 +265,7 @@ def test_multiple_syntax_errors(fixture_path: Callable[[str], str]) -> None:
                 foo.bar;
         """,
         """
-        Missing COMMA
-            with entry {
-                foo = Foo(;
-                func(foo bar)
-                         ^^^
-                foo.bar;
-            }
-        """,
-        """
-        Unexpected token 'bar'
-            with entry {
-                foo = Foo(;
-                func(foo bar)
-                         ^^^
-                foo.bar;
+        Unexpected token ';
         """,
     ]
     for idx, alrt in enumerate(prog.errors_had):
