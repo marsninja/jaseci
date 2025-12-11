@@ -175,16 +175,31 @@ jaclang/
 
 Convert passes in order of complexity (smallest first):
 
-1. `sem_def_match_pass.py` (68 lines)
-2. `annex_pass.py` (95 lines)
-3. `semantic_analysis_pass.py` (119 lines)
-4. `def_use_pass.py` (122 lines)
-5. `pyjac_ast_link_pass.py` (134 lines)
-6. `import_pass.py` (131 lines)
-7. `type_checker_pass.py` (148 lines)
-8. `def_impl_match_pass.py` (175 lines)
-9. `cfg_build_pass.py` (323 lines)
+1.  `sem_def_match_pass.py` (68 lines) - **FULLY CONVERTED** (.py deleted)
+2. `annex_pass.py` (95 lines) - MUST STAY PYTHON (bootstrap-critical)
+3. `semantic_analysis_pass.py` (119 lines) - MUST STAY PYTHON (bootstrap-critical)
+4.  `def_use_pass.py` (122 lines) - **FULLY CONVERTED** (.py deleted)
+5.  `pyjac_ast_link_pass.py` (134 lines) - **FULLY CONVERTED** (.py deleted)
+6.  `import_pass.py` (131 lines) - **FULLY CONVERTED** (.py deleted)
+7.  `type_checker_pass.py` (148 lines) - **FULLY CONVERTED** (.py deleted)
+8. `def_impl_match_pass.py` (175 lines) - MUST STAY PYTHON (bootstrap-critical)
+9.  `cfg_build_pass.py` (323 lines) - **FULLY CONVERTED** (.py deleted)
 10. **`pyast_load_pass.py` (2,604 lines)** - py2jac, NOT bootstrap-critical!
+
+**CURRENT STATUS:** 6 passes fully converted to .jac - Python versions DELETED!
+The meta_importer compiles these .jac files using minimal compilation schedule.
+
+**Bootstrap Strategy:** The minimal compilation schedule (`get_minimal_ir_gen_sched()`) only needs:
+
+- `SymTabBuildPass` (in pycore, Python)
+- `DeclImplMatchPass` (Python)
+- `SemanticAnalysisPass` (Python)
+
+All other passes can be .jac files! When they're imported, the meta_importer compiles them
+using minimal compilation (which doesn't need the passes being compiled). This breaks the
+circular dependency and allows full Jac conversion.
+
+**1203 tests pass with .jac-only passes!**
 
 **Conversion process for each:**
 
