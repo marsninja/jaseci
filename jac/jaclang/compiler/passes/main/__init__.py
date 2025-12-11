@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 # Bootstrap-critical passes (must remain Python for now)
 from ..transform import Alert, BaseTransform, Transform
 from .pyast_gen_pass import PyastGenPass
-from .pyast_load_pass import PyastBuildPass  # type: ignore
 from .pybc_gen_pass import PyBytecodeGenPass
 from .sym_tab_build_pass import SymTabBuildPass, UniPass
 
@@ -24,6 +23,7 @@ _LAZY_PASSES = {
     "DeclImplMatchPass": ".def_impl_match_pass",
     "JacImportDepsPass": ".import_pass",
     "PyJacAstLinkPass": ".pyjac_ast_link_pass",
+    "PyastBuildPass": ".pyast_load_pass",  # py2jac - NOT bootstrap-critical
     "SemDefMatchPass": ".sem_def_match_pass",
     "SemanticAnalysisPass": ".semantic_analysis_pass",
     "TypeCheckPass": ".type_checker_pass",
@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from .def_impl_match_pass import DeclImplMatchPass as DeclImplMatchPass
     from .def_use_pass import DefUsePass as DefUsePass
     from .import_pass import JacImportDepsPass as JacImportDepsPass
+    from .pyast_load_pass import PyastBuildPass as PyastBuildPass
     from .pyjac_ast_link_pass import PyJacAstLinkPass as PyJacAstLinkPass
     from .sem_def_match_pass import SemDefMatchPass as SemDefMatchPass
     from .semantic_analysis_pass import SemanticAnalysisPass as SemanticAnalysisPass

@@ -21,7 +21,7 @@ type checking, and semantic analysis throughout the compilation process.
 import jaclang.pycore.ast.unitree as uni
 from jaclang.pycore.ast.constant import SymbolAccess
 from jaclang.pycore.ast.unitree import UniScopeNode
-from jaclang.pycore.passes import UniPass
+from jaclang.pycore.passes.uni_pass import UniPass
 
 
 class SymTabBuildPass(UniPass):

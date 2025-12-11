@@ -12,7 +12,6 @@ import jaclang.compiler.unitree as uni
 from jaclang.compiler.parser import JacParser
 from jaclang.compiler.passes.main import (
     Alert,
-    PyastBuildPass,
     PyastGenPass,
     PyBytecodeGenPass,
     SymTabBuildPass,
@@ -169,6 +168,8 @@ class JacProgram:
         """Convert a Jac file to an AST."""
         had_error = False
         if file_path.endswith(".py") or file_path.endswith(".pyi"):
+            from jaclang.compiler.passes.main import PyastBuildPass
+
             parsed_ast = py_ast.parse(source_str)
             py_ast_ret = PyastBuildPass(
                 ir_in=uni.PythonModuleAst(

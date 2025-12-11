@@ -167,7 +167,7 @@ jaclang/
 - `compiler/passes/ast_gen/` -> `pycore/passes/ast_gen/`
 - `runtimelib/runtime.py` -> `pycore/runtime/runtime.py`
 
-**NOTE:** `pyast_load_pass.py` stays in `compiler/passes/main/` and will be converted to Jac in Phase 2!
+**NOTE:** `pyast_load_pass.jac` is now in `compiler/passes/main/` - fully converted to Jac!
 
 ### Phase 2: Convert Small/Simple Passes (Already Lazy-Loaded)
 
@@ -184,9 +184,9 @@ Convert passes in order of complexity (smallest first):
 7. `type_checker_pass.py` (148 lines) - **FULLY CONVERTED** (.py deleted)
 8. `def_impl_match_pass.py` (175 lines) - MUST STAY PYTHON (bootstrap-critical)
 9. `cfg_build_pass.py` (323 lines) - **FULLY CONVERTED** (.py deleted)
-10. **`pyast_load_pass.py` (2,604 lines)** - py2jac, NOT bootstrap-critical!
+10. `pyast_load_pass.py` (2,604 lines) - **FULLY CONVERTED** (.py deleted) - py2jac itself!
 
-**CURRENT STATUS:** 6 passes fully converted to .jac - Python versions DELETED!
+**CURRENT STATUS:** 7 passes fully converted to .jac - Python versions DELETED!
 The meta_importer compiles these .jac files using minimal compilation schedule.
 
 **Bootstrap Strategy:** The minimal compilation schedule (`get_minimal_ir_gen_sched()`) only needs:
