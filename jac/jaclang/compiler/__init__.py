@@ -25,7 +25,7 @@ def generate_static_parser(force: bool = False) -> None:
         sys.argv, save = (
             [
                 "lark",
-                os.path.join(_cur_dir, "jac.lark"),
+                os.path.join(_cur_dir, "..", "pycore", "parser", "jac.lark"),
                 "-o",
                 os.path.join(larkparse_dir, "jac_parser.py"),
                 "-c",

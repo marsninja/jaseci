@@ -199,9 +199,9 @@ class PyastBuildPass(Transform[(uni.PythonModuleAst, uni.Module)]) {
             }
         }
         kid = (
-            [doc]
-            if doc
-            else [] + [name, sig, *valid_body] if sig else [name, *valid_body]
+            ([doc] if doc else []) + (
+                [name, sig, *valid_body] if sig else [name, *valid_body]
+            )
         );
         if not sig {
             raise self.ice('Function signature not found') ;

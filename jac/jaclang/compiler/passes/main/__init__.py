@@ -22,8 +22,8 @@ _LAZY_PASSES = {
     "CFGBuildPass": ".cfg_build_pass",
     "DeclImplMatchPass": ".def_impl_match_pass",
     "JacImportDepsPass": ".import_pass",
+    "PyastBuildPass": ".pyast_load_pass",
     "PyJacAstLinkPass": ".pyjac_ast_link_pass",
-    "PyastBuildPass": ".pyast_load_pass",  # py2jac - NOT bootstrap-critical
     "SemDefMatchPass": ".sem_def_match_pass",
     "SemanticAnalysisPass": ".semantic_analysis_pass",
     "TypeCheckPass": ".type_checker_pass",

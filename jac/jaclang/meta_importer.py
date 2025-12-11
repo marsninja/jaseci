@@ -225,3 +225,34 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             raise ImportError(f"No bytecode found for {file_path}")
         # Execute the bytecode directly in the module's namespace
         exec(codeobj, module.__dict__)
+
+    def get_code(self, fullname: str) -> object | None:
+        """Get the code object for a module.
+
+        This method is required by runpy when using `python -m module`.
+        """
+        from jaclang.pycore.runtime.runtime import JacRuntime as Jac
+
+        # Find the .jac file for this module
+        paths_to_search = get_jac_search_paths()
+        module_path_parts = fullname.split(".")
+
+        for search_path in paths_to_search:
+            candidate_path = os.path.join(search_path, *module_path_parts)
+            # Check for directory package
+            if os.path.isdir(candidate_path):
+                init_file = os.path.join(candidate_path, "__init__.jac")
+                if os.path.isfile(init_file):
+                    use_minimal = fullname in self.MINIMAL_COMPILE_MODULES
+                    return Jac.program.get_bytecode(
+                        full_target=init_file, minimal=use_minimal
+                    )
+            # Check for .jac file
+            jac_file = candidate_path + ".jac"
+            if os.path.isfile(jac_file):
+                use_minimal = fullname in self.MINIMAL_COMPILE_MODULES
+                return Jac.program.get_bytecode(
+                    full_target=jac_file, minimal=use_minimal
+                )
+
+        return None

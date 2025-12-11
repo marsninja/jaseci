@@ -167,7 +167,7 @@ jaclang/
 - `compiler/passes/ast_gen/` -> `pycore/passes/ast_gen/`
 - `runtimelib/runtime.py` -> `pycore/runtime/runtime.py`
 
-**NOTE:** `pyast_load_pass.jac` is now in `compiler/passes/main/` - fully converted to Jac!
+**NOTE:** `pyast_load_pass.py` can be converted
 
 ### Phase 2: Convert Small/Simple Passes (Already Lazy-Loaded)
 
@@ -184,9 +184,9 @@ Convert passes in order of complexity (smallest first):
 7. `type_checker_pass.py` (148 lines) - **FULLY CONVERTED** (.py deleted)
 8. `def_impl_match_pass.py` (175 lines) - MUST STAY PYTHON (bootstrap-critical)
 9. `cfg_build_pass.py` (323 lines) - **FULLY CONVERTED** (.py deleted)
-10. `pyast_load_pass.py` (2,604 lines) - **FULLY CONVERTED** (.py deleted) - py2jac itself!
+10. `pyast_load_pass.py` (2,604 lines)
 
-**CURRENT STATUS:** 7 passes fully converted to .jac - Python versions DELETED!
+**CURRENT STATUS:** 6 passes fully converted to .jac - Python versions DELETED!
 The meta_importer compiles these .jac files using minimal compilation schedule.
 
 **Bootstrap Strategy:** The minimal compilation schedule (`get_minimal_ir_gen_sched()`) only needs:
@@ -212,7 +212,7 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 
 ### Phase 3: Convert Utilities
 
-**Estimated files:** 7 | **Risk:** Low-Medium
+**Estimated files:** 7 | **Risk:** Low-Medium | **STATUS: SKIPPED**
 
 1. `settings.py` (115 lines) - simple config
 2. `lib.py` (149 lines) - lazy exports
@@ -222,14 +222,16 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 6. `utils/module_resolver.py` (268 lines)
 7. `utils/treeprinter.py` (664 lines)
 
+**Note:** These utilities are used by bootstrap-critical code (meta_importer.py, transform.py) and must remain Python.
+
 ### Phase 4: Convert CLI
 
-**Estimated files:** 2 | **Risk:** Medium
+**Estimated files:** 2 | **Risk:** Medium | **STATUS: COMPLETE**
 
-1. `cli/cmdreg.py` (409 lines) - command registration
-2. `cli/cli.py` (905 lines) - main CLI commands
+1. `cli/cmdreg.py` (409 lines) - **FULLY CONVERTED** (.py deleted, now cmdreg.jac ~339 lines)
+2. `cli/cli.py` (905 lines) - **FULLY CONVERTED** (.py deleted, now cli.jac ~694 lines)
 
-**Note:** CLI has heavy use of argparse and click patterns. May need careful py2jac review.
+**Note:** CLI conversion required adding `get_code()` method to JacMetaImporter for `python -m` support.
 
 ### Phase 5: Convert Type System Utilities
 

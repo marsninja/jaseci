@@ -19,7 +19,9 @@ def test_no_shift_reduce_errors() -> None:
     if Lark is None:
         pytest.fail("lark library not available")
 
-    lark_path = os.path.join(os.path.dirname(jaclang.__file__), "compiler/jac.lark")
+    lark_path = os.path.join(
+        os.path.dirname(jaclang.__file__), "pycore/parser/jac.lark"
+    )
     with open(lark_path, encoding="utf-8") as f:
         grammar = f.read()
 
