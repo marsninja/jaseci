@@ -1,6 +1,7 @@
 # PyCore Reorganization Plan
 
 ## Goal
+
 Reorganize the jaclang codebase to have a single `pycore` directory containing 100% of bootstrap-critical Python code, while converting everything else to Jac.
 
 ## Current State Analysis
@@ -136,18 +137,21 @@ jaclang/
 ## Part 3: Migration Phases
 
 ### Phase 1: Create PyCore Infrastructure
+
 **Estimated files:** 15 | **Risk:** Low
 
 1. Create `jaclang/pycore/` directory structure
 2. Move bootstrap Python files to pycore (preserve imports via shims)
 3. Update import statements throughout codebase
 4. Create compatibility shims in old locations:
+
    ```python
    # jaclang/compiler/unitree.py (becomes shim)
    from jaclang.pycore.ast.unitree import *
    ```
 
 **Files to move:**
+
 - `compiler/unitree.py` -> `pycore/ast/unitree.py`
 - `compiler/constant.py` -> `pycore/ast/constant.py`
 - `compiler/codeinfo.py` -> `pycore/ast/codeinfo.py`
@@ -166,6 +170,7 @@ jaclang/
 **NOTE:** `pyast_load_pass.py` stays in `compiler/passes/main/` and will be converted to Jac in Phase 2!
 
 ### Phase 2: Convert Small/Simple Passes (Already Lazy-Loaded)
+
 **Estimated files:** 10 | **Risk:** Low
 
 Convert passes in order of complexity (smallest first):
@@ -182,6 +187,7 @@ Convert passes in order of complexity (smallest first):
 10. **`pyast_load_pass.py` (2,604 lines)** - py2jac, NOT bootstrap-critical!
 
 **Conversion process for each:**
+
 ```bash
 jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 # Manual review and fixup
@@ -190,6 +196,7 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 ```
 
 ### Phase 3: Convert Utilities
+
 **Estimated files:** 7 | **Risk:** Low-Medium
 
 1. `settings.py` (115 lines) - simple config
@@ -201,6 +208,7 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 7. `utils/treeprinter.py` (664 lines)
 
 ### Phase 4: Convert CLI
+
 **Estimated files:** 2 | **Risk:** Medium
 
 1. `cli/cmdreg.py` (409 lines) - command registration
@@ -209,11 +217,13 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 **Note:** CLI has heavy use of argparse and click patterns. May need careful py2jac review.
 
 ### Phase 5: Convert Type System Utilities
+
 **Estimated files:** 1 | **Risk:** Low
 
 1. `type_system/type_utils.py` (304 lines)
 
 ### Phase 6: Convert ECMAScript Generation (Optional)
+
 **Estimated files:** 3 | **Risk:** Medium-High
 
 1. `passes/ecmascript/estree.py` (970 lines) - AST definitions
@@ -223,6 +233,7 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 **Note:** These are larger files. May want to keep in Python if JS target isn't critical.
 
 ### Phase 7: Convert TypeScript Parser (Optional)
+
 **Estimated files:** 1 | **Risk:** Medium
 
 1. `tsparser.py` (1780 lines)
@@ -232,12 +243,14 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 ## Part 4: Critical Files to Modify
 
 ### Must Update Import Paths
+
 - `jaclang/__init__.py` - update to use pycore
 - `jaclang/meta_importer.py` - update pass imports
 - `jaclang/compiler/program.py` - update schedule imports
 - `jaclang/compiler/passes/main/__init__.py` - major restructure
 
 ### Key Integration Points
+
 - `meta_importer.py:73-80` - MINIMAL_COMPILE_MODULES list
 - `program.py:70-87` - get_minimal_ir_gen_sched() and get_minimal_py_code_gen()
 - `passes/main/__init__.py:12-17` - bootstrap-critical pass imports
@@ -248,17 +261,20 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 ## Part 5: Validation Strategy
 
 ### Per-File Testing
+
 1. Run `jac py2jac <file>` and review output
 2. Make manual adjustments for Jac idioms
 3. Run existing unit tests for that module
 4. Run integration tests
 
 ### Regression Testing
+
 1. Full test suite after each phase
 2. Bootstrap test: compile a fresh Jac file
 3. Self-hosting test: jaclang compiles jaclang
 
 ### Rollback Plan
+
 - Keep Python files alongside Jac during transition
 - Use feature flag in settings to toggle implementations
 - CI runs both Python and Jac versions until stable
@@ -268,14 +284,17 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 ## Part 6: Estimated Impact
 
 ### Before
+
 - Python: 38,000 lines (excluding vendor)
 - Jac: 12,000 lines
 
 ### After (Target)
+
 - Python (pycore): ~10,900 lines hand-written + 7,000 generated (~17,900 total)
 - Jac: ~28,000 lines
 
 ### Reduction
+
 - ~20,000 lines of Python converted to Jac (including pyast_load_pass!)
 - pycore is ~29% of original Python codebase (down from 100%)
 

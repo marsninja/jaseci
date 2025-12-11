@@ -129,7 +129,8 @@ def format(paths: list, outfile: str = "", to_screen: bool = False) -> None:
 
 def proc_file_sess(filename: str, session: str, root: str | None = None) -> tuple:
     """Create JacRuntime and return the base path, module name, and runtime state."""
-    from jaclang.pycore.runtime.runtime import JacRuntime as Jac, JacUtils
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac
+    from jaclang.pycore.runtime.runtime import JacUtils
 
     if session == "":
         session = (
@@ -421,8 +422,8 @@ def enter(
         jac enter myprogram.jac process_data --node data_node data.json
     """
     _ensure_jac_runtime()
-    from jaclang.runtimelib.constructs import WalkerArchetype
     from jaclang.pycore.runtime.runtime import JacRuntime as Jac
+    from jaclang.runtimelib.constructs import WalkerArchetype
 
     base, mod, mach = proc_file_sess(filename, session, root)
 
@@ -626,8 +627,8 @@ def dot(
         jac dot myprogram.jac --to_screen
     """
     _ensure_jac_runtime()
-    from jaclang.runtimelib.builtin import printgraph
     from jaclang.pycore.runtime.runtime import JacRuntime as Jac
+    from jaclang.runtimelib.builtin import printgraph
 
     base, mod, jac_machine = proc_file_sess(filename, session)
 

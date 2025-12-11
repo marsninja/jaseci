@@ -31,6 +31,7 @@ __all__ = [
 ]
 
 if TYPE_CHECKING:
+    from jaclang.pycore.runtime.runtime import JacRuntimeInterface as JacRT
     from jaclang.runtimelib.archetype import GenericEdge, Root
     from jaclang.runtimelib.archetype import ObjectSpatialFunction as DSFunc
     from jaclang.runtimelib.archetype import ObjectSpatialPath as OPath
@@ -38,7 +39,6 @@ if TYPE_CHECKING:
     from jaclang.runtimelib.constructs import EdgeArchetype as Edge
     from jaclang.runtimelib.constructs import NodeArchetype as Node
     from jaclang.runtimelib.constructs import WalkerArchetype as Walker
-    from jaclang.pycore.runtime.runtime import JacRuntimeInterface as JacRT
 
     connect: Callable[..., object] = JacRT.connect
     create_j_context: Callable[..., object] = JacRT.create_j_context
@@ -62,7 +62,10 @@ def __getattr__(name: str) -> object:
     # The circular import protection was preventing legitimate imports
     # Instead, rely on the lazy initialization in _init_lazy_imports()
 
-    from jaclang.pycore.runtime.runtime import _init_lazy_imports, _lazy_imports_initialized
+    from jaclang.pycore.runtime.runtime import (
+        _init_lazy_imports,
+        _lazy_imports_initialized,
+    )
 
     # Try to initialize lazy imports (may fail during circular import)
     _init_lazy_imports()

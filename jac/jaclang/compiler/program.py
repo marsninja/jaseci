@@ -18,7 +18,6 @@ from jaclang.compiler.passes.main import (
     SymTabBuildPass,
     Transform,
 )
-
 from jaclang.compiler.tsparser import TypeScriptParser
 from jaclang.compiler.utils import read_file_with_encoding
 

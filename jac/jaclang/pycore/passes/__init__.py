@@ -9,11 +9,11 @@ This module contains the bootstrap-critical compiler passes:
 - ast_gen/: Shared AST generation utilities
 """
 
-from jaclang.pycore.passes.transform import Alert, BaseTransform, Transform
-from jaclang.pycore.passes.uni_pass import UniPass
-from jaclang.pycore.passes.sym_tab_build_pass import SymTabBuildPass
 from jaclang.pycore.passes.pyast_gen_pass import PyastGenPass
 from jaclang.pycore.passes.pybc_gen_pass import PyBytecodeGenPass
+from jaclang.pycore.passes.sym_tab_build_pass import SymTabBuildPass
+from jaclang.pycore.passes.transform import Alert, BaseTransform, Transform
+from jaclang.pycore.passes.uni_pass import UniPass
 
 __all__ = [
     "Alert",

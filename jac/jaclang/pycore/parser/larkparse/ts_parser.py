@@ -26,13 +26,19 @@ __version__ = "1.2.2"
 #
 #
 
-from copy import deepcopy
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
+from copy import deepcopy
 from types import ModuleType
 from typing import (
-    TypeVar, Generic, Type, Tuple, List, Dict, Iterator, Collection, Callable, Optional, FrozenSet, Any,
-    Union, Iterable, IO, TYPE_CHECKING, overload, Sequence,
-    Pattern as REPattern, ClassVar, Set, Mapping
+    IO,
+    Any,
+    ClassVar,
+    Generic,
+    Optional,
+    TypeVar,
+    Union,
+    overload,
 )
 
 
@@ -44,7 +50,7 @@ class ConfigurationError(LarkError, ValueError):
     pass
 
 
-def assert_config(value, options: Collection, msg='Got %r, expected one of %s'):
+def assert_config(value, options: Collection, msg="Got %r, expected one of %s"):
     if value not in options:
         raise ConfigurationError(msg % (value, options))
 
@@ -60,38 +66,44 @@ class ParseError(LarkError):
 class LexError(LarkError):
     pass
 
-T = TypeVar('T')
+
+T = TypeVar("T")
+
 
 class UnexpectedInput(LarkError):
-    #--
+    # --
     line: int
     column: int
     pos_in_stream = None
     state: Any
     _terminals_by_name = None
-    interactive_parser: 'InteractiveParser'
+    interactive_parser: "InteractiveParser"
 
-    def get_context(self, text: str, span: int=40) -> str:
-        #--
+    def get_context(self, text: str, span: int = 40) -> str:
+        # --
         assert self.pos_in_stream is not None, self
         pos = self.pos_in_stream
         start = max(pos - span, 0)
         end = pos + span
         if not isinstance(text, bytes):
-            before = text[start:pos].rsplit('\n', 1)[-1]
-            after = text[pos:end].split('\n', 1)[0]
-            return before + after + '\n' + ' ' * len(before.expandtabs()) + '^\n'
+            before = text[start:pos].rsplit("\n", 1)[-1]
+            after = text[pos:end].split("\n", 1)[0]
+            return before + after + "\n" + " " * len(before.expandtabs()) + "^\n"
         else:
-            before = text[start:pos].rsplit(b'\n', 1)[-1]
-            after = text[pos:end].split(b'\n', 1)[0]
-            return (before + after + b'\n' + b' ' * len(before.expandtabs()) + b'^\n').decode("ascii", "backslashreplace")
+            before = text[start:pos].rsplit(b"\n", 1)[-1]
+            after = text[pos:end].split(b"\n", 1)[0]
+            return (
+                before + after + b"\n" + b" " * len(before.expandtabs()) + b"^\n"
+            ).decode("ascii", "backslashreplace")
 
-    def match_examples(self, parse_fn: 'Callable[[str], Tree]',
-                             examples: Union[Mapping[T, Iterable[str]], Iterable[Tuple[T, Iterable[str]]]],
-                             token_type_match_fallback: bool=False,
-                             use_accepts: bool=True
-                         ) -> Optional[T]:
-        #--
+    def match_examples(
+        self,
+        parse_fn: "Callable[[str], Tree]",
+        examples: Mapping[T, Iterable[str]] | Iterable[tuple[T, Iterable[str]]],
+        token_type_match_fallback: bool = False,
+        use_accepts: bool = True,
+    ) -> T | None:
+        # --
         assert self.state is not None, "Not supported for this exception"
 
         if isinstance(examples, Mapping):
@@ -112,27 +124,34 @@ class UnexpectedInput(LarkError):
                             and isinstance(ut, UnexpectedToken)
                             and ut.accepts != self.accepts
                         ):
-                            logger.debug("Different accepts with same state[%d]: %s != %s at example [%s][%s]" %
-                                         (self.state, self.accepts, ut.accepts, i, j))
+                            logger.debug(
+                                "Different accepts with same state[%d]: %s != %s at example [%s][%s]"
+                                % (self.state, self.accepts, ut.accepts, i, j)
+                            )
                             continue
-                        if (
-                            isinstance(self, (UnexpectedToken, UnexpectedEOF))
-                            and isinstance(ut, (UnexpectedToken, UnexpectedEOF))
-                        ):
+                        if isinstance(
+                            self, (UnexpectedToken, UnexpectedEOF)
+                        ) and isinstance(ut, (UnexpectedToken, UnexpectedEOF)):
                             if ut.token == self.token:  ##
-
                                 logger.debug("Exact Match at example [%s][%s]" % (i, j))
                                 return label
 
                             if token_type_match_fallback:
                                 ##
 
-                                if (ut.token.type == self.token.type) and not candidate[-1]:
-                                    logger.debug("Token Type Fallback at example [%s][%s]" % (i, j))
+                                if (ut.token.type == self.token.type) and not candidate[
+                                    -1
+                                ]:
+                                    logger.debug(
+                                        "Token Type Fallback at example [%s][%s]"
+                                        % (i, j)
+                                    )
                                     candidate = label, True
 
                         if candidate[0] is None:
-                            logger.debug("Same State match at example [%s][%s]" % (i, j))
+                            logger.debug(
+                                "Same State match at example [%s][%s]" % (i, j)
+                            )
                             candidate = label, False
 
         return candidate[0]
@@ -140,13 +159,15 @@ class UnexpectedInput(LarkError):
     def _format_expected(self, expected):
         if self._terminals_by_name:
             d = self._terminals_by_name
-            expected = [d[t_name].user_repr() if t_name in d else t_name for t_name in expected]
-        return "Expected one of: \n\t* %s\n" % '\n\t* '.join(expected)
+            expected = [
+                d[t_name].user_repr() if t_name in d else t_name for t_name in expected
+            ]
+        return "Expected one of: \n\t* %s\n" % "\n\t* ".join(expected)
 
 
 class UnexpectedEOF(ParseError, UnexpectedInput):
-    #--
-    expected: 'List[Token]'
+    # --
+    expected: "list[Token]"
 
     def __init__(self, expected, state=None, terminals_by_name=None):
         super(UnexpectedEOF, self).__init__()
@@ -154,13 +175,13 @@ class UnexpectedEOF(ParseError, UnexpectedInput):
         self.expected = expected
         self.state = state
         from .lexer import Token
+
         self.token = Token("<EOF>", "")  ##
 
         self.pos_in_stream = -1
         self.line = -1
         self.column = -1
         self._terminals_by_name = terminals_by_name
-
 
     def __str__(self):
         message = "Unexpected end-of-input. "
@@ -169,13 +190,24 @@ class UnexpectedEOF(ParseError, UnexpectedInput):
 
 
 class UnexpectedCharacters(LexError, UnexpectedInput):
-    #--
+    # --
 
-    allowed: Set[str]
-    considered_tokens: Set[Any]
+    allowed: set[str]
+    considered_tokens: set[Any]
 
-    def __init__(self, seq, lex_pos, line, column, allowed=None, considered_tokens=None, state=None, token_history=None,
-                 terminals_by_name=None, considered_rules=None):
+    def __init__(
+        self,
+        seq,
+        lex_pos,
+        line,
+        column,
+        allowed=None,
+        considered_tokens=None,
+        state=None,
+        token_history=None,
+        terminals_by_name=None,
+        considered_rules=None,
+    ):
         super(UnexpectedCharacters, self).__init__()
 
         ##
@@ -192,36 +224,49 @@ class UnexpectedCharacters(LexError, UnexpectedInput):
         self.token_history = token_history
 
         if isinstance(seq, bytes):
-            self.char = seq[lex_pos:lex_pos + 1].decode("ascii", "backslashreplace")
+            self.char = seq[lex_pos : lex_pos + 1].decode("ascii", "backslashreplace")
         else:
             self.char = seq[lex_pos]
         self._context = self.get_context(seq)
 
-
     def __str__(self):
-        message = "No terminal matches '%s' in the current parser context, at line %d col %d" % (self.char, self.line, self.column)
-        message += '\n\n' + self._context
+        message = (
+            "No terminal matches '%s' in the current parser context, at line %d col %d"
+            % (self.char, self.line, self.column)
+        )
+        message += "\n\n" + self._context
         if self.allowed:
             message += self._format_expected(self.allowed)
         if self.token_history:
-            message += '\nPrevious tokens: %s\n' % ', '.join(repr(t) for t in self.token_history)
+            message += "\nPrevious tokens: %s\n" % ", ".join(
+                repr(t) for t in self.token_history
+            )
         return message
 
 
 class UnexpectedToken(ParseError, UnexpectedInput):
-    #--
+    # --
 
-    expected: Set[str]
-    considered_rules: Set[str]
+    expected: set[str]
+    considered_rules: set[str]
 
-    def __init__(self, token, expected, considered_rules=None, state=None, interactive_parser=None, terminals_by_name=None, token_history=None):
+    def __init__(
+        self,
+        token,
+        expected,
+        considered_rules=None,
+        state=None,
+        interactive_parser=None,
+        terminals_by_name=None,
+        token_history=None,
+    ):
         super(UnexpectedToken, self).__init__()
 
         ##
 
-        self.line = getattr(token, 'line', '?')
-        self.column = getattr(token, 'column', '?')
-        self.pos_in_stream = getattr(token, 'start_pos', None)
+        self.line = getattr(token, "line", "?")
+        self.column = getattr(token, "column", "?")
+        self.pos_in_stream = getattr(token, "start_pos", None)
         self.state = state
 
         self.token = token
@@ -233,27 +278,31 @@ class UnexpectedToken(ParseError, UnexpectedInput):
         self._terminals_by_name = terminals_by_name
         self.token_history = token_history
 
-
     @property
-    def accepts(self) -> Set[str]:
+    def accepts(self) -> set[str]:
         if self._accepts is NO_VALUE:
-            self._accepts = self.interactive_parser and self.interactive_parser.accepts()
+            self._accepts = (
+                self.interactive_parser and self.interactive_parser.accepts()
+            )
         return self._accepts
 
     def __str__(self):
-        message = ("Unexpected token %r at line %s, column %s.\n%s"
-                   % (self.token, self.line, self.column, self._format_expected(self.accepts or self.expected)))
+        message = "Unexpected token %r at line %s, column %s.\n%s" % (
+            self.token,
+            self.line,
+            self.column,
+            self._format_expected(self.accepts or self.expected),
+        )
         if self.token_history:
             message += "Previous tokens: %r\n" % self.token_history
 
         return message
 
 
-
 class VisitError(LarkError):
-    #--
+    # --
 
-    obj: 'Union[Tree, Token]'
+    obj: "Tree | Token"
     orig_exc: Exception
 
     def __init__(self, rule, obj, orig_exc):
@@ -269,8 +318,9 @@ class MissingVariableError(LarkError):
     pass
 
 
-import sys, re
 import logging
+import re
+import sys
 
 logger: logging.Logger = logging.getLogger("lark")
 logger.addHandler(logging.StreamHandler())
@@ -286,8 +336,10 @@ NO_VALUE = object()
 T = TypeVar("T")
 
 
-def classify(seq: Iterable, key: Optional[Callable] = None, value: Optional[Callable] = None) -> Dict:
-    d: Dict[Any, Any] = {}
+def classify(
+    seq: Iterable, key: Callable | None = None, value: Callable | None = None
+) -> dict:
+    d: dict[Any, Any] = {}
     for item in seq:
         k = key(item) if (key is not None) else item
         v = value(item) if (value is not None) else item
@@ -298,15 +350,16 @@ def classify(seq: Iterable, key: Optional[Callable] = None, value: Optional[Call
     return d
 
 
-def _deserialize(data: Any, namespace: Dict[str, Any], memo: Dict) -> Any:
+def _deserialize(data: Any, namespace: dict[str, Any], memo: dict) -> Any:
     if isinstance(data, dict):
-        if '__type__' in data:  ##
-
-            class_ = namespace[data['__type__']]
+        if "__type__" in data:  ##
+            class_ = namespace[data["__type__"]]
             return class_.deserialize(data, memo)
-        elif '@' in data:
-            return memo[data['@']]
-        return {key:_deserialize(value, namespace, memo) for key, value in data.items()}
+        elif "@" in data:
+            return memo[data["@"]]
+        return {
+            key: _deserialize(value, namespace, memo) for key, value in data.items()
+        }
     elif isinstance(data, list):
         return [_deserialize(value, namespace, memo) for value in data]
     return data
@@ -314,33 +367,34 @@ def _deserialize(data: Any, namespace: Dict[str, Any], memo: Dict) -> Any:
 
 _T = TypeVar("_T", bound="Serialize")
 
-class Serialize:
-    #--
 
-    def memo_serialize(self, types_to_memoize: List) -> Any:
+class Serialize:
+    # --
+
+    def memo_serialize(self, types_to_memoize: list) -> Any:
         memo = SerializeMemoizer(types_to_memoize)
         return self.serialize(memo), memo.serialize()
 
-    def serialize(self, memo = None) -> Dict[str, Any]:
+    def serialize(self, memo=None) -> dict[str, Any]:
         if memo and memo.in_types(self):
-            return {'@': memo.memoized.get(self)}
+            return {"@": memo.memoized.get(self)}
 
-        fields = getattr(self, '__serialize_fields__')
+        fields = self.__serialize_fields__
         res = {f: _serialize(getattr(self, f), memo) for f in fields}
-        res['__type__'] = type(self).__name__
-        if hasattr(self, '_serialize'):
+        res["__type__"] = type(self).__name__
+        if hasattr(self, "_serialize"):
             self._serialize(res, memo)
         return res
 
     @classmethod
-    def deserialize(cls: Type[_T], data: Dict[str, Any], memo: Dict[int, Any]) -> _T:
-        namespace = getattr(cls, '__serialize_namespace__', [])
-        namespace = {c.__name__:c for c in namespace}
+    def deserialize(cls: type[_T], data: dict[str, Any], memo: dict[int, Any]) -> _T:
+        namespace = getattr(cls, "__serialize_namespace__", [])
+        namespace = {c.__name__: c for c in namespace}
 
-        fields = getattr(cls, '__serialize_fields__')
+        fields = cls.__serialize_fields__
 
-        if '@' in data:
-            return memo[data['@']]
+        if "@" in data:
+            return memo[data["@"]]
 
         inst = cls.__new__(cls)
         for f in fields:
@@ -349,50 +403,52 @@ class Serialize:
             except KeyError as e:
                 raise KeyError("Cannot find key for class", cls, e)
 
-        if hasattr(inst, '_deserialize'):
+        if hasattr(inst, "_deserialize"):
             inst._deserialize()
 
         return inst
 
 
 class SerializeMemoizer(Serialize):
-    #--
+    # --
 
-    __serialize_fields__ = 'memoized',
+    __serialize_fields__ = ("memoized",)
 
-    def __init__(self, types_to_memoize: List) -> None:
+    def __init__(self, types_to_memoize: list) -> None:
         self.types_to_memoize = tuple(types_to_memoize)
         self.memoized = Enumerator()
 
     def in_types(self, value: Serialize) -> bool:
         return isinstance(value, self.types_to_memoize)
 
-    def serialize(self) -> Dict[int, Any]:  ##
-
+    def serialize(self) -> dict[int, Any]:  ##
         return _serialize(self.memoized.reversed(), None)
 
     @classmethod
-    def deserialize(cls, data: Dict[int, Any], namespace: Dict[str, Any], memo: Dict[Any, Any]) -> Dict[int, Any]:  ##
-
+    def deserialize(
+        cls, data: dict[int, Any], namespace: dict[str, Any], memo: dict[Any, Any]
+    ) -> dict[int, Any]:  ##
         return _deserialize(data, namespace, memo)
 
 
 try:
     import regex
+
     _has_regex = True
 except ImportError:
     _has_regex = False
 
 if sys.version_info >= (3, 11):
-    import re._parser as sre_parse
     import re._constants as sre_constants
+    import re._parser as sre_parse
 else:
-    import sre_parse
     import sre_constants
+    import sre_parse
 
-categ_pattern = re.compile(r'\\p{[A-Za-z_]+}')
+categ_pattern = re.compile(r"\\p{[A-Za-z_]+}")
 
-def get_regexp_width(expr: str) -> Union[Tuple[int, int], List[int]]:
+
+def get_regexp_width(expr: str) -> tuple[int, int] | list[int]:
     if _has_regex:
         ##
 
@@ -400,10 +456,13 @@ def get_regexp_width(expr: str) -> Union[Tuple[int, int], List[int]]:
 
         ##
 
-        regexp_final = re.sub(categ_pattern, 'A', expr)
+        regexp_final = re.sub(categ_pattern, "A", expr)
     else:
         if re.search(categ_pattern, expr):
-            raise ImportError('`regex` module must be installed in order to use Unicode categories.', expr)
+            raise ImportError(
+                "`regex` module must be installed in order to use Unicode categories.",
+                expr,
+            )
         regexp_final = expr
     try:
         ##
@@ -423,7 +482,7 @@ def get_regexp_width(expr: str) -> Union[Tuple[int, int], List[int]]:
             ##
 
             MAXWIDTH = getattr(sre_parse, "MAXWIDTH", sre_constants.MAXREPEAT)
-            if c.match('') is None:
+            if c.match("") is None:
                 ##
 
                 return 1, int(MAXWIDTH)
@@ -431,9 +490,7 @@ def get_regexp_width(expr: str) -> Union[Tuple[int, int], List[int]]:
                 return 0, int(MAXWIDTH)
 
 
-
 class Meta:
-
     empty: bool
     line: int
     column: int
@@ -441,7 +498,7 @@ class Meta:
     end_line: int
     end_column: int
     end_pos: int
-    orig_expansion: 'List[TerminalDef]'
+    orig_expansion: "list[TerminalDef]"
     match_tree: bool
 
     def __init__(self):
@@ -449,16 +506,18 @@ class Meta:
 
 
 _Leaf_T = TypeVar("_Leaf_T")
-Branch = Union[_Leaf_T, 'Tree[_Leaf_T]']
+Branch = Union[_Leaf_T, "Tree[_Leaf_T]"]
 
 
 class Tree(Generic[_Leaf_T]):
-    #--
+    # --
 
     data: str
-    children: 'List[Branch[_Leaf_T]]'
+    children: "list[Branch[_Leaf_T]]"
 
-    def __init__(self, data: str, children: 'List[Branch[_Leaf_T]]', meta: Optional[Meta]=None) -> None:
+    def __init__(
+        self, data: str, children: "list[Branch[_Leaf_T]]", meta: Meta | None = None
+    ) -> None:
         self.data = data
         self.children = children
         self._meta = meta
@@ -470,43 +529,44 @@ class Tree(Generic[_Leaf_T]):
         return self._meta
 
     def __repr__(self):
-        return 'Tree(%r, %r)' % (self.data, self.children)
+        return "Tree(%r, %r)" % (self.data, self.children)
 
     def _pretty_label(self):
         return self.data
 
     def _pretty(self, level, indent_str):
-        yield f'{indent_str*level}{self._pretty_label()}'
+        yield f"{indent_str * level}{self._pretty_label()}"
         if len(self.children) == 1 and not isinstance(self.children[0], Tree):
-            yield f'\t{self.children[0]}\n'
+            yield f"\t{self.children[0]}\n"
         else:
-            yield '\n'
+            yield "\n"
             for n in self.children:
                 if isinstance(n, Tree):
-                    yield from n._pretty(level+1, indent_str)
+                    yield from n._pretty(level + 1, indent_str)
                 else:
-                    yield f'{indent_str*(level+1)}{n}\n'
+                    yield f"{indent_str * (level + 1)}{n}\n"
 
-    def pretty(self, indent_str: str='  ') -> str:
-        #--
-        return ''.join(self._pretty(0, indent_str))
+    def pretty(self, indent_str: str = "  ") -> str:
+        # --
+        return "".join(self._pretty(0, indent_str))
 
-    def __rich__(self, parent:Optional['rich.tree.Tree']=None) -> 'rich.tree.Tree':
-        #--
+    def __rich__(self, parent: Optional["rich.tree.Tree"] = None) -> "rich.tree.Tree":
+        # --
         return self._rich(parent)
 
     def _rich(self, parent):
         if parent:
-            tree = parent.add(f'[bold]{self.data}[/bold]')
+            tree = parent.add(f"[bold]{self.data}[/bold]")
         else:
             import rich.tree
+
             tree = rich.tree.Tree(self.data)
 
         for c in self.children:
             if isinstance(c, Tree):
                 c._rich(tree)
             else:
-                tree.add(f'[green]{c}[/green]')
+                tree.add(f"[green]{c}[/green]")
 
         return tree
 
@@ -522,20 +582,23 @@ class Tree(Generic[_Leaf_T]):
     def __hash__(self) -> int:
         return hash((self.data, tuple(self.children)))
 
-    def iter_subtrees(self) -> 'Iterator[Tree[_Leaf_T]]':
-        #--
+    def iter_subtrees(self) -> "Iterator[Tree[_Leaf_T]]":
+        # --
         queue = [self]
         subtrees = dict()
         for subtree in queue:
             subtrees[id(subtree)] = subtree
-            queue += [c for c in reversed(subtree.children)
-                      if isinstance(c, Tree) and id(c) not in subtrees]
+            queue += [
+                c
+                for c in reversed(subtree.children)
+                if isinstance(c, Tree) and id(c) not in subtrees
+            ]
 
         del queue
         return reversed(list(subtrees.values()))
 
     def iter_subtrees_topdown(self):
-        #--
+        # --
         stack = [self]
         stack_append = stack.append
         stack_pop = stack.pop
@@ -547,31 +610,35 @@ class Tree(Generic[_Leaf_T]):
             for child in reversed(node.children):
                 stack_append(child)
 
-    def find_pred(self, pred: 'Callable[[Tree[_Leaf_T]], bool]') -> 'Iterator[Tree[_Leaf_T]]':
-        #--
+    def find_pred(
+        self, pred: "Callable[[Tree[_Leaf_T]], bool]"
+    ) -> "Iterator[Tree[_Leaf_T]]":
+        # --
         return filter(pred, self.iter_subtrees())
 
-    def find_data(self, data: str) -> 'Iterator[Tree[_Leaf_T]]':
-        #--
+    def find_data(self, data: str) -> "Iterator[Tree[_Leaf_T]]":
+        # --
         return self.find_pred(lambda t: t.data == data)
 
 
-from functools import wraps, update_wrapper
+from functools import update_wrapper, wraps
 from inspect import getmembers, getmro
 
-_Return_T = TypeVar('_Return_T')
-_Return_V = TypeVar('_Return_V')
-_Leaf_T = TypeVar('_Leaf_T')
-_Leaf_U = TypeVar('_Leaf_U')
-_R = TypeVar('_R')
+_Return_T = TypeVar("_Return_T")
+_Return_V = TypeVar("_Return_V")
+_Leaf_T = TypeVar("_Leaf_T")
+_Leaf_U = TypeVar("_Leaf_U")
+_R = TypeVar("_R")
 _FUNC = Callable[..., _Return_T]
 _DECORATED = Union[_FUNC, type]
 
+
 class _DiscardType:
-    #--
+    # --
 
     def __repr__(self):
         return "lark.visitors.Discard"
+
 
 Discard = _DiscardType()
 
@@ -579,7 +646,7 @@ Discard = _DiscardType()
 
 
 class _Decoratable:
-    #--
+    # --
 
     @classmethod
     def _apply_v_args(cls, visit_wrapper):
@@ -587,10 +654,11 @@ class _Decoratable:
         assert mro[0] is cls
         libmembers = {name for _cls in mro[1:] for name, _ in getmembers(_cls)}
         for name, value in getmembers(cls):
-
             ##
 
-            if name.startswith('_') or (name in libmembers and name not in cls.__dict__):
+            if name.startswith("_") or (
+                name in libmembers and name not in cls.__dict__
+            ):
                 continue
             if not callable(value):
                 continue
@@ -608,11 +676,10 @@ class _Decoratable:
 
 
 class Transformer(_Decoratable, ABC, Generic[_Leaf_T, _Return_T]):
-    #--
-    __visit_tokens__ = True   ##
+    # --
+    __visit_tokens__ = True  ##
 
-
-    def __init__(self,  visit_tokens: bool=True) -> None:
+    def __init__(self, visit_tokens: bool = True) -> None:
         self.__visit_tokens__ = visit_tokens
 
     def _call_userfunc(self, tree, new_children=None):
@@ -625,7 +692,7 @@ class Transformer(_Decoratable, ABC, Generic[_Leaf_T, _Return_T]):
             return self.__default__(tree.data, children, tree.meta)
         else:
             try:
-                wrapper = getattr(f, 'visit_wrapper', None)
+                wrapper = getattr(f, "visit_wrapper", None)
                 if wrapper is not None:
                     return f.visit_wrapper(f, tree.data, children, tree.meta)
                 else:
@@ -665,32 +732,32 @@ class Transformer(_Decoratable, ABC, Generic[_Leaf_T, _Return_T]):
         return self._call_userfunc(tree, children)
 
     def transform(self, tree: Tree[_Leaf_T]) -> _Return_T:
-        #--
+        # --
         res = list(self._transform_children([tree]))
         if not res:
-            return None     ##
+            return None  ##
 
         assert len(res) == 1
         return res[0]
 
     def __mul__(
-            self: 'Transformer[_Leaf_T, Tree[_Leaf_U]]',
-            other: 'Union[Transformer[_Leaf_U, _Return_V], TransformerChain[_Leaf_U, _Return_V,]]'
-    ) -> 'TransformerChain[_Leaf_T, _Return_V]':
-        #--
+        self: "Transformer[_Leaf_T, Tree[_Leaf_U]]",
+        other: "Transformer[_Leaf_U, _Return_V] | TransformerChain[_Leaf_U, _Return_V]",
+    ) -> "TransformerChain[_Leaf_T, _Return_V]":
+        # --
         return TransformerChain(self, other)
 
     def __default__(self, data, children, meta):
-        #--
+        # --
         return Tree(data, children, meta)
 
     def __default_token__(self, token):
-        #--
+        # --
         return token
 
 
 def merge_transformers(base_transformer=None, **transformers_to_merge):
-    #--
+    # --
     if base_transformer is None:
         base_transformer = Transformer()
     for prefix, transformer in transformers_to_merge.items():
@@ -702,15 +769,16 @@ def merge_transformers(base_transformer=None, **transformers_to_merge):
                 continue
             prefixed_method = prefix + "__" + method_name
             if hasattr(base_transformer, prefixed_method):
-                raise AttributeError("Cannot merge: method '%s' appears more than once" % prefixed_method)
+                raise AttributeError(
+                    "Cannot merge: method '%s' appears more than once" % prefixed_method
+                )
 
             setattr(base_transformer, prefixed_method, method)
 
     return base_transformer
 
 
-class InlineTransformer(Transformer):   ##
-
+class InlineTransformer(Transformer):  ##
     def _call_userfunc(self, tree, new_children=None):
         ##
 
@@ -724,10 +792,9 @@ class InlineTransformer(Transformer):   ##
 
 
 class TransformerChain(Generic[_Leaf_T, _Return_T]):
+    transformers: "tuple[Transformer | TransformerChain, ...]"
 
-    transformers: 'Tuple[Union[Transformer, TransformerChain], ...]'
-
-    def __init__(self, *transformers: 'Union[Transformer, TransformerChain]') -> None:
+    def __init__(self, *transformers: "Transformer | TransformerChain") -> None:
         self.transformers = transformers
 
     def transform(self, tree: Tree[_Leaf_T]) -> _Return_T:
@@ -736,16 +803,15 @@ class TransformerChain(Generic[_Leaf_T, _Return_T]):
         return cast(_Return_T, tree)
 
     def __mul__(
-            self: 'TransformerChain[_Leaf_T, Tree[_Leaf_U]]',
-            other: 'Union[Transformer[_Leaf_U, _Return_V], TransformerChain[_Leaf_U, _Return_V]]'
-    ) -> 'TransformerChain[_Leaf_T, _Return_V]':
+        self: "TransformerChain[_Leaf_T, Tree[_Leaf_U]]",
+        other: "Transformer[_Leaf_U, _Return_V] | TransformerChain[_Leaf_U, _Return_V]",
+    ) -> "TransformerChain[_Leaf_T, _Return_V]":
         return TransformerChain(*self.transformers + (other,))
 
 
 class Transformer_InPlace(Transformer[_Leaf_T, _Return_T]):
-    #--
-    def _transform_tree(self, tree):           ##
-
+    # --
+    def _transform_tree(self, tree):  ##
         return self._call_userfunc(tree)
 
     def transform(self, tree: Tree[_Leaf_T]) -> _Return_T:
@@ -756,13 +822,13 @@ class Transformer_InPlace(Transformer[_Leaf_T, _Return_T]):
 
 
 class Transformer_NonRecursive(Transformer[_Leaf_T, _Return_T]):
-    #--
+    # --
 
     def transform(self, tree: Tree[_Leaf_T]) -> _Return_T:
         ##
 
         rev_postfix = []
-        q: List[Branch[_Leaf_T]] = [tree]
+        q: list[Branch[_Leaf_T]] = [tree]
         while q:
             t = q.pop()
             rev_postfix.append(t)
@@ -771,7 +837,7 @@ class Transformer_NonRecursive(Transformer[_Leaf_T, _Return_T]):
 
         ##
 
-        stack: List = []
+        stack: list = []
         for x in reversed(rev_postfix):
             if isinstance(x, Tree):
                 size = len(x.children)
@@ -792,7 +858,7 @@ class Transformer_NonRecursive(Transformer[_Leaf_T, _Return_T]):
             else:
                 stack.append(x)
 
-        result, = stack  ##
+        (result,) = stack  ##
 
         ##
 
@@ -804,7 +870,7 @@ class Transformer_NonRecursive(Transformer[_Leaf_T, _Return_T]):
 
 
 class Transformer_InPlaceRecursive(Transformer):
-    #--
+    # --
     def _transform_tree(self, tree):
         tree.children = list(self._transform_children(tree.children))
         return self._call_userfunc(tree)
@@ -818,7 +884,7 @@ class VisitorBase:
         return getattr(self, tree.data, self.__default__)(tree)
 
     def __default__(self, tree):
-        #--
+        # --
         return tree
 
     def __class_getitem__(cls, _):
@@ -826,26 +892,26 @@ class VisitorBase:
 
 
 class Visitor(VisitorBase, ABC, Generic[_Leaf_T]):
-    #--
+    # --
 
     def visit(self, tree: Tree[_Leaf_T]) -> Tree[_Leaf_T]:
-        #--
+        # --
         for subtree in tree.iter_subtrees():
             self._call_userfunc(subtree)
         return tree
 
     def visit_topdown(self, tree: Tree[_Leaf_T]) -> Tree[_Leaf_T]:
-        #--
+        # --
         for subtree in tree.iter_subtrees_topdown():
             self._call_userfunc(subtree)
         return tree
 
 
 class Visitor_Recursive(VisitorBase, Generic[_Leaf_T]):
-    #--
+    # --
 
     def visit(self, tree: Tree[_Leaf_T]) -> Tree[_Leaf_T]:
-        #--
+        # --
         for child in tree.children:
             if isinstance(child, Tree):
                 self.visit(child)
@@ -853,8 +919,8 @@ class Visitor_Recursive(VisitorBase, Generic[_Leaf_T]):
         self._call_userfunc(tree)
         return tree
 
-    def visit_topdown(self,tree: Tree[_Leaf_T]) -> Tree[_Leaf_T]:
-        #--
+    def visit_topdown(self, tree: Tree[_Leaf_T]) -> Tree[_Leaf_T]:
+        # --
         self._call_userfunc(tree)
 
         for child in tree.children:
@@ -865,7 +931,7 @@ class Visitor_Recursive(VisitorBase, Generic[_Leaf_T]):
 
 
 class Interpreter(_Decoratable, ABC, Generic[_Leaf_T, _Return_T]):
-    #--
+    # --
 
     def visit(self, tree: Tree[_Leaf_T]) -> _Return_T:
         ##
@@ -878,15 +944,17 @@ class Interpreter(_Decoratable, ABC, Generic[_Leaf_T, _Return_T]):
 
     def _visit_tree(self, tree: Tree[_Leaf_T]):
         f = getattr(self, tree.data)
-        wrapper = getattr(f, 'visit_wrapper', None)
+        wrapper = getattr(f, "visit_wrapper", None)
         if wrapper is not None:
             return f.visit_wrapper(f, tree.data, tree.children, tree.meta)
         else:
             return f(tree)
 
-    def visit_children(self, tree: Tree[_Leaf_T]) -> List:
-        return [self._visit_tree(child) if isinstance(child, Tree) else child
-                for child in tree.children]
+    def visit_children(self, tree: Tree[_Leaf_T]) -> list:
+        return [
+            self._visit_tree(child) if isinstance(child, Tree) else child
+            for child in tree.children
+        ]
 
     def __getattr__(self, name):
         return self.__default__
@@ -895,15 +963,18 @@ class Interpreter(_Decoratable, ABC, Generic[_Leaf_T, _Return_T]):
         return self.visit_children(tree)
 
 
-_InterMethod = Callable[[Type[Interpreter], _Return_T], _R]
+_InterMethod = Callable[[type[Interpreter], _Return_T], _R]
+
 
 def visit_children_decor(func: _InterMethod) -> _InterMethod:
-    #--
+    # --
     @wraps(func)
     def inner(cls, tree):
         values = cls.visit_children(tree)
         return func(cls, values)
+
     return inner
+
 
 ##
 
@@ -918,10 +989,12 @@ def _apply_v_args(obj, visit_wrapper):
 
 
 class _VArgsWrapper:
-    #--
+    # --
     base_func: Callable
 
-    def __init__(self, func: Callable, visit_wrapper: Callable[[Callable, str, list, Any], Any]):
+    def __init__(
+        self, func: Callable, visit_wrapper: Callable[[Callable, str, list, Any], Any]
+    ):
         if isinstance(func, _VArgsWrapper):
             func = func.base_func
         self.base_func = func
@@ -954,18 +1027,31 @@ class _VArgsWrapper:
 
 def _vargs_inline(f, _data, children, _meta):
     return f(*children)
+
+
 def _vargs_meta_inline(f, _data, children, meta):
     return f(meta, *children)
+
+
 def _vargs_meta(f, _data, children, meta):
     return f(meta, children)
+
+
 def _vargs_tree(f, data, children, meta):
     return f(Tree(data, children, meta))
 
 
-def v_args(inline: bool = False, meta: bool = False, tree: bool = False, wrapper: Optional[Callable] = None) -> Callable[[_DECORATED], _DECORATED]:
-    #--
+def v_args(
+    inline: bool = False,
+    meta: bool = False,
+    tree: bool = False,
+    wrapper: Callable | None = None,
+) -> Callable[[_DECORATED], _DECORATED]:
+    # --
     if tree and (meta or inline):
-        raise ValueError("Visitor functions cannot combine 'tree' with 'meta' or 'inline'.")
+        raise ValueError(
+            "Visitor functions cannot combine 'tree' with 'meta' or 'inline'."
+        )
 
     func = None
     if meta:
@@ -980,20 +1066,22 @@ def v_args(inline: bool = False, meta: bool = False, tree: bool = False, wrapper
 
     if wrapper is not None:
         if func is not None:
-            raise ValueError("Cannot use 'wrapper' along with 'tree', 'meta' or 'inline'.")
+            raise ValueError(
+                "Cannot use 'wrapper' along with 'tree', 'meta' or 'inline'."
+            )
         func = wrapper
 
     def _visitor_args_dec(obj):
         return _apply_v_args(obj, func)
-    return _visitor_args_dec
 
+    return _visitor_args_dec
 
 
 TOKEN_DEFAULT_PRIORITY = 0
 
 
 class Symbol(Serialize):
-    __slots__ = ('name',)
+    __slots__ = ("name",)
 
     name: str
     is_term: ClassVar[bool] = NotImplemented
@@ -1012,7 +1100,7 @@ class Symbol(Serialize):
         return hash(self.name)
 
     def __repr__(self):
-        return '%s(%r)' % (type(self).__name__, self.name)
+        return "%s(%r)" % (type(self).__name__, self.name)
 
     fullrepr = property(__repr__)
 
@@ -1021,7 +1109,7 @@ class Symbol(Serialize):
 
 
 class Terminal(Symbol):
-    __serialize_fields__ = 'name', 'filter_out'
+    __serialize_fields__ = "name", "filter_out"
 
     is_term: ClassVar[bool] = True
 
@@ -1031,28 +1119,41 @@ class Terminal(Symbol):
 
     @property
     def fullrepr(self):
-        return '%s(%r, %r)' % (type(self).__name__, self.name, self.filter_out)
+        return "%s(%r, %r)" % (type(self).__name__, self.name, self.filter_out)
 
     def renamed(self, f):
         return type(self)(f(self.name), self.filter_out)
 
 
 class NonTerminal(Symbol):
-    __serialize_fields__ = 'name',
+    __serialize_fields__ = ("name",)
 
     is_term: ClassVar[bool] = False
 
 
 class RuleOptions(Serialize):
-    __serialize_fields__ = 'keep_all_tokens', 'expand1', 'priority', 'template_source', 'empty_indices'
+    __serialize_fields__ = (
+        "keep_all_tokens",
+        "expand1",
+        "priority",
+        "template_source",
+        "empty_indices",
+    )
 
     keep_all_tokens: bool
     expand1: bool
-    priority: Optional[int]
-    template_source: Optional[str]
-    empty_indices: Tuple[bool, ...]
+    priority: int | None
+    template_source: str | None
+    empty_indices: tuple[bool, ...]
 
-    def __init__(self, keep_all_tokens: bool=False, expand1: bool=False, priority: Optional[int]=None, template_source: Optional[str]=None, empty_indices: Tuple[bool, ...]=()) -> None:
+    def __init__(
+        self,
+        keep_all_tokens: bool = False,
+        expand1: bool = False,
+        priority: int | None = None,
+        template_source: str | None = None,
+        empty_indices: tuple[bool, ...] = (),
+    ) -> None:
         self.keep_all_tokens = keep_all_tokens
         self.expand1 = expand1
         self.priority = priority
@@ -1060,30 +1161,36 @@ class RuleOptions(Serialize):
         self.empty_indices = empty_indices
 
     def __repr__(self):
-        return 'RuleOptions(%r, %r, %r, %r)' % (
+        return "RuleOptions(%r, %r, %r, %r)" % (
             self.keep_all_tokens,
             self.expand1,
             self.priority,
-            self.template_source
+            self.template_source,
         )
 
 
 class Rule(Serialize):
-    #--
-    __slots__ = ('origin', 'expansion', 'alias', 'options', 'order', '_hash')
+    # --
+    __slots__ = ("origin", "expansion", "alias", "options", "order", "_hash")
 
-    __serialize_fields__ = 'origin', 'expansion', 'order', 'alias', 'options'
+    __serialize_fields__ = "origin", "expansion", "order", "alias", "options"
     __serialize_namespace__ = Terminal, NonTerminal, RuleOptions
 
     origin: NonTerminal
     expansion: Sequence[Symbol]
     order: int
-    alias: Optional[str]
+    alias: str | None
     options: RuleOptions
     _hash: int
 
-    def __init__(self, origin: NonTerminal, expansion: Sequence[Symbol],
-                 order: int=0, alias: Optional[str]=None, options: Optional[RuleOptions]=None):
+    def __init__(
+        self,
+        origin: NonTerminal,
+        expansion: Sequence[Symbol],
+        order: int = 0,
+        alias: str | None = None,
+        options: RuleOptions | None = None,
+    ):
         self.origin = origin
         self.expansion = expansion
         self.alias = alias
@@ -1095,10 +1202,18 @@ class Rule(Serialize):
         self._hash = hash((self.origin, tuple(self.expansion)))
 
     def __str__(self):
-        return '<%s : %s>' % (self.origin.name, ' '.join(x.name for x in self.expansion))
+        return "<%s : %s>" % (
+            self.origin.name,
+            " ".join(x.name for x in self.expansion),
+        )
 
     def __repr__(self):
-        return 'Rule(%r, %r, %r, %r)' % (self.origin, self.expansion, self.alias, self.options)
+        return "Rule(%r, %r, %r, %r)" % (
+            self.origin,
+            self.expansion,
+            self.alias,
+            self.options,
+        )
 
     def __hash__(self):
         return self._hash
@@ -1109,24 +1224,25 @@ class Rule(Serialize):
         return self.origin == other.origin and self.expansion == other.expansion
 
 
-
 from copy import copy
 
 try:  ##
-
     has_interegular = bool(interegular)
 except NameError:
     has_interegular = False
 
+
 class Pattern(Serialize, ABC):
-    #--
+    # --
 
     value: str
     flags: Collection[str]
-    raw: Optional[str]
+    raw: str | None
     type: ClassVar[str]
 
-    def __init__(self, value: str, flags: Collection[str] = (), raw: Optional[str] = None) -> None:
+    def __init__(
+        self, value: str, flags: Collection[str] = (), raw: str | None = None
+    ) -> None:
         self.value = value
         self.flags = frozenset(flags)
         self.raw = raw
@@ -1140,7 +1256,11 @@ class Pattern(Serialize, ABC):
         return hash((type(self), self.value, self.flags))
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.value == other.value and self.flags == other.flags
+        return (
+            type(self) == type(other)
+            and self.value == other.value
+            and self.flags == other.flags
+        )
 
     @abstractmethod
     def to_regexp(self) -> str:
@@ -1158,12 +1278,12 @@ class Pattern(Serialize, ABC):
 
     def _get_flags(self, value):
         for f in self.flags:
-            value = ('(?%s:%s)' % (f, value))
+            value = "(?%s:%s)" % (f, value)
         return value
 
 
 class PatternStr(Pattern):
-    __serialize_fields__ = 'value', 'flags', 'raw'
+    __serialize_fields__ = "value", "flags", "raw"
 
     type: ClassVar[str] = "str"
 
@@ -1180,7 +1300,7 @@ class PatternStr(Pattern):
 
 
 class PatternRE(Pattern):
-    __serialize_fields__ = 'value', 'flags', 'raw', '_width'
+    __serialize_fields__ = "value", "flags", "raw", "_width"
 
     type: ClassVar[str] = "re"
 
@@ -1188,6 +1308,7 @@ class PatternRE(Pattern):
         return self._get_flags(self.value)
 
     _width = None
+
     def _get_width(self):
         if self._width is None:
             self._width = get_regexp_width(self.to_regexp())
@@ -1203,88 +1324,111 @@ class PatternRE(Pattern):
 
 
 class TerminalDef(Serialize):
-    #--
-    __serialize_fields__ = 'name', 'pattern', 'priority'
+    # --
+    __serialize_fields__ = "name", "pattern", "priority"
     __serialize_namespace__ = PatternStr, PatternRE
 
     name: str
     pattern: Pattern
     priority: int
 
-    def __init__(self, name: str, pattern: Pattern, priority: int = TOKEN_DEFAULT_PRIORITY) -> None:
+    def __init__(
+        self, name: str, pattern: Pattern, priority: int = TOKEN_DEFAULT_PRIORITY
+    ) -> None:
         assert isinstance(pattern, Pattern), pattern
         self.name = name
         self.pattern = pattern
         self.priority = priority
 
     def __repr__(self):
-        return '%s(%r, %r)' % (type(self).__name__, self.name, self.pattern)
+        return "%s(%r, %r)" % (type(self).__name__, self.name, self.pattern)
 
     def user_repr(self) -> str:
-        if self.name.startswith('__'):  ##
-
+        if self.name.startswith("__"):  ##
             return self.pattern.raw or self.name
         else:
             return self.name
 
-_T = TypeVar('_T', bound="Token")
+
+_T = TypeVar("_T", bound="Token")
+
 
 class Token(str):
-    #--
-    __slots__ = ('type', 'start_pos', 'value', 'line', 'column', 'end_line', 'end_column', 'end_pos')
+    # --
+    __slots__ = (
+        "type",
+        "start_pos",
+        "value",
+        "line",
+        "column",
+        "end_line",
+        "end_column",
+        "end_pos",
+    )
 
-    __match_args__ = ('type', 'value')
+    __match_args__ = ("type", "value")
 
     type: str
-    start_pos: Optional[int]
+    start_pos: int | None
     value: Any
-    line: Optional[int]
-    column: Optional[int]
-    end_line: Optional[int]
-    end_column: Optional[int]
-    end_pos: Optional[int]
-
-
-    @overload
-    def __new__(
-            cls,
-            type: str,
-            value: Any,
-            start_pos: Optional[int] = None,
-            line: Optional[int] = None,
-            column: Optional[int] = None,
-            end_line: Optional[int] = None,
-            end_column: Optional[int] = None,
-            end_pos: Optional[int] = None
-    ) -> 'Token':
-        ...
+    line: int | None
+    column: int | None
+    end_line: int | None
+    end_column: int | None
+    end_pos: int | None
 
     @overload
     def __new__(
-            cls,
-            type_: str,
-            value: Any,
-            start_pos: Optional[int] = None,
-            line: Optional[int] = None,
-            column: Optional[int] = None,
-            end_line: Optional[int] = None,
-            end_column: Optional[int] = None,
-            end_pos: Optional[int] = None
-    ) -> 'Token':        ...
+        cls,
+        type: str,
+        value: Any,
+        start_pos: int | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        end_line: int | None = None,
+        end_column: int | None = None,
+        end_pos: int | None = None,
+    ) -> "Token": ...
+
+    @overload
+    def __new__(
+        cls,
+        type_: str,
+        value: Any,
+        start_pos: int | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        end_line: int | None = None,
+        end_column: int | None = None,
+        end_pos: int | None = None,
+    ) -> "Token": ...
 
     def __new__(cls, *args, **kwargs):
         if "type_" in kwargs:
-            warnings.warn("`type_` is deprecated use `type` instead", DeprecationWarning)
+            warnings.warn(
+                "`type_` is deprecated use `type` instead", DeprecationWarning
+            )
 
             if "type" in kwargs:
-                raise TypeError("Error: using both 'type' and the deprecated 'type_' as arguments.")
+                raise TypeError(
+                    "Error: using both 'type' and the deprecated 'type_' as arguments."
+                )
             kwargs["type"] = kwargs.pop("type_")
 
         return cls._future_new(*args, **kwargs)
 
-
     @classmethod
-    def _future_new(cls, type, value, start_pos=None, line=None, column=None, end_line=None, end_column=None, end_pos=None):
+    def _future_new(
+        cls,
+        type,
+        value,
+        start_pos=None,
+        line=None,
+        column=None,
+        end_line=None,
+        end_column=None,
+        end_pos=None,
+    ):
         inst = super(Token, cls).__new__(cls, value)
 
         inst.type = type
@@ -1298,39 +1442,55 @@ class Token(str):
         return inst
 
     @overload
-    def update(self, type: Optional[str] = None, value: Optional[Any] = None) -> 'Token':
-        ...
+    def update(self, type: str | None = None, value: Any | None = None) -> "Token": ...
 
     @overload
-    def update(self, type_: Optional[str] = None, value: Optional[Any] = None) -> 'Token':
-        ...
+    def update(self, type_: str | None = None, value: Any | None = None) -> "Token": ...
 
     def update(self, *args, **kwargs):
         if "type_" in kwargs:
-            warnings.warn("`type_` is deprecated use `type` instead", DeprecationWarning)
+            warnings.warn(
+                "`type_` is deprecated use `type` instead", DeprecationWarning
+            )
 
             if "type" in kwargs:
-                raise TypeError("Error: using both 'type' and the deprecated 'type_' as arguments.")
+                raise TypeError(
+                    "Error: using both 'type' and the deprecated 'type_' as arguments."
+                )
             kwargs["type"] = kwargs.pop("type_")
 
         return self._future_update(*args, **kwargs)
 
-    def _future_update(self, type: Optional[str] = None, value: Optional[Any] = None) -> 'Token':
+    def _future_update(
+        self, type: str | None = None, value: Any | None = None
+    ) -> "Token":
         return Token.new_borrow_pos(
             type if type is not None else self.type,
             value if value is not None else self.value,
-            self
+            self,
         )
 
     @classmethod
-    def new_borrow_pos(cls: Type[_T], type_: str, value: Any, borrow_t: 'Token') -> _T:
-        return cls(type_, value, borrow_t.start_pos, borrow_t.line, borrow_t.column, borrow_t.end_line, borrow_t.end_column, borrow_t.end_pos)
+    def new_borrow_pos(cls: type[_T], type_: str, value: Any, borrow_t: "Token") -> _T:
+        return cls(
+            type_,
+            value,
+            borrow_t.start_pos,
+            borrow_t.line,
+            borrow_t.column,
+            borrow_t.end_line,
+            borrow_t.end_column,
+            borrow_t.end_pos,
+        )
 
     def __reduce__(self):
-        return (self.__class__, (self.type, self.value, self.start_pos, self.line, self.column))
+        return (
+            self.__class__,
+            (self.type, self.value, self.start_pos, self.line, self.column),
+        )
 
     def __repr__(self):
-        return 'Token(%r, %r)' % (self.type, self.value)
+        return "Token(%r, %r)" % (self.type, self.value)
 
     def __deepcopy__(self, memo):
         return Token(self.type, self.value, self.start_pos, self.line, self.column)
@@ -1345,9 +1505,9 @@ class Token(str):
 
 
 class LineCounter:
-    #--
+    # --
 
-    __slots__ = 'char_pos', 'line', 'column', 'line_start_pos', 'newline_char'
+    __slots__ = "char_pos", "line", "column", "line_start_pos", "newline_char"
 
     def __init__(self, newline_char):
         self.newline_char = newline_char
@@ -1360,15 +1520,19 @@ class LineCounter:
         if not isinstance(other, LineCounter):
             return NotImplemented
 
-        return self.char_pos == other.char_pos and self.newline_char == other.newline_char
+        return (
+            self.char_pos == other.char_pos and self.newline_char == other.newline_char
+        )
 
     def feed(self, token: Token, test_newline=True):
-        #--
+        # --
         if test_newline:
             newlines = token.count(self.newline_char)
             if newlines:
                 self.line += newlines
-                self.line_start_pos = self.char_pos + token.rindex(self.newline_char) + 1
+                self.line_start_pos = (
+                    self.char_pos + token.rindex(self.newline_char) + 1
+                )
 
         self.char_pos += len(token)
         self.column = self.char_pos - self.line_start_pos + 1
@@ -1401,6 +1565,7 @@ def _get_match(re_, regexp, s, flags):
     if m:
         return m.group(0)
 
+
 def _create_unless(terminals, g_regex_flags, re_, use_bytes):
     tokens_by_type = classify(terminals, lambda t: type(t.pattern))
     assert len(tokens_by_type) <= 2, tokens_by_type.keys()
@@ -1417,7 +1582,11 @@ def _create_unless(terminals, g_regex_flags, re_, use_bytes):
                 if strtok.pattern.flags <= retok.pattern.flags:
                     embedded_strs.add(strtok)
         if unless:
-            callback[retok.name] = UnlessCallback(Scanner(unless, g_regex_flags, re_, match_whole=True, use_bytes=use_bytes))
+            callback[retok.name] = UnlessCallback(
+                Scanner(
+                    unless, g_regex_flags, re_, match_whole=True, use_bytes=use_bytes
+                )
+            )
 
     new_terminals = [t for t in terminals if t not in embedded_strs]
     return new_terminals, callback
@@ -1442,16 +1611,18 @@ class Scanner:
 
         ##
 
-        postfix = '$' if self.match_whole else ''
+        postfix = "$" if self.match_whole else ""
         mres = []
         while terminals:
-            pattern = u'|'.join(u'(?P<%s>%s)' % (t.name, t.pattern.to_regexp() + postfix) for t in terminals[:max_size])
+            pattern = "|".join(
+                "(?P<%s>%s)" % (t.name, t.pattern.to_regexp() + postfix)
+                for t in terminals[:max_size]
+            )
             if self.use_bytes:
-                pattern = pattern.encode('latin-1')
+                pattern = pattern.encode("latin-1")
             try:
                 mre = self.re_.compile(pattern, self.g_regex_flags)
             except AssertionError:  ##
-
                 return self._build_mres(terminals, max_size // 2)
 
             mres.append(mre)
@@ -1466,43 +1637,56 @@ class Scanner:
 
 
 def _regexp_has_newline(r: str):
-    #--
-    return '\n' in r or '\\n' in r or '\\s' in r or '[^' in r or ('(?s' in r and '.' in r)
+    # --
+    return (
+        "\n" in r or "\\n" in r or "\\s" in r or "[^" in r or ("(?s" in r and "." in r)
+    )
 
 
 class LexerState:
-    #--
+    # --
 
-    __slots__ = 'text', 'line_ctr', 'last_token'
+    __slots__ = "text", "line_ctr", "last_token"
 
     text: str
     line_ctr: LineCounter
-    last_token: Optional[Token]
+    last_token: Token | None
 
-    def __init__(self, text: str, line_ctr: Optional[LineCounter]=None, last_token: Optional[Token]=None):
+    def __init__(
+        self,
+        text: str,
+        line_ctr: LineCounter | None = None,
+        last_token: Token | None = None,
+    ):
         self.text = text
-        self.line_ctr = line_ctr or LineCounter(b'\n' if isinstance(text, bytes) else '\n')
+        self.line_ctr = line_ctr or LineCounter(
+            b"\n" if isinstance(text, bytes) else "\n"
+        )
         self.last_token = last_token
 
     def __eq__(self, other):
         if not isinstance(other, LexerState):
             return NotImplemented
 
-        return self.text is other.text and self.line_ctr == other.line_ctr and self.last_token == other.last_token
+        return (
+            self.text is other.text
+            and self.line_ctr == other.line_ctr
+            and self.last_token == other.last_token
+        )
 
     def __copy__(self):
         return type(self)(self.text, copy(self.line_ctr), self.last_token)
 
 
 class LexerThread:
-    #--
+    # --
 
-    def __init__(self, lexer: 'Lexer', lexer_state: LexerState):
+    def __init__(self, lexer: "Lexer", lexer_state: LexerState):
         self.lexer = lexer
         self.state = lexer_state
 
     @classmethod
-    def from_text(cls, lexer: 'Lexer', text: str) -> 'LexerThread':
+    def from_text(cls, lexer: "Lexer", text: str) -> "LexerThread":
         return cls(lexer, LexerState(text))
 
     def lex(self, parser_state):
@@ -1516,18 +1700,24 @@ class LexerThread:
 
 _Callback = Callable[[Token], Token]
 
+
 class Lexer(ABC):
-    #--
+    # --
     @abstractmethod
     def lex(self, lexer_state: LexerState, parser_state: Any) -> Iterator[Token]:
         return NotImplemented
 
     def make_lexer_state(self, text):
-        #--
+        # --
         return LexerState(text)
 
 
-def _check_regex_collisions(terminal_to_regexp: Dict[TerminalDef, str], comparator, strict_mode, max_collisions_to_show=8):
+def _check_regex_collisions(
+    terminal_to_regexp: dict[TerminalDef, str],
+    comparator,
+    strict_mode,
+    max_collisions_to_show=8,
+):
     if not comparator:
         comparator = interegular.Comparator.from_regexes(terminal_to_regexp)
 
@@ -1552,29 +1742,33 @@ def _check_regex_collisions(terminal_to_regexp: Dict[TerminalDef, str], comparat
 
             message = f"Collision between Terminals {a.name} and {b.name}. "
             try:
-                example = comparator.get_example_overlap(a, b, max_time).format_multiline()
+                example = comparator.get_example_overlap(
+                    a, b, max_time
+                ).format_multiline()
             except ValueError:
                 ##
 
                 example = "No example could be found fast enough. However, the collision does still exists"
             if strict_mode:
                 raise LexError(f"{message}\n{example}")
-            logger.warning("%s The lexer will choose between them arbitrarily.\n%s", message, example)
+            logger.warning(
+                "%s The lexer will choose between them arbitrarily.\n%s",
+                message,
+                example,
+            )
             if comparator.count_marked_pairs() >= max_collisions_to_show:
                 logger.warning("Found 8 regex collisions, will not check for more.")
                 return
 
 
 class AbstractBasicLexer(Lexer):
-    terminals_by_name: Dict[str, TerminalDef]
+    terminals_by_name: dict[str, TerminalDef]
 
     @abstractmethod
-    def __init__(self, conf: 'LexerConf', comparator=None) -> None:
-        ...
+    def __init__(self, conf: "LexerConf", comparator=None) -> None: ...
 
     @abstractmethod
-    def next_token(self, lex_state: LexerState, parser_state: Any = None) -> Token:
-        ...
+    def next_token(self, lex_state: LexerState, parser_state: Any = None) -> Token: ...
 
     def lex(self, state: LexerState, parser_state: Any) -> Iterator[Token]:
         with suppress(EOFError):
@@ -1584,13 +1778,13 @@ class AbstractBasicLexer(Lexer):
 
 class BasicLexer(AbstractBasicLexer):
     terminals: Collection[TerminalDef]
-    ignore_types: FrozenSet[str]
-    newline_types: FrozenSet[str]
-    user_callbacks: Dict[str, _Callback]
-    callback: Dict[str, _Callback]
+    ignore_types: frozenset[str]
+    newline_types: frozenset[str]
+    user_callbacks: dict[str, _Callback]
+    callback: dict[str, _Callback]
     re: ModuleType
 
-    def __init__(self, conf: 'LexerConf', comparator=None) -> None:
+    def __init__(self, conf: "LexerConf", comparator=None) -> None:
         terminals = list(conf.terminals)
         assert all(isinstance(t, TerminalDef) for t in terminals), terminals
 
@@ -1608,24 +1802,41 @@ class BasicLexer(AbstractBasicLexer):
                     raise LexError("Cannot compile token %s: %s" % (t.name, t.pattern))
 
                 if t.pattern.min_width == 0:
-                    raise LexError("Lexer does not allow zero-width terminals. (%s: %s)" % (t.name, t.pattern))
+                    raise LexError(
+                        "Lexer does not allow zero-width terminals. (%s: %s)"
+                        % (t.name, t.pattern)
+                    )
                 if t.pattern.type == "re":
                     terminal_to_regexp[t] = regexp
 
             if not (set(conf.ignore) <= {t.name for t in terminals}):
-                raise LexError("Ignore terminals are not defined: %s" % (set(conf.ignore) - {t.name for t in terminals}))
+                raise LexError(
+                    "Ignore terminals are not defined: %s"
+                    % (set(conf.ignore) - {t.name for t in terminals})
+                )
 
             if has_interegular:
                 _check_regex_collisions(terminal_to_regexp, comparator, conf.strict)
             elif conf.strict:
-                raise LexError("interegular must be installed for strict mode. Use `pip install 'lark[interegular]'`.")
+                raise LexError(
+                    "interegular must be installed for strict mode. Use `pip install 'lark[interegular]'`."
+                )
 
         ##
 
-        self.newline_types = frozenset(t.name for t in terminals if _regexp_has_newline(t.pattern.to_regexp()))
+        self.newline_types = frozenset(
+            t.name for t in terminals if _regexp_has_newline(t.pattern.to_regexp())
+        )
         self.ignore_types = frozenset(conf.ignore)
 
-        terminals.sort(key=lambda x: (-x.priority, -x.pattern.max_width, -len(x.pattern.value), x.name))
+        terminals.sort(
+            key=lambda x: (
+                -x.priority,
+                -x.pattern.max_width,
+                -len(x.pattern.value),
+                x.name,
+            )
+        )
         self.terminals = terminals
         self.user_callbacks = conf.callbacks
         self.g_regex_flags = conf.g_regex_flags
@@ -1635,14 +1846,18 @@ class BasicLexer(AbstractBasicLexer):
         self._scanner = None
 
     def _build_scanner(self):
-        terminals, self.callback = _create_unless(self.terminals, self.g_regex_flags, self.re, self.use_bytes)
+        terminals, self.callback = _create_unless(
+            self.terminals, self.g_regex_flags, self.re, self.use_bytes
+        )
         assert all(self.callback.values())
 
         for type_, f in self.user_callbacks.items():
             if type_ in self.callback:
                 ##
 
-                self.callback[type_] = CallChain(self.callback[type_], f, lambda t: t.type == type_)
+                self.callback[type_] = CallChain(
+                    self.callback[type_], f, lambda t: t.type == type_
+                )
             else:
                 self.callback[type_] = f
 
@@ -1665,16 +1880,25 @@ class BasicLexer(AbstractBasicLexer):
                 allowed = self.scanner.allowed_types - self.ignore_types
                 if not allowed:
                     allowed = {"<END-OF-FILE>"}
-                raise UnexpectedCharacters(lex_state.text, line_ctr.char_pos, line_ctr.line, line_ctr.column,
-                                           allowed=allowed, token_history=lex_state.last_token and [lex_state.last_token],
-                                           state=parser_state, terminals_by_name=self.terminals_by_name)
+                raise UnexpectedCharacters(
+                    lex_state.text,
+                    line_ctr.char_pos,
+                    line_ctr.line,
+                    line_ctr.column,
+                    allowed=allowed,
+                    token_history=lex_state.last_token and [lex_state.last_token],
+                    state=parser_state,
+                    terminals_by_name=self.terminals_by_name,
+                )
 
             value, type_ = res
 
             ignored = type_ in self.ignore_types
             t = None
             if not ignored or type_ in self.callback:
-                t = Token(type_, value, line_ctr.char_pos, line_ctr.line, line_ctr.column)
+                t = Token(
+                    type_, value, line_ctr.char_pos, line_ctr.line, line_ctr.column
+                )
             line_ctr.feed(value, type_ in self.newline_types)
             if t is not None:
                 t.end_line = line_ctr.line
@@ -1684,7 +1908,9 @@ class BasicLexer(AbstractBasicLexer):
                     t = self.callback[t.type](t)
                 if not ignored:
                     if not isinstance(t, Token):
-                        raise LexError("Callbacks must return a token (returned %r)" % t)
+                        raise LexError(
+                            "Callbacks must return a token (returned %r)" % t
+                        )
                     lex_state.last_token = t
                     return t
 
@@ -1694,12 +1920,17 @@ class BasicLexer(AbstractBasicLexer):
 
 
 class ContextualLexer(Lexer):
-    lexers: Dict[int, AbstractBasicLexer]
+    lexers: dict[int, AbstractBasicLexer]
     root_lexer: AbstractBasicLexer
 
-    BasicLexer: Type[AbstractBasicLexer] = BasicLexer
+    BasicLexer: type[AbstractBasicLexer] = BasicLexer
 
-    def __init__(self, conf: 'LexerConf', states: Dict[int, Collection[str]], always_accept: Collection[str]=()) -> None:
+    def __init__(
+        self,
+        conf: "LexerConf",
+        states: dict[int, Collection[str]],
+        always_accept: Collection[str] = (),
+    ) -> None:
         terminals = list(conf.terminals)
         terminals_by_name = conf.terminals_by_name
 
@@ -1707,10 +1938,12 @@ class ContextualLexer(Lexer):
         trad_conf.terminals = terminals
 
         if has_interegular and not conf.skip_validation:
-            comparator = interegular.Comparator.from_regexes({t: t.pattern.to_regexp() for t in terminals})
+            comparator = interegular.Comparator.from_regexes(
+                {t: t.pattern.to_regexp() for t in terminals}
+            )
         else:
             comparator = None
-        lexer_by_tokens: Dict[FrozenSet[str], AbstractBasicLexer] = {}
+        lexer_by_tokens: dict[frozenset[str], AbstractBasicLexer] = {}
         self.lexers = {}
         for state, accepts in states.items():
             key = frozenset(accepts)
@@ -1719,7 +1952,9 @@ class ContextualLexer(Lexer):
             except KeyError:
                 accepts = set(accepts) | set(conf.ignore) | set(always_accept)
                 lexer_conf = copy(trad_conf)
-                lexer_conf.terminals = [terminals_by_name[n] for n in accepts if n in terminals_by_name]
+                lexer_conf.terminals = [
+                    terminals_by_name[n] for n in accepts if n in terminals_by_name
+                ]
                 lexer = self.BasicLexer(lexer_conf, comparator)
                 lexer_by_tokens[key] = lexer
 
@@ -1730,7 +1965,9 @@ class ContextualLexer(Lexer):
 
         self.root_lexer = self.BasicLexer(trad_conf, comparator)
 
-    def lex(self, lexer_state: LexerState, parser_state: 'ParserState') -> Iterator[Token]:
+    def lex(
+        self, lexer_state: LexerState, parser_state: "ParserState"
+    ) -> Iterator[Token]:
         try:
             while True:
                 lexer = self.lexers[parser_state.position]
@@ -1746,35 +1983,56 @@ class ContextualLexer(Lexer):
                 last_token = lexer_state.last_token  ##
 
                 token = self.root_lexer.next_token(lexer_state, parser_state)
-                raise UnexpectedToken(token, e.allowed, state=parser_state, token_history=[last_token], terminals_by_name=self.root_lexer.terminals_by_name)
+                raise UnexpectedToken(
+                    token,
+                    e.allowed,
+                    state=parser_state,
+                    token_history=[last_token],
+                    terminals_by_name=self.root_lexer.terminals_by_name,
+                )
             except UnexpectedCharacters:
                 raise e  ##
 
 
-
-
-_ParserArgType: 'TypeAlias' = 'Literal["earley", "lalr", "cyk", "auto"]'
-_LexerArgType: 'TypeAlias' = 'Union[Literal["auto", "basic", "contextual", "dynamic", "dynamic_complete"], Type[Lexer]]'
+_ParserArgType: "TypeAlias" = 'Literal["earley", "lalr", "cyk", "auto"]'
+_LexerArgType: "TypeAlias" = 'Union[Literal["auto", "basic", "contextual", "dynamic", "dynamic_complete"], Type[Lexer]]'
 _LexerCallback = Callable[[Token], Token]
-ParserCallbacks = Dict[str, Callable]
+ParserCallbacks = dict[str, Callable]
+
 
 class LexerConf(Serialize):
-    __serialize_fields__ = 'terminals', 'ignore', 'g_regex_flags', 'use_bytes', 'lexer_type'
-    __serialize_namespace__ = TerminalDef,
+    __serialize_fields__ = (
+        "terminals",
+        "ignore",
+        "g_regex_flags",
+        "use_bytes",
+        "lexer_type",
+    )
+    __serialize_namespace__ = (TerminalDef,)
 
     terminals: Collection[TerminalDef]
     re_module: ModuleType
     ignore: Collection[str]
-    postlex: 'Optional[PostLex]'
-    callbacks: Dict[str, _LexerCallback]
+    postlex: "PostLex | None"
+    callbacks: dict[str, _LexerCallback]
     g_regex_flags: int
     skip_validation: bool
     use_bytes: bool
-    lexer_type: Optional[_LexerArgType]
+    lexer_type: _LexerArgType | None
     strict: bool
 
-    def __init__(self, terminals: Collection[TerminalDef], re_module: ModuleType, ignore: Collection[str]=(), postlex: 'Optional[PostLex]'=None,
-                 callbacks: Optional[Dict[str, _LexerCallback]]=None, g_regex_flags: int=0, skip_validation: bool=False, use_bytes: bool=False, strict: bool=False):
+    def __init__(
+        self,
+        terminals: Collection[TerminalDef],
+        re_module: ModuleType,
+        ignore: Collection[str] = (),
+        postlex: "PostLex | None" = None,
+        callbacks: dict[str, _LexerCallback] | None = None,
+        g_regex_flags: int = 0,
+        skip_validation: bool = False,
+        use_bytes: bool = False,
+        strict: bool = False,
+    ):
         self.terminals = terminals
         self.terminals_by_name = {t.name: t for t in self.terminals}
         assert len(self.terminals) == len(self.terminals_by_name)
@@ -1803,22 +2061,25 @@ class LexerConf(Serialize):
             deepcopy(self.use_bytes, memo),
         )
 
-class ParserConf(Serialize):
-    __serialize_fields__ = 'rules', 'start', 'parser_type'
 
-    rules: List['Rule']
+class ParserConf(Serialize):
+    __serialize_fields__ = "rules", "start", "parser_type"
+
+    rules: list["Rule"]
     callbacks: ParserCallbacks
-    start: List[str]
+    start: list[str]
     parser_type: _ParserArgType
 
-    def __init__(self, rules: List['Rule'], callbacks: ParserCallbacks, start: List[str]):
+    def __init__(
+        self, rules: list["Rule"], callbacks: ParserCallbacks, start: list[str]
+    ):
         assert isinstance(start, list)
         self.rules = rules
         self.callbacks = callbacks
         self.start = start
 
 
-from functools import partial, wraps
+from functools import partial
 from itertools import product
 
 
@@ -1831,7 +2092,6 @@ class ExpandSingleChild:
             return children[0]
         else:
             return self.node_builder(children)
-
 
 
 class PropagatePositions:
@@ -1851,34 +2111,57 @@ class PropagatePositions:
 
             ##
 
-
             res_meta = res.meta
 
             first_meta = self._pp_get_meta(children)
             if first_meta is not None:
-                if not hasattr(res_meta, 'line'):
+                if not hasattr(res_meta, "line"):
                     ##
 
-                    res_meta.line = getattr(first_meta, 'container_line', first_meta.line)
-                    res_meta.column = getattr(first_meta, 'container_column', first_meta.column)
-                    res_meta.start_pos = getattr(first_meta, 'container_start_pos', first_meta.start_pos)
+                    res_meta.line = getattr(
+                        first_meta, "container_line", first_meta.line
+                    )
+                    res_meta.column = getattr(
+                        first_meta, "container_column", first_meta.column
+                    )
+                    res_meta.start_pos = getattr(
+                        first_meta, "container_start_pos", first_meta.start_pos
+                    )
                     res_meta.empty = False
 
-                res_meta.container_line = getattr(first_meta, 'container_line', first_meta.line)
-                res_meta.container_column = getattr(first_meta, 'container_column', first_meta.column)
-                res_meta.container_start_pos = getattr(first_meta, 'container_start_pos', first_meta.start_pos)
+                res_meta.container_line = getattr(
+                    first_meta, "container_line", first_meta.line
+                )
+                res_meta.container_column = getattr(
+                    first_meta, "container_column", first_meta.column
+                )
+                res_meta.container_start_pos = getattr(
+                    first_meta, "container_start_pos", first_meta.start_pos
+                )
 
             last_meta = self._pp_get_meta(reversed(children))
             if last_meta is not None:
-                if not hasattr(res_meta, 'end_line'):
-                    res_meta.end_line = getattr(last_meta, 'container_end_line', last_meta.end_line)
-                    res_meta.end_column = getattr(last_meta, 'container_end_column', last_meta.end_column)
-                    res_meta.end_pos = getattr(last_meta, 'container_end_pos', last_meta.end_pos)
+                if not hasattr(res_meta, "end_line"):
+                    res_meta.end_line = getattr(
+                        last_meta, "container_end_line", last_meta.end_line
+                    )
+                    res_meta.end_column = getattr(
+                        last_meta, "container_end_column", last_meta.end_column
+                    )
+                    res_meta.end_pos = getattr(
+                        last_meta, "container_end_pos", last_meta.end_pos
+                    )
                     res_meta.empty = False
 
-                res_meta.container_end_line = getattr(last_meta, 'container_end_line', last_meta.end_line)
-                res_meta.container_end_column = getattr(last_meta, 'container_end_column', last_meta.end_column)
-                res_meta.container_end_pos = getattr(last_meta, 'container_end_pos', last_meta.end_pos)
+                res_meta.container_end_line = getattr(
+                    last_meta, "container_end_line", last_meta.end_line
+                )
+                res_meta.container_end_column = getattr(
+                    last_meta, "container_end_column", last_meta.end_column
+                )
+                res_meta.container_end_pos = getattr(
+                    last_meta, "container_end_pos", last_meta.end_pos
+                )
 
         return res
 
@@ -1891,8 +2174,9 @@ class PropagatePositions:
                     return c.meta
             elif isinstance(c, Token):
                 return c
-            elif hasattr(c, '__lark_meta__'):
+            elif hasattr(c, "__lark_meta__"):
                 return c.__lark_meta__()
+
 
 def make_propagate_positions(option):
     if callable(option):
@@ -1902,7 +2186,7 @@ def make_propagate_positions(option):
     elif option is False:
         return None
 
-    raise ConfigurationError('Invalid option for propagate_positions: %r' % option)
+    raise ConfigurationError("Invalid option for propagate_positions: %r" % option)
 
 
 class ChildFilter:
@@ -1929,7 +2213,7 @@ class ChildFilter:
 
 
 class ChildFilterLALR(ChildFilter):
-    #--
+    # --
 
     def __call__(self, children):
         filtered = []
@@ -1939,8 +2223,7 @@ class ChildFilterLALR(ChildFilter):
             if to_expand:
                 if filtered:
                     filtered += children[i].children
-                else:   ##
-
+                else:  ##
                     filtered = children[i].children
             else:
                 filtered.append(children[i])
@@ -1952,7 +2235,7 @@ class ChildFilterLALR(ChildFilter):
 
 
 class ChildFilterLALR_NoPlaceholders(ChildFilter):
-    #--
+    # --
     def __init__(self, to_include, node_builder):
         self.node_builder = node_builder
         self.to_include = to_include
@@ -1963,8 +2246,7 @@ class ChildFilterLALR_NoPlaceholders(ChildFilter):
             if to_expand:
                 if filtered:
                     filtered += children[i].children
-                else:   ##
-
+                else:  ##
                     filtered = children[i].children
             else:
                 filtered.append(children[i])
@@ -1972,19 +2254,21 @@ class ChildFilterLALR_NoPlaceholders(ChildFilter):
 
 
 def _should_expand(sym):
-    return not sym.is_term and sym.name.startswith('_')
+    return not sym.is_term and sym.name.startswith("_")
 
 
-def maybe_create_child_filter(expansion, keep_all_tokens, ambiguous, _empty_indices: List[bool]):
+def maybe_create_child_filter(
+    expansion, keep_all_tokens, ambiguous, _empty_indices: list[bool]
+):
     ##
 
     if _empty_indices:
         assert _empty_indices.count(False) == len(expansion)
-        s = ''.join(str(int(b)) for b in _empty_indices)
-        empty_indices = [len(ones) for ones in s.split('0')]
-        assert len(empty_indices) == len(expansion)+1, (empty_indices, len(expansion))
+        s = "".join(str(int(b)) for b in _empty_indices)
+        empty_indices = [len(ones) for ones in s.split("0")]
+        assert len(empty_indices) == len(expansion) + 1, (empty_indices, len(expansion))
     else:
-        empty_indices = [0] * (len(expansion)+1)
+        empty_indices = [0] * (len(expansion) + 1)
 
     to_include = []
     nones_to_add = 0
@@ -1996,17 +2280,25 @@ def maybe_create_child_filter(expansion, keep_all_tokens, ambiguous, _empty_indi
 
     nones_to_add += empty_indices[len(expansion)]
 
-    if _empty_indices or len(to_include) < len(expansion) or any(to_expand for i, to_expand,_ in to_include):
+    if (
+        _empty_indices
+        or len(to_include) < len(expansion)
+        or any(to_expand for i, to_expand, _ in to_include)
+    ):
         if _empty_indices or ambiguous:
-            return partial(ChildFilter if ambiguous else ChildFilterLALR, to_include, nones_to_add)
+            return partial(
+                ChildFilter if ambiguous else ChildFilterLALR, to_include, nones_to_add
+            )
         else:
             ##
 
-            return partial(ChildFilterLALR_NoPlaceholders, [(i, x) for i,x,_ in to_include])
+            return partial(
+                ChildFilterLALR_NoPlaceholders, [(i, x) for i, x, _ in to_include]
+            )
 
 
 class AmbiguousExpander:
-    #--
+    # --
     def __init__(self, to_expand, tree_class, node_builder):
         self.node_builder = node_builder
         self.tree_class = tree_class
@@ -2014,7 +2306,7 @@ class AmbiguousExpander:
 
     def __call__(self, children):
         def _is_ambig_tree(t):
-            return hasattr(t, 'data') and t.data == '_ambig'
+            return hasattr(t, "data") and t.data == "_ambig"
 
         ##
 
@@ -2030,24 +2322,33 @@ class AmbiguousExpander:
                 if i in self.to_expand:
                     ambiguous.append(i)
 
-                child.expand_kids_by_data('_ambig')
+                child.expand_kids_by_data("_ambig")
 
         if not ambiguous:
             return self.node_builder(children)
 
-        expand = [child.children if i in ambiguous else (child,) for i, child in enumerate(children)]
-        return self.tree_class('_ambig', [self.node_builder(list(f)) for f in product(*expand)])
+        expand = [
+            child.children if i in ambiguous else (child,)
+            for i, child in enumerate(children)
+        ]
+        return self.tree_class(
+            "_ambig", [self.node_builder(list(f)) for f in product(*expand)]
+        )
 
 
 def maybe_create_ambiguous_expander(tree_class, expansion, keep_all_tokens):
-    to_expand = [i for i, sym in enumerate(expansion)
-                 if keep_all_tokens or ((not (sym.is_term and sym.filter_out)) and _should_expand(sym))]
+    to_expand = [
+        i
+        for i, sym in enumerate(expansion)
+        if keep_all_tokens
+        or ((not (sym.is_term and sym.filter_out)) and _should_expand(sym))
+    ]
     if to_expand:
         return partial(AmbiguousExpander, to_expand, tree_class)
 
 
 class AmbiguousIntermediateExpander:
-    #--
+    # --
 
     def __init__(self, tree_class, node_builder):
         self.node_builder = node_builder
@@ -2055,10 +2356,10 @@ class AmbiguousIntermediateExpander:
 
     def __call__(self, children):
         def _is_iambig_tree(child):
-            return hasattr(child, 'data') and child.data == '_iambig'
+            return hasattr(child, "data") and child.data == "_iambig"
 
         def _collapse_iambig(children):
-            #--
+            # --
 
             ##
 
@@ -2074,17 +2375,18 @@ class AmbiguousIntermediateExpander:
                             child.children += children[1:]
                         result += collapsed
                     else:
-                        new_tree = self.tree_class('_inter', grandchild.children + children[1:])
+                        new_tree = self.tree_class(
+                            "_inter", grandchild.children + children[1:]
+                        )
                         result.append(new_tree)
                 return result
 
         collapsed = _collapse_iambig(children)
         if collapsed:
             processed_nodes = [self.node_builder(c.children) for c in collapsed]
-            return self.tree_class('_ambig', processed_nodes)
+            return self.tree_class("_ambig", processed_nodes)
 
         return self.node_builder(children)
-
 
 
 def inplace_transformer(func):
@@ -2094,6 +2396,7 @@ def inplace_transformer(func):
 
         tree = Tree(func.__name__, children)
         return func(tree)
+
     return f
 
 
@@ -2104,11 +2407,19 @@ def apply_visit_wrapper(func, name, wrapper):
     @wraps(func)
     def f(children):
         return wrapper(func, name, children, None)
+
     return f
 
 
 class ParseTreeBuilder:
-    def __init__(self, rules, tree_class, propagate_positions=False, ambiguous=False, maybe_placeholders=False):
+    def __init__(
+        self,
+        rules,
+        tree_class,
+        propagate_positions=False,
+        ambiguous=False,
+        maybe_placeholders=False,
+    ):
         self.tree_class = tree_class
         self.propagate_positions = propagate_positions
         self.ambiguous = ambiguous
@@ -2124,32 +2435,48 @@ class ParseTreeBuilder:
             keep_all_tokens = options.keep_all_tokens
             expand_single_child = options.expand1
 
-            wrapper_chain = list(filter(None, [
-                (expand_single_child and not rule.alias) and ExpandSingleChild,
-                maybe_create_child_filter(rule.expansion, keep_all_tokens, self.ambiguous, options.empty_indices if self.maybe_placeholders else None),
-                propagate_positions,
-                self.ambiguous and maybe_create_ambiguous_expander(self.tree_class, rule.expansion, keep_all_tokens),
-                self.ambiguous and partial(AmbiguousIntermediateExpander, self.tree_class)
-            ]))
+            wrapper_chain = list(
+                filter(
+                    None,
+                    [
+                        (expand_single_child and not rule.alias) and ExpandSingleChild,
+                        maybe_create_child_filter(
+                            rule.expansion,
+                            keep_all_tokens,
+                            self.ambiguous,
+                            options.empty_indices if self.maybe_placeholders else None,
+                        ),
+                        propagate_positions,
+                        self.ambiguous
+                        and maybe_create_ambiguous_expander(
+                            self.tree_class, rule.expansion, keep_all_tokens
+                        ),
+                        self.ambiguous
+                        and partial(AmbiguousIntermediateExpander, self.tree_class),
+                    ],
+                )
+            )
 
             yield rule, wrapper_chain
 
     def create_callback(self, transformer=None):
         callbacks = {}
 
-        default_handler = getattr(transformer, '__default__', None)
+        default_handler = getattr(transformer, "__default__", None)
         if default_handler:
+
             def default_callback(data, children):
                 return default_handler(data, children, None)
         else:
             default_callback = self.tree_class
 
         for rule, wrapper_chain in self.rule_builders:
-
-            user_callback_name = rule.alias or rule.options.template_source or rule.origin.name
+            user_callback_name = (
+                rule.alias or rule.options.template_source or rule.origin.name
+            )
             try:
                 f = getattr(transformer, user_callback_name)
-                wrapper = getattr(f, 'visit_wrapper', None)
+                wrapper = getattr(f, "visit_wrapper", None)
                 if wrapper is not None:
                     f = apply_visit_wrapper(f, user_callback_name, wrapper)
                 elif isinstance(transformer, Transformer_InPlace):
@@ -2168,24 +2495,27 @@ class ParseTreeBuilder:
         return callbacks
 
 
-
 class Action:
     def __init__(self, name):
         self.name = name
+
     def __str__(self):
         return self.name
+
     def __repr__(self):
         return str(self)
 
-Shift = Action('Shift')
-Reduce = Action('Reduce')
+
+Shift = Action("Shift")
+Reduce = Action("Reduce")
 
 StateT = TypeVar("StateT")
 
+
 class ParseTableBase(Generic[StateT]):
-    states: Dict[StateT, Dict[str, Tuple]]
-    start_states: Dict[str, StateT]
-    end_states: Dict[str, StateT]
+    states: dict[StateT, dict[str, tuple]]
+    start_states: dict[str, StateT]
+    end_states: dict[str, StateT]
 
     def __init__(self, states, start_states, end_states):
         self.states = states
@@ -2196,56 +2526,78 @@ class ParseTableBase(Generic[StateT]):
         tokens = Enumerator()
 
         states = {
-            state: {tokens.get(token): ((1, arg.serialize(memo)) if action is Reduce else (0, arg))
-                    for token, (action, arg) in actions.items()}
+            state: {
+                tokens.get(token): (
+                    (1, arg.serialize(memo)) if action is Reduce else (0, arg)
+                )
+                for token, (action, arg) in actions.items()
+            }
             for state, actions in self.states.items()
         }
 
         return {
-            'tokens': tokens.reversed(),
-            'states': states,
-            'start_states': self.start_states,
-            'end_states': self.end_states,
+            "tokens": tokens.reversed(),
+            "states": states,
+            "start_states": self.start_states,
+            "end_states": self.end_states,
         }
 
     @classmethod
     def deserialize(cls, data, memo):
-        tokens = data['tokens']
+        tokens = data["tokens"]
         states = {
-            state: {tokens[token]: ((Reduce, Rule.deserialize(arg, memo)) if action==1 else (Shift, arg))
-                    for token, (action, arg) in actions.items()}
-            for state, actions in data['states'].items()
+            state: {
+                tokens[token]: (
+                    (Reduce, Rule.deserialize(arg, memo))
+                    if action == 1
+                    else (Shift, arg)
+                )
+                for token, (action, arg) in actions.items()
+            }
+            for state, actions in data["states"].items()
         }
-        return cls(states, data['start_states'], data['end_states'])
+        return cls(states, data["start_states"], data["end_states"])
 
-class ParseTable(ParseTableBase['State']):
-    #--
+
+class ParseTable(ParseTableBase["State"]):
+    # --
     pass
 
 
 class IntParseTable(ParseTableBase[int]):
-    #--
+    # --
 
     @classmethod
     def from_ParseTable(cls, parse_table: ParseTable):
         enum = list(parse_table.states)
-        state_to_idx: Dict['State', int] = {s:i for i,s in enumerate(enum)}
+        state_to_idx: dict[State, int] = {s: i for i, s in enumerate(enum)}
         int_states = {}
 
         for s, la in parse_table.states.items():
-            la = {k:(v[0], state_to_idx[v[1]]) if v[0] is Shift else v
-                  for k,v in la.items()}
-            int_states[ state_to_idx[s] ] = la
+            la = {
+                k: (v[0], state_to_idx[v[1]]) if v[0] is Shift else v
+                for k, v in la.items()
+            }
+            int_states[state_to_idx[s]] = la
 
-
-        start_states = {start:state_to_idx[s] for start, s in parse_table.start_states.items()}
-        end_states = {start:state_to_idx[s] for start, s in parse_table.end_states.items()}
+        start_states = {
+            start: state_to_idx[s] for start, s in parse_table.start_states.items()
+        }
+        end_states = {
+            start: state_to_idx[s] for start, s in parse_table.end_states.items()
+        }
         return cls(int_states, start_states, end_states)
 
 
-
 class ParseConf(Generic[StateT]):
-    __slots__ = 'parse_table', 'callbacks', 'start', 'start_state', 'end_state', 'states'
+    __slots__ = (
+        "parse_table",
+        "callbacks",
+        "start",
+        "start_state",
+        "end_state",
+        "states",
+    )
 
     parse_table: ParseTableBase[StateT]
     callbacks: ParserCallbacks
@@ -2253,9 +2605,14 @@ class ParseConf(Generic[StateT]):
 
     start_state: StateT
     end_state: StateT
-    states: Dict[StateT, Dict[str, tuple]]
+    states: dict[StateT, dict[str, tuple]]
 
-    def __init__(self, parse_table: ParseTableBase[StateT], callbacks: ParserCallbacks, start: str):
+    def __init__(
+        self,
+        parse_table: ParseTableBase[StateT],
+        callbacks: ParserCallbacks,
+        start: str,
+    ):
         self.parse_table = parse_table
 
         self.start_state = self.parse_table.start_states[start]
@@ -2265,15 +2622,22 @@ class ParseConf(Generic[StateT]):
         self.callbacks = callbacks
         self.start = start
 
+
 class ParserState(Generic[StateT]):
-    __slots__ = 'parse_conf', 'lexer', 'state_stack', 'value_stack'
+    __slots__ = "parse_conf", "lexer", "state_stack", "value_stack"
 
     parse_conf: ParseConf[StateT]
     lexer: LexerThread
-    state_stack: List[StateT]
+    state_stack: list[StateT]
     value_stack: list
 
-    def __init__(self, parse_conf: ParseConf[StateT], lexer: LexerThread, state_stack=None, value_stack=None):
+    def __init__(
+        self,
+        parse_conf: ParseConf[StateT],
+        lexer: LexerThread,
+        state_stack=None,
+        value_stack=None,
+    ):
         self.parse_conf = parse_conf
         self.lexer = lexer
         self.state_stack = state_stack or [self.parse_conf.start_state]
@@ -2288,16 +2652,18 @@ class ParserState(Generic[StateT]):
     def __eq__(self, other) -> bool:
         if not isinstance(other, ParserState):
             return NotImplemented
-        return len(self.state_stack) == len(other.state_stack) and self.position == other.position
+        return (
+            len(self.state_stack) == len(other.state_stack)
+            and self.position == other.position
+        )
 
     def __copy__(self):
         return self.copy()
 
-    def copy(self, deepcopy_values=True) -> 'ParserState[StateT]':
+    def copy(self, deepcopy_values=True) -> "ParserState[StateT]":
         return type(self)(
             self.parse_conf,
-            self.lexer, ##
-
+            self.lexer,  ##
             copy(self.state_stack),
             deepcopy(self.value_stack) if deepcopy_values else copy(self.value_stack),
         )
@@ -2315,7 +2681,9 @@ class ParserState(Generic[StateT]):
                 action, arg = states[state][token.type]
             except KeyError:
                 expected = {s for s in states[state].keys() if s.isupper()}
-                raise UnexpectedToken(token, expected, state=self, interactive_parser=None)
+                raise UnexpectedToken(
+                    token, expected, state=self, interactive_parser=None
+                )
 
             assert arg != end_state
 
@@ -2324,7 +2692,11 @@ class ParserState(Generic[StateT]):
 
                 assert not is_end
                 state_stack.append(arg)
-                value_stack.append(token if token.type not in callbacks else callbacks[token.type](token))
+                value_stack.append(
+                    token
+                    if token.type not in callbacks
+                    else callbacks[token.type](token)
+                )
                 return
             else:
                 ##
@@ -2350,7 +2722,9 @@ class ParserState(Generic[StateT]):
 
 
 class LALR_Parser(Serialize):
-    def __init__(self, parser_conf: ParserConf, debug: bool=False, strict: bool=False):
+    def __init__(
+        self, parser_conf: ParserConf, debug: bool = False, strict: bool = False
+    ):
         analysis = LALR_Analyzer(parser_conf, debug=debug, strict=strict)
         analysis.compute_lalr()
         callbacks = parser_conf.callbacks
@@ -2366,7 +2740,7 @@ class LALR_Parser(Serialize):
         inst.parser = _Parser(inst._parse_table, callbacks, debug)
         return inst
 
-    def serialize(self, memo: Any = None) -> Dict[str, Any]:
+    def serialize(self, memo: Any = None) -> dict[str, Any]:
         return self._parse_table.serialize(memo)
 
     def parse_interactive(self, lexer: LexerThread, start: str):
@@ -2391,14 +2765,16 @@ class LALR_Parser(Serialize):
                     ##
 
                     if p == s.line_ctr.char_pos:
-                        s.line_ctr.feed(s.text[p:p+1])
+                        s.line_ctr.feed(s.text[p : p + 1])
 
                 try:
                     return e.interactive_parser.resume_parse()
                 except UnexpectedToken as e2:
-                    if (isinstance(e, UnexpectedToken)
-                        and e.token.type == e2.token.type == '$END'
-                        and e.interactive_parser == e2.interactive_parser):
+                    if (
+                        isinstance(e, UnexpectedToken)
+                        and e.token.type == e2.token.type == "$END"
+                        and e.interactive_parser == e2.interactive_parser
+                    ):
                         ##
 
                         raise e2
@@ -2412,28 +2788,43 @@ class _Parser:
     callbacks: ParserCallbacks
     debug: bool
 
-    def __init__(self, parse_table: ParseTableBase, callbacks: ParserCallbacks, debug: bool=False):
+    def __init__(
+        self,
+        parse_table: ParseTableBase,
+        callbacks: ParserCallbacks,
+        debug: bool = False,
+    ):
         self.parse_table = parse_table
         self.callbacks = callbacks
         self.debug = debug
 
-    def parse(self, lexer: LexerThread, start: str, value_stack=None, state_stack=None, start_interactive=False):
+    def parse(
+        self,
+        lexer: LexerThread,
+        start: str,
+        value_stack=None,
+        state_stack=None,
+        start_interactive=False,
+    ):
         parse_conf = ParseConf(self.parse_table, self.callbacks, start)
         parser_state = ParserState(parse_conf, lexer, state_stack, value_stack)
         if start_interactive:
             return InteractiveParser(self, parser_state, parser_state.lexer)
         return self.parse_from_state(parser_state)
 
-
-    def parse_from_state(self, state: ParserState, last_token: Optional[Token]=None):
-        #--
+    def parse_from_state(self, state: ParserState, last_token: Token | None = None):
+        # --
         try:
             token = last_token
             for token in state.lexer.lex(state):
                 assert token is not None
                 state.feed_token(token)
 
-            end_token = Token.new_borrow_pos('$END', '', token) if token else Token('$END', '', 0, 1, 1)
+            end_token = (
+                Token.new_borrow_pos("$END", "", token)
+                if token
+                else Token("$END", "", 0, 1, 1)
+            )
             return state.feed_token(end_token, True)
         except UnexpectedInput as e:
             try:
@@ -2441,20 +2832,20 @@ class _Parser:
             except NameError:
                 pass
             raise e
-        except Exception as e:
+        except Exception:
             if self.debug:
                 print("")
                 print("STATE STACK DUMP")
                 print("----------------")
                 for i, s in enumerate(state.state_stack):
-                    print('%d)' % i , s)
+                    print("%d)" % i, s)
                 print("")
 
             raise
 
 
 class InteractiveParser:
-    #--
+    # --
     def __init__(self, parser, parser_state: ParserState, lexer_thread: LexerThread):
         self.parser = parser
         self.parser_state = parser_state
@@ -2463,32 +2854,37 @@ class InteractiveParser:
 
     @property
     def lexer_state(self) -> LexerThread:
-        warnings.warn("lexer_state will be removed in subsequent releases. Use lexer_thread instead.", DeprecationWarning)
+        warnings.warn(
+            "lexer_state will be removed in subsequent releases. Use lexer_thread instead.",
+            DeprecationWarning,
+        )
         return self.lexer_thread
 
     def feed_token(self, token: Token):
-        #--
-        return self.parser_state.feed_token(token, token.type == '$END')
+        # --
+        return self.parser_state.feed_token(token, token.type == "$END")
 
     def iter_parse(self) -> Iterator[Token]:
-        #--
+        # --
         for token in self.lexer_thread.lex(self.parser_state):
             yield token
             self.result = self.feed_token(token)
 
-    def exhaust_lexer(self) -> List[Token]:
-        #--
+    def exhaust_lexer(self) -> list[Token]:
+        # --
         return list(self.iter_parse())
 
-
     def feed_eof(self, last_token=None):
-        #--
-        eof = Token.new_borrow_pos('$END', '', last_token) if last_token is not None else self.lexer_thread._Token('$END', '', 0, 1, 1)
+        # --
+        eof = (
+            Token.new_borrow_pos("$END", "", last_token)
+            if last_token is not None
+            else self.lexer_thread._Token("$END", "", 0, 1, 1)
+        )
         return self.feed_token(eof)
 
-
     def __copy__(self):
-        #--
+        # --
         return self.copy()
 
     def copy(self, deepcopy_values=True):
@@ -2502,27 +2898,32 @@ class InteractiveParser:
         if not isinstance(other, InteractiveParser):
             return False
 
-        return self.parser_state == other.parser_state and self.lexer_thread == other.lexer_thread
+        return (
+            self.parser_state == other.parser_state
+            and self.lexer_thread == other.lexer_thread
+        )
 
     def as_immutable(self):
-        #--
+        # --
         p = copy(self)
         return ImmutableInteractiveParser(p.parser, p.parser_state, p.lexer_thread)
 
     def pretty(self):
-        #--
+        # --
         out = ["Parser choices:"]
         for k, v in self.choices().items():
-            out.append('\t- %s -> %r' % (k, v))
-        out.append('stack size: %s' % len(self.parser_state.state_stack))
-        return '\n'.join(out)
+            out.append("\t- %s -> %r" % (k, v))
+        out.append("stack size: %s" % len(self.parser_state.state_stack))
+        return "\n".join(out)
 
     def choices(self):
-        #--
-        return self.parser_state.parse_conf.parse_table.states[self.parser_state.position]
+        # --
+        return self.parser_state.parse_conf.parse_table.states[
+            self.parser_state.position
+        ]
 
     def accepts(self):
-        #--
+        # --
         accepts = set()
         conf_no_callbacks = copy(self.parser_state.parse_conf)
         ##
@@ -2531,12 +2932,11 @@ class InteractiveParser:
 
         conf_no_callbacks.callbacks = {}
         for t in self.choices():
-            if t.isupper(): ##
-
+            if t.isupper():  ##
                 new_cursor = self.copy(deepcopy_values=False)
                 new_cursor.parser_state.parse_conf = conf_no_callbacks
                 try:
-                    new_cursor.feed_token(self.lexer_thread._Token(t, ''))
+                    new_cursor.feed_token(self.lexer_thread._Token(t, ""))
                 except UnexpectedToken:
                     pass
                 else:
@@ -2544,13 +2944,14 @@ class InteractiveParser:
         return accepts
 
     def resume_parse(self):
-        #--
-        return self.parser.parse_from_state(self.parser_state, last_token=self.lexer_thread.state.last_token)
-
+        # --
+        return self.parser.parse_from_state(
+            self.parser_state, last_token=self.lexer_thread.state.last_token
+        )
 
 
 class ImmutableInteractiveParser(InteractiveParser):
-    #--
+    # --
 
     result = None
 
@@ -2563,50 +2964,54 @@ class ImmutableInteractiveParser(InteractiveParser):
         return c
 
     def exhaust_lexer(self):
-        #--
+        # --
         cursor = self.as_mutable()
         cursor.exhaust_lexer()
         return cursor.as_immutable()
 
     def as_mutable(self):
-        #--
+        # --
         p = copy(self)
         return InteractiveParser(p.parser, p.parser_state, p.lexer_thread)
 
 
-
 def _wrap_lexer(lexer_class):
-    future_interface = getattr(lexer_class, '__future_interface__', False)
+    future_interface = getattr(lexer_class, "__future_interface__", False)
     if future_interface:
         return lexer_class
     else:
+
         class CustomLexerWrapper(Lexer):
             def __init__(self, lexer_conf):
                 self.lexer = lexer_class(lexer_conf)
+
             def lex(self, lexer_state, parser_state):
                 return self.lexer.lex(lexer_state.text)
+
         return CustomLexerWrapper
 
 
 def _deserialize_parsing_frontend(data, memo, lexer_conf, callbacks, options):
-    parser_conf = ParserConf.deserialize(data['parser_conf'], memo)
-    cls = (options and options._plugins.get('LALR_Parser')) or LALR_Parser
-    parser = cls.deserialize(data['parser'], memo, callbacks, options.debug)
+    parser_conf = ParserConf.deserialize(data["parser_conf"], memo)
+    cls = (options and options._plugins.get("LALR_Parser")) or LALR_Parser
+    parser = cls.deserialize(data["parser"], memo, callbacks, options.debug)
     parser_conf.callbacks = callbacks
     return ParsingFrontend(lexer_conf, parser_conf, options, parser=parser)
 
 
-_parser_creators: 'Dict[str, Callable[[LexerConf, Any, Any], Any]]' = {}
+_parser_creators: "dict[str, Callable[[LexerConf, Any, Any], Any]]" = {}
 
 
 class ParsingFrontend(Serialize):
-    __serialize_fields__ = 'lexer_conf', 'parser_conf', 'parser'
+    __serialize_fields__ = "lexer_conf", "parser_conf", "parser"
 
     lexer_conf: LexerConf
     parser_conf: ParserConf
     options: Any
 
-    def __init__(self, lexer_conf: LexerConf, parser_conf: ParserConf, options, parser=None):
+    def __init__(
+        self, lexer_conf: LexerConf, parser_conf: ParserConf, options, parser=None
+    ):
         self.parser_conf = parser_conf
         self.lexer_conf = lexer_conf
         self.options = options
@@ -2614,20 +3019,19 @@ class ParsingFrontend(Serialize):
         ##
 
         if parser:  ##
-
             self.parser = parser
         else:
             create_parser = _parser_creators.get(parser_conf.parser_type)
-            assert create_parser is not None, "{} is not supported in standalone mode".format(
-                    parser_conf.parser_type
-                )
+            assert create_parser is not None, (
+                f"{parser_conf.parser_type} is not supported in standalone mode"
+            )
             self.parser = create_parser(lexer_conf, parser_conf, options)
 
         ##
 
         lexer_type = lexer_conf.lexer_type
         self.skip_lexer = False
-        if lexer_type in ('dynamic', 'dynamic_complete'):
+        if lexer_type in ("dynamic", "dynamic_complete"):
             assert lexer_conf.postlex is None
             self.skip_lexer = True
             return
@@ -2637,10 +3041,12 @@ class ParsingFrontend(Serialize):
             self.lexer = _wrap_lexer(lexer_type)(lexer_conf)
         elif isinstance(lexer_type, str):
             create_lexer = {
-                'basic': create_basic_lexer,
-                'contextual': create_contextual_lexer,
+                "basic": create_basic_lexer,
+                "contextual": create_contextual_lexer,
             }[lexer_type]
-            self.lexer = create_lexer(lexer_conf, self.parser, lexer_conf.postlex, options)
+            self.lexer = create_lexer(
+                lexer_conf, self.parser, lexer_conf.postlex, options
+            )
         else:
             raise TypeError("Bad value for lexer_type: {lexer_type}")
 
@@ -2651,45 +3057,56 @@ class ParsingFrontend(Serialize):
         if start is None:
             start_decls = self.parser_conf.start
             if len(start_decls) > 1:
-                raise ConfigurationError("Lark initialized with more than 1 possible start rule. Must specify which start rule to parse", start_decls)
-            start ,= start_decls
+                raise ConfigurationError(
+                    "Lark initialized with more than 1 possible start rule. Must specify which start rule to parse",
+                    start_decls,
+                )
+            (start,) = start_decls
         elif start not in self.parser_conf.start:
-            raise ConfigurationError("Unknown start rule %s. Must be one of %r" % (start, self.parser_conf.start))
+            raise ConfigurationError(
+                "Unknown start rule %s. Must be one of %r"
+                % (start, self.parser_conf.start)
+            )
         return start
 
-    def _make_lexer_thread(self, text: str) -> Union[str, LexerThread]:
-        cls = (self.options and self.options._plugins.get('LexerThread')) or LexerThread
+    def _make_lexer_thread(self, text: str) -> str | LexerThread:
+        cls = (self.options and self.options._plugins.get("LexerThread")) or LexerThread
         return text if self.skip_lexer else cls.from_text(self.lexer, text)
 
     def parse(self, text: str, start=None, on_error=None):
         chosen_start = self._verify_start(start)
-        kw = {} if on_error is None else {'on_error': on_error}
+        kw = {} if on_error is None else {"on_error": on_error}
         stream = self._make_lexer_thread(text)
         return self.parser.parse(stream, chosen_start, **kw)
 
-    def parse_interactive(self, text: Optional[str]=None, start=None):
+    def parse_interactive(self, text: str | None = None, start=None):
         ##
 
         ##
 
         chosen_start = self._verify_start(start)
-        if self.parser_conf.parser_type != 'lalr':
-            raise ConfigurationError("parse_interactive() currently only works with parser='lalr' ")
+        if self.parser_conf.parser_type != "lalr":
+            raise ConfigurationError(
+                "parse_interactive() currently only works with parser='lalr' "
+            )
         stream = self._make_lexer_thread(text)  ##
 
         return self.parser.parse_interactive(stream, chosen_start)
 
 
 def _validate_frontend_args(parser, lexer) -> None:
-    assert_config(parser, ('lalr', 'earley', 'cyk'))
-    if not isinstance(lexer, type):     ##
-
+    assert_config(parser, ("lalr", "earley", "cyk"))
+    if not isinstance(lexer, type):  ##
         expected = {
-            'lalr': ('basic', 'contextual'),
-            'earley': ('basic', 'dynamic', 'dynamic_complete'),
-            'cyk': ('basic', ),
-         }[parser]
-        assert_config(lexer, expected, 'Parser %r does not support lexer %%r, expected one of %%s' % parser)
+            "lalr": ("basic", "contextual"),
+            "earley": ("basic", "dynamic", "dynamic_complete"),
+            "cyk": ("basic",),
+        }[parser]
+        assert_config(
+            lexer,
+            expected,
+            "Parser %r does not support lexer %%r, expected one of %%s" % parser,
+        )
 
 
 def _get_lexer_callbacks(transformer, terminals):
@@ -2699,6 +3116,7 @@ def _get_lexer_callbacks(transformer, terminals):
         if callback is not None:
             result[terminal.name] = callback
     return result
+
 
 class PostLexConnector:
     def __init__(self, lexer, postlexer):
@@ -2710,27 +3128,33 @@ class PostLexConnector:
         return self.postlexer.process(i)
 
 
-
 def create_basic_lexer(lexer_conf, parser, postlex, options) -> BasicLexer:
-    cls = (options and options._plugins.get('BasicLexer')) or BasicLexer
+    cls = (options and options._plugins.get("BasicLexer")) or BasicLexer
     return cls(lexer_conf)
 
-def create_contextual_lexer(lexer_conf: LexerConf, parser, postlex, options) -> ContextualLexer:
-    cls = (options and options._plugins.get('ContextualLexer')) or ContextualLexer
+
+def create_contextual_lexer(
+    lexer_conf: LexerConf, parser, postlex, options
+) -> ContextualLexer:
+    cls = (options and options._plugins.get("ContextualLexer")) or ContextualLexer
     parse_table: ParseTableBase[int] = parser._parse_table
-    states: Dict[int, Collection[str]] = {idx:list(t.keys()) for idx, t in parse_table.states.items()}
+    states: dict[int, Collection[str]] = {
+        idx: list(t.keys()) for idx, t in parse_table.states.items()
+    }
     always_accept: Collection[str] = postlex.always_accept if postlex else ()
     return cls(lexer_conf, states, always_accept=always_accept)
 
-def create_lalr_parser(lexer_conf: LexerConf, parser_conf: ParserConf, options=None) -> LALR_Parser:
+
+def create_lalr_parser(
+    lexer_conf: LexerConf, parser_conf: ParserConf, options=None
+) -> LALR_Parser:
     debug = options.debug if options else False
     strict = options.strict if options else False
-    cls = (options and options._plugins.get('LALR_Parser')) or LALR_Parser
+    cls = (options and options._plugins.get("LALR_Parser")) or LALR_Parser
     return cls(parser_conf, debug=debug, strict=strict)
 
-_parser_creators['lalr'] = create_lalr_parser
 
-
+_parser_creators["lalr"] = create_lalr_parser
 
 
 class PostLex(ABC):
@@ -2740,31 +3164,34 @@ class PostLex(ABC):
 
     always_accept: Iterable[str] = ()
 
-class LarkOptions(Serialize):
-    #--
 
-    start: List[str]
+class LarkOptions(Serialize):
+    # --
+
+    start: list[str]
     debug: bool
     strict: bool
-    transformer: 'Optional[Transformer]'
-    propagate_positions: Union[bool, str]
+    transformer: "Transformer | None"
+    propagate_positions: bool | str
     maybe_placeholders: bool
-    cache: Union[bool, str]
+    cache: bool | str
     regex: bool
     g_regex_flags: int
     keep_all_tokens: bool
-    tree_class: Optional[Callable[[str, List], Any]]
+    tree_class: Callable[[str, list], Any] | None
     parser: _ParserArgType
     lexer: _LexerArgType
     ambiguity: 'Literal["auto", "resolve", "explicit", "forest"]'
-    postlex: Optional[PostLex]
-    priority: 'Optional[Literal["auto", "normal", "invert"]]'
-    lexer_callbacks: Dict[str, Callable[[Token], Token]]
+    postlex: PostLex | None
+    priority: 'Literal["auto", "normal", "invert"] | None'
+    lexer_callbacks: dict[str, Callable[[Token], Token]]
     use_bytes: bool
     ordered_sets: bool
-    edit_terminals: Optional[Callable[[TerminalDef], TerminalDef]]
-    import_paths: 'List[Union[str, Callable[[Union[None, str, PackageResource], str], Tuple[str, str]]]]'
-    source_path: Optional[str]
+    edit_terminals: Callable[[TerminalDef], TerminalDef] | None
+    import_paths: (
+        "list[str | Callable[[None | str | PackageResource, str], tuple[str, str]]]"
+    )
+    source_path: str | None
 
     OPTIONS_DOC = r"""
     **===  General Options  ===**
@@ -2846,7 +3273,6 @@ class LarkOptions(Serialize):
     if __doc__:
         __doc__ += OPTIONS_DOC
 
-
     ##
 
     ##
@@ -2859,76 +3285,85 @@ class LarkOptions(Serialize):
 
     ##
 
-    _defaults: Dict[str, Any] = {
-        'debug': False,
-        'strict': False,
-        'keep_all_tokens': False,
-        'tree_class': None,
-        'cache': False,
-        'postlex': None,
-        'parser': 'earley',
-        'lexer': 'auto',
-        'transformer': None,
-        'start': 'start',
-        'priority': 'auto',
-        'ambiguity': 'auto',
-        'regex': False,
-        'propagate_positions': False,
-        'lexer_callbacks': {},
-        'maybe_placeholders': True,
-        'edit_terminals': None,
-        'g_regex_flags': 0,
-        'use_bytes': False,
-        'ordered_sets': True,
-        'import_paths': [],
-        'source_path': None,
-        '_plugins': {},
+    _defaults: dict[str, Any] = {
+        "debug": False,
+        "strict": False,
+        "keep_all_tokens": False,
+        "tree_class": None,
+        "cache": False,
+        "postlex": None,
+        "parser": "earley",
+        "lexer": "auto",
+        "transformer": None,
+        "start": "start",
+        "priority": "auto",
+        "ambiguity": "auto",
+        "regex": False,
+        "propagate_positions": False,
+        "lexer_callbacks": {},
+        "maybe_placeholders": True,
+        "edit_terminals": None,
+        "g_regex_flags": 0,
+        "use_bytes": False,
+        "ordered_sets": True,
+        "import_paths": [],
+        "source_path": None,
+        "_plugins": {},
     }
 
-    def __init__(self, options_dict: Dict[str, Any]) -> None:
+    def __init__(self, options_dict: dict[str, Any]) -> None:
         o = dict(options_dict)
 
         options = {}
         for name, default in self._defaults.items():
             if name in o:
                 value = o.pop(name)
-                if isinstance(default, bool) and name not in ('cache', 'use_bytes', 'propagate_positions'):
+                if isinstance(default, bool) and name not in (
+                    "cache",
+                    "use_bytes",
+                    "propagate_positions",
+                ):
                     value = bool(value)
             else:
                 value = default
 
             options[name] = value
 
-        if isinstance(options['start'], str):
-            options['start'] = [options['start']]
+        if isinstance(options["start"], str):
+            options["start"] = [options["start"]]
 
-        self.__dict__['options'] = options
+        self.__dict__["options"] = options
 
+        assert_config(self.parser, ("earley", "lalr", "cyk", None))
 
-        assert_config(self.parser, ('earley', 'lalr', 'cyk', None))
-
-        if self.parser == 'earley' and self.transformer:
-            raise ConfigurationError('Cannot specify an embedded transformer when using the Earley algorithm. '
-                             'Please use your transformer on the resulting parse tree, or use a different algorithm (i.e. LALR)')
+        if self.parser == "earley" and self.transformer:
+            raise ConfigurationError(
+                "Cannot specify an embedded transformer when using the Earley algorithm. "
+                "Please use your transformer on the resulting parse tree, or use a different algorithm (i.e. LALR)"
+            )
 
         if o:
             raise ConfigurationError("Unknown options: %s" % o.keys())
 
     def __getattr__(self, name: str) -> Any:
         try:
-            return self.__dict__['options'][name]
+            return self.__dict__["options"][name]
         except KeyError as e:
             raise AttributeError(e)
 
     def __setattr__(self, name: str, value: str) -> None:
-        assert_config(name, self.options.keys(), "%r isn't a valid option. Expected one of: %s")
+        assert_config(
+            name, self.options.keys(), "%r isn't a valid option. Expected one of: %s"
+        )
         self.options[name] = value
 
-    def serialize(self, memo = None) -> Dict[str, Any]:
+    def serialize(self, memo=None) -> dict[str, Any]:
         return self.options
 
     @classmethod
-    def deserialize(cls, data: Dict[str, Any], memo: Dict[int, Union[TerminalDef, Rule]]) -> "LarkOptions":
+    def deserialize(
+        cls, data: dict[str, Any], memo: dict[int, TerminalDef | Rule]
+    ) -> "LarkOptions":
         return cls(data)
 
 
@@ -2936,26 +3371,38 @@ class LarkOptions(Serialize):
 
 ##
 
-_LOAD_ALLOWED_OPTIONS = {'postlex', 'transformer', 'lexer_callbacks', 'use_bytes', 'debug', 'g_regex_flags', 'regex', 'propagate_positions', 'tree_class', '_plugins'}
+_LOAD_ALLOWED_OPTIONS = {
+    "postlex",
+    "transformer",
+    "lexer_callbacks",
+    "use_bytes",
+    "debug",
+    "g_regex_flags",
+    "regex",
+    "propagate_positions",
+    "tree_class",
+    "_plugins",
+}
 
-_VALID_PRIORITY_OPTIONS = ('auto', 'normal', 'invert', None)
-_VALID_AMBIGUITY_OPTIONS = ('auto', 'resolve', 'explicit', 'forest')
+_VALID_PRIORITY_OPTIONS = ("auto", "normal", "invert", None)
+_VALID_AMBIGUITY_OPTIONS = ("auto", "resolve", "explicit", "forest")
 
 
-_T = TypeVar('_T', bound="Lark")
+_T = TypeVar("_T", bound="Lark")
+
 
 class Lark(Serialize):
-    #--
+    # --
 
     source_path: str
     source_grammar: str
-    grammar: 'Grammar'
+    grammar: "Grammar"
     options: LarkOptions
     lexer: Lexer
-    parser: 'ParsingFrontend'
+    parser: "ParsingFrontend"
     terminals: Collection[TerminalDef]
 
-    def __init__(self, grammar: 'Union[Grammar, str, IO[str]]', **options) -> None:
+    def __init__(self, grammar: "Grammar | str | IO[str]", **options) -> None:
         self.options = LarkOptions(options)
         re_module: types.ModuleType
 
@@ -2966,7 +3413,9 @@ class Lark(Serialize):
             if _has_regex:
                 re_module = regex
             else:
-                raise ImportError('`regex` module must be installed if calling `Lark(regex=True)`.')
+                raise ImportError(
+                    "`regex` module must be installed if calling `Lark(regex=True)`."
+                )
         else:
             re_module = re
 
@@ -2977,7 +3426,7 @@ class Lark(Serialize):
                 self.source_path = grammar.name  ##
 
             except AttributeError:
-                self.source_path = '<string>'
+                self.source_path = "<string>"
         else:
             self.source_path = self.options.source_path
 
@@ -2997,15 +3446,28 @@ class Lark(Serialize):
             self.source_grammar = grammar
             if self.options.use_bytes:
                 if not grammar.isascii():
-                    raise ConfigurationError("Grammar must be ascii only, when use_bytes=True")
+                    raise ConfigurationError(
+                        "Grammar must be ascii only, when use_bytes=True"
+                    )
 
             if self.options.cache:
-                if self.options.parser != 'lalr':
-                    raise ConfigurationError("cache only works with parser='lalr' for now")
+                if self.options.parser != "lalr":
+                    raise ConfigurationError(
+                        "cache only works with parser='lalr' for now"
+                    )
 
-                unhashable = ('transformer', 'postlex', 'lexer_callbacks', 'edit_terminals', '_plugins')
-                options_str = ''.join(k+str(v) for k, v in options.items() if k not in unhashable)
+                unhashable = (
+                    "transformer",
+                    "postlex",
+                    "lexer_callbacks",
+                    "edit_terminals",
+                    "_plugins",
+                )
+                options_str = "".join(
+                    k + str(v) for k, v in options.items() if k not in unhashable
+                )
                 from . import __version__
+
                 s = grammar + options_str + __version__ + str(sys.version_info[:2])
                 cache_sha256 = sha256_digest(s)
 
@@ -3026,19 +3488,25 @@ class Lark(Serialize):
 
                         username = "unknown"
 
-                    cache_fn = tempfile.gettempdir() + "/.lark_cache_%s_%s_%s_%s.tmp" % (username, cache_sha256, *sys.version_info[:2])
+                    cache_fn = (
+                        tempfile.gettempdir()
+                        + "/.lark_cache_%s_%s_%s_%s.tmp"
+                        % (username, cache_sha256, *sys.version_info[:2])
+                    )
 
                 old_options = self.options
                 try:
-                    with FS.open(cache_fn, 'rb') as f:
-                        logger.debug('Loading grammar from cache: %s', cache_fn)
+                    with FS.open(cache_fn, "rb") as f:
+                        logger.debug("Loading grammar from cache: %s", cache_fn)
                         ##
 
-                        for name in (set(options) - _LOAD_ALLOWED_OPTIONS):
+                        for name in set(options) - _LOAD_ALLOWED_OPTIONS:
                             del options[name]
-                        file_sha256 = f.readline().rstrip(b'\n')
+                        file_sha256 = f.readline().rstrip(b"\n")
                         cached_used_files = pickle.load(f)
-                        if file_sha256 == cache_sha256.encode('utf8') and verify_used_files(cached_used_files):
+                        if file_sha256 == cache_sha256.encode(
+                            "utf8"
+                        ) and verify_used_files(cached_used_files):
                             cached_parser_data = pickle.load(f)
                             self._load(cached_parser_data, **options)
                             return
@@ -3046,9 +3514,11 @@ class Lark(Serialize):
                     ##
 
                     pass
-                except Exception: ##
-
-                    logger.exception("Failed to load Lark from cache: %r. We will try to carry on.", cache_fn)
+                except Exception:  ##
+                    logger.exception(
+                        "Failed to load Lark from cache: %r. We will try to carry on.",
+                        cache_fn,
+                    )
 
                     ##
 
@@ -3056,54 +3526,71 @@ class Lark(Serialize):
 
                     self.options = old_options
 
-
             ##
 
-            self.grammar, used_files = load_grammar(grammar, self.source_path, self.options.import_paths, self.options.keep_all_tokens)
+            self.grammar, used_files = load_grammar(
+                grammar,
+                self.source_path,
+                self.options.import_paths,
+                self.options.keep_all_tokens,
+            )
         else:
             assert isinstance(grammar, Grammar)
             self.grammar = grammar
 
-
-        if self.options.lexer == 'auto':
-            if self.options.parser == 'lalr':
-                self.options.lexer = 'contextual'
-            elif self.options.parser == 'earley':
+        if self.options.lexer == "auto":
+            if self.options.parser == "lalr":
+                self.options.lexer = "contextual"
+            elif self.options.parser == "earley":
                 if self.options.postlex is not None:
-                    logger.info("postlex can't be used with the dynamic lexer, so we use 'basic' instead. "
-                                "Consider using lalr with contextual instead of earley")
-                    self.options.lexer = 'basic'
+                    logger.info(
+                        "postlex can't be used with the dynamic lexer, so we use 'basic' instead. "
+                        "Consider using lalr with contextual instead of earley"
+                    )
+                    self.options.lexer = "basic"
                 else:
-                    self.options.lexer = 'dynamic'
-            elif self.options.parser == 'cyk':
-                self.options.lexer = 'basic'
+                    self.options.lexer = "dynamic"
+            elif self.options.parser == "cyk":
+                self.options.lexer = "basic"
             else:
                 assert False, self.options.parser
         lexer = self.options.lexer
         if isinstance(lexer, type):
-            assert issubclass(lexer, Lexer)     ##
+            assert issubclass(lexer, Lexer)  ##
 
         else:
-            assert_config(lexer, ('basic', 'contextual', 'dynamic', 'dynamic_complete'))
-            if self.options.postlex is not None and 'dynamic' in lexer:
-                raise ConfigurationError("Can't use postlex with a dynamic lexer. Use basic or contextual instead")
+            assert_config(lexer, ("basic", "contextual", "dynamic", "dynamic_complete"))
+            if self.options.postlex is not None and "dynamic" in lexer:
+                raise ConfigurationError(
+                    "Can't use postlex with a dynamic lexer. Use basic or contextual instead"
+                )
 
-        if self.options.ambiguity == 'auto':
-            if self.options.parser == 'earley':
-                self.options.ambiguity = 'resolve'
+        if self.options.ambiguity == "auto":
+            if self.options.parser == "earley":
+                self.options.ambiguity = "resolve"
         else:
-            assert_config(self.options.parser, ('earley', 'cyk'), "%r doesn't support disambiguation. Use one of these parsers instead: %s")
+            assert_config(
+                self.options.parser,
+                ("earley", "cyk"),
+                "%r doesn't support disambiguation. Use one of these parsers instead: %s",
+            )
 
-        if self.options.priority == 'auto':
-            self.options.priority = 'normal'
+        if self.options.priority == "auto":
+            self.options.priority = "normal"
 
         if self.options.priority not in _VALID_PRIORITY_OPTIONS:
-            raise ConfigurationError("invalid priority option: %r. Must be one of %r" % (self.options.priority, _VALID_PRIORITY_OPTIONS))
+            raise ConfigurationError(
+                "invalid priority option: %r. Must be one of %r"
+                % (self.options.priority, _VALID_PRIORITY_OPTIONS)
+            )
         if self.options.ambiguity not in _VALID_AMBIGUITY_OPTIONS:
-            raise ConfigurationError("invalid ambiguity option: %r. Must be one of %r" % (self.options.ambiguity, _VALID_AMBIGUITY_OPTIONS))
+            raise ConfigurationError(
+                "invalid ambiguity option: %r. Must be one of %r"
+                % (self.options.ambiguity, _VALID_AMBIGUITY_OPTIONS)
+            )
 
         if self.options.parser is None:
-            terminals_to_keep = '*'
+            terminals_to_keep = "*"
         elif self.options.postlex is not None:
             terminals_to_keep = set(self.options.postlex.always_accept)
         else:
@@ -3111,7 +3598,9 @@ class Lark(Serialize):
 
         ##
 
-        self.terminals, self.rules, self.ignore_tokens = self.grammar.compile(self.options.start, terminals_to_keep)
+        self.terminals, self.rules, self.ignore_tokens = self.grammar.compile(
+            self.options.start, terminals_to_keep
+        )
 
         if self.options.edit_terminals:
             for t in self.terminals:
@@ -3121,7 +3610,7 @@ class Lark(Serialize):
 
         ##
 
-        if self.options.priority == 'invert':
+        if self.options.priority == "invert":
             for rule in self.rules:
                 if rule.options.priority is not None:
                     rule.options.priority = -rule.options.priority
@@ -3143,9 +3632,15 @@ class Lark(Serialize):
         ##
 
         self.lexer_conf = LexerConf(
-                self.terminals, re_module, self.ignore_tokens, self.options.postlex,
-                self.options.lexer_callbacks, self.options.g_regex_flags, use_bytes=self.options.use_bytes, strict=self.options.strict
-            )
+            self.terminals,
+            re_module,
+            self.ignore_tokens,
+            self.options.postlex,
+            self.options.lexer_callbacks,
+            self.options.g_regex_flags,
+            use_bytes=self.options.use_bytes,
+            strict=self.options.strict,
+        )
 
         if self.options.parser:
             self.parser = self._build_parser()
@@ -3153,25 +3648,26 @@ class Lark(Serialize):
             self.lexer = self._build_lexer()
 
         if cache_fn:
-            logger.debug('Saving grammar to cache: %s', cache_fn)
+            logger.debug("Saving grammar to cache: %s", cache_fn)
             try:
-                with FS.open(cache_fn, 'wb') as f:
+                with FS.open(cache_fn, "wb") as f:
                     assert cache_sha256 is not None
-                    f.write(cache_sha256.encode('utf8') + b'\n')
+                    f.write(cache_sha256.encode("utf8") + b"\n")
                     pickle.dump(used_files, f)
                     self.save(f, _LOAD_ALLOWED_OPTIONS)
-            except IOError as e:
+            except OSError as e:
                 logger.exception("Failed to save Lark to cache: %r.", cache_fn, e)
 
     if __doc__:
         __doc__ += "\n\n" + LarkOptions.OPTIONS_DOC
 
-    __serialize_fields__ = 'parser', 'rules', 'options'
+    __serialize_fields__ = "parser", "rules", "options"
 
-    def _build_lexer(self, dont_ignore: bool=False) -> BasicLexer:
+    def _build_lexer(self, dont_ignore: bool = False) -> BasicLexer:
         lexer_conf = self.lexer_conf
         if dont_ignore:
             from copy import copy
+
             lexer_conf = copy(lexer_conf)
             lexer_conf.ignore = ()
         return BasicLexer(lexer_conf)
@@ -3180,16 +3676,20 @@ class Lark(Serialize):
         self._callbacks = {}
         ##
 
-        if self.options.ambiguity != 'forest':
+        if self.options.ambiguity != "forest":
             self._parse_tree_builder = ParseTreeBuilder(
-                    self.rules,
-                    self.options.tree_class or Tree,
-                    self.options.propagate_positions,
-                    self.options.parser != 'lalr' and self.options.ambiguity == 'explicit',
-                    self.options.maybe_placeholders
-                )
-            self._callbacks = self._parse_tree_builder.create_callback(self.options.transformer)
-        self._callbacks.update(_get_lexer_callbacks(self.options.transformer, self.terminals))
+                self.rules,
+                self.options.tree_class or Tree,
+                self.options.propagate_positions,
+                self.options.parser != "lalr" and self.options.ambiguity == "explicit",
+                self.options.maybe_placeholders,
+            )
+            self._callbacks = self._parse_tree_builder.create_callback(
+                self.options.transformer
+            )
+        self._callbacks.update(
+            _get_lexer_callbacks(self.options.transformer, self.terminals)
+        )
 
     def _build_parser(self) -> "ParsingFrontend":
         self._prepare_callbacks()
@@ -3200,26 +3700,35 @@ class Lark(Serialize):
             self.options.lexer,
             self.lexer_conf,
             parser_conf,
-            options=self.options
+            options=self.options,
         )
 
     def save(self, f, exclude_options: Collection[str] = ()) -> None:
-        #--
-        if self.options.parser != 'lalr':
-            raise NotImplementedError("Lark.save() is only implemented for the LALR(1) parser.")
+        # --
+        if self.options.parser != "lalr":
+            raise NotImplementedError(
+                "Lark.save() is only implemented for the LALR(1) parser."
+            )
         data, m = self.memo_serialize([TerminalDef, Rule])
         if exclude_options:
-            data["options"] = {n: v for n, v in data["options"].items() if n not in exclude_options}
-        pickle.dump({'data': data, 'memo': m}, f, protocol=pickle.HIGHEST_PROTOCOL)
+            data["options"] = {
+                n: v for n, v in data["options"].items() if n not in exclude_options
+            }
+        pickle.dump({"data": data, "memo": m}, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
-    def load(cls: Type[_T], f) -> _T:
-        #--
+    def load(cls: type[_T], f) -> _T:
+        # --
         inst = cls.__new__(cls)
         return inst._load(f)
 
-    def _deserialize_lexer_conf(self, data: Dict[str, Any], memo: Dict[int, Union[TerminalDef, Rule]], options: LarkOptions) -> LexerConf:
-        lexer_conf = LexerConf.deserialize(data['lexer_conf'], memo)
+    def _deserialize_lexer_conf(
+        self,
+        data: dict[str, Any],
+        memo: dict[int, TerminalDef | Rule],
+        options: LarkOptions,
+    ) -> LexerConf:
+        lexer_conf = LexerConf.deserialize(data["lexer_conf"], memo)
         lexer_conf.callbacks = options.lexer_callbacks or {}
         lexer_conf.re_module = regex if options.regex else re
         lexer_conf.use_bytes = options.use_bytes
@@ -3233,66 +3742,81 @@ class Lark(Serialize):
             d = f
         else:
             d = pickle.load(f)
-        memo_json = d['memo']
-        data = d['data']
+        memo_json = d["memo"]
+        data = d["data"]
 
         assert memo_json
-        memo = SerializeMemoizer.deserialize(memo_json, {'Rule': Rule, 'TerminalDef': TerminalDef}, {})
-        options = dict(data['options'])
+        memo = SerializeMemoizer.deserialize(
+            memo_json, {"Rule": Rule, "TerminalDef": TerminalDef}, {}
+        )
+        options = dict(data["options"])
         if (set(kwargs) - _LOAD_ALLOWED_OPTIONS) & set(LarkOptions._defaults):
-            raise ConfigurationError("Some options are not allowed when loading a Parser: {}"
-                             .format(set(kwargs) - _LOAD_ALLOWED_OPTIONS))
+            raise ConfigurationError(
+                f"Some options are not allowed when loading a Parser: {set(kwargs) - _LOAD_ALLOWED_OPTIONS}"
+            )
         options.update(kwargs)
         self.options = LarkOptions.deserialize(options, memo)
-        self.rules = [Rule.deserialize(r, memo) for r in data['rules']]
-        self.source_path = '<deserialized>'
+        self.rules = [Rule.deserialize(r, memo) for r in data["rules"]]
+        self.source_path = "<deserialized>"
         _validate_frontend_args(self.options.parser, self.options.lexer)
-        self.lexer_conf = self._deserialize_lexer_conf(data['parser'], memo, self.options)
+        self.lexer_conf = self._deserialize_lexer_conf(
+            data["parser"], memo, self.options
+        )
         self.terminals = self.lexer_conf.terminals
         self._prepare_callbacks()
         self._terminals_dict = {t.name: t for t in self.terminals}
         self.parser = _deserialize_parsing_frontend(
-            data['parser'],
+            data["parser"],
             memo,
             self.lexer_conf,
             self._callbacks,
             self.options,  ##
-
         )
         return self
 
     @classmethod
     def _load_from_dict(cls, data, memo, **kwargs):
         inst = cls.__new__(cls)
-        return inst._load({'data': data, 'memo': memo}, **kwargs)
+        return inst._load({"data": data, "memo": memo}, **kwargs)
 
     @classmethod
-    def open(cls: Type[_T], grammar_filename: str, rel_to: Optional[str]=None, **options) -> _T:
-        #--
+    def open(
+        cls: type[_T], grammar_filename: str, rel_to: str | None = None, **options
+    ) -> _T:
+        # --
         if rel_to:
             basepath = os.path.dirname(rel_to)
             grammar_filename = os.path.join(basepath, grammar_filename)
-        with open(grammar_filename, encoding='utf8') as f:
+        with open(grammar_filename, encoding="utf8") as f:
             return cls(f, **options)
 
     @classmethod
-    def open_from_package(cls: Type[_T], package: str, grammar_path: str, search_paths: 'Sequence[str]'=[""], **options) -> _T:
-        #--
+    def open_from_package(
+        cls: type[_T],
+        package: str,
+        grammar_path: str,
+        search_paths: "Sequence[str]" = [""],
+        **options,
+    ) -> _T:
+        # --
         package_loader = FromPackageLoader(package, search_paths)
         full_path, text = package_loader(None, grammar_path)
-        options.setdefault('source_path', full_path)
-        options.setdefault('import_paths', [])
-        options['import_paths'].append(package_loader)
+        options.setdefault("source_path", full_path)
+        options.setdefault("import_paths", [])
+        options["import_paths"].append(package_loader)
         return cls(text, **options)
 
     def __repr__(self):
-        return 'Lark(open(%r), parser=%r, lexer=%r, ...)' % (self.source_path, self.options.parser, self.options.lexer)
+        return "Lark(open(%r), parser=%r, lexer=%r, ...)" % (
+            self.source_path,
+            self.options.parser,
+            self.options.lexer,
+        )
 
-
-    def lex(self, text: str, dont_ignore: bool=False) -> Iterator[Token]:
-        #--
+    def lex(self, text: str, dont_ignore: bool = False) -> Iterator[Token]:
+        # --
         lexer: Lexer
-        if not hasattr(self, 'lexer') or dont_ignore:
+        if not hasattr(self, "lexer") or dont_ignore:
             lexer = self._build_lexer(dont_ignore)
         else:
             lexer = self.lexer
@@ -3303,27 +3827,33 @@ class Lark(Serialize):
         return stream
 
     def get_terminal(self, name: str) -> TerminalDef:
-        #--
+        # --
         return self._terminals_dict[name]
 
-    def parse_interactive(self, text: Optional[str]=None, start: Optional[str]=None) -> 'InteractiveParser':
-        #--
+    def parse_interactive(
+        self, text: str | None = None, start: str | None = None
+    ) -> "InteractiveParser":
+        # --
         return self.parser.parse_interactive(text, start=start)
 
-    def parse(self, text: str, start: Optional[str]=None, on_error: 'Optional[Callable[[UnexpectedInput], bool]]'=None) -> 'ParseTree':
-        #--
+    def parse(
+        self,
+        text: str,
+        start: str | None = None,
+        on_error: "Callable[[UnexpectedInput], bool] | None" = None,
+    ) -> "ParseTree":
+        # --
         return self.parser.parse(text, start=start, on_error=on_error)
-
-
 
 
 class DedentError(LarkError):
     pass
 
+
 class Indenter(PostLex, ABC):
-    #--
+    # --
     paren_level: int
-    indent_level: List[int]
+    indent_level: list[int]
 
     def __init__(self) -> None:
         self.paren_level = 0
@@ -3336,9 +3866,9 @@ class Indenter(PostLex, ABC):
 
         yield token
 
-        indent_str = token.rsplit('\n', 1)[1] ##
+        indent_str = token.rsplit("\n", 1)[1]  ##
 
-        indent = indent_str.count(' ') + indent_str.count('\t') * self.tab_len
+        indent = indent_str.count(" ") + indent_str.count("\t") * self.tab_len
 
         if indent > self.indent_level[-1]:
             self.indent_level.append(indent)
@@ -3349,7 +3879,10 @@ class Indenter(PostLex, ABC):
                 yield Token.new_borrow_pos(self.DEDENT_type, indent_str, token)
 
             if indent != self.indent_level[-1]:
-                raise DedentError('Unexpected dedent to column %s. Expected dedent to %s' % (indent, self.indent_level[-1]))
+                raise DedentError(
+                    "Unexpected dedent to column %s. Expected dedent to %s"
+                    % (indent, self.indent_level[-1])
+                )
 
     def _process(self, stream):
         for token in stream:
@@ -3366,7 +3899,7 @@ class Indenter(PostLex, ABC):
 
         while len(self.indent_level) > 1:
             self.indent_level.pop()
-            yield Token(self.DEDENT_type, '')
+            yield Token(self.DEDENT_type, "")
 
         assert self.indent_level == [0], self.indent_level
 
@@ -3384,61 +3917,62 @@ class Indenter(PostLex, ABC):
     @property
     @abstractmethod
     def NL_type(self) -> str:
-        #--
+        # --
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def OPEN_PAREN_types(self) -> List[str]:
-        #--
+    def OPEN_PAREN_types(self) -> list[str]:
+        # --
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def CLOSE_PAREN_types(self) -> List[str]:
-        #--
+    def CLOSE_PAREN_types(self) -> list[str]:
+        # --
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def INDENT_type(self) -> str:
-        #--
+        # --
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def DEDENT_type(self) -> str:
-        #--
+        # --
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def tab_len(self) -> int:
-        #--
+        # --
         raise NotImplementedError()
 
 
 class PythonIndenter(Indenter):
-    #--
+    # --
 
-    NL_type = '_NEWLINE'
-    OPEN_PAREN_types = ['LPAR', 'LSQB', 'LBRACE']
-    CLOSE_PAREN_types = ['RPAR', 'RSQB', 'RBRACE']
-    INDENT_type = '_INDENT'
-    DEDENT_type = '_DEDENT'
+    NL_type = "_NEWLINE"
+    OPEN_PAREN_types = ["LPAR", "LSQB", "LBRACE"]
+    CLOSE_PAREN_types = ["RPAR", "RSQB", "RBRACE"]
+    INDENT_type = "_INDENT"
+    DEDENT_type = "_DEDENT"
     tab_len = 8
 
 
-import pickle, zlib, base64
-DATA = (
-b'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Pae19JzW0nNaS89pLT2ntfSc1tJzWkvPaS09p7X0nNbSc1pLz2ktPae19JzW0nNaS89pLT2ntfRc04pvxvrf1PW/qet/U9f/pq7/TV3/m7r+N3X9b+r639T1v6nrf1PX/6au/01d/5u6/jd1/W/q+t/U9b+p639T1/+mrv9NXf+buv43df1v6vrf1PW/qet/U9f/pq7/zeb6vwUdZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZM7qIG+1fwxa103zDXpva9rw9verfEFZ9QVl1RfkGVqiU8WjKtpUPKjiYRWHVbSoaFVxREWHimMi8s5vaP5NzCPWOx3N/+4Dztc7jOflTGseZXfhcHsvnmn/8m6eae+cYJ/R913e/aPs2xHjXo1xr8a4V2PcqzHu1Rj3aox7Nca9ag2vWsOrMe7VGPdqjHvVNF71iVdj3KvW8Ko1vGoNr8a4V2PcqzHu1Rj3aox7Nca96i2vxrhXY9yrMe5tuu4dzfWfbzyPI+aDSTY+GLu94Vxb5Av+geanf6MJH28DPh824XMQD69bH163PrxufXjd+vC69eF168Pr1ofXrQ+vWx9etz68bn143frwuvXhdevD69aH160Pr1sfXrc+vG59eN368Lr14XXrw+vWh9etD69bH163PrxufXjd+vC6m0/jnfaPB+g6Zj6Nd+GidicSaCcSaCeSaye61E4k+k5k1U40q53oRDuR2juRajuRqTuRlDutVPum5+si0wyYP8PR2qT/HzqMe/gtW6YZf/05udHc5IvMbwZArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArjRd92/xPqofdsj/1lYdUA9CPQx1GKoF6hGoI1AHoTqhjkE9CtWmKt+w6b9+T1mX/T1l5i8cWTTu3veWxRv/vkcM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3v6Fg6e2mK+quZo+fG9Dv9/xpQ3b9VFZw6bIO93Nz7x96WFeFbxGz/o/Z/4vvCoeVPGwisMqWlQ8ouKIioMqOlUcU/GoijYReacHyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiFnK8t5GzpYmcbvjQAx964EMPfOiBDz3woQc+9MCHHvjQAx964EMPfOiBDz3woQc+9MCHHjjPA+d54DwPnOeB8zxwngfO88B5HjjPA+d54DwPnOeB8zxwngfO88B5HjjPA+d54DwPnOeB8zxwngfO88B5HjjPA+d54CcPnOeB8zzwmgde88BrHnjNA6954DUPvOaB1zzW3u+5315u+tbGB391+zb/X3rdyXxN5GGrNzzQ9V5DXoh6vPEHP9+Y72vMVxjP9oUp86flvNx4ft+5bf6wmDcaz8XLUqduv6HpV5tvaPLpuyK7flHrzy8KfS1xUEWnikdVtKl4UMXDKg6raFFxREWHimMqvCpeIyLv7H3mO9583nOOL7v1zeX6R4d64M7Wv2OGOx7AN3zedBhf7hs+n8/XXkcbH3wIW/zOpn+hfZ/n6c39MYU/59isZ/xVvr5u7u/HHF/hw77rP9Ih0WDdpWf/0P1ocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocms4Ua2h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h163hRLWGXreGXreGBriGlreGlreGlreGlreGlreGlreGlreGlreGE9UaTlRrOFGt4US1hhPVGk5UazhRreFEtWa1yr77rVXej9/dZ7716Zf/BbY+h29i6t/cX3bzd4aUrxf8Q//n7anR3bo+9vQP/+4/80Dzmd8OnE8Dgp+2rD9wD1j/GX2Hr/njWCL3677Y5DcyBjeXAUtP/9BNQL7hOYGBuWd+wbHpT3+Tz1SD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'
-)
+import base64
+import pickle
+import zlib
+
+DATA = b"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Pae19JzW0nNaS89pLT2ntfSc1tJzWkvPaS09p7X0nNbSc1pLz2ktPae19JzW0nNaS89pLT2ntfRc04pvxvrf1PW/qet/U9f/pq7/TV3/m7r+N3X9b+r639T1v6nrf1PX/6au/01d/5u6/jd1/W/q+t/U9b+p639T1/+mrv9NXf+buv43df1v6vrf1PW/qet/U9f/pq7/zeb6vwUdZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZA4dZM7qIG+1fwxa103zDXpva9rw9verfEFZ9QVl1RfkGVqiU8WjKtpUPKjiYRWHVbSoaFVxREWHimMi8s5vaP5NzCPWOx3N/+4Dztc7jOflTGseZXfhcHsvnmn/8m6eae+cYJ/R913e/aPs2xHjXo1xr8a4V2PcqzHu1Rj3aox7Nca9ag2vWsOrMe7VGPdqjHvVNF71iVdj3KvW8Ko1vGoNr8a4V2PcqzHu1Rj3aox7Nca96i2vxrhXY9yrMe5tuu4dzfWfbzyPI+aDSTY+GLu94Vxb5Av+geanf6MJH28DPh824XMQD69bH163PrxufXjd+vC69eF168Pr1ofXrQ+vWx9etz68bn143frwuvXhdevD69aH160Pr1sfXrc+vG59eN368Lr14XXrw+vWh9etD69bH163PrxufXjd+vC6m0/jnfaPB+g6Zj6Nd+GidicSaCcSaCeSaye61E4k+k5k1U40q53oRDuR2juRajuRqTuRlDutVPum5+si0wyYP8PR2qT/HzqMe/gtW6YZf/05udHc5IvMbwZArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArihArjRd92/xPqofdsj/1lYdUA9CPQx1GKoF6hGoI1AHoTqhjkE9CtWmKt+w6b9+T1mX/T1l5i8cWTTu3veWxRv/vkcM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3v6Fg6e2mK+quZo+fG9Dv9/xpQ3b9VFZw6bIO93Nz7x96WFeFbxGz/o/Z/4vvCoeVPGwisMqWlQ8ouKIioMqOlUcU/GoijYReacHyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiQE4EyIkAOREgJwLkRICcCJATAXIiFnK8t5GzpYmcbvjQAx964EMPfOiBDz3woQc+9MCHHvjQAx964EMPfOiBDz3woQc+9MCHHjjPA+d54DwPnOeB8zxwngfO88B5HjjPA+d54DwPnOeB8zxwngfO88B5HjjPA+d54DwPnOeB8zxwngfO88B5HjjPA+d54CcPnOeB8zzwmgde88BrHnjNA6954DUPvOaB1zzW3u+5315u+tbGB391+zb/X3rdyXxN5GGrNzzQ9V5DXoh6vPEHP9+Y72vMVxjP9oUp86flvNx4ft+5bf6wmDcaz8XLUqduv6HpV5tvaPLpuyK7flHrzy8KfS1xUEWnikdVtKl4UMXDKg6raFFxREWHimMqvCpeIyLv7H3mO9583nOOL7v1zeX6R4d64M7Wv2OGOx7AN3zedBhf7hs+n8/XXkcbH3wIW/zOpn+hfZ/n6c39MYU/59isZ/xVvr5u7u/HHF/hw77rP9Ih0WDdpWf/0P1ocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocmtocms4Ua2h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h162h163hRLWGXreGXreGBriGlreGlreGlreGlreGlreGlreGlreGlreGE9UaTlRrOFGt4US1hhPVGk5UazhRreFEtWa1yr77rVXej9/dZ7716Zf/BbY+h29i6t/cX3bzd4aUrxf8Q//n7anR3bo+9vQP/+4/80Dzmd8OnE8Dgp+2rD9wD1j/GX2Hr/njWCL3677Y5DcyBjeXAUtP/9BNQL7hOYGBuWd+wbHpT3+Tz1SD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"
 DATA = pickle.loads(zlib.decompress(base64.b64decode(DATA)))
-MEMO = (
-b'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'
-)
+MEMO = b"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"
 MEMO = pickle.loads(zlib.decompress(base64.b64decode(MEMO)))
 Shift = 0
 Reduce = 1
+
+
 def Lark_StandAlone(**kwargs):
-  return Lark._load_from_dict(DATA, MEMO, **kwargs)
+    return Lark._load_from_dict(DATA, MEMO, **kwargs)

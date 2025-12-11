@@ -16,10 +16,12 @@ from jaclang.vendor.pygls.workspace import Workspace
 def _clear_jac_modules() -> None:
     """Clear jac-compiled modules from sys.modules."""
     jac_modules_to_clear = [
-        k for k in list(sys.modules.keys())
-        if k.startswith("__jac_gen__") or (
-            not k.startswith(("jaclang", "test", "_")) and
-            hasattr(sys.modules.get(k), "__jac_mod__")
+        k
+        for k in list(sys.modules.keys())
+        if k.startswith("__jac_gen__")
+        or (
+            not k.startswith(("jaclang", "test", "_"))
+            and hasattr(sys.modules.get(k), "__jac_mod__")
         )
     ]
     for mod in jac_modules_to_clear:
