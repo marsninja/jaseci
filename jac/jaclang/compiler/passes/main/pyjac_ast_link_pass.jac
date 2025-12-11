@@ -19,28 +19,33 @@ class PyJacAstLinkPass(UniPass) {
             }
         }
     }
+
     def exit_module_path(self: PyJacAstLinkPass, <>node: uni.ModulePath) -> None {
         if <>node.alias {
             self.link_jac_py_nodes(jac_node=<>node.alias, py_nodes=<>node.gen.py_ast);
         }
     }
+
     def exit_archetype(self: PyJacAstLinkPass, <>node: uni.Archetype) -> None {
         self.link_jac_py_nodes(jac_node=<>node.name, py_nodes=<>node.gen.py_ast);
         if isinstance(<>node.body, uni.ImplDef) {
             self.link_jac_py_nodes(jac_node=<>node.body, py_nodes=<>node.gen.py_ast);
         }
     }
+
     def exit_enum(self: PyJacAstLinkPass, <>node: uni.Enum) -> None {
         if isinstance(<>node.body, uni.ImplDef) {
             self.link_jac_py_nodes(jac_node=<>node.body, py_nodes=<>node.gen.py_ast);
         }
     }
+
     def exit_ability(self: PyJacAstLinkPass, <>node: uni.Ability) -> None {
         self.link_jac_py_nodes(jac_node=<>node.name_ref, py_nodes=<>node.gen.py_ast);
         if isinstance(<>node.body, uni.ImplDef) {
             self.link_jac_py_nodes(jac_node=<>node.body, py_nodes=<>node.gen.py_ast);
         }
     }
+
     def exit_impl_def(self: PyJacAstLinkPass, <>node: uni.ImplDef) -> None {
         for i in <>node.target {
             if i.name_spec.name_of.sym {
@@ -101,20 +106,24 @@ class PyJacAstLinkPass(UniPass) {
             }
         }
     }
+
     def exit_param_var(self: PyJacAstLinkPass, <>node: uni.ParamVar) -> None {
         self.link_jac_py_nodes(jac_node=<>node.name, py_nodes=<>node.gen.py_ast);
     }
+
     def exit_except(self: PyJacAstLinkPass, <>node: uni.Except) -> None {
         if <>node.name {
             self.link_jac_py_nodes(jac_node=<>node.name, py_nodes=<>node.gen.py_ast);
         }
     }
+
     def exit_expr_as_item(self: PyJacAstLinkPass, <>node: uni.ExprAsItem) -> None {
         self.link_jac_py_nodes(jac_node=<>node.expr, py_nodes=<>node.gen.py_ast);
         if <>node.alias {
             self.link_jac_py_nodes(jac_node=<>node.alias, py_nodes=<>node.gen.py_ast);
         }
     }
+
     def exit_global_stmt(self: PyJacAstLinkPass, <>node: uni.GlobalStmt) -> None {
         if (not <>node.gen.py_ast or (len(<>node.gen.py_ast) < len(<>node.target))) {
             return;
@@ -123,6 +132,7 @@ class PyJacAstLinkPass(UniPass) {
             self.link_jac_py_nodes(jac_node=y, py_nodes=[<>node.gen.py_ast[x]]);
         }
     }
+
     def exit_non_local_stmt(self: PyJacAstLinkPass, <>node: uni.NonLocalStmt) -> None {
         if (not <>node.gen.py_ast or (len(<>node.gen.py_ast) < len(<>node.target))) {
             return;
@@ -131,11 +141,13 @@ class PyJacAstLinkPass(UniPass) {
             self.link_jac_py_nodes(jac_node=y, py_nodes=[<>node.gen.py_ast[x]]);
         }
     }
+
     def exit_k_w_pair(self: PyJacAstLinkPass, <>node: uni.KWPair) -> None {
         if <>node.key {
             self.link_jac_py_nodes(jac_node=<>node.key, py_nodes=<>node.gen.py_ast);
         }
     }
+
     def exit_atom_trailer(self: PyJacAstLinkPass, <>node: uni.AtomTrailer) -> None {
         if (<>node.is_attr and isinstance(<>node.right, uni.AstSymbolNode)) {
             self.link_jac_py_nodes(

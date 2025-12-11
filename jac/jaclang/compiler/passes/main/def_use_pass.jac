@@ -25,19 +25,17 @@ import jaclang.compiler.unitree as uni;
 import from jaclang.compiler.constant { Tokens as Tok }
 import from jaclang.compiler.passes { UniPass }
 
-
 """Jac Ast build pass."""
 class DefUsePass(UniPass) {
     """Jac Ast build pass."""
-
     def enter_archetype(self: DefUsePass, node: uni.Archetype) -> None {
         def inform_from_walker(n: uni.UniNode) -> None {
             for i in (
-                n.get_all_sub_nodes(uni.VisitStmt)
-                + n.get_all_sub_nodes(uni.DisengageStmt)
-                + n.get_all_sub_nodes(uni.EdgeOpRef)
-                + n.get_all_sub_nodes(uni.EventSignature)
-                + n.get_all_sub_nodes(uni.TypedCtxBlock)
+                n.get_all_sub_nodes(uni.VisitStmt) + n.get_all_sub_nodes(
+                    uni.DisengageStmt
+                ) + n.get_all_sub_nodes(uni.EdgeOpRef) + n.get_all_sub_nodes(
+                    uni.EventSignature
+                ) + n.get_all_sub_nodes(uni.TypedCtxBlock)
             ) {
                 i.from_walker = True;
             }

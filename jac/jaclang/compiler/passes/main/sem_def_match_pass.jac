@@ -34,9 +34,7 @@ class SemDefMatchPass(Transform[(uni.Module, uni.Module)]) {
         target_sym_tab.lookup("Foo").lookup("bar").lookup("baz")
     """
     def find_symbol_from_dotted_name(
-        self: SemDefMatchPass,
-        dotted_name: str,
-        target_sym_tab: UniScopeNode
+        self: SemDefMatchPass, dotted_name: str, target_sym_tab: UniScopeNode
     ) -> (Symbol | None) {
         parts = dotted_name.lstrip('sem.').split('.');
         current_sym_tab: (UniScopeNode | None) = target_sym_tab;
