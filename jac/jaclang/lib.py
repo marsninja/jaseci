@@ -5,7 +5,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from typing import TYPE_CHECKING, cast
 
-from jaclang.runtimelib.runtime import JacClassReferences, JacRuntimeInterface
+from jaclang.pycore.runtime.runtime import JacClassReferences, JacRuntimeInterface
 
 # Pre-populate __all__ with common exports so "from jaclang.lib import X" works
 __all__ = [
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from jaclang.runtimelib.constructs import EdgeArchetype as Edge
     from jaclang.runtimelib.constructs import NodeArchetype as Node
     from jaclang.runtimelib.constructs import WalkerArchetype as Walker
-    from jaclang.runtimelib.runtime import JacRuntimeInterface as JacRT
+    from jaclang.pycore.runtime.runtime import JacRuntimeInterface as JacRT
 
     connect: Callable[..., object] = JacRT.connect
     create_j_context: Callable[..., object] = JacRT.create_j_context
@@ -62,7 +62,7 @@ def __getattr__(name: str) -> object:
     # The circular import protection was preventing legitimate imports
     # Instead, rely on the lazy initialization in _init_lazy_imports()
 
-    from jaclang.runtimelib.runtime import _init_lazy_imports, _lazy_imports_initialized
+    from jaclang.pycore.runtime.runtime import _init_lazy_imports, _lazy_imports_initialized
 
     # Try to initialize lazy imports (may fail during circular import)
     _init_lazy_imports()
@@ -93,7 +93,7 @@ def __getattr__(name: str) -> object:
 # Build __all__ - this will be populated lazily
 def __dir__() -> list[str]:
     """Return list of available attributes."""
-    from jaclang.runtimelib.runtime import _init_lazy_imports
+    from jaclang.pycore.runtime.runtime import _init_lazy_imports
 
     _init_lazy_imports()
     return sorted(

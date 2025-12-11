@@ -1,5 +1,9 @@
-"""Common helpers for AST generation passes."""
+"""Compatibility shim - ast_gen moved to pycore.passes.ast_gen."""
 
-from .base_ast_gen_pass import BaseAstGenPass
+import sys
 
-__all__ = ["BaseAstGenPass"]
+from jaclang.pycore.passes import ast_gen as _ast_gen
+
+sys.modules[__name__] = _ast_gen
+
+from jaclang.pycore.passes.ast_gen import *  # noqa: F401, F403

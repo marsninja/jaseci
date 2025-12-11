@@ -179,7 +179,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         module creation from execution. It handles both package (__init__.jac) and
         regular module (.jac/.py) execution.
         """
-        from jaclang.runtimelib.runtime import JacRuntime as Jac
+        from jaclang.pycore.runtime.runtime import JacRuntime as Jac
 
         if not module.__spec__ or not module.__spec__.origin:
             raise ImportError(

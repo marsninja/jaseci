@@ -1,14 +1,48 @@
 import inspect
 import os
-from collections.abc import Callable
+import sys
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 
 import lsprotocol.types as lspt
 import pytest
 
+from jaclang import JacRuntime as Jac
 from jaclang.langserve.engine import JacLangServer
 from jaclang.vendor.pygls import uris
 from jaclang.vendor.pygls.workspace import Workspace
+
+
+def _clear_jac_modules() -> None:
+    """Clear jac-compiled modules from sys.modules."""
+    jac_modules_to_clear = [
+        k for k in list(sys.modules.keys())
+        if k.startswith("__jac_gen__") or (
+            not k.startswith(("jaclang", "test", "_")) and
+            hasattr(sys.modules.get(k), "__jac_mod__")
+        )
+    ]
+    for mod in jac_modules_to_clear:
+        sys.modules.pop(mod, None)
+
+
+# Track all servers created during a test for cleanup
+_active_servers: list[JacLangServer] = []
+
+
+@pytest.fixture(autouse=True)
+def reset_jac_machine() -> Generator[None, None, None]:
+    """Reset Jac machine before each test to avoid state pollution."""
+    _clear_jac_modules()
+    Jac.reset_machine()
+    _active_servers.clear()
+    yield
+    # Clear type system state from all servers created during the test
+    for server in _active_servers:
+        server.clear_type_system(clear_hub=True)
+    _active_servers.clear()
+    _clear_jac_modules()
+    Jac.reset_machine()
 
 
 @pytest.fixture
@@ -66,6 +100,8 @@ def create_server(
     workspace_root = workspace_path or fixture_path_func("")
     workspace = Workspace(workspace_root, lsp)
     lsp.lsp._workspace = workspace
+    # Track server for cleanup in reset_jac_machine fixture
+    _active_servers.append(lsp)
     return lsp
 
 

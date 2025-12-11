@@ -19,7 +19,6 @@ from jaclang.compiler.passes.main import (
     Transform,
 )
 
-# Tool passes are imported lazily to allow doc_ir.py to be converted to Jac
 from jaclang.compiler.tsparser import TypeScriptParser
 from jaclang.compiler.utils import read_file_with_encoding
 
@@ -124,6 +123,30 @@ class JacProgram:
         if not self.type_evaluator:
             self.type_evaluator = TypeEvaluator(program=self)
         return self.type_evaluator
+
+    def clear_type_system(self, clear_hub: bool = False) -> None:
+        """Clear all type information from the program.
+
+        This method resets the type evaluator and clears cached type information
+        from all AST nodes. This is useful for test isolation when running multiple
+        tests in the same process, as type information attached to AST nodes can
+        persist in sys.modules and pollute subsequent tests.
+
+        Args:
+            clear_hub: If True, also clear all modules from mod.hub. Use with
+                       caution as this removes all compiled modules.
+        """
+        # Clear the type evaluator (will be recreated lazily if needed)
+        self.type_evaluator = None
+
+        # Clear .type attributes from all Expr nodes in all modules
+        for mod in self.mod.hub.values():
+            for node in mod.get_all_sub_nodes(uni.Expr, brute_force=True):
+                node.type = None
+
+        # Optionally clear the entire module hub
+        if clear_hub:
+            self.mod.hub.clear()
 
     def get_bytecode(
         self, full_target: str, minimal: bool = False

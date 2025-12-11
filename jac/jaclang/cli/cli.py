@@ -18,7 +18,7 @@ def _ensure_jac_runtime() -> None:
     """Initialize Jac runtime once on first use."""
     global _runtime_initialized
     if not _runtime_initialized:
-        from jaclang.runtimelib.runtime import JacRuntime as Jac
+        from jaclang.pycore.runtime.runtime import JacRuntime as Jac
 
         Jac.setup()
         _runtime_initialized = True
@@ -129,8 +129,7 @@ def format(paths: list, outfile: str = "", to_screen: bool = False) -> None:
 
 def proc_file_sess(filename: str, session: str, root: str | None = None) -> tuple:
     """Create JacRuntime and return the base path, module name, and runtime state."""
-    from jaclang.runtimelib.runtime import JacRuntime as Jac
-    from jaclang.runtimelib.runtime import JacUtils
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac, JacUtils
 
     if session == "":
         session = (
@@ -179,7 +178,7 @@ def run(
         jac run myprogram.jac --no-main
     """
     _ensure_jac_runtime()
-    from jaclang.runtimelib.runtime import JacRuntime as Jac
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac
 
     base, mod, mach = proc_file_sess(filename, session)
     lng = filename.split(".")[-1]
@@ -230,7 +229,7 @@ def get_object(filename: str, id: str, session: str = "", main: bool = True) -> 
         jac get_object myprogram.jac obj123 --session mysession
     """
     _ensure_jac_runtime()
-    from jaclang.runtimelib.runtime import JacRuntime as Jac
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac
 
     base, mod, mach = proc_file_sess(filename, session)
 
@@ -423,7 +422,7 @@ def enter(
     """
     _ensure_jac_runtime()
     from jaclang.runtimelib.constructs import WalkerArchetype
-    from jaclang.runtimelib.runtime import JacRuntime as Jac
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac
 
     base, mod, mach = proc_file_sess(filename, session, root)
 
@@ -492,7 +491,7 @@ def test(
         jac test --verbose           # Show detailed output
     """
     _ensure_jac_runtime()
-    from jaclang.runtimelib.runtime import JacRuntime as Jac
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac
 
     failcount = Jac.run_test(
         filepath=filepath,
@@ -628,7 +627,7 @@ def dot(
     """
     _ensure_jac_runtime()
     from jaclang.runtimelib.builtin import printgraph
-    from jaclang.runtimelib.runtime import JacRuntime as Jac
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac
 
     base, mod, jac_machine = proc_file_sess(filename, session)
 
@@ -805,7 +804,7 @@ def serve(
         jac serve myprogram.jac --faux
     """
     _ensure_jac_runtime()
-    from jaclang.runtimelib.runtime import JacRuntime as Jac
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac
     from jaclang.runtimelib.server import JacAPIServer
 
     base, mod, mach = proc_file_sess(filename, session)
@@ -853,7 +852,7 @@ def serve(
 def start_cli() -> None:
     """Start the command line interface."""
     # Load plugin commands before finalizing the registry
-    from jaclang.runtimelib.runtime import JacRuntime as Jac
+    from jaclang.pycore.runtime.runtime import JacRuntime as Jac
 
     Jac.create_cmd()
     cmd_registry.finalize()
