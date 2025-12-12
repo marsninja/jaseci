@@ -6,9 +6,9 @@ PyrightReference: packages/pyright-internal/src/analyzer/typeUtils.ts
 from dataclasses import dataclass
 from enum import Enum
 
-import jaclang.compiler.unitree as uni
-from jaclang.compiler.constant import Tokens as Tok
-from jaclang.compiler.unitree import Symbol
+import jaclang.pycore.ast.unitree as uni
+from jaclang.pycore.ast.constant import Tokens as Tok
+from jaclang.pycore.ast.unitree import Symbol
 
 from . import types
 

@@ -27,11 +27,11 @@ from dataclasses import dataclass, field
 from typing import Any, TypeVar, cast
 
 import jaclang.compiler.passes.ecmascript.estree as es
-import jaclang.compiler.unitree as uni
-from jaclang.compiler.constant import SymbolType
-from jaclang.compiler.constant import Tokens as Tok
-from jaclang.compiler.passes.ast_gen import BaseAstGenPass
-from jaclang.compiler.passes.ast_gen.jsx_processor import EsJsxProcessor
+import jaclang.pycore.ast.unitree as uni
+from jaclang.pycore.ast.constant import SymbolType
+from jaclang.pycore.ast.constant import Tokens as Tok
+from jaclang.pycore.passes.ast_gen import BaseAstGenPass
+from jaclang.pycore.passes.ast_gen.jsx_processor import EsJsxProcessor
 from jaclang.compiler.passes.ecmascript.es_unparse import es_to_js
 from jaclang.utils import convert_to_js_import_path, resolve_relative_path
 
@@ -144,7 +144,7 @@ class EsastGenPass(BaseAstGenPass[es.Statement]):
 
     def before_pass(self) -> None:
         """Initialize the pass."""
-        from jaclang.compiler.codeinfo import ClientManifest
+        from jaclang.pycore.ast.codeinfo import ClientManifest
 
         self.child_passes: list[EsastGenPass] = self._init_child_passes(EsastGenPass)
         self.imports: list[es.ImportDeclaration] = []

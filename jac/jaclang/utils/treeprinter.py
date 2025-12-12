@@ -7,11 +7,11 @@ import builtins
 import html
 from typing import TYPE_CHECKING
 
-import jaclang.compiler.unitree as uni
+import jaclang.pycore.ast.unitree as uni
 from jaclang.settings import settings
 
 if TYPE_CHECKING:
-    from jaclang.compiler.unitree import UniNode, UniScopeNode
+    from jaclang.pycore.ast.unitree import UniNode, UniScopeNode
 
 id_bag: dict = {}
 id_used: int = 0
@@ -197,7 +197,7 @@ def print_ast_tree(
     max_depth: int | None = None,
 ) -> str:
     """Recursively print ast tree."""
-    from jaclang.compiler.unitree import AstSymbolNode, Token
+    from jaclang.pycore.ast.unitree import AstSymbolNode, Token
 
     print_py_raise: bool = settings.print_py_raised_ast
 

@@ -6,9 +6,9 @@ import re;
 import from collections.abc { Sequence }
 import from threading { Event }
 import from typing { TYPE_CHECKING, TypeAlias, TypeVar, cast }
-import jaclang.compiler.unitree as uni;
-import from jaclang.compiler.constant { Tokens as Tok }
-import from jaclang.compiler.passes.uni_pass { Transform }
+import jaclang.pycore.ast.unitree as uni;
+import from jaclang.pycore.ast.constant { Tokens as Tok }
+import from jaclang.pycore.passes.uni_pass { Transform }
 with entry {
     if TYPE_CHECKING {
         import from jaclang.compiler.program { JacProgram }

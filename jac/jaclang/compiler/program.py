@@ -8,8 +8,8 @@ import types
 from threading import Event
 from typing import TYPE_CHECKING
 
-import jaclang.compiler.unitree as uni
-from jaclang.compiler.parser import JacParser
+import jaclang.pycore.ast.unitree as uni
+from jaclang.pycore.parser import JacParser
 from jaclang.compiler.passes.main import (
     Alert,
     PyastGenPass,

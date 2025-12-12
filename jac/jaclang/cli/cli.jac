@@ -509,7 +509,7 @@ def dot(
 """Convert a Python file to Jac code.\n\n    Translates Python source code to equivalent Jac code, helping with migration\n    from Python to Jac. The conversion handles basic syntax and structures but\n    may require manual adjustments for complex code.\n\n    Args:\n        filename: Path to the .py file to convert\n\n    Examples:\n        jac py2jac myscript.py > converted.jac\n    """
 @cmd_registry.register
 def py2jac(filename: str) -> None {
-    import jaclang.compiler.unitree as uni;
+    import jaclang.pycore.ast.unitree as uni;
     import from jaclang.compiler.passes.main { PyastBuildPass }
     import from jaclang.compiler.program { JacProgram }
     import from jaclang.compiler.utils { read_file_with_encoding }

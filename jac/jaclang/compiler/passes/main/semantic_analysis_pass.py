@@ -3,9 +3,9 @@
 import ast as ast3
 from collections.abc import Sequence
 
-import jaclang.compiler.unitree as uni
-from jaclang.compiler.constant import Tokens as Tok
-from jaclang.compiler.passes import UniPass
+import jaclang.pycore.ast.unitree as uni
+from jaclang.pycore.ast.constant import Tokens as Tok
+from jaclang.pycore.passes import UniPass
 
 
 class SemanticAnalysisPass(UniPass):

@@ -19,7 +19,6 @@ from typing import (
     cast,
 )
 
-from jaclang.compiler import TOKEN_MAP
 from jaclang.pycore.ast.codeinfo import CodeGenTarget, CodeLocInfo
 from jaclang.pycore.ast.constant import (
     DELIM_MAP,
@@ -175,6 +174,8 @@ class UniNode:
             raise ValueError(f"Empty kid for Token {type(self).__name__}")
 
     def gen_token(self, name: Tok, value: str | None = None) -> Token:
+        from jaclang.pycore.parser import TOKEN_MAP
+
         value = (
             value
             if value
@@ -198,13 +199,13 @@ class UniNode:
 
     def get_all_sub_nodes(self, typ: type[T], brute_force: bool = True) -> list[T]:
         """Get all sub nodes of type."""
-        from jaclang.compiler.passes import UniPass
+        from jaclang.pycore.passes import UniPass
 
         return UniPass.get_all_sub_nodes(node=self, typ=typ, brute_force=brute_force)
 
     def find_parent_of_type(self, typ: type[T]) -> T | None:
         """Get parent of type."""
-        from jaclang.compiler.passes import UniPass
+        from jaclang.pycore.passes import UniPass
 
         return UniPass.find_parent_of_type(node=self, typ=typ)
 

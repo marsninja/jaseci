@@ -9,8 +9,8 @@ import from typing { TYPE_CHECKING, Any, NamedTuple }
 import from jaclang.utils { convert_to_js_import_path }
 with entry {
     if TYPE_CHECKING {
-        import from jaclang.compiler.codeinfo { ClientManifest }
-        import from jaclang.compiler.unitree { Module }
+        import from jaclang.pycore.ast.codeinfo { ClientManifest }
+        import from jaclang.pycore.ast.unitree { Module }
     }
 }
 

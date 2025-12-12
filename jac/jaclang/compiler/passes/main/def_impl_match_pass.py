@@ -13,9 +13,9 @@ developers to define archetype and ability interfaces in one file while implemen
 their behavior in separate files.
 """
 
-import jaclang.compiler.unitree as uni
-from jaclang.compiler.passes.transform import Transform
-from jaclang.compiler.unitree import Symbol, UniScopeNode
+import jaclang.pycore.ast.unitree as uni
+from jaclang.pycore.passes.transform import Transform
+from jaclang.pycore.ast.unitree import Symbol, UniScopeNode
 
 
 class DeclImplMatchPass(Transform[uni.Module, uni.Module]):

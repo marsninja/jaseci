@@ -17,8 +17,8 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from jaclang.compiler import unitree as uni
-from jaclang.compiler.passes import Transform
+from jaclang.pycore.ast import unitree as uni
+from jaclang.pycore.passes import Transform
 from jaclang.settings import settings
 
 if TYPE_CHECKING:

@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-import jaclang.compiler.unitree as uni
+import jaclang.pycore.ast.unitree as uni
 from jaclang.compiler.passes.ecmascript import EsastGenPass, es_node_to_dict
 from jaclang.compiler.passes.ecmascript.es_unparse import es_to_js
 from jaclang.compiler.passes.ecmascript.estree import Node as EsNode
@@ -14,7 +14,7 @@ from jaclang.compiler.passes.main import PyastBuildPass
 from jaclang.compiler.passes.main.cfg_build_pass import cfg_dot_from_file
 from jaclang.compiler.passes.tool.doc_ir_gen_pass import DocIRGenPass
 from jaclang.compiler.program import JacProgram
-from jaclang.compiler.unitree import UniScopeNode
+from jaclang.pycore.ast.unitree import UniScopeNode
 from jaclang.runtimelib.utils import read_file_with_encoding
 from jaclang.utils.helpers import auto_generate_refs, pascal_to_snake
 
@@ -121,8 +121,8 @@ class AstTool:
     def pass_template(self) -> str:
         """Generate pass template."""
         output = (
-            "import jaclang.compiler.unitree as ast\n"
-            "from jaclang.compiler.passes import Pass\n\n"
+            "import jaclang.pycore.ast.unitree as ast\n"
+            "from jaclang.pycore.passes import Pass\n\n"
             "class SomePass(Pass):\n"
         )
 
@@ -144,7 +144,7 @@ class AstTool:
 
             emit('    """\n')
         output = (
-            output.replace("jaclang.compiler.unitree.", "")
+            output.replace("jaclang.pycore.ast.unitree.", "")
             .replace("typing.", "")
             .replace("<enum '", "")
             .replace("'>", "")
@@ -305,7 +305,7 @@ class AstTool:
                 arrow = "-.->" if "Optional" in typ_str else "-->"
                 typ = (
                     typ_str.replace("typing.", "")
-                    .replace("jaclang.compiler.unitree.", "")
+                    .replace("jaclang.pycore.ast.unitree.", "")
                     .replace("Optional[", "")
                     .replace("Union[", "")
                     .replace("SubTag[", "")

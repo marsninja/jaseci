@@ -21,9 +21,9 @@ This pass is crucial for type checking, access control validation, and code gene
 creates the complete symbol resolution map for the program.
 """
 
-import jaclang.compiler.unitree as uni;
-import from jaclang.compiler.constant { Tokens as Tok }
-import from jaclang.compiler.passes { UniPass }
+import jaclang.pycore.ast.unitree as uni;
+import from jaclang.pycore.ast.constant { Tokens as Tok }
+import from jaclang.pycore.passes { UniPass }
 
 """Jac Ast build pass."""
 class DefUsePass(UniPass) {

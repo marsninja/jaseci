@@ -19,8 +19,8 @@ The pass runs early in the compilation pipeline to ensure all symbols from impor
 modules are available for subsequent passes like symbol table building and type checking.
 """
 import os;
-import jaclang.compiler.unitree as uni;
-import from jaclang.compiler.passes { Transform, UniPass }
+import jaclang.pycore.ast.unitree as uni;
+import from jaclang.pycore.passes { Transform, UniPass }
 import from jaclang.utils.log { logging }
 
 with entry {

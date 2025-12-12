@@ -8,8 +8,8 @@ Reference:
     Pyright: packages/pyright-internal/src/analyzer/checker.ts
     craizy_type_expr branch: type_checker_pass.py
 """
-import jaclang.compiler.unitree as uni;
-import from jaclang.compiler.passes { UniPass }
+import jaclang.pycore.ast.unitree as uni;
+import from jaclang.pycore.passes { UniPass }
 
 """Type checker pass for JacLang."""
 class TypeCheckPass(UniPass) {

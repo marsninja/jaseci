@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast as ast3
 from typing import TYPE_CHECKING, cast
 
-import jaclang.compiler.unitree as uni
+import jaclang.pycore.ast.unitree as uni
 
 if TYPE_CHECKING:
     from jaclang.compiler.passes.ecmascript.esast_gen_pass import EsastGenPass
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
         Property,
         SpreadElement,
     )
-    from jaclang.compiler.passes.main.pyast_gen_pass import PyastGenPass
+    from jaclang.pycore.passes.pyast_gen_pass import PyastGenPass
 
 
 class EsJsxProcessor:
