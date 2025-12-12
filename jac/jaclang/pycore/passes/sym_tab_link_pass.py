@@ -22,7 +22,7 @@ import os
 
 import jaclang.pycore.ast.unitree as uni
 from jaclang.pycore.ast.unitree import InheritedSymbolTable, UniScopeNode
-from jaclang.pycore.passes import Transform
+from jaclang.pycore.passes.transform import Transform
 
 
 class SymTabLinkPass(Transform[uni.Module, uni.Module]):

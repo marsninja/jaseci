@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 import jaclang.pycore.ast.unitree as uni
 from jaclang.pycore.ast.constant import Tokens as Tok
-from jaclang.pycore.passes import UniPass
+from jaclang.pycore.passes.uni_pass import UniPass
 
 
 class SemanticAnalysisPass(UniPass):
