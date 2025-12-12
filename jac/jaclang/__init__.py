@@ -8,6 +8,8 @@ from jaclang.meta_importer import JacMetaImporter
 if not any(isinstance(f, JacMetaImporter) for f in sys.meta_path):
     sys.meta_path.insert(0, JacMetaImporter())
 
+# Import compiler first to ensure generated parsers exist before pycore.parser is loaded
+from jaclang import compiler as _compiler  # noqa: F401
 from jaclang.pycore.runtime.runtime import (
     JacRuntime,
     JacRuntimeImpl,
