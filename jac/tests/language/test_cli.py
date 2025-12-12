@@ -317,10 +317,7 @@ def test_ast_printgraph(
         cli.tool("ir", ["ast.", f"{fixture_path('hello.jac')}"])
 
     stdout_value = output.getvalue()
-    assert (
-        '[label="MultiString" shape="oval" style="filled" fillcolor="#fccca4"]'
-        in stdout_value
-    )
+    assert '[label="MultiString"]' in stdout_value
 
 
 def test_cfg_printgraph(

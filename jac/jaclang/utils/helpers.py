@@ -81,7 +81,7 @@ def extract_headings(file_path: str) -> dict[str, tuple[int, int]]:
 def auto_generate_refs() -> str:
     """Auto generate lang reference for docs."""
     file_path = os.path.join(
-        os.path.split(os.path.dirname(__file__))[0], "../jaclang/compiler/jac.lark"
+        os.path.split(os.path.dirname(__file__))[0], "../jaclang/pycore/parser/jac.lark"
     )
     result = extract_headings(file_path)
 
@@ -109,7 +109,7 @@ def auto_generate_refs() -> str:
             '        --8<-- "jac/examples/reference/'
             f'{heading_snakecase}.py"\n        ```\n'
             f'??? info "Jac Grammar Snippet"\n    ```yaml linenums="{lines[0]}"\n    --8<-- '
-            f'"jac/jaclang/compiler/jac.lark:{lines[0]}:{lines[1]}"\n    ```\n\n'
+            f'"jac/jaclang/pycore/parser/jac.lark:{lines[0]}:{lines[1]}"\n    ```\n\n'
             "**Description**\n\n--8<-- "
             f'"jac/examples/reference/'
             f'{heading_snakecase}.md"\n'
@@ -170,6 +170,7 @@ def dump_traceback(e: Exception) -> str:
         normalized: str = filename.replace("\\", "/")
         return (
             "/jaclang/runtimelib/" in normalized
+            or "/jaclang/pycore/" in normalized
             or "/jaclang/vendor/" in normalized
             or "/site-packages/pluggy/" in normalized
             or normalized.endswith("/jaclang/meta_importer.py")

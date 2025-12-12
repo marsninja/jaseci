@@ -6,10 +6,10 @@ from typing import Protocol
 
 import pytest
 
-from jaclang.compiler import unitree as uni
 from jaclang.compiler.program import JacProgram
 from jaclang.compiler.tsparser import TypeScriptParser
-from jaclang.compiler.unitree import Source
+from jaclang.pycore.ast import unitree as uni
+from jaclang.pycore.ast.unitree import Source
 
 
 class ParseTsFn(Protocol):

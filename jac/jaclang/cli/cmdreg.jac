@@ -271,7 +271,7 @@ class CommandRegistry {
                 );
             } else {
                 arg_msg += f", default: {param.default}";
-                if (param.annotation is bool) {
+                if (param.annotation is bool or param.annotation == 'bool') {
                     cmd_parser.add_argument(
                         f"-{shorthand}",
                         f"--{param_name}",
