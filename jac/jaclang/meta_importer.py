@@ -15,9 +15,12 @@ import sys
 from collections.abc import Sequence
 from types import ModuleType
 
-from jaclang.settings import settings
-from jaclang.utils.log import logging
-from jaclang.utils.module_resolver import get_jac_search_paths, get_py_search_paths
+from jaclang.pycore.settings import settings
+from jaclang.pycore.utils.log import logging
+from jaclang.pycore.utils.module_resolver import (
+    get_jac_search_paths,
+    get_py_search_paths,
+)
 
 logger = logging.getLogger(__name__)
 

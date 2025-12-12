@@ -9,9 +9,9 @@ import pytest
 
 from jaclang import JacRuntime as Jac
 from jaclang.cli import cli
-from jaclang.compiler.program import JacProgram
+from jaclang.pycore.program import JacProgram
+from jaclang.pycore.settings import settings
 from jaclang.runtimelib.runtime import JacRuntimeInterface
-from jaclang.settings import settings
 
 
 @pytest.fixture

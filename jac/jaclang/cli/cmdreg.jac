@@ -126,7 +126,7 @@ class CommandRegistry {
             return;
         }
         self._settings_added = True;
-        import from jaclang.settings { Settings as JacSettings }
+        import from jaclang.pycore.settings { Settings as JacSettings }
         settings_group = self.parser.add_argument_group(
             'settings',
             'Override Jac settings (from config/env). Provide only flags you want to change.'

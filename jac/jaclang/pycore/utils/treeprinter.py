@@ -8,7 +8,7 @@ import html
 from typing import TYPE_CHECKING
 
 import jaclang.pycore.ast.unitree as uni
-from jaclang.settings import settings
+from jaclang.pycore.settings import settings
 
 if TYPE_CHECKING:
     from jaclang.pycore.ast.unitree import UniNode, UniScopeNode

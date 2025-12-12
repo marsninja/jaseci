@@ -36,11 +36,11 @@ from jaclang.pycore.ast.constant import (
     JacSemTokenType as SemTokType,
 )
 from jaclang.pycore.ast.constant import Tokens as Tok
-from jaclang.utils import resolve_relative_path
+from jaclang.pycore.utils.module_resolver import resolve_relative_path
 
 if TYPE_CHECKING:
     from jaclang.compiler.type_system.types import TypeBase
-from jaclang.utils.treeprinter import (
+from jaclang.pycore.utils.treeprinter import (
     print_ast_tree,
     print_symtab_tree,
     printgraph_ast_tree,
@@ -1048,7 +1048,7 @@ class Module(AstDocNode, UniScopeNode):
         """Get all sub nodes of type."""
         from jaclang.compiler.passes.tool.doc_ir_gen_pass import DocIRGenPass
         from jaclang.compiler.passes.tool.jac_formatter_pass import JacFormatPass
-        from jaclang.compiler.program import JacProgram
+        from jaclang.pycore.program import JacProgram
 
         return JacFormatPass(
             ir_in=DocIRGenPass(

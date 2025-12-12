@@ -30,7 +30,7 @@ from uuid import UUID
 
 from jaclang.pycore.ast.constant import Constants as Con
 from jaclang.pycore.ast.constant import EdgeDir, colors
-from jaclang.utils import infer_language
+from jaclang.pycore.utils.module_resolver import infer_language
 from jaclang.vendor import pluggy
 
 # Flag to track if lazy imports have been initialized
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from concurrent.futures import ThreadPoolExecutor
     from http.server import BaseHTTPRequestHandler
 
-    from jaclang.compiler.program import JacProgram
+    from jaclang.pycore.program import JacProgram
     from jaclang.runtimelib.archetype import (
         ObjectSpatialDestination,
         ObjectSpatialFunction,
@@ -151,7 +151,7 @@ class _LazyProgramDescriptor:
     def __get__(self, obj: object, objtype: type | None = None) -> JacProgram:
         """Lazily create and return JacProgram instance."""
         if _LazyProgramDescriptor._instance is None:
-            from jaclang.compiler.program import JacProgram
+            from jaclang.pycore.program import JacProgram
 
             _LazyProgramDescriptor._instance = JacProgram()
         return _LazyProgramDescriptor._instance
@@ -1743,7 +1743,7 @@ class JacByLLM:
     @staticmethod
     def call_llm(model: object, mtir: MTIR) -> Any:  # noqa: ANN401
         """Call the LLM model."""
-        from jaclang.utils import NonGPT  # type: ignore[attr-defined]
+        from jaclang.pycore.utils import NonGPT  # type: ignore[attr-defined]
 
         random_value_for_type: Callable[[Any], Any] = NonGPT.random_value_for_type
 
@@ -2177,7 +2177,7 @@ class JacRuntime(JacRuntimeInterface):
     @staticmethod
     def reset_machine() -> None:
         """Reset the machine."""
-        from jaclang.compiler.program import JacProgram
+        from jaclang.pycore.program import JacProgram
 
         # Remove Jac modules from sys.modules, but skip special module names
         # that Python relies on (like __main__, __mp_main__, etc.)

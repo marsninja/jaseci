@@ -19,10 +19,10 @@ from typing import TYPE_CHECKING
 
 from jaclang.pycore.ast import unitree as uni
 from jaclang.pycore.passes.transform import Transform
-from jaclang.settings import settings
+from jaclang.pycore.settings import settings
 
 if TYPE_CHECKING:
-    from jaclang.compiler.program import JacProgram
+    from jaclang.pycore.program import JacProgram
 
 
 class JacAnnexPass(Transform[uni.Module, uni.Module]):

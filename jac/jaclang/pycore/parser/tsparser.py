@@ -10,12 +10,12 @@ from threading import Event
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, cast
 
 import jaclang.pycore.ast.unitree as uni
+from jaclang.compiler.passes.main import BaseTransform, Transform
 from jaclang.pycore.ast.constant import TsTokens as Tok
 from jaclang.pycore.parser.larkparse import ts_parser as ts_lark
-from jaclang.compiler.passes.main import BaseTransform, Transform
 
 if TYPE_CHECKING:
-    from jaclang.compiler.program import JacProgram
+    from jaclang.pycore.program import JacProgram
 
 T = TypeVar("T", bound=uni.UniNode)
 TL = TypeVar("TL", bound=(uni.UniNode | list))
@@ -207,7 +207,7 @@ class TypeScriptParser(Transform[uni.Source, uni.Module]):
 
     def report_errors(self, *, colors: bool = True) -> None:
         """Report errors to user."""
-        from jaclang.utils.helpers import ANSIColors
+        from jaclang.pycore.utils.helpers import ANSIColors
 
         if not sys.stderr.isatty():
             colors = False

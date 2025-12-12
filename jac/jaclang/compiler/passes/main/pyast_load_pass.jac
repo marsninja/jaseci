@@ -11,7 +11,7 @@ import from jaclang.pycore.ast.constant { Tokens as Tok }
 import from jaclang.pycore.passes.uni_pass { Transform }
 with entry {
     if TYPE_CHECKING {
-        import from jaclang.compiler.program { JacProgram }
+        import from jaclang.pycore.program { JacProgram }
     }
     T = TypeVar('T', bound=uni.UniNode);
 }
@@ -41,7 +41,7 @@ class PyastBuildPass(Transform[(uni.PythonModuleAst, uni.Module)]) {
 
     """Get python node type."""
     def convert(self: PyastBuildPass, <>node: py_ast.AST) -> uni.UniNode {
-        import from jaclang.utils.helpers { pascal_to_snake }
+        import from jaclang.pycore.utils.helpers { pascal_to_snake }
         if self.is_canceled() {
             raise StopIteration ;
         }

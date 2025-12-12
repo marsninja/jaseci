@@ -9,8 +9,8 @@ import pytest
 
 import jaclang.pycore.ast.unitree as uni
 from conftest import get_micro_jac_files
-from jaclang.compiler.program import JacProgram
-from jaclang.utils.helpers import add_line_numbers
+from jaclang.pycore.program import JacProgram
+from jaclang.pycore.utils.helpers import add_line_numbers
 
 
 def compare_files(

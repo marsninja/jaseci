@@ -8,8 +8,11 @@ Modules:
 - parser/: Jac parser using Lark
 - passes/: Bootstrap-critical compiler passes
 - runtime/: Runtime bootstrap infrastructure
+- settings: Configuration settings
+- utils/: Utility functions
 """
 
-from jaclang.pycore import ast, parser, passes, runtime
+# Note: Don't eagerly import submodules here to avoid circular imports.
+# Submodules are imported lazily when accessed.
 
-__all__ = ["ast", "parser", "passes", "runtime"]
+__all__ = ["ast", "parser", "passes", "runtime", "settings", "utils"]

@@ -9,7 +9,7 @@ import pytest
 import jaclang.pycore.ast.unitree as uni
 from jaclang import JacRuntime as Jac
 from jaclang.cli import cli
-from jaclang.compiler.program import JacProgram
+from jaclang.pycore.program import JacProgram
 
 
 @pytest.fixture(autouse=True)

@@ -13,10 +13,10 @@ from jaclang.compiler.passes.ecmascript.estree import Node as EsNode
 from jaclang.compiler.passes.main import PyastBuildPass
 from jaclang.compiler.passes.main.cfg_build_pass import cfg_dot_from_file
 from jaclang.compiler.passes.tool.doc_ir_gen_pass import DocIRGenPass
-from jaclang.compiler.program import JacProgram
 from jaclang.pycore.ast.unitree import UniScopeNode
+from jaclang.pycore.program import JacProgram
+from jaclang.pycore.utils.helpers import auto_generate_refs, pascal_to_snake
 from jaclang.runtimelib.utils import read_file_with_encoding
-from jaclang.utils.helpers import auto_generate_refs, pascal_to_snake
 
 
 class AstKidInfo:

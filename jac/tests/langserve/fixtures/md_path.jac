@@ -9,7 +9,7 @@ import from typing { Callable, Optional }
 import jaclang.pycore.ast.unitree as uni;
 import from jaclang { JacRuntimeInterface }
 import from jaclang.pycore.ast.constant { SymbolType }
-import from jaclang.compiler.program { JacProgram }
+import from jaclang.pycore.program { JacProgram }
 import from jaclang.compiler.type_system.type_utils { get_completion_items }
 import from jaclang.compiler.type_system.types {
     ClassType,

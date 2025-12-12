@@ -8,7 +8,7 @@ import re
 from functools import lru_cache
 from traceback import TracebackException
 
-from jaclang.settings import settings
+from jaclang.pycore.settings import settings
 
 
 @lru_cache(maxsize=256)
@@ -81,7 +81,7 @@ def extract_headings(file_path: str) -> dict[str, tuple[int, int]]:
 def auto_generate_refs() -> str:
     """Auto generate lang reference for docs."""
     file_path = os.path.join(
-        os.path.split(os.path.dirname(__file__))[0], "../jaclang/pycore/parser/jac.lark"
+        os.path.split(os.path.dirname(__file__))[0], "../pycore/parser/jac.lark"
     )
     result = extract_headings(file_path)
 
@@ -377,3 +377,34 @@ class Jdb(pdb.Pdb):
 
 
 debugger = Jdb()
+
+
+def read_file_with_encoding(file_path: str) -> str:
+    """Read file with proper encoding detection.
+
+    Tries multiple encodings to handle files with different encodings.
+    """
+    encodings_to_try = [
+        "utf-8-sig",
+        "utf-8",
+        "utf-16",
+        "utf-16le",
+        "utf-16be",
+    ]
+
+    for encoding in encodings_to_try:
+        try:
+            with open(file_path, encoding=encoding) as f:
+                return f.read()
+        except UnicodeError:
+            continue
+        except Exception as e:
+            raise OSError(
+                f"Could not read file {file_path}: {e}. "
+                f"Report this issue: https://github.com/jaseci-labs/jaseci/issues"
+            ) from e
+
+    raise OSError(
+        f"Could not read file {file_path} with any encoding. "
+        f"Report this issue: https://github.com/jaseci-labs/jaseci/issues"
+    )

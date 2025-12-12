@@ -13,7 +13,7 @@ from types import CodeType
 import pytest
 
 import jaclang
-from jaclang.compiler.program import JacProgram
+from jaclang.pycore.program import JacProgram
 from jaclang.runtimelib.runtime import JacRuntime as Jac
 
 

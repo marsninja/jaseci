@@ -6,7 +6,7 @@ import from contextlib { contextmanager }
 import from types { UnionType }
 import from typing { TYPE_CHECKING }
 import jaclang.pycore.ast.unitree as uni;
-import from jaclang.compiler.utils {
+import from jaclang.pycore.utils.helpers {
     read_file_with_encoding as read_file_with_encoding
 }
 

@@ -10,7 +10,7 @@ import pytest
 import jaclang
 import jaclang.pycore.ast.unitree as ast
 from jaclang.compiler.passes.main import PyastBuildPass
-from jaclang.compiler.program import JacProgram
+from jaclang.pycore.program import JacProgram
 
 
 def get_jaclang_python_files() -> list[str]:

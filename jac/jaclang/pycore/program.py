@@ -16,9 +16,9 @@ from jaclang.compiler.passes.main import (
     SymTabBuildPass,
     Transform,
 )
-from jaclang.compiler.tsparser import TypeScriptParser
-from jaclang.compiler.utils import read_file_with_encoding
 from jaclang.pycore.parser import JacParser
+from jaclang.pycore.parser.tsparser import TypeScriptParser
+from jaclang.pycore.utils.helpers import read_file_with_encoding
 
 if TYPE_CHECKING:
     from jaclang.compiler.type_system.type_evaluator import TypeEvaluator

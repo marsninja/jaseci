@@ -16,7 +16,7 @@ from jaclang.pycore.parser.larkparse import jac_parser as jl
 from jaclang.pycore.passes import BaseTransform, Transform
 
 if TYPE_CHECKING:
-    from jaclang.compiler.program import JacProgram
+    from jaclang.pycore.program import JacProgram
 
 T = TypeVar("T", bound=uni.UniNode)
 TL = TypeVar("TL", bound=(uni.UniNode | list))

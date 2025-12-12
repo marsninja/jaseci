@@ -33,7 +33,7 @@ def gen_parser()  -> str {
 """Format .jac files with improved code style.\n\n    Applies consistent formatting to Jac code files to improve readability and\n    maintain a standardized code style across your project.\n\n    Args:\n        paths: One or more paths to .jac files or directories containing .jac files\n        outfile: Optional output file path (only valid when formatting a single file)\n        to_screen: Print formatted code to stdout instead of writing to file\n\n    Examples:\n        jac format myfile.jac\n        jac format file1.jac file2.jac file3.jac\n        jac format myproject/\n        jac format myfile.jac --outfile formatted.jac\n        jac format myfile.jac --to_screen\n    """
 @cmd_registry.register
 def format(paths: list, outfile: str = '', to_screen: bool = False) -> None {
-    import from jaclang.compiler.program { JacProgram }
+    import from jaclang.pycore.program { JacProgram }
     if isinstance(paths, str) {
         paths = [paths];
     }
@@ -178,7 +178,7 @@ def run(
             }
         }
     } except Exception as e {
-        import from jaclang.utils.helpers { dump_traceback }
+        import from jaclang.pycore.utils.helpers { dump_traceback }
         print(dump_traceback(e), file=sys.stderr);
         mach.close();
         <>exit(1);
@@ -222,7 +222,7 @@ def get_object(filename: str, id: str, session: str = '', main: bool = True) -> 
 """Build the specified .jac file.\n\n    Compiles a Jac source file into a Jac Intermediate Representation (.jir) file,\n    which can be executed more efficiently. Optionally performs type checking.\n\n    Args:\n        filename: Path to the .jac file to build\n        typecheck: Perform type checking during build (default: False)\n\n    Examples:\n        jac build myprogram.jac\n        jac build myprogram.jac --typecheck\n    """
 @cmd_registry.register
 def build(filename: str, typecheck: bool = False) -> None {
-    import from jaclang.compiler.program { JacProgram }
+    import from jaclang.pycore.program { JacProgram }
     if not filename.endswith('.jac') {
         print('Not a .jac file.', file=sys.stderr);
         <>exit(1);
@@ -245,8 +245,8 @@ def build(filename: str, typecheck: bool = False) -> None {
 """Run type checker for specified .jac files.\n\n    Performs static type analysis on Jac programs to identify potential type errors\n    without executing the code. Useful for catching errors early in development.\n\n    Args:\n        paths: One or more paths to .jac files or directories containing .jac files\n        print_errs: Print detailed error messages (default: True)\n\n    Examples:\n        jac check myprogram.jac\n        jac check file1.jac file2.jac file3.jac\n        jac check myproject/\n        jac check myprogram.jac --no-print_errs\n    """
 @cmd_registry.register
 def check(paths: list, print_errs: bool = True) -> None {
-    import from jaclang.compiler.program { JacProgram }
-    import from jaclang.settings { settings }
+    import from jaclang.pycore.program { JacProgram }
+    import from jaclang.pycore.settings { settings }
     allwarn = settings.all_warnings;
     if isinstance(paths, str) {
         paths = [paths];
@@ -422,8 +422,8 @@ def tool(tool: str, args: (list | None) = None) -> None {
 """Debug the specified .jac file using the Python debugger.\n\n    Runs a Jac program in debug mode, allowing you to set breakpoints, step through\n    code execution, inspect variables, and troubleshoot issues interactively.\n\n    Args:\n        filename: Path to the .jac file to debug\n        main: Treat the module as __main__ (default: True)\n        cache: Use cached compilation if available (default: False)\n\n    Examples:\n        jac debug myprogram.jac\n\n    Note:\n        Add breakpoints in your code using the 'breakpoint()' function.\n    """
 @cmd_registry.register
 def debug(filename: str, main: bool = True, cache: bool = False) -> None {
-    import from jaclang.compiler.program { JacProgram }
-    import from jaclang.utils.helpers { debugger as db }
+    import from jaclang.pycore.program { JacProgram }
+    import from jaclang.pycore.utils.helpers { debugger as db }
     (base, mod) = os.path.split(filename);
     base = base if base else './';
     mod = mod[:-4];
@@ -511,8 +511,8 @@ def dot(
 def py2jac(filename: str) -> None {
     import jaclang.pycore.ast.unitree as uni;
     import from jaclang.compiler.passes.main { PyastBuildPass }
-    import from jaclang.compiler.program { JacProgram }
-    import from jaclang.compiler.utils { read_file_with_encoding }
+    import from jaclang.pycore.program { JacProgram }
+    import from jaclang.pycore.utils.helpers { read_file_with_encoding }
     if filename.endswith('.py') {
         file_source = read_file_with_encoding(filename);
         code = PyastBuildPass(
@@ -538,7 +538,7 @@ def py2jac(filename: str) -> None {
 """Convert a Jac file to Python code.\n\n    Translates Jac source code to equivalent Python code. The generated Python\n    uses direct imports from jaclang.lib, making the output clean and suitable\n    for use as a standalone library or for integrating Jac components with\n    Python projects.\n\n    Args:\n        filename: Path to the .jac file to convert\n\n    Examples:\n        jac jac2py myprogram.jac > converted.py\n    """
 @cmd_registry.register
 def jac2py(filename: str) -> None {
-    import from jaclang.compiler.program { JacProgram }
+    import from jaclang.pycore.program { JacProgram }
     if filename.endswith('.jac') {
         code = JacProgram().compile(file_path=filename).gen.py;
         if code {
@@ -555,7 +555,7 @@ def jac2py(filename: str) -> None {
 """Convert a Jac file to JavaScript code.\n\n    Translates Jac source code to equivalent JavaScript/ECMAScript code using\n    the ESTree AST specification. This allows Jac programs to run in JavaScript\n    environments like Node.js or web browsers.\n\n    Args:\n        filename: Path to the .jac file to convert\n\n    Examples:\n        jac js myprogram.jac > myprogram.js\n        jac js myprogram.jac\n    """
 @cmd_registry.register
 def js(filename: str) -> None {
-    import from jaclang.compiler.program { JacProgram }
+    import from jaclang.pycore.program { JacProgram }
     if filename.endswith('.jac') {
         try {
             prog = JacProgram();
@@ -658,7 +658,7 @@ def start_cli()  -> None {
     }
     args = parser.parse_args();
     cmd_registry.args = args;
-    import from jaclang.settings { settings }
+    import from jaclang.pycore.settings { settings }
     settings.load_command_line_arguments(args);
     if args.version {
         print(f"Jac version {pkg_version('jaclang')}");

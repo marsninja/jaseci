@@ -12,11 +12,11 @@ import pytest
 
 import jaclang
 from jaclang.compiler import jac_lark as jl
-from jaclang.compiler.program import JacProgram
 from jaclang.pycore.ast import unitree as uni
 from jaclang.pycore.ast.constant import Tokens
 from jaclang.pycore.ast.unitree import Source
 from jaclang.pycore.parser import JacParser
+from jaclang.pycore.program import JacProgram
 from jaclang.runtimelib.utils import read_file_with_encoding
 
 

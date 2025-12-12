@@ -33,7 +33,10 @@ from jaclang.pycore.ast.constant import SymbolType
 from jaclang.pycore.ast.constant import Tokens as Tok
 from jaclang.pycore.passes.ast_gen import BaseAstGenPass
 from jaclang.pycore.passes.ast_gen.jsx_processor import EsJsxProcessor
-from jaclang.utils import convert_to_js_import_path, resolve_relative_path
+from jaclang.pycore.utils.module_resolver import (
+    convert_to_js_import_path,
+    resolve_relative_path,
+)
 
 _T = TypeVar("_T", bound=es.Node)
 

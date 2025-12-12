@@ -112,4 +112,4 @@ class Settings:
 
 settings = Settings()
 
-__all__ = ["settings"]
+__all__ = ["settings", "Settings"]

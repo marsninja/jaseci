@@ -14,7 +14,7 @@ import pytest
 
 from jaclang import JacRuntime as Jac
 from jaclang.cli import cli
-from jaclang.compiler.program import JacProgram
+from jaclang.pycore.program import JacProgram
 from jaclang.runtimelib.utils import read_file_with_encoding
 
 

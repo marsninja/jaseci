@@ -360,7 +360,7 @@ class CoalesceBBPass(UniPass) {
 
 """Print the control flow graph."""
 def cfg_dot_from_file(file_name: str) -> str {
-    import from jaclang.compiler.program { JacProgram }
+    import from jaclang.pycore.program { JacProgram }
     with open(file_name) as f {
         file_source = f.read();
     }
