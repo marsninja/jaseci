@@ -73,7 +73,7 @@ if not os.path.exists(os.path.join(_larkparse_dir, "jac_parser.py")):
         print(f"Warning: Could not generate parser: {e}", file=sys.stderr)
 
 # Import from pycore/parser - these are canonical exports
-from jaclang.pycore.parser import jac_lark, TOKEN_MAP
+from jaclang.pycore.parser import TOKEN_MAP, jac_lark
 
 if jac_lark:
     jac_lark.logger.setLevel(logging.DEBUG)

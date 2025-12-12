@@ -9,7 +9,6 @@ from threading import Event
 from typing import TYPE_CHECKING
 
 import jaclang.pycore.ast.unitree as uni
-from jaclang.pycore.parser import JacParser
 from jaclang.compiler.passes.main import (
     Alert,
     PyastGenPass,
@@ -19,6 +18,7 @@ from jaclang.compiler.passes.main import (
 )
 from jaclang.compiler.tsparser import TypeScriptParser
 from jaclang.compiler.utils import read_file_with_encoding
+from jaclang.pycore.parser import JacParser
 
 if TYPE_CHECKING:
     from jaclang.compiler.type_system.type_evaluator import TypeEvaluator

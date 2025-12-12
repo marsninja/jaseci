@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-# Bootstrap-critical passes (must remain Python for now)
-from jaclang.pycore.passes.transform import Alert, BaseTransform, Transform
 from jaclang.pycore.passes.pyast_gen_pass import PyastGenPass
 from jaclang.pycore.passes.pybc_gen_pass import PyBytecodeGenPass
 from jaclang.pycore.passes.sym_tab_build_pass import SymTabBuildPass
+
+# Bootstrap-critical passes (must remain Python for now)
+from jaclang.pycore.passes.transform import Alert, BaseTransform, Transform
 from jaclang.pycore.passes.uni_pass import UniPass
 
 # Passes that are imported lazily to allow .jac conversion

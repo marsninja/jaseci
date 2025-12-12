@@ -10,9 +10,9 @@ from threading import Event
 from typing import TYPE_CHECKING, TypeAlias, TypeVar, cast
 
 import jaclang.pycore.ast.unitree as uni
-from jaclang.pycore.parser.larkparse import jac_parser as jl
 from jaclang.pycore.ast.constant import EdgeDir
 from jaclang.pycore.ast.constant import Tokens as Tok
+from jaclang.pycore.parser.larkparse import jac_parser as jl
 from jaclang.pycore.passes import BaseTransform, Transform
 
 if TYPE_CHECKING:
@@ -23,8 +23,7 @@ TL = TypeVar("TL", bound=(uni.UniNode | list))
 
 # Build TOKEN_MAP from the lark parser
 TOKEN_MAP = {
-    x.name: x.pattern.value
-    for x in jl.Lark_StandAlone().parser.lexer_conf.terminals
+    x.name: x.pattern.value for x in jl.Lark_StandAlone().parser.lexer_conf.terminals
 }
 # fmt: off
 TOKEN_MAP.update({

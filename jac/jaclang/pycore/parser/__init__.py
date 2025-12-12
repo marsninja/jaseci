@@ -6,7 +6,7 @@ This module contains the bootstrap-critical parser infrastructure:
 - larkparse/: Generated Lark parsers
 """
 
+from jaclang.pycore.parser.jac_parser import TOKEN_MAP, JacParser
 from jaclang.pycore.parser.larkparse import jac_parser as jac_lark
-from jaclang.pycore.parser.jac_parser import JacParser, TOKEN_MAP
 
 __all__ = ["JacParser", "TOKEN_MAP", "jac_lark"]

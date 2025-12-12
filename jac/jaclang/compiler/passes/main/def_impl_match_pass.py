@@ -14,8 +14,8 @@ their behavior in separate files.
 """
 
 import jaclang.pycore.ast.unitree as uni
-from jaclang.pycore.passes.transform import Transform
 from jaclang.pycore.ast.unitree import Symbol, UniScopeNode
+from jaclang.pycore.passes.transform import Transform
 
 
 class DeclImplMatchPass(Transform[uni.Module, uni.Module]):
