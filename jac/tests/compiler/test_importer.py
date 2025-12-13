@@ -187,6 +187,16 @@ def test_python_dash_m_jac_module(fixture_abs_path: Callable[[str], str]) -> Non
 
     # Create a temporary directory with a Jac module
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Ensure JacMetaImporter is registered in the subprocess.
+        #
+        # In some environments (e.g., CI), jaclang may be installed without a
+        # startup hook (.pth) that imports jaclang automatically. Creating a
+        # `sitecustomize.py` in the subprocess working directory guarantees the
+        # importer is registered before `python -m ...` executes.
+        sitecustomize_file = os.path.join(tmpdir, "sitecustomize.py")
+        with open(sitecustomize_file, "w") as f:
+            f.write("import jaclang\n")
+
         # Create a simple Jac module
         module_name = "test_dash_m_module"
         jac_file = os.path.join(tmpdir, f"{module_name}.jac")
@@ -194,11 +204,16 @@ def test_python_dash_m_jac_module(fixture_abs_path: Callable[[str], str]) -> Non
             f.write('with entry { "python -m works" :> print; }\n')
 
         # Run using python -m directly (requires JacMetaImporter to be registered)
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.pathsep.join(
+            p for p in [tmpdir, env.get("PYTHONPATH")] if p
+        )
         result = subprocess.run(
             [sys.executable, "-m", module_name],
             capture_output=True,
             text=True,
             cwd=tmpdir,
+            env=env,
         )
 
         # Check that it executed successfully
@@ -218,6 +233,12 @@ def test_python_dash_m_jac_package(fixture_abs_path: Callable[[str], str]) -> No
 
     # Create a temporary directory with a Jac package
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Ensure JacMetaImporter is registered in the subprocess; see
+        # `test_python_dash_m_jac_module` for details.
+        sitecustomize_file = os.path.join(tmpdir, "sitecustomize.py")
+        with open(sitecustomize_file, "w") as f:
+            f.write("import jaclang\n")
+
         # Create a package directory with __init__.jac and __main__.jac
         pkg_name = "test_pkg"
         pkg_dir = os.path.join(tmpdir, pkg_name)
@@ -233,11 +254,16 @@ def test_python_dash_m_jac_package(fixture_abs_path: Callable[[str], str]) -> No
             f.write('with entry { "package main works" :> print; }\n')
 
         # Run using python -m directly (requires JacMetaImporter to be registered)
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.pathsep.join(
+            p for p in [tmpdir, env.get("PYTHONPATH")] if p
+        )
         result = subprocess.run(
             [sys.executable, "-m", pkg_name],
             capture_output=True,
             text=True,
             cwd=tmpdir,
+            env=env,
         )
 
         # Check that it executed successfully
