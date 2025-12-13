@@ -2,13 +2,20 @@
 
 ## Goal
 
-Reorganize the jaclang codebase to have a single `pycore` directory containing 100% of bootstrap-critical Python code, while converting everything else to Jac.
+Reorganize the jaclang codebase to have a single `pycore` directory containing 100% of bootstrap-critical Python code, while converting everything else to Jac with help of jac's `py2jac` command.
 
 ## Current State Analysis
 
-**Total Python code (excluding vendor/tests):** ~38,000 lines
-**Already in Jac:** ~12,000 lines (runtimelib, langserve, type_system, passes/tool)
-**Target pycore:** ~13,000 lines (hand-written) + ~7,000 lines (generated parsers)
+**Snapshot (this repo checkout):**
+
+- **Python (excluding `jaclang/vendor/` + `__pycache__/`):** ~54k lines
+- **Jac (excluding `jaclang/vendor/` + `__pycache__/`):** ~17k lines
+- **PyCore Python total:** ~41.7k lines
+  - **Hand-written pycore:** ~21.1k lines
+  - **Generated parsers (`pycore/parser/larkparse/*.py`):** ~6.9k lines
+  - **Extra generated backups currently checked in (`pycore/parser/larkparse/larkparse.bak/**`):** ~13.8k lines (cleanup candidate)
+
+**Major milestone already achieved:** `jaclang/pycore/` exists and is the canonical home of the bootstrap-critical compiler + runtime Python.
 
 ---
 
@@ -18,118 +25,92 @@ Reorganize the jaclang codebase to have a single `pycore` directory containing 1
 
 | File | Lines | Reason |
 |------|-------|--------|
-| `compiler/unitree.py` | 5,500 | Core AST nodes used by ALL passes |
-| `compiler/parser.py` | 3,772 | Lark-based parsing (Python library) |
-| `compiler/passes/main/pyast_gen_pass.py` | 3,450 | Generates Python AST from Jac |
-| `compiler/passes/main/sym_tab_build_pass.py` | 374 | Foundational symbol table |
-| `compiler/passes/main/pybc_gen_pass.py` | 49 | Python's compile() builtin |
-| `compiler/passes/transform.py` | 178 | Base Transform class |
-| `compiler/passes/uni_pass.py` | 138 | UniPass base class |
-| `compiler/constant.py` | 777 | Token constants, enums |
-| `compiler/codeinfo.py` | 135 | Source location tracking |
-| `compiler/__init__.py` | 114 | Parser generation, TOKEN_MAP |
-| `compiler/larkparse/*.py` | ~7,000 | Generated Lark parsers |
-| `runtimelib/runtime.py` | 2,208 | Plugin loading, JacRuntime |
-| `meta_importer.py` | 207 | Python import hook for .jac |
-| `__init__.py` | 22 | Package init, meta_path setup |
-| **TOTAL** | **~17,900** | |
+| `pycore/ast/unitree.py` | ~ | Core AST nodes used by ALL passes |
+| `pycore/ast/constant.py` | ~ | Token constants, enums |
+| `pycore/ast/codeinfo.py` | ~ | Source location tracking |
+| `pycore/parser/jac_parser.py` | ~ | Lark-based parsing (Python library) |
+| `pycore/parser/jac.lark` | ~ | Grammar file |
+| `pycore/parser/larkparse/*.py` | ~6.9k | Generated Lark parsers (checked-in) |
+| `pycore/parser/tsparser.py` | ~ | TypeScript/JS parser wrapper (Lark) |
+| `pycore/passes/transform.py` | ~ | Base Transform class |
+| `pycore/passes/uni_pass.py` | ~ | UniPass base class |
+| `pycore/passes/sym_tab_build_pass.py` | ~ | Foundational symbol table |
+| `pycore/passes/sym_tab_link_pass.py` | ~ | Cross-module symtab linking |
+| `pycore/passes/semantic_analysis_pass.py` | ~ | Bootstrap semantic analysis |
+| `pycore/passes/def_impl_match_pass.py` | ~ | Decl/impl matching |
+| `pycore/passes/annex_pass.py` | ~ | Annex/module loading during compile |
+| `pycore/passes/pyast_gen_pass.py` | ~ | Generates Python AST from Jac |
+| `pycore/passes/pybc_gen_pass.py` | ~ | Python bytecode emission |
+| `pycore/passes/ast_gen/*.py` | ~ | Shared AST-gen utilities |
+| `pycore/program.py` | ~ | Compilation schedules + program state |
+| `pycore/runtime/runtime.py` | ~ | Plugin loading, JacRuntime bootstrap |
+| `pycore/settings.py` | ~ | Settings used by bootstrap code |
+| `meta_importer.py` | ~ | Python import hook for `.jac` |
+| `__init__.py` | ~ | Package init, meta_path setup |
+| **TOTAL** | **(see snapshot above)** | |
 
 ### CAN Be Converted to Jac
 
 | Category | Files | Lines |
 |----------|-------|-------|
-| CLI | `cli.py`, `cmdreg.py` | ~1,300 |
-| Analysis Passes | 9 passes (lazy-loaded) | ~1,200 |
-| **PyastBuildPass** | `pyast_load_pass.py` (py2jac) | 2,604 |
-| ECMAScript | `esast_gen_pass.py`, `es_unparse.py`, `estree.py` | ~4,300 |
-| Utils | `helpers.py`, `module_resolver.py`, `lang_tools.py`, `log.py`, `treeprinter.py` | ~1,500 |
-| TypeScript Parser | `tsparser.py` | 1,780 |
-| Other | `settings.py`, `lib.py`, `type_utils.py`, `program.py` (partial) | ~700 |
+| CLI | `cli/cli.jac`, `cli/cmdreg.jac` | **DONE** |
+| Analysis Passes | `compiler/passes/main/*.jac` | **DONE** (most) |
+| **PyastBuildPass** | `compiler/passes/main/pyast_load_pass.jac` | **DONE** |
+| Type System Utils | `compiler/type_system/type_utils.py` | **NOT DONE** |
+| ECMAScript | `compiler/passes/ecmascript/*.py` | **NOT DONE** (optional) |
+| TypeScript Parser | `pycore/parser/tsparser.py` | **KEPT PYTHON** (optional conversion) |
+| Misc / UX | `utils/lang_tools.py`, `lib.py` | **NOT DONE / optional** |
 | **TOTAL** | | **~13,400** |
 
 ---
 
-## Part 2: Target Directory Structure
+## Part 2: Directory Structure (Current)
 
 ```
 jaclang/
-  __init__.py                  # KEEP (bootstrap)
-  meta_importer.py             # KEEP (bootstrap)
-  settings.jac                 # CONVERT
-  lib.jac                      # CONVERT
+  __init__.py
+  __main__.py
+  meta_importer.py
+  lib.py
 
-  pycore/                      # NEW - All Python bootstrap code
-    __init__.py                # Exports all pycore modules
-    ast/
-      __init__.py
-      unitree.py               # Core AST definitions
-      constant.py              # Tokens, symbols, enums
-      codeinfo.py              # Code location tracking
-    parser/
-      __init__.py              # Parser generation utilities
-      jac_parser.py            # Main Jac parser
-      jac.lark                 # Grammar file
-      larkparse/               # Generated parsers
-        jac_parser.py
-        ts_parser.py
-    passes/
-      __init__.py
-      transform.py             # Base Transform
-      uni_pass.py              # UniPass base
-      sym_tab_build_pass.py    # Symbol table
-      pyast_gen_pass.py        # Python AST gen (Jac→Python, MUST be Python)
-      pybc_gen_pass.py         # Bytecode gen
-      ast_gen/
-        base_ast_gen_pass.py
-    runtime/
-      __init__.py
-      runtime.py               # JacRuntime bootstrap
+  pycore/                      # Canonical bootstrap Python
+    ast/                       # unitree/constant/codeinfo
+    parser/                    # jac_parser + checked-in larkparse/
+    passes/                    # bootstrap-critical passes
+    runtime/                   # JacRuntime bootstrap
+    program.py                 # schedules + program state
+    settings.py                # settings used by bootstrap
+    utils/                     # bootstrap utilities
 
-  compiler/                    # RESTRUCTURED - mostly Jac
-    __init__.jac               # NEW Jac package init
-    program.jac                # CONVERT (or keep thin Python wrapper)
-    tsparser.jac               # CONVERT
-    utils.jac                  # CONVERT compiler utils
+  compiler/                    # Thin Python shim + mixed Jac/Python
+    __init__.py                # ensures parsers exist; re-exports TOKEN_MAP/jac_lark
+    ts.lark
     passes/
       main/
-        __init__.jac           # Re-export pycore passes + Jac passes
-        pyast_load_pass.jac    # CONVERT - Python→Jac AST (py2jac), NOT bootstrap-critical!
-        def_impl_match_pass.jac
-        semantic_analysis_pass.jac
-        sem_def_match_pass.jac
-        cfg_build_pass.jac
-        def_use_pass.jac
-        pyjac_ast_link_pass.jac
-        type_checker_pass.jac
-        annex_pass.jac
-        import_pass.jac
-      ecmascript/
-        __init__.jac
-        esast_gen_pass.jac
-        es_unparse.jac
-        estree.jac
-      tool/                    # ALREADY JAC - unchanged
-        ...
-    type_system/               # ALREADY MOSTLY JAC - unchanged
-      ...
-      type_utils.jac           # CONVERT
+        __init__.py            # eager pycore passes + lazy `.jac` passes
+        *.jac                  # converted passes (cfg_build, type_checker, etc.)
+      ecmascript/              # still Python (optional conversion)
+        *.py
+      tool/                    # already Jac
+        *.jac
+    type_system/
+      type_utils.py            # still Python (planned conversion)
+      *.jac
 
-  cli/                         # CONVERT
-    __init__.jac
+  cli/                         # Converted to Jac (imported via meta_importer)
+    __init__.py
     cli.jac
     cmdreg.jac
 
-  utils/                       # CONVERT
-    __init__.jac
-    helpers.jac
-    module_resolver.jac
-    lang_tools.jac
-    log.jac
-    treeprinter.jac
+  runtimelib/                  # Mostly Jac; runtime.py is a shim
+    runtime.py
+    *.jac
 
-  runtimelib/                  # ALREADY MOSTLY JAC - unchanged
-  langserve/                   # ALREADY JAC - unchanged
-  vendor/                      # KEEP - third-party Python
+  utils/                       # Mixed; lang_tools.py still Python
+    lang_tools.py
+    *.jac
+
+  vendor/                      # Third-party Python (vendored)
 ```
 
 ---
@@ -143,29 +124,27 @@ jaclang/
 1. Create `jaclang/pycore/` directory structure
 2. Move bootstrap Python files to pycore (preserve imports via shims)
 3. Update import statements throughout codebase
-4. Create compatibility shims in old locations:
-
-   ```python
-   # jaclang/compiler/unitree.py (becomes shim)
-   from jaclang.pycore.ast.unitree import *
-   ```
 
 **Files to move:**
 
-- `compiler/unitree.py` -> `pycore/ast/unitree.py`
-- `compiler/constant.py` -> `pycore/ast/constant.py`
-- `compiler/codeinfo.py` -> `pycore/ast/codeinfo.py`
-- `compiler/parser.py` -> `pycore/parser/jac_parser.py`
-- `compiler/__init__.py` -> `pycore/parser/__init__.py`
-- `compiler/jac.lark` -> `pycore/parser/jac.lark`
-- `compiler/larkparse/` -> `pycore/parser/larkparse/`
-- `compiler/passes/transform.py` -> `pycore/passes/transform.py`
-- `compiler/passes/uni_pass.py` -> `pycore/passes/uni_pass.py`
-- `compiler/passes/main/sym_tab_build_pass.py` -> `pycore/passes/sym_tab_build_pass.py`
-- `compiler/passes/main/pyast_gen_pass.py` -> `pycore/passes/pyast_gen_pass.py`
-- `compiler/passes/main/pybc_gen_pass.py` -> `pycore/passes/pybc_gen_pass.py`
-- `compiler/passes/ast_gen/` -> `pycore/passes/ast_gen/`
-- `runtimelib/runtime.py` -> `pycore/runtime/runtime.py`
+- `compiler/unitree.py` -> `pycore/ast/unitree.py` (**DONE**)
+- `compiler/constant.py` -> `pycore/ast/constant.py` (**DONE**)
+- `compiler/codeinfo.py` -> `pycore/ast/codeinfo.py` (**DONE**)
+- `compiler/parser.py` -> `pycore/parser/jac_parser.py` (**DONE**)
+- `compiler/jac.lark` -> `pycore/parser/jac.lark` (**DONE**)
+- `compiler/larkparse/` -> `pycore/parser/larkparse/` (**DONE**, but see `larkparse.bak/` cleanup below)
+- `compiler/passes/transform.py` -> `pycore/passes/transform.py` (**DONE**)
+- `compiler/passes/uni_pass.py` -> `pycore/passes/uni_pass.py` (**DONE**)
+- `compiler/passes/main/sym_tab_build_pass.py` -> `pycore/passes/sym_tab_build_pass.py` (**DONE**)
+- `compiler/passes/main/pyast_gen_pass.py` -> `pycore/passes/pyast_gen_pass.py` (**DONE**)
+- `compiler/passes/main/pybc_gen_pass.py` -> `pycore/passes/pybc_gen_pass.py` (**DONE**)
+- `compiler/passes/ast_gen/` -> `pycore/passes/ast_gen/` (**DONE**)
+- `runtimelib/runtime.py` -> `pycore/runtime/runtime.py` (**DONE**)
+
+**Additional pycore moves/ownership changes beyond the original list:**
+
+- `JacProgram` now lives in `jaclang/pycore/program.py` (compilation schedules + program state).
+- `compiler/__init__.py` is now a thin Python shim responsible for generating/checking the checked-in parsers under `pycore/parser/larkparse/` and re-exporting `TOKEN_MAP` / `jac_lark` from `pycore/parser`.
 
 **NOTE:** `pyast_load_pass.py` can be converted
 
@@ -175,19 +154,19 @@ jaclang/
 
 Convert passes in order of complexity (smallest first):
 
-1. `sem_def_match_pass.py` (68 lines) - **FULLY CONVERTED** (.py deleted)
-2. `annex_pass.py` (95 lines) - MUST STAY PYTHON (bootstrap-critical)
-3. `semantic_analysis_pass.py` (119 lines) - MUST STAY PYTHON (bootstrap-critical)
-4. `def_use_pass.py` (122 lines) - **FULLY CONVERTED** (.py deleted)
-5. `pyjac_ast_link_pass.py` (134 lines) - **FULLY CONVERTED** (.py deleted)
-6. `import_pass.py` (131 lines) - **FULLY CONVERTED** (.py deleted)
-7. `type_checker_pass.py` (148 lines) - **FULLY CONVERTED** (.py deleted)
-8. `def_impl_match_pass.py` (175 lines) - MUST STAY PYTHON (bootstrap-critical)
-9. `cfg_build_pass.py` (323 lines) - **FULLY CONVERTED** (.py deleted)
-10. `pyast_load_pass.py` (2,604 lines)
+1. `compiler/passes/main/sem_def_match_pass.jac` - **DONE** (Python deleted)
+2. `pycore/passes/annex_pass.py` - **KEPT PYTHON** (bootstrap-critical)
+3. `pycore/passes/semantic_analysis_pass.py` - **KEPT PYTHON** (bootstrap-critical)
+4. `compiler/passes/main/def_use_pass.jac` - **DONE** (Python deleted)
+5. `compiler/passes/main/pyjac_ast_link_pass.jac` - **DONE** (Python deleted)
+6. `compiler/passes/main/import_pass.jac` - **DONE** (Python deleted)
+7. `compiler/passes/main/type_checker_pass.jac` - **DONE** (Python deleted)
+8. `pycore/passes/def_impl_match_pass.py` - **KEPT PYTHON** (bootstrap-critical)
+9. `compiler/passes/main/cfg_build_pass.jac` - **DONE** (Python deleted)
+10. `compiler/passes/main/pyast_load_pass.jac` - **DONE** (Python deleted)
 
-**CURRENT STATUS:** 6 passes fully converted to .jac - Python versions DELETED!
-The meta_importer compiles these .jac files using minimal compilation schedule.
+**CURRENT STATUS:** 7 passes are now `.jac` in `jaclang/compiler/passes/main/` with Python versions deleted.
+`jaclang/compiler/passes/main/__init__.py` provides eager Python imports from pycore for bootstrap-critical passes and lazy loading for `.jac` passes.
 
 **Bootstrap Strategy:** The minimal compilation schedule (`get_minimal_ir_gen_sched()`) only needs:
 
@@ -199,7 +178,7 @@ All other passes can be .jac files! When they're imported, the meta_importer com
 using minimal compilation (which doesn't need the passes being compiled). This breaks the
 circular dependency and allows full Jac conversion.
 
-**1203 tests pass with .jac-only passes!**
+**Note:** use the repo’s dev environment at `~/.fresh/` (has `pip`, `pytest`, and `jac`); see validation commands below.
 
 **Conversion process for each:**
 
@@ -212,7 +191,7 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 
 ### Phase 3: Convert Utilities
 
-**Estimated files:** 7 | **Risk:** Low-Medium | **STATUS: SKIPPED**
+**Estimated files:** 7 | **Risk:** Low-Medium | **STATUS: PARTIALLY DONE / RE-SCOPED**
 
 1. `settings.py` (115 lines) - simple config
 2. `lib.py` (149 lines) - lazy exports
@@ -222,7 +201,11 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 6. `utils/module_resolver.py` (268 lines)
 7. `utils/treeprinter.py` (664 lines)
 
-**Note:** These utilities are used by bootstrap-critical code (meta_importer.py, transform.py) and must remain Python.
+**Current reality:**
+
+- `helpers.py`, `log.py`, `module_resolver.py`, `treeprinter.py`, `settings.py` are now in `jaclang/pycore/` and remain Python (bootstrap-critical dependencies).
+- `jaclang/utils/lang_tools.py` is still Python (non-pycore) and can be converted later if desired.
+- `jaclang/lib.py` is still Python and acts as a user-facing compatibility facade.
 
 ### Phase 4: Convert CLI
 
@@ -237,15 +220,15 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 
 **Estimated files:** 1 | **Risk:** Low
 
-1. `type_system/type_utils.py` (304 lines)
+1. `compiler/type_system/type_utils.py` (still Python) - **STATUS: NOT DONE**
 
 ### Phase 6: Convert ECMAScript Generation (Optional)
 
 **Estimated files:** 3 | **Risk:** Medium-High
 
-1. `passes/ecmascript/estree.py` (970 lines) - AST definitions
-2. `passes/ecmascript/es_unparse.py` (590 lines) - code gen
-3. `passes/ecmascript/esast_gen_pass.py` (2717 lines) - pass
+1. `compiler/passes/ecmascript/estree.py` (still Python) - AST definitions
+2. `compiler/passes/ecmascript/es_unparse.py` (still Python) - code gen
+3. `compiler/passes/ecmascript/esast_gen_pass.py` (still Python) - pass
 
 **Note:** These are larger files. May want to keep in Python if JS target isn't critical.
 
@@ -253,7 +236,9 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 
 **Estimated files:** 1 | **Risk:** Medium
 
-1. `tsparser.py` (1780 lines)
+**Current reality:** TypeScript parsing is implemented in Python at `pycore/parser/tsparser.py`, backed by `compiler/ts.lark` and generated `pycore/parser/larkparse/ts_parser.py`.
+
+Conversion to Jac is optional; the current setup works and keeps the Lark dependency entirely in pycore.
 
 ---
 
@@ -263,13 +248,13 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 
 - `jaclang/__init__.py` - update to use pycore
 - `jaclang/meta_importer.py` - update pass imports
-- `jaclang/compiler/program.py` - update schedule imports
+- `jaclang/pycore/program.py` - update schedule imports (now canonical)
 - `jaclang/compiler/passes/main/__init__.py` - major restructure
 
 ### Key Integration Points
 
 - `meta_importer.py:73-80` - MINIMAL_COMPILE_MODULES list
-- `program.py:70-87` - get_minimal_ir_gen_sched() and get_minimal_py_code_gen()
+- `pycore/program.py:68-96` - get_minimal_ir_gen_sched() and get_minimal_py_code_gen()
 - `passes/main/__init__.py:12-17` - bootstrap-critical pass imports
 - `passes/main/__init__.py:21-31` - _LAZY_PASSES dict for Jac conversion
 
@@ -290,6 +275,16 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 2. Bootstrap test: compile a fresh Jac file
 3. Self-hosting test: jaclang compiles jaclang
 
+**Dev setup note:** use the `~/.fresh/` environment:
+
+```bash
+source ~/.fresh/bin/activate
+python -m pip install -e jac[dev]  # if needed
+python -m pytest
+```
+
+If you prefer not to activate the venv, use `~/.fresh/bin/python -m pytest`.
+
 ### Rollback Plan
 
 - Keep Python files alongside Jac during transition
@@ -300,35 +295,42 @@ jac py2jac compiler/passes/main/<pass>.py > compiler/passes/main/<pass>.jac
 
 ## Part 6: Estimated Impact
 
-### Before
+### Baseline (Current Snapshot)
 
-- Python: 38,000 lines (excluding vendor)
-- Jac: 12,000 lines
+- Python (excluding `jaclang/vendor/`): ~54k lines
+- Jac (excluding `jaclang/vendor/`): ~17k lines
+- Pycore hand-written Python (excluding checked-in generated parsers): ~21k lines
 
-### After (Target)
+### Target (Still Reasonable)
 
-- Python (pycore): ~10,900 lines hand-written + 7,000 generated (~17,900 total)
-- Jac: ~28,000 lines
-
-### Reduction
-
-- ~20,000 lines of Python converted to Jac (including pyast_load_pass!)
-- pycore is ~29% of original Python codebase (down from 100%)
+- Keep pycore as the only bootstrap-critical Python surface area
+- Continue converting non-bootstrap Python to Jac as it becomes practical (type utils, optional ECMAScript)
 
 ---
 
 ## Part 7: Implementation Order Summary
 
-| Phase | Description | Files | Lines | Risk | Priority |
-|-------|-------------|-------|-------|------|----------|
-| 1 | Create pycore structure | 15 | - | Low | High |
-| 2 | Convert lazy-loaded passes (incl. pyast_load_pass!) | 10 | ~3,800 | Low-Med | High |
-| 3 | Convert utilities | 7 | ~1,500 | Low-Med | Medium |
-| 4 | Convert CLI | 2 | ~1,300 | Medium | Medium |
-| 5 | Convert type utils | 1 | ~300 | Low | Medium |
-| 6 | Convert ECMAScript | 3 | ~4,300 | Med-High | Low |
-| 7 | Convert TS parser | 1 | ~1,800 | Medium | Low |
+| Phase | Description | Risk | Priority | Status |
+|-------|-------------|------|----------|--------|
+| 1 | Create pycore structure | Low | High | **DONE** |
+| 2 | Convert lazy-loaded passes (incl. pyast_load_pass) | Low-Med | High | **DONE** (7 passes) |
+| 3 | Convert utilities | Low-Med | Medium | **PARTIAL** (moved into pycore; conversion deferred) |
+| 4 | Convert CLI | Medium | Medium | **DONE** |
+| 5 | Convert type utils | Low | Medium | **NOT DONE** |
+| 6 | Convert ECMAScript | Med-High | Low | **NOT DONE / optional** |
+| 7 | Convert TS parser | Medium | Low | **DEFERRED** (kept Python in pycore) |
 
 **Key insight:** `pyast_load_pass.py` (2,604 lines) is NOT bootstrap-critical! It converts Python→Jac (py2jac), which is only needed after bootstrap is complete.
 
 Start with Phase 1 (infrastructure) then Phase 2 (passes) as they're low-risk and high-impact.
+
+---
+
+## Part 8: Cleanup / Follow-ups (Discovered)
+
+These items were not in the original plan, but are worth tracking based on current repo state:
+
+1. **Remove generated parser backups:** `jaclang/pycore/parser/larkparse/larkparse.bak/` appears to contain nested/duplicated generated output; it inflates pycore significantly and is likely accidental.
+2. **Reconcile legacy generated parsers:** `jaclang/compiler/larkparse/` still exists but appears unused (imports reference `jaclang.pycore.parser.larkparse`); confirm and remove/deprecate.
+3. **Tighten `MINIMAL_COMPILE_MODULES`:** `jaclang/meta_importer.py` still lists module names that no longer exist as `.jac` modules (e.g., passes that moved into `pycore/passes/*.py`); pruning reduces confusion and avoids dead entries.
+4. **Decide ownership of `ts.lark`:** currently in `jaclang/compiler/ts.lark` while the generated parser lives under pycore; consider moving grammar to `pycore/parser/` for consistency.

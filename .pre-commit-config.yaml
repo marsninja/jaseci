@@ -3,6 +3,7 @@ exclude: |
         ^jac/jaclang/vendor/|
         ^jac/jaclang/compiler/larkparse/jac_parser\.py$|
         ^jac/jaclang/compiler/larkparse/ts_parser\.py$|
+        ^jac/jaclang/pycore/parser/larkparse/|
         ^$
     )
 repos:

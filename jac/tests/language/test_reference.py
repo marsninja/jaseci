@@ -13,8 +13,8 @@ from types import CodeType
 import pytest
 
 import jaclang
+from jaclang import JacRuntime as Jac
 from jaclang.pycore.program import JacProgram
-from jaclang.runtimelib.runtime import JacRuntime as Jac
 
 
 def get_reference_jac_files() -> list[str]:

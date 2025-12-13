@@ -1745,7 +1745,15 @@ class JacByLLM:
         """Call the LLM model."""
         from jaclang.utils import NonGPT  # type: ignore[attr-defined]
 
-        random_value_for_type: Callable[[Any], Any] = NonGPT.random_value_for_type
+        try:
+            random_value_for_type = cast(
+                Callable[[Any], Any],
+                NonGPT.random_value_for_type,  # type: ignore[attr-defined]
+            )
+        except AttributeError:
+
+            def random_value_for_type(_t: object) -> object:
+                return None
 
         try:
             type_hints = get_type_hints(

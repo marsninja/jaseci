@@ -1,5 +1,7 @@
 """TypeScript/JavaScript parser for Jac Lang."""
 
+# ruff: noqa: ANN001, ANN201, ANN202, ANN204
+
 from __future__ import annotations
 
 import os
@@ -7,18 +9,25 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Event
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, cast
+from typing import TYPE_CHECKING, Protocol, TypeAlias, TypeVar, cast
 
 import jaclang.pycore.ast.unitree as uni
 from jaclang.compiler.passes.main import BaseTransform, Transform
 from jaclang.pycore.ast.constant import TsTokens as Tok
 from jaclang.pycore.parser.larkparse import ts_parser as ts_lark
+from jaclang.vendor.lark.lexer import Token as LarkToken
 
 if TYPE_CHECKING:
     from jaclang.pycore.program import JacProgram
 
 T = TypeVar("T", bound=uni.UniNode)
 TL = TypeVar("TL", bound=(uni.UniNode | list))
+
+
+class _InteractiveParser(Protocol):
+    def accepts(self) -> set[str]: ...
+
+    def feed_token(self, token: object) -> None: ...
 
 
 @dataclass
@@ -49,7 +58,7 @@ class TsLarkParseTransform(BaseTransform[TsLarkParseInput, TsLarkParseOutput]):
     def transform(self, ir_in: TsLarkParseInput) -> TsLarkParseOutput:
         """Transform input IR by parsing with LALR parser."""
         TsLarkParseTransform.comment_cache = []
-        parser: Any = ts_lark.Lark_StandAlone()
+        parser = ts_lark.Lark_StandAlone()
         try:
             tree = parser.parse(ir_in.ir_value, on_error=ir_in.on_error)
         except Exception as e:
@@ -139,29 +148,25 @@ class TypeScriptParser(Transform[uni.Source, uni.Module]):
 
     def error_callback(self, e: object) -> bool:
         """Handle parse error with recovery."""
-        lark_module = ts_lark
         iparser = getattr(e, "interactive_parser", None)
         if iparser is None:
             return False
+        iparser = cast(_InteractiveParser, iparser)
 
-        lark_token = lark_module.Token
-
-        def try_feed_missing_token(iparser: Any) -> Tok | None:
+        def try_feed_missing_token(iparser: _InteractiveParser) -> Tok | None:
             """Try to feed a missing token to recover."""
             accepts = iparser.accepts()
             for tok in TypeScriptParser._MISSING_TOKENS:
                 if tok.name in accepts:
-                    iparser.feed_token(
-                        lark_token(tok.name, tok.value if hasattr(tok, "value") else "")
-                    )
+                    iparser.feed_token(LarkToken(tok.name, tok.value))
                     return tok
             return None
 
-        def feed_current_token(iparser: Any, tok: Any) -> bool:
+        def feed_current_token(iparser: _InteractiveParser, tok: LarkToken) -> bool:
             """Feed current token after recovery."""
             max_attempts = 100
             attempts = 0
-            while getattr(tok, "type", "") not in iparser.accepts():
+            while tok.type not in iparser.accepts():
                 if attempts >= max_attempts:
                     return False
                 if not try_feed_missing_token(iparser):
@@ -171,12 +176,13 @@ class TypeScriptParser(Transform[uni.Source, uni.Module]):
             return True
 
         if hasattr(e, "token"):
+            e_token = cast(LarkToken, e.token)
             if tk := try_feed_missing_token(iparser):
                 self.log_error(f"Missing {tk.name}", self.error_to_token(e))
-                return feed_current_token(iparser, e.token)
+                return feed_current_token(iparser, e_token)
 
             self.log_error(
-                f"Unexpected token '{getattr(e.token, 'value', '')}'",
+                f"Unexpected token '{e_token}'",
                 self.error_to_token(e),
             )
             return True
@@ -186,7 +192,7 @@ class TypeScriptParser(Transform[uni.Source, uni.Module]):
     def error_to_message(self, e: object) -> str:
         """Convert error to message."""
         if hasattr(e, "token"):
-            return f"Unexpected token '{getattr(e.token, 'value', '')}'"
+            return f"Unexpected token '{cast(LarkToken, e.token)}'"
         return "Syntax Error"
 
     def error_to_token(self, e: object) -> uni.Token:
@@ -245,19 +251,16 @@ class TypeScriptParser(Transform[uni.Source, uni.Module]):
                     super().__init__()
                     self.outer = outer_ref
 
-                def _get_token(self, token: Any) -> uni.Token:
+                def _get_token(self, token: LarkToken) -> uni.Token:
                     """Convert Lark token to uni.Token."""
-                    # Lark Token attributes - using Any since Lark is dynamically loaded
-                    tok_type: str = token.type
-                    tok_value: str = token.value
-                    tok_line: int = token.line or 1
-                    tok_end_line: int = token.end_line or tok_line
-                    tok_column: int = token.column or 0
-                    tok_end_column: int = token.end_column or (
-                        tok_column + len(tok_value)
-                    )
-                    tok_start_pos: int = token.start_pos or 0
-                    tok_end_pos: int = token.end_pos or (tok_start_pos + len(tok_value))
+                    tok_type = token.type
+                    tok_value = str(token)
+                    tok_line = token.line or 1
+                    tok_end_line = token.end_line or tok_line
+                    tok_column = token.column or 0
+                    tok_end_column = token.end_column or (tok_column + len(tok_value))
+                    tok_start_pos = token.start_pos or 0
+                    tok_end_pos = token.end_pos or (tok_start_pos + len(tok_value))
                     return uni.Token(
                         orig_src=self.outer.parse_ref.ir_in,
                         name=tok_type,
@@ -270,25 +273,25 @@ class TypeScriptParser(Transform[uni.Source, uni.Module]):
                         pos_end=tok_end_pos,
                     )
 
-                def _make_name(self, token) -> uni.Name:
+                def _make_name(self, token: LarkToken) -> uni.Name:
                     """Create a Name node from token."""
                     return uni.Name(
                         orig_src=self.outer.parse_ref.ir_in,
                         name=Tok.NAME.name,
-                        value=token.value if hasattr(token, "value") else str(token),
-                        line=getattr(token, "line", 1) or 1,
-                        end_line=getattr(token, "end_line", 1) or 1,
-                        col_start=getattr(token, "column", 0) or 0,
-                        col_end=getattr(token, "end_column", 0) or 0,
-                        pos_start=getattr(token, "start_pos", 0) or 0,
-                        pos_end=getattr(token, "end_pos", 0) or 0,
+                        value=str(token),
+                        line=token.line or 1,
+                        end_line=token.end_line or (token.line or 1),
+                        col_start=token.column or 0,
+                        col_end=token.end_column or (token.column or 0),
+                        pos_start=token.start_pos or 0,
+                        pos_end=token.end_pos or (token.start_pos or 0),
                     )
 
-                def __default_token__(self, token):
+                def __default_token__(self, token: LarkToken) -> uni.Token:
                     """Default token handler."""
                     return self._get_token(token)
 
-                def start(self, items):
+                def start(self, items: list[object]) -> uni.Module:
                     """start: source_file"""
                     if items and isinstance(items[0], uni.Module):
                         items[0]._in_mod_nodes = self.outer.parse_ref.node_list
@@ -1767,7 +1770,7 @@ class TypeScriptParser(Transform[uni.Source, uni.Module]):
                 name=mod_name,
                 source=self.parse_ref.ir_in,
                 doc=None,
-                body=cast(Any, stmts),
+                body=cast(list[uni.ElementStmt | uni.String | uni.EmptyToken], stmts),
                 terminals=self.terminals,
                 kid=body or [uni.EmptyToken(self.parse_ref.ir_in)],
             )

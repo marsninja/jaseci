@@ -106,6 +106,7 @@ __all__ = [
     "JacImportDepsPass",
     "TypeCheckPass",
     "SymTabBuildPass",
+    "SymTabLinkPass",
     "SemanticAnalysisPass",
     "DeclImplMatchPass",
     "SemDefMatchPass",
