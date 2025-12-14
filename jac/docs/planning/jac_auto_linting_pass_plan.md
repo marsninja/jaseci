@@ -184,6 +184,7 @@ def jac_file_formatter(file_path: str, auto_lint: bool = True) -> JacProgram:
 `with entry` blocks are often used unnecessarily for simple assignments that could be module-level `glob` declarations:
 
 **Before (unnecessary with entry):**
+
 ```jac
 with entry {
     x = 5;
@@ -193,6 +194,7 @@ with entry {
 ```
 
 **After (using glob):**
+
 ```jac
 glob x = 5;
 glob y = "hello";
@@ -204,6 +206,7 @@ glob z = [1, 2, 3];
 #### Rule 1: Simple Assignment Extraction
 
 **Condition:** An assignment in a `with entry` block where:
+
 - The target is a simple name (not attribute access, subscript, etc.)
 - The value is a pure expression (literal, list, dict, arithmetic on literals)
 - No side effects (no function calls that might have side effects)
@@ -213,6 +216,7 @@ glob z = [1, 2, 3];
 #### Rule 2: Entry Block Removal
 
 **Condition:** After extraction, if `with entry` block is:
+
 - Empty
 - Contains only semicolons/empty statements
 
@@ -223,6 +227,7 @@ glob z = [1, 2, 3];
 **Condition:** `with entry` block contains both extractable and non-extractable statements
 
 **Transform:**
+
 - Extract only the extractable assignments to `glob`
 - Keep non-extractable statements in `with entry`
 
@@ -445,51 +450,51 @@ The `CommentInjectionPass` already handles attaching comments to DocIR nodes bas
 
 ### Phase 2: With Entry Extraction (Priority: High)
 
-4. **Implement pure expression detection**
+1. **Implement pure expression detection**
    - Create `is_pure_expression()` method
    - Handle all literal types, collections, and safe operations
 
-5. **Implement assignment extraction check**
+2. **Implement assignment extraction check**
    - Create `can_extract_to_glob()` method
    - Check target types and value purity
 
-6. **Implement module transformation**
+3. **Implement module transformation**
    - Process `ModuleCode` nodes
    - Create `GlobalVars` nodes from extractable assignments
    - Update module body
 
-7. **Implement AST node creation**
+4. **Implement AST node creation**
    - Create proper `GlobalVars` nodes with correct token structure
    - Ensure `normalize()` produces valid output
 
 ### Phase 3: Comment Handling (Priority: High)
 
-8. **Implement comment mapping**
+1. **Implement comment mapping**
    - Build pre-transformation comment-to-node map
    - Track line number relationships
 
-9. **Implement comment transfer**
+2. **Implement comment transfer**
    - Move comments with extracted code
    - Handle edge cases (block, inline, trailing)
 
-10. **Test with CommentInjectionPass**
+3. **Test with CommentInjectionPass**
     - Verify comments appear correctly after formatting
     - Fix any position calculation issues
 
 ### Phase 4: Testing and Polish (Priority: Medium)
 
-11. **Create test fixtures**
+1. **Create test fixtures**
     - Simple extraction cases
     - Mixed extractable/non-extractable
     - Comment preservation cases
     - Edge cases (nested, complex expressions)
 
-12. **Add integration tests**
+2. **Add integration tests**
     - Format command with lint on/off
     - Verify AST equivalence
     - Verify formatted output
 
-13. **Documentation**
+3. **Documentation**
     - Update CLI help text
     - Add examples to user documentation
 
