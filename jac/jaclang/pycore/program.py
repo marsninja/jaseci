@@ -85,11 +85,13 @@ def get_minimal_py_code_gen() -> list[type[Transform[uni.Module, uni.Module]]]:
     return [PyastGenPass, PyBytecodeGenPass]
 
 
-def get_format_sched(auto_lint: bool = True) -> list[type[Transform[uni.Module, uni.Module]]]:
+def get_format_sched(
+    auto_lint: bool = False,
+) -> list[type[Transform[uni.Module, uni.Module]]]:
     """Return format schedule with lazy imports to allow doc_ir.jac conversion.
 
     Args:
-        auto_lint: If True, include auto-linting pass before formatting.
+        auto_lint: If True, include auto-linting pass before formatting. Defaults to False.
     """
     from jaclang.compiler.passes.tool.comment_injection_pass import (
         CommentInjectionPass,
@@ -296,12 +298,12 @@ class JacProgram:
             current_pass(ir_in=mod, prog=self, cancel_token=cancel_token)  # type: ignore
 
     @staticmethod
-    def jac_file_formatter(file_path: str, auto_lint: bool = True) -> JacProgram:
+    def jac_file_formatter(file_path: str, auto_lint: bool = False) -> JacProgram:
         """Format a Jac file and return the JacProgram.
 
         Args:
             file_path: Path to the Jac file to format.
-            auto_lint: If True, apply auto-linting corrections before formatting.
+            auto_lint: If True, apply auto-linting corrections before formatting. Defaults to False.
         """
         prog = JacProgram()
         source_str = read_file_with_encoding(file_path)
@@ -315,14 +317,14 @@ class JacProgram:
 
     @staticmethod
     def jac_str_formatter(
-        source_str: str, file_path: str, auto_lint: bool = True
+        source_str: str, file_path: str, auto_lint: bool = False
     ) -> JacProgram:
         """Format a Jac string and return the JacProgram.
 
         Args:
             source_str: The Jac source code string to format.
             file_path: Path to use for error messages.
-            auto_lint: If True, apply auto-linting corrections before formatting.
+            auto_lint: If True, apply auto-linting corrections before formatting. Defaults to False.
         """
         prog = JacProgram()
         source = uni.Source(source_str, mod_path=file_path)
