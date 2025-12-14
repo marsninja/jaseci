@@ -1,8 +1,9 @@
 # Jac Auto Linting Pass Implementation Plan
 
-> **Status: IMPLEMENTED** ✅
+> **Status: IMPLEMENTED** 
 >
 > This plan has been fully implemented. See the implementation files:
+>
 > - Pass: `jac/jaclang/compiler/passes/tool/jac_auto_lint_pass.jac`
 > - Tests: `jac/tests/compiler/passes/tool/test_jac_auto_lint_pass.py`
 > - Fixtures: `jac/tests/compiler/passes/tool/fixtures/auto_lint/`

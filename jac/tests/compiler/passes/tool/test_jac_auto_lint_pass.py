@@ -25,7 +25,9 @@ def auto_lint_fixture_path() -> Callable[[str], str]:
 class TestJacAutoLintPass:
     """Tests for the Jac Auto Lint Pass."""
 
-    def test_simple_extraction(self, auto_lint_fixture_path: Callable[[str], str]) -> None:
+    def test_simple_extraction(
+        self, auto_lint_fixture_path: Callable[[str], str]
+    ) -> None:
         """Test extracting simple assignments from with entry block."""
         input_path = auto_lint_fixture_path("simple_extraction.jac")
 
@@ -56,7 +58,9 @@ class TestJacAutoLintPass:
         # Should NOT contain glob declarations
         assert "glob x" not in formatted
 
-    def test_mixed_statements(self, auto_lint_fixture_path: Callable[[str], str]) -> None:
+    def test_mixed_statements(
+        self, auto_lint_fixture_path: Callable[[str], str]
+    ) -> None:
         """Test partial extraction when some statements can't be extracted."""
         input_path = auto_lint_fixture_path("mixed_statements.jac")
 
@@ -71,7 +75,9 @@ class TestJacAutoLintPass:
         assert "with entry" in formatted
         assert "print(" in formatted
 
-    def test_no_extraction_needed(self, auto_lint_fixture_path: Callable[[str], str]) -> None:
+    def test_no_extraction_needed(
+        self, auto_lint_fixture_path: Callable[[str], str]
+    ) -> None:
         """Test file that already uses glob - no changes needed."""
         input_path = auto_lint_fixture_path("no_extraction_needed.jac")
 
@@ -140,7 +146,9 @@ class TestJacAutoLintPass:
         # Should not have with entry block anymore
         assert "with entry" not in formatted
 
-    def test_pure_expressions(self, auto_lint_fixture_path: Callable[[str], str]) -> None:
+    def test_pure_expressions(
+        self, auto_lint_fixture_path: Callable[[str], str]
+    ) -> None:
         """Test various pure expressions that should be extracted."""
         input_path = auto_lint_fixture_path("pure_expressions.jac")
 

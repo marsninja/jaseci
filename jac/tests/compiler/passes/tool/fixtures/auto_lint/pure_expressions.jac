@@ -12,7 +12,7 @@ with entry {
     list_val = [1, 2, 3];
     dict_val = {"a": 1, "b": 2};
     tuple_val = (1, 2, 3);
-    set_val = {1, 2, 3};
+    set_val = {1,2,3};
 
     # Binary operations on literals
     sum_val = 1 + 2;

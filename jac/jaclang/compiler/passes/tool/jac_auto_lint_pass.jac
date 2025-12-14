@@ -54,7 +54,8 @@ class JacAutoLintPass(UniPass) {
                     # FString could contain expressions - check them
                     if s.parts is not None {
                         for part in s.parts {
-                            if isinstance(part, uni.Expr) and not self.is_pure_expression(part) {
+                            if isinstance(part, uni.Expr)
+                            and not self.is_pure_expression(part) {
                                 return False;
                             }
                         }
@@ -126,8 +127,8 @@ class JacAutoLintPass(UniPass) {
         # Binary expressions - check both sides
         if isinstance(expr, uni.BinaryExpr) {
             return (
-                self.is_pure_expression(expr.left) and
-                self.is_pure_expression(expr.right)
+                self.is_pure_expression(expr.left)
+                and self.is_pure_expression(expr.right)
             );
         }
 
@@ -152,9 +153,9 @@ class JacAutoLintPass(UniPass) {
         # If-else expressions (ternary) - check all parts
         if isinstance(expr, uni.IfElseExpr) {
             return (
-                self.is_pure_expression(expr.condition) and
-                self.is_pure_expression(expr.value) and
-                self.is_pure_expression(expr.else_value)
+                self.is_pure_expression(expr.condition)
+                and self.is_pure_expression(expr.value)
+                and self.is_pure_expression(expr.else_value)
             );
         }
 
@@ -217,9 +218,7 @@ class JacAutoLintPass(UniPass) {
 
     """Create a GlobalVars node from an assignment."""
     def create_glob_from_assignment(
-        self: JacAutoLintPass,
-        assignment: uni.Assignment,
-        source_entry: uni.ModuleCode
+        self: JacAutoLintPass, assignment: uni.Assignment, source_entry: uni.ModuleCode
     ) -> uni.GlobalVars {
         # The GlobalVars node needs initial kids to initialize properly.
         # We provide the assignment as initial kid, then normalize to build
@@ -240,8 +239,7 @@ class JacAutoLintPass(UniPass) {
 
     """Process a with entry block and extract eligible assignments."""
     def process_entry_block(
-        self: JacAutoLintPass,
-        entry_block: uni.ModuleCode
+        self: JacAutoLintPass, entry_block: uni.ModuleCode
     ) -> tuple[list[uni.GlobalVars], list[uni.CodeBlockStmt]] {
         extracted: list[uni.GlobalVars] = [];
         remaining: list[uni.CodeBlockStmt] = [];
@@ -263,7 +261,9 @@ class JacAutoLintPass(UniPass) {
     }
 
     """Check if with entry block only contains empty statements."""
-    def is_entry_block_empty(self: JacAutoLintPass, body: list[uni.CodeBlockStmt]) -> bool {
+    def is_entry_block_empty(
+        self: JacAutoLintPass, body: list[uni.CodeBlockStmt]
+    ) -> bool {
         for stmt in body {
             # Check for semi-only statements (EmptyToken with SEMI value)
             if isinstance(stmt, uni.Semi) {
@@ -286,13 +286,10 @@ class JacAutoLintPass(UniPass) {
             if isinstance(stmt, uni.ModuleCode) and stmt.name is None {
                 # This is an unnamed with entry block
                 (extracted, remaining) = self.process_entry_block(stmt);
-
                 if extracted {
                     self.extracted_globals.extend(extracted);
-
                     # Update the entry block's body with remaining statements
                     stmt.body = remaining;
-
                     # If entry block is now empty, mark for removal
                     if self.is_entry_block_empty(remaining) {
                         self.entries_to_remove.append(stmt);
