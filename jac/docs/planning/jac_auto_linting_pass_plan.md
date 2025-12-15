@@ -21,7 +21,7 @@ This document outlines the architecture and implementation plan for the **Jac Au
 3. [Pass Integration](#pass-integration)
 4. [CLI Integration](#cli-integration)
 5. [Rule JAC001: With Entry Block Simplification](#rule-jac001-with-entry-block-simplification)
-6. [Rule JAC002: Init Method Conversion](#rule-jac002-init-method-conversion)
+6. [Rule JAC100: Init Method Conversion](#rule-jac100-init-method-conversion)
 7. [Comment Handling Strategy](#comment-handling-strategy)
 8. [Implementation Steps](#implementation-steps)
 9. [Testing Strategy](#testing-strategy)
@@ -87,6 +87,7 @@ class JacAutoLintPass(UniPass) {
 ### Rule Registry Design
 
 Each lint rule is a self-contained unit with:
+
 - **Rule Code**: Unique identifier (e.g., `JAC001`, `JAC002`)
 - **Name**: Human-readable name
 - **Description**: What the rule does
@@ -675,10 +676,12 @@ obj User {
 #### Rule 1: `__init__` to `init`
 
 **Condition:** A method in an `obj`, `node`, `edge`, or `walker` where:
+
 - Method name is `__init__`
 - Has `self` as first parameter
 
 **Transform:**
+
 - Change method kind from `def` to `can`
 - Rename from `__init__` to `init`
 - Remove `self` parameter (implicit in Jac)
@@ -687,10 +690,12 @@ obj User {
 #### Rule 2: `__post_init__` to `postinit`
 
 **Condition:** A method in an `obj`, `node`, `edge`, or `walker` where:
+
 - Method name is `__post_init__`
 - Has only `self` parameter (no additional params)
 
 **Transform:**
+
 - Change method kind from `def` to `can`
 - Rename from `__post_init__` to `postinit`
 - Remove `self` parameter (implicit in Jac)
@@ -1005,37 +1010,37 @@ The `CommentInjectionPass` already handles attaching comments to DocIR nodes bas
 
 ## Implementation Steps
 
-### Phase 1: Core Infrastructure ✅ (COMPLETED)
+### Phase 1: Core Infrastructure  (COMPLETED)
 
-1. **Create pass file structure** ✅
+1. **Create pass file structure**
    - Create `jac/jaclang/compiler/passes/tool/jac_auto_lint_pass.jac`
    - Add basic class skeleton inheriting from `UniPass`
    - Register in `__init__.py`
 
-2. **Update format schedule** ✅
+2. **Update format schedule**
    - Modify `get_format_sched()` in `program.py`
    - Add `get_lint_sched()` function
 
-3. **Add CLI flag** ✅
+3. **Add CLI flag**
    - Add `--lint/--no-lint` flag to format command
    - Default to `--lint` (on)
 
-### Phase 2: JAC001 - With Entry Extraction ✅ (COMPLETED)
+### Phase 2: JAC001 - With Entry Extraction  (COMPLETED)
 
-1. **Implement pure expression detection** ✅
+1. **Implement pure expression detection**
    - Create `is_pure_expression()` method
    - Handle all literal types, collections, and safe operations
 
-2. **Implement assignment extraction check** ✅
+2. **Implement assignment extraction check**
    - Create `can_extract_to_glob()` method
    - Check target types and value purity
 
-3. **Implement module transformation** ✅
+3. **Implement module transformation**
    - Process `ModuleCode` nodes
    - Create `GlobalVars` nodes from extractable assignments
    - Update module body
 
-4. **Implement AST node creation** ✅
+4. **Implement AST node creation**
    - Create proper `GlobalVars` nodes with correct token structure
    - Ensure `normalize()` produces valid output
 
@@ -1468,11 +1473,13 @@ The modular rule architecture makes adding new lint rules straightforward. Each 
 To add a new lint rule:
 
 1. **Create Rule File**
+
    ```
    jac/jaclang/compiler/passes/tool/lint_rules/jacXXX_rule_name.jac
    ```
 
 2. **Implement LintRule Interface**
+
    ```jac
    obj MyNewRule(LintRule) {
        has code: str = "JACXXX";
@@ -1489,6 +1496,7 @@ To add a new lint rule:
    ```
 
 3. **Register the Rule**
+
    ```jac
    # In lint_rules/__init__.py or auto-discovery
    RULE_REGISTRY.register(MyNewRule());
@@ -1542,7 +1550,7 @@ This implementation plan provides a clean, extensible architecture for the Jac A
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `JAC001` | ✅ Implemented | With entry to glob conversion |
-| `JAC100` | 📋 Planned | Init method conversion |
+| `JAC001` |  Implemented | With entry to glob conversion |
+| `JAC100` |  Planned | Init method conversion |
 
 The modular architecture ensures that new rules can be added independently without affecting existing functionality, and users have fine-grained control over which transformations are applied to their code.
