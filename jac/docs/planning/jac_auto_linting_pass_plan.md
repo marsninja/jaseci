@@ -1,6 +1,6 @@
 # Jac Auto Linting Pass Implementation Plan
 
-> **Status: IMPLEMENTED** 
+> **Status: IMPLEMENTED**
 >
 > This plan has been fully implemented. See the implementation files:
 >
