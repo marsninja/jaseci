@@ -95,23 +95,23 @@ class TestJacAutoLintPass:
         assert "with entry" in formatted
         assert "print(" in formatted
 
-    def test_non_pure_expressions_not_extracted(
+    def test_all_assignments_extracted(
         self, auto_lint_fixture_path: Callable[[str], str]
     ) -> None:
-        """Test that non-pure expressions are NOT extracted."""
+        """Test that ALL assignments (including non-pure) are extracted to globs."""
         input_path = auto_lint_fixture_path("non_extractable.jac")
 
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
         formatted = prog.mod.main.gen.jac
 
-        # Non-pure expressions should NOT become globs
-        assert "glob result" not in formatted
-        assert "glob value" not in formatted
-        assert "glob item" not in formatted
+        # All assignments should become globs (even function calls, attr access, etc.)
+        assert "glob result" in formatted
+        assert "glob value" in formatted
+        assert "glob item" in formatted
 
-        # Should still have with entry block for non-pure expressions
-        # (the first unnamed with entry block)
-        assert "with entry {" in formatted
+        # The unnamed with entry block should be removed (all assignments extracted)
+        # Only named entry block should remain
+        assert "with entry:__main__" in formatted or "with entry :__main__" in formatted
 
     def test_named_entry_not_modified(
         self, auto_lint_fixture_path: Callable[[str], str]
@@ -160,8 +160,9 @@ class TestJacAutoLintPass:
         assert "glob another_var" not in formatted
         assert "glob list_var" not in formatted
 
-        # Module-level with entry SHOULD be extracted
-        assert "glob module_var = 100;" in formatted
+        # Module-level with entry SHOULD be fully extracted (all assignments)
+        assert "glob module_var" in formatted
+        assert "glob cls_obj" in formatted
 
 
 class TestIsPureExpression:

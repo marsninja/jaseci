@@ -26,4 +26,5 @@ class MyClass {
 # Module level with entry - this SHOULD be extracted
 with entry {
     module_var = 100;
+    cls_obj = MyClass();
 }
