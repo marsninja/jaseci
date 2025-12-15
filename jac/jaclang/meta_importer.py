@@ -75,12 +75,16 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
     # These are bootstrap-critical modules in runtimelib and compiler.
     MINIMAL_COMPILE_MODULES: frozenset[str] = frozenset(
         {
+            "jaclang.runtimelib",
             "jaclang.runtimelib.builtin",
             "jaclang.runtimelib.utils",
             "jaclang.runtimelib.server",
             "jaclang.runtimelib.client_bundle",
-            # Compiler passes converted to Jac must use minimal compilation
-            # to avoid circular imports (they're used during compilation itself)
+            "jaclang.runtimelib.archetype",
+            "jaclang.runtimelib.constructs",
+            "jaclang.runtimelib.memory",
+            "jaclang.runtimelib.mtp",
+            "jaclang.lib",
             "jaclang.compiler.passes.main.sem_def_match_pass",
             "jaclang.compiler.passes.main.annex_pass",
             "jaclang.compiler.passes.main.semantic_analysis_pass",
@@ -91,8 +95,11 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             "jaclang.compiler.passes.main.def_impl_match_pass",
             "jaclang.compiler.passes.main.cfg_build_pass",
             "jaclang.compiler.passes.main.pyast_load_pass",
-            # ECMAScript codegen modules are used by the full codegen schedule,
-            # so compiling them requires a minimal schedule to avoid cycles.
+            "jaclang.compiler.passes.tool.jac_auto_lint_pass",
+            "jaclang.compiler.passes.tool.jac_formatter_pass",
+            "jaclang.compiler.passes.tool.doc_ir_gen_pass",
+            "jaclang.compiler.passes.tool.doc_ir",
+            "jaclang.compiler.passes.tool.comment_injection_pass",
             "jaclang.compiler.passes.ecmascript.estree",
             "jaclang.compiler.passes.ecmascript.es_unparse",
             "jaclang.compiler.passes.ecmascript.esast_gen_pass",
