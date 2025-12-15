@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
@@ -25,28 +26,46 @@ def auto_lint_fixture_path() -> Callable[[str], str]:
 class TestJacAutoLintPass:
     """Tests for the Jac Auto Lint Pass."""
 
-    def test_simple_extraction(
+    def test_full_extraction(
         self, auto_lint_fixture_path: Callable[[str], str]
     ) -> None:
-        """Test extracting simple assignments from with entry block."""
-        input_path = auto_lint_fixture_path("simple_extraction.jac")
+        """Test extracting all assignments from with entry block."""
+        input_path = auto_lint_fixture_path("extractable.jac")
 
-        # Format with linting enabled (default)
+        # Format with linting enabled
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
         formatted = prog.mod.main.gen.jac
 
-        # Should contain glob declarations
+        # Should contain glob declarations for all extracted values
         assert "glob x = 5;" in formatted
         assert "glob y = " in formatted
         assert "glob z = " in formatted
+        assert "glob int_val" in formatted
+        assert "glob float_val" in formatted
+        assert "glob str_val" in formatted
+        assert "glob bool_val" in formatted
+        assert "glob null_val" in formatted
+        assert "glob list_val" in formatted
+        assert "glob dict_val" in formatted
+        assert "glob tuple_val" in formatted
+        assert "glob set_val" in formatted
+        assert "glob sum_val" in formatted
+        assert "glob product" in formatted
+        assert "glob neg_val" in formatted
+        assert "glob not_val" in formatted
 
         # Should NOT contain with entry block syntax (it was fully extracted)
-        # Note: "with entry" may appear in the docstring, so check for the block syntax
         assert "with entry {" not in formatted
 
+        # Globs should come after imports
+        import_pos = formatted.find("import from os")
+        glob_x_pos = formatted.find("glob x")
+        def_pos = formatted.find("def main")
+        assert import_pos < glob_x_pos < def_pos
+
     def test_no_lint_flag(self, auto_lint_fixture_path: Callable[[str], str]) -> None:
-        """Test that --no-lint preserves with entry blocks."""
-        input_path = auto_lint_fixture_path("simple_extraction.jac")
+        """Test that auto_lint=False preserves with entry blocks."""
+        input_path = auto_lint_fixture_path("extractable.jac")
 
         # Format with linting disabled
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=False)
@@ -55,14 +74,15 @@ class TestJacAutoLintPass:
         # Should still contain with entry block
         assert "with entry" in formatted
 
-        # Should NOT contain glob declarations
+        # Should NOT contain glob declarations for extracted values
         assert "glob x" not in formatted
+        assert "glob int_val" not in formatted
 
-    def test_mixed_statements(
+    def test_mixed_extraction(
         self, auto_lint_fixture_path: Callable[[str], str]
     ) -> None:
         """Test partial extraction when some statements can't be extracted."""
-        input_path = auto_lint_fixture_path("mixed_statements.jac")
+        input_path = auto_lint_fixture_path("mixed_extraction.jac")
 
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
         formatted = prog.mod.main.gen.jac
@@ -75,45 +95,29 @@ class TestJacAutoLintPass:
         assert "with entry" in formatted
         assert "print(" in formatted
 
-    def test_no_extraction_needed(
-        self, auto_lint_fixture_path: Callable[[str], str]
-    ) -> None:
-        """Test file that already uses glob - no changes needed."""
-        input_path = auto_lint_fixture_path("no_extraction_needed.jac")
-
-        prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
-        formatted = prog.mod.main.gen.jac
-
-        # Should preserve existing glob declarations
-        assert "glob x = 5;" in formatted
-        assert "glob y = " in formatted
-        assert "glob z = " in formatted
-
-        # Should NOT have with entry blocks
-        assert "with entry" not in formatted
-
-    def test_complex_values_not_extracted(
+    def test_non_pure_expressions_not_extracted(
         self, auto_lint_fixture_path: Callable[[str], str]
     ) -> None:
         """Test that non-pure expressions are NOT extracted."""
-        input_path = auto_lint_fixture_path("complex_values.jac")
+        input_path = auto_lint_fixture_path("non_extractable.jac")
 
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
         formatted = prog.mod.main.gen.jac
 
-        # Should still have with entry block since nothing can be extracted
-        assert "with entry" in formatted
-
-        # Should NOT have any glob declarations
+        # Non-pure expressions should NOT become globs
         assert "glob result" not in formatted
         assert "glob value" not in formatted
         assert "glob item" not in formatted
+
+        # Should still have with entry block for non-pure expressions
+        # (the first unnamed with entry block)
+        assert "with entry {" in formatted
 
     def test_named_entry_not_modified(
         self, auto_lint_fixture_path: Callable[[str], str]
     ) -> None:
         """Test that named entry blocks are NOT modified."""
-        input_path = auto_lint_fixture_path("named_entry.jac")
+        input_path = auto_lint_fixture_path("non_extractable.jac")
 
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
         formatted = prog.mod.main.gen.jac
@@ -121,53 +125,43 @@ class TestJacAutoLintPass:
         # Named entry block should be preserved
         assert "with entry:__main__" in formatted or "with entry :__main__" in formatted
 
-        # Assignment inside should NOT become glob
-        assert "glob x" not in formatted
+        # Assignment inside named entry should NOT become glob
+        assert "glob named_x" not in formatted
 
-    def test_globs_inserted_after_imports(
+    def test_existing_globs_preserved(
         self, auto_lint_fixture_path: Callable[[str], str]
     ) -> None:
-        """Test that extracted globs are inserted after imports."""
-        input_path = auto_lint_fixture_path("with_imports.jac")
+        """Test file that already uses glob - existing globs are preserved."""
+        input_path = auto_lint_fixture_path("non_extractable.jac")
 
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
         formatted = prog.mod.main.gen.jac
 
-        # Find positions
-        import_pos = formatted.find("import from os")
-        glob_x_pos = formatted.find("glob x")
-        glob_y_pos = formatted.find("glob y")
-        def_pos = formatted.find("def main")
+        # Should preserve existing glob declarations
+        assert "glob existing_x = 5;" in formatted
+        assert "glob existing_y = " in formatted
+        assert "glob existing_z = " in formatted
 
-        # Globs should come after imports but before def
-        assert import_pos < glob_x_pos < def_pos
-        assert import_pos < glob_y_pos < def_pos
-
-        # Should not have with entry block anymore
-        assert "with entry" not in formatted
-
-    def test_pure_expressions(
+    def test_class_entry_not_extracted(
         self, auto_lint_fixture_path: Callable[[str], str]
     ) -> None:
-        """Test various pure expressions that should be extracted."""
-        input_path = auto_lint_fixture_path("pure_expressions.jac")
+        """Test that with entry inside a class body is NOT extracted to glob."""
+        input_path = auto_lint_fixture_path("class_entry.jac")
 
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
         formatted = prog.mod.main.gen.jac
 
-        # All these should be extracted
-        assert "glob int_val" in formatted
-        assert "glob float_val" in formatted
-        assert "glob str_val" in formatted
-        assert "glob bool_val" in formatted
-        assert "glob null_val" in formatted
-        assert "glob list_val" in formatted
-        assert "glob dict_val" in formatted
-        assert "glob sum_val" in formatted
-        assert "glob neg_val" in formatted
+        # Class with entry should be preserved (glob doesn't work in classes)
+        assert "class MyClass" in formatted
 
-        # with entry should be removed (all extracted)
-        assert "with entry" not in formatted
+        # The class should still have its with entry block
+        # Check that class body assignments did NOT become module-level globs
+        assert "glob instance_var" not in formatted
+        assert "glob another_var" not in formatted
+        assert "glob list_var" not in formatted
+
+        # Module-level with entry SHOULD be extracted
+        assert "glob module_var = 100;" in formatted
 
 
 class TestIsPureExpression:
@@ -177,8 +171,6 @@ class TestIsPureExpression:
         """Create a JacAutoLintPass instance for testing."""
         from jaclang.compiler.passes.tool.jac_auto_lint_pass import JacAutoLintPass
 
-        # Create a minimal module for the pass
-        source = uni.Source("", mod_path="test.jac")
         prog = JacProgram()
         # We need to create a stub module
         module = uni.Module.make_stub()
@@ -192,7 +184,7 @@ class TestIsPureExpression:
 
     def test_function_calls_not_pure(self) -> None:
         """Test that function calls are NOT considered pure."""
-        # Covered by complex_values integration test
+        # Covered by non_extractable integration test
         pass
 
 
@@ -200,17 +192,17 @@ class TestFormatCommandIntegration:
     """Integration tests for the format CLI command."""
 
     def test_format_with_lint_default(
-        self, auto_lint_fixture_path: Callable[[str], str], tmp_path
+        self, auto_lint_fixture_path: Callable[[str], str], tmp_path: Path
     ) -> None:
-        """Test that format applies linting by default."""
+        """Test that format applies linting when auto_lint=True."""
         import shutil
 
         # Copy fixture to temp location
-        src = auto_lint_fixture_path("simple_extraction.jac")
+        src = auto_lint_fixture_path("extractable.jac")
         dst = tmp_path / "test.jac"
         shutil.copy(src, dst)
 
-        # Format the file
+        # Format the file with auto_lint enabled
         prog = JacProgram.jac_file_formatter(str(dst), auto_lint=True)
         formatted = prog.mod.main.gen.jac
 
