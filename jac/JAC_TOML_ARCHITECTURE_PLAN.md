@@ -99,6 +99,19 @@ numpy = ">=1.24.0"
 # Git-based dependencies
 my-jac-plugin = { git = "https://github.com/user/plugin.git", branch = "main" }
 
+[dependencies.npm]
+# NPM dependencies for client-side projects (used by jac-client)
+react = "^19.2.0"
+react-dom = "^19.2.0"
+react-router-dom = "^6.30.1"
+
+[dependencies.npm.dev]
+# NPM dev dependencies
+vite = "^6.3.5"
+typescript = "^5.8.3"
+"@types/react" = "^19.2.0"
+"@types/react-dom" = "^19.2.0"
+
 [dev-dependencies]
 pytest = ">=8.2.1"
 pytest-cov = ">=5.0.0"
@@ -286,6 +299,7 @@ temperature = 0.7
 #-------------------------------------------------------------------------------
 # jac-client Plugin Configuration
 # Client-side bundling with Vite for web applications
+# NOTE: jac-client serves as the reference implementation for plugin config hooks
 #-------------------------------------------------------------------------------
 
 [plugins.client]
@@ -331,6 +345,8 @@ https = false
 [plugins.client.vite.resolve]
 # Module aliases (e.g., "@" -> "./src")
 alias = {}
+# File extensions to resolve
+extensions = [".mjs", ".js", ".ts", ".jsx", ".tsx", ".json"]
 
 [plugins.client.vite.optimizeDeps]
 # Dependencies to pre-bundle
@@ -338,6 +354,7 @@ include = []
 exclude = []
 
 [plugins.client.typescript]
+# TypeScript compiler options (maps to tsconfig.json)
 strict = true
 target = "ES2020"
 module = "ESNext"
@@ -346,6 +363,32 @@ jsx = "react-jsx"
 esModuleInterop = true
 skipLibCheck = true
 declaration = true
+declarationMap = false
+sourceMap = true
+noEmit = false
+isolatedModules = true
+allowSyntheticDefaultImports = true
+forceConsistentCasingInFileNames = true
+resolveJsonModule = true
+# Include/exclude patterns for TypeScript compilation
+include = ["src/**/*"]
+exclude = ["node_modules", "dist"]
+
+[plugins.client.package]
+# Package.json metadata (merged with [project] metadata)
+# NPM dependencies should be in [dependencies.npm] section
+name = ""                             # Defaults to project.name
+version = ""                          # Defaults to project.version
+description = ""                      # Defaults to project.description
+main = "dist/index.js"
+types = "dist/index.d.ts"
+private = true
+# Scripts are auto-generated but can be extended
+scripts = {}
+# Additional package.json fields
+keywords = []
+license = ""                          # Defaults to project.license
+repository = ""                       # Defaults to project.urls.repository
 
 #-------------------------------------------------------------------------------
 # jac-scale Plugin Configuration
@@ -1921,6 +1964,8 @@ def is_in_project() -> bool:
 
 ## Migration Strategy
 
+**Note:** This is a clean break from legacy plugin configuration files (e.g., `config.json`, `.env`). The `jac.toml` configuration fully subsumes all plugin configuration - no backward compatibility or dual-loading is provided. Plugins must be updated to use the new hook-based configuration system.
+
 ### Phase 1: Add New Infrastructure (Non-Breaking)
 
 1. Create `jaclang/project/` module
@@ -2056,6 +2101,12 @@ The new system maintains the three-tier approach but adds project-level configur
 - [ ] Add example projects
 - [ ] Update README
 
+### Task 7.5: Python Compatibility
+
+- [ ] Add `tomli` to dependencies for Python <3.11 support
+- [ ] Create compatibility shim: use `tomllib` (stdlib) on 3.11+, `tomli` on 3.10
+- [ ] Test on Python 3.10, 3.11, 3.12
+
 ### Task 8: Environment Variable Interpolation
 
 - [ ] Create `jaclang/project/interpolation.py` module
@@ -2156,19 +2207,30 @@ The new system maintains the three-tier approach but adds project-level configur
 
 ### Task 15: Update Existing Plugins
 
-- [ ] **jac-byllm**: Add `get_config_schema()` hook implementation
-- [ ] **jac-byllm**: Add `get_plugin_metadata()` hook implementation
-- [ ] **jac-byllm**: Add `on_config_loaded()` hook implementation
-- [ ] **jac-byllm**: Add `validate_config()` hook implementation
-- [ ] **jac-byllm**: Update to load config from TOML
-- [ ] **jac-client**: Add `get_config_schema()` hook implementation
-- [ ] **jac-client**: Add `get_plugin_metadata()` hook implementation
-- [ ] **jac-client**: Update to load config from TOML (replace `config.json`)
-- [ ] **jac-scale**: Add `get_config_schema()` hook implementation
-- [ ] **jac-scale**: Add `get_plugin_metadata()` hook implementation
-- [ ] **jac-scale**: Update to load config from TOML (replace `.env`)
-- [ ] **jac-streamlit**: Add `get_config_schema()` hook implementation
-- [ ] **jac-streamlit**: Add `get_plugin_metadata()` hook implementation
+**Note:** jac-client should be implemented first as the **reference implementation** since it has the cleanest existing config infrastructure (JacClientConfig class with defaults, deep merge, lazy loading). All plugins will be updated directly - no backward compatibility with legacy config files.
+
+- [ ] **jac-client** (Reference Implementation - Do First):
+  - [ ] Add `get_config_schema()` hook implementation
+  - [ ] Add `get_plugin_metadata()` hook implementation
+  - [ ] Add `on_config_loaded()` hook implementation
+  - [ ] Add `validate_config()` hook (vite options, port ranges, etc.)
+  - [ ] Remove config.json loading from JacClientConfig (use jac.toml only)
+  - [ ] Update ViteBundler to read from plugin config
+  - [ ] Update PackageInstaller to use [dependencies.npm] section
+- [ ] **jac-byllm**:
+  - [ ] Add `get_config_schema()` hook implementation
+  - [ ] Add `get_plugin_metadata()` hook implementation
+  - [ ] Add `on_config_loaded()` hook implementation
+  - [ ] Add `validate_config()` hook implementation
+- [ ] **jac-scale**:
+  - [ ] Add `get_config_schema()` hook implementation
+  - [ ] Add `get_plugin_metadata()` hook implementation
+  - [ ] Add `on_config_loaded()` hook implementation
+  - [ ] Add `validate_config()` hook (k8s namespace, replicas, etc.)
+- [ ] **jac-streamlit**:
+  - [ ] Add `get_config_schema()` hook implementation
+  - [ ] Add `get_plugin_metadata()` hook implementation
+  - [ ] Add `on_config_loaded()` hook implementation
 - [ ] Write integration tests for each plugin's config loading
 
 ---
@@ -2199,26 +2261,6 @@ Next steps:
   jac run             # Run main.jac
   jac test            # Run tests
   jac install <pkg>   # Add dependencies
-```
-
-### Existing Project Migration
-
-```bash
-$ cd existing-project
-$ jac init --migrate
-
-Detected existing Jac files...
-? Create jac.toml from detected settings? Yes
-? Create virtual environment? Yes
-
-Migrating settings from ~/.jaclang/config.ini...
-Creating jac.toml...
-Creating .jac_env...
-
- Migration complete!
-
-Note: ~/.jaclang/config.ini is now deprecated.
-      All settings have been moved to jac.toml.
 ```
 
 ### Adding Dependencies
@@ -2880,10 +2922,13 @@ class JacScalePlugin:
 | **P0 - Critical** | Plugin config hook system | Medium | High |
 | **P0 - Critical** | Basic CLI commands (init, install, env) | Medium | High |
 | **P1 - High** | Environment variable interpolation | Low | High |
-| **P1 - High** | Update existing plugins with schemas | Medium | High |
+| **P1 - High** | jac-client reference implementation | Low | High |
+| **P1 - High** | Update remaining plugins with schemas | Medium | High |
+| **P1 - High** | NPM dependencies support ([dependencies.npm]) | Low | High |
 | **P2 - Medium** | Configuration profiles | Medium | Medium |
 | **P2 - Medium** | Workspace support | High | Medium |
 | **P2 - Medium** | JSON Schema generation | Low | Medium |
+| **P2 - Medium** | Python 3.10 compatibility (tomli) | Low | Medium |
 | **P3 - Low** | Configuration inheritance | Medium | Low |
 | **P3 - Low** | Hot reload | Medium | Low |
 | **P3 - Low** | Plugin dependencies | Medium | Low |
@@ -2892,30 +2937,30 @@ class JacScalePlugin:
 
 ## Recommended Implementation Order
 
-### Phase 1: Foundation (Weeks 1-2)
+### Phase 1: Foundation
 
-1. Task 1: Core Infrastructure
-2. Task 2: Virtual Environment Management
-3. Task 8: Environment Variable Interpolation (basic)
+1. Task 1: Core Infrastructure (JacConfig, TOML parsing, discovery)
+2. Task 7.5: Python Compatibility (tomli for Python <3.11)
+3. Task 8: Environment Variable Interpolation (basic `${VAR}` support)
 
-### Phase 2: CLI & Integration (Weeks 3-4)
+### Phase 2: CLI & Integration
 
 1. Task 3: New CLI Commands
 2. Task 4: Integrate with Existing Commands
 3. Task 6: Plugin Configuration System
 
-### Phase 3: Plugin Updates (Weeks 5-6)
+### Phase 3: Reference Implementation (jac-client)
 
 1. Task 15: Update Existing Plugins
 2. Task 5: Remove Legacy Settings
 
-### Phase 4: Advanced Features (Weeks 7-8)
+### Phase 4: Remaining Plugins
 
 1. Task 9: Configuration Profiles
 2. Task 10: Workspace Support
 3. Task 13: JSON Schema Generation
 
-### Phase 5: Polish (Week 9+)
+### Phase 5: Advanced Features
 
 1. Task 11: Configuration Inheritance
 2. Task 12: Hot Reload Configuration
