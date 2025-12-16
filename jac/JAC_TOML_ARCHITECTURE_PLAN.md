@@ -2841,34 +2841,34 @@ class JacScalePlugin:
 
 ### Core Functionality
 
-1.  New projects can be created with `jac init`
-2.  Dependencies managed via `jac.toml` and `jac install`
-3.  Virtual environment automatically created and managed
-4.  All existing `jac` commands work with project context
-5.  Settings from `jac.toml` properly loaded and applied
-6.  Legacy `settings.py` completely removed
+1. New projects can be created with `jac init`
+2. Dependencies managed via `jac.toml` and `jac install`
+3. Virtual environment automatically created and managed
+4. All existing `jac` commands work with project context
+5. Settings from `jac.toml` properly loaded and applied
+6. Legacy `settings.py` completely removed
 
 ### Plugin System
 
-7.  Plugins can register configuration schemas via hooks
-2.  Plugin configurations loaded from `[plugins.<name>]` sections
-3.  Plugin configuration validation with helpful error messages
-4.  Plugin dependency resolution and load ordering
+1. Plugins can register configuration schemas via hooks
+2. Plugin configurations loaded from `[plugins.<name>]` sections
+3. Plugin configuration validation with helpful error messages
+4. Plugin dependency resolution and load ordering
 
 ### Developer Experience
 
-11.  Environment variable interpolation for secrets (`${VAR}`)
-2.  Configuration profiles for dev/staging/production (`--env`)
-3.  Workspace support for monorepos (`jac-workspace.toml`)
-4.  Configuration inheritance (`extends` key)
-5.  Hot reload during development (`config_hot_reload`)
-6.  JSON Schema generation for IDE support
+1. Environment variable interpolation for secrets (`${VAR}`)
+2. Configuration profiles for dev/staging/production (`--env`)
+3. Workspace support for monorepos (`jac-workspace.toml`)
+4. Configuration inheritance (`extends` key)
+5. Hot reload during development (`config_hot_reload`)
+6. JSON Schema generation for IDE support
 
 ### Documentation & Testing
 
-17.  Plugin author documentation for config hooks
-2.  User documentation for `jac.toml`
-3.  Comprehensive test coverage
+1. Plugin author documentation for config hooks
+2. User documentation for `jac.toml`
+3. Comprehensive test coverage
 
 ---
 
@@ -2900,24 +2900,24 @@ class JacScalePlugin:
 
 ### Phase 2: CLI & Integration (Weeks 3-4)
 
-4. Task 3: New CLI Commands
+1. Task 3: New CLI Commands
 2. Task 4: Integrate with Existing Commands
 3. Task 6: Plugin Configuration System
 
 ### Phase 3: Plugin Updates (Weeks 5-6)
 
-7. Task 15: Update Existing Plugins
+1. Task 15: Update Existing Plugins
 2. Task 5: Remove Legacy Settings
 
 ### Phase 4: Advanced Features (Weeks 7-8)
 
-9. Task 9: Configuration Profiles
+1. Task 9: Configuration Profiles
 2. Task 10: Workspace Support
 3. Task 13: JSON Schema Generation
 
 ### Phase 5: Polish (Week 9+)
 
-12. Task 11: Configuration Inheritance
+1. Task 11: Configuration Inheritance
 2. Task 12: Hot Reload Configuration
 3. Task 14: Plugin Metadata and Dependencies
 4. Task 7: Documentation and Testing
