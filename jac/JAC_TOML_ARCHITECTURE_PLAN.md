@@ -574,44 +574,13 @@ def is_in_project() -> bool:
 3. Add project settings loading before command execution
 4. Keep `settings.py` working but deprecated
 
-### Phase 3: Deprecate `settings.py`
+### Phase 3: Remove `settings.py`
 
-1. Add deprecation warnings when `~/.jaclang/config.ini` is used
-2. Provide migration guide
-3. Eventually remove `settings.py`
+1. Delete `jaclang/pycore/settings.py` entirely
+2. Delete `~/.jaclang/config.ini` support
+3. Update all internal references to use `JacConfig`
 
-### Backward Compatibility
-
-```python
-# jaclang/pycore/settings.py (deprecated wrapper)
-
-import warnings
-from jaclang.project.config import get_config, SettingsConfig
-
-class Settings:
-    """DEPRECATED: Use jaclang.project.config.JacConfig instead."""
-
-    def __init__(self):
-        warnings.warn(
-            "Settings class is deprecated. Use JacConfig from "
-            "jaclang.project.config instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        self._config = get_config()
-
-    def __getattr__(self, name: str):
-        return getattr(self._config.settings, name)
-
-    def __setattr__(self, name: str, value):
-        if name.startswith('_'):
-            super().__setattr__(name, value)
-        else:
-            setattr(self._config.settings, name, value)
-
-# Keep for backward compatibility
-settings = Settings()
-```
+**Note:** No backward compatibility will be maintained. The old `settings.py` and `~/.jaclang/config.ini` will be completely removed in favor of `jac.toml`.
 
 ---
 
@@ -699,17 +668,27 @@ The new system maintains the three-tier approach but adds project-level configur
 - [ ] Update `serve` command for project server settings
 - [ ] Update `lsp` command for project paths
 
-### Task 5: Deprecation and Migration
+### Task 5: Remove Legacy Settings
 
-- [ ] Create backward-compatible `settings.py` wrapper
-- [ ] Add deprecation warnings
-- [ ] Write migration documentation
-- [ ] Create migration script for existing projects
+- [ ] Delete `jaclang/pycore/settings.py`
+- [ ] Remove `~/.jaclang/config.ini` support
+- [ ] Update all internal imports from `settings` to `JacConfig`
+- [ ] Write migration documentation for users
 
-### Task 6: Documentation and Testing
+### Task 6: Plugin Configuration System
+
+- [ ] Add `get_config_schema`, `on_config_loaded`, `validate_config` hooks to `JacRuntimeInterface`
+- [ ] Create `jaclang/project/plugin_config.py` with `PluginConfigManager`
+- [ ] Integrate plugin config loading into `JacConfig.load()`
+- [ ] Add `jac config` CLI command with subcommands
+- [ ] Update existing plugins (jac-byllm, jac-client, jac-scale) with config schemas
+- [ ] Write plugin author documentation
+
+### Task 7: Documentation and Testing
 
 - [ ] Write user documentation for `jac.toml`
 - [ ] Document all new CLI commands
+- [ ] Document plugin configuration interface for plugin authors
 - [ ] Add integration tests
 - [ ] Add example projects
 - [ ] Update README
@@ -828,6 +807,425 @@ $ jac run other.jac --port 9000
 
 ---
 
+## Plugin Configuration Interface
+
+This section describes how plugins can register their own configuration options that will be loaded from `jac.toml` and made available through the configuration system.
+
+### Current Plugin Architecture
+
+The current plugin system in `runtime.py` uses `pluggy` for hook-based extensibility:
+
+```python
+plugin_manager = pluggy.PluginManager("jac")
+hookspec = pluggy.HookspecMarker("jac")
+hookimpl = pluggy.HookimplMarker("jac")
+```
+
+Plugins implement hooks defined in `JacRuntimeInterface` and are loaded via setuptools entry points:
+
+```python
+# In jaclang/__init__.py
+plugin_manager.register(JacRuntimeImpl)
+plugin_manager.load_setuptools_entrypoints("jac")
+```
+
+### New Plugin Configuration Hook
+
+Add a new hook specification for plugins to declare their configuration schema:
+
+```python
+# jaclang/pycore/runtime.py - Add to JacRuntimeInterface
+
+class JacPluginConfig:
+    """Plugin configuration hooks."""
+
+    @staticmethod
+    @hookspec
+    def get_config_schema() -> dict[str, Any] | None:
+        """Return the plugin's configuration schema.
+
+        Returns a dictionary describing configuration options:
+        {
+            "section_name": "byllm",  # Section in jac.toml [plugins.byllm]
+            "options": {
+                "option_name": {
+                    "type": "str" | "int" | "bool" | "list" | "dict",
+                    "default": <default_value>,
+                    "description": "Human readable description",
+                    "required": False,
+                    "choices": ["opt1", "opt2"],  # Optional: valid values
+                    "env_var": "JAC_BYLLM_OPTION",  # Optional: env var override
+                }
+            }
+        }
+        """
+        return None
+
+    @staticmethod
+    @hookspec
+    def on_config_loaded(config: dict[str, Any]) -> None:
+        """Called when plugin configuration is loaded.
+
+        Args:
+            config: The plugin's configuration section from jac.toml
+        """
+        pass
+
+    @staticmethod
+    @hookspec
+    def validate_config(config: dict[str, Any]) -> list[str]:
+        """Validate plugin configuration.
+
+        Args:
+            config: The plugin's configuration section
+
+        Returns:
+            List of validation error messages (empty if valid)
+        """
+        return []
+```
+
+### Plugin Configuration Registration
+
+Plugins register their configuration schema at load time:
+
+```python
+# Example: jac-byllm/byllm/plugin.py
+
+from jaclang.pycore.runtime import hookimpl
+from typing import Any
+
+class ByllmPlugin:
+    """LLM integration plugin."""
+
+    @staticmethod
+    @hookimpl
+    def get_config_schema() -> dict[str, Any]:
+        return {
+            "section_name": "byllm",
+            "options": {
+                "default_model": {
+                    "type": "str",
+                    "default": "gpt-4",
+                    "description": "Default LLM model to use",
+                    "env_var": "JAC_BYLLM_MODEL",
+                },
+                "temperature": {
+                    "type": "float",
+                    "default": 0.7,
+                    "description": "Default temperature for LLM calls",
+                    "env_var": "JAC_BYLLM_TEMPERATURE",
+                },
+                "max_tokens": {
+                    "type": "int",
+                    "default": 4096,
+                    "description": "Maximum tokens per response",
+                },
+                "api_key_env": {
+                    "type": "str",
+                    "default": "OPENAI_API_KEY",
+                    "description": "Environment variable containing API key",
+                },
+                "retry_attempts": {
+                    "type": "int",
+                    "default": 3,
+                    "description": "Number of retry attempts on failure",
+                },
+                "cache_responses": {
+                    "type": "bool",
+                    "default": True,
+                    "description": "Cache LLM responses for identical prompts",
+                },
+            }
+        }
+
+    @staticmethod
+    @hookimpl
+    def on_config_loaded(config: dict[str, Any]) -> None:
+        """Initialize plugin with loaded configuration."""
+        ByllmPlugin._config = config
+        # Initialize LLM client with config values
+        ByllmPlugin._init_client()
+
+    @staticmethod
+    @hookimpl
+    def validate_config(config: dict[str, Any]) -> list[str]:
+        """Validate byllm configuration."""
+        errors = []
+        if config.get("temperature", 0.7) < 0 or config.get("temperature", 0.7) > 2:
+            errors.append("temperature must be between 0 and 2")
+        if config.get("max_tokens", 4096) < 1:
+            errors.append("max_tokens must be positive")
+        return errors
+```
+
+### Configuration in jac.toml
+
+Plugin configurations appear under `[plugins.<section_name>]`:
+
+```toml
+# jac.toml
+
+[plugins]
+# List of enabled/disabled plugins
+enabled = ["byllm", "client", "scale"]
+disabled = []
+
+[plugins.byllm]
+default_model = "gpt-4-turbo"
+temperature = 0.5
+max_tokens = 8192
+cache_responses = true
+retry_attempts = 5
+
+[plugins.client]
+bundle_output_dir = "dist/client"
+minify = true
+source_maps = false
+
+[plugins.scale]
+kubernetes_namespace = "jac-prod"
+auto_scale = true
+min_replicas = 2
+max_replicas = 10
+```
+
+### Plugin Configuration Loading Flow
+
+```python
+# jaclang/project/plugin_config.py
+
+from typing import Any, Dict, List
+from jaclang.pycore.runtime import plugin_manager
+
+class PluginConfigManager:
+    """Manages plugin configuration loading and validation."""
+
+    def __init__(self):
+        self._schemas: Dict[str, dict] = {}
+        self._configs: Dict[str, dict] = {}
+
+    def collect_schemas(self) -> None:
+        """Collect configuration schemas from all registered plugins."""
+        results = plugin_manager.hook.get_config_schema()
+        for schema in results:
+            if schema:
+                section = schema.get("section_name")
+                if section:
+                    self._schemas[section] = schema
+
+    def load_from_toml(self, plugins_section: dict) -> None:
+        """Load plugin configurations from jac.toml [plugins] section."""
+        for section_name, schema in self._schemas.items():
+            raw_config = plugins_section.get(section_name, {})
+
+            # Apply defaults
+            config = {}
+            for opt_name, opt_spec in schema.get("options", {}).items():
+                if opt_name in raw_config:
+                    config[opt_name] = self._coerce_type(
+                        raw_config[opt_name],
+                        opt_spec.get("type", "str")
+                    )
+                else:
+                    config[opt_name] = opt_spec.get("default")
+
+            # Apply environment variable overrides
+            for opt_name, opt_spec in schema.get("options", {}).items():
+                env_var = opt_spec.get("env_var")
+                if env_var:
+                    import os
+                    env_value = os.getenv(env_var)
+                    if env_value is not None:
+                        config[opt_name] = self._coerce_type(
+                            env_value,
+                            opt_spec.get("type", "str")
+                        )
+
+            self._configs[section_name] = config
+
+    def validate_all(self) -> List[str]:
+        """Validate all plugin configurations."""
+        all_errors = []
+        for section_name, config in self._configs.items():
+            # Call plugin's validate_config hook
+            errors = plugin_manager.hook.validate_config(config=config)
+            for error_list in errors:
+                if error_list:
+                    for err in error_list:
+                        all_errors.append(f"[plugins.{section_name}] {err}")
+        return all_errors
+
+    def notify_plugins(self) -> None:
+        """Notify plugins that configuration has been loaded."""
+        for section_name, config in self._configs.items():
+            plugin_manager.hook.on_config_loaded(config=config)
+
+    def get_plugin_config(self, section_name: str) -> dict:
+        """Get configuration for a specific plugin."""
+        return self._configs.get(section_name, {})
+
+    def _coerce_type(self, value: Any, type_name: str) -> Any:
+        """Coerce a value to the specified type."""
+        if type_name == "int":
+            return int(value)
+        elif type_name == "float":
+            return float(value)
+        elif type_name == "bool":
+            if isinstance(value, str):
+                return value.lower() in ("true", "yes", "1", "t", "y")
+            return bool(value)
+        elif type_name == "list":
+            if isinstance(value, str):
+                return [v.strip() for v in value.split(",")]
+            return list(value)
+        return value
+```
+
+### Integration with JacConfig
+
+```python
+# jaclang/project/config.py
+
+from jaclang.project.plugin_config import PluginConfigManager
+
+@dataclass
+class JacConfig:
+    """Main configuration class for Jac projects."""
+
+    # ... existing fields ...
+
+    plugin_manager: PluginConfigManager = field(
+        default_factory=PluginConfigManager
+    )
+
+    def load_plugin_configs(self, plugins_section: dict) -> None:
+        """Load and validate plugin configurations."""
+        self.plugin_manager.collect_schemas()
+        self.plugin_manager.load_from_toml(plugins_section)
+
+        # Validate all plugin configs
+        errors = self.plugin_manager.validate_all()
+        if errors:
+            for err in errors:
+                print(f"Warning: {err}", file=sys.stderr)
+
+        # Notify plugins
+        self.plugin_manager.notify_plugins()
+
+    def get_plugin_config(self, plugin_name: str) -> dict:
+        """Get configuration for a specific plugin."""
+        return self.plugin_manager.get_plugin_config(plugin_name)
+```
+
+### Plugin Configuration Access
+
+Plugins can access their configuration at runtime:
+
+```python
+# In plugin code
+from jaclang.project.config import get_config
+
+def my_plugin_function():
+    config = get_config()
+    my_config = config.get_plugin_config("my_plugin")
+
+    model = my_config.get("default_model", "gpt-4")
+    temperature = my_config.get("temperature", 0.7)
+    # Use configuration values...
+```
+
+### CLI for Plugin Configuration
+
+```bash
+# List all plugin configuration options
+jac config plugins
+
+# Show specific plugin configuration
+jac config plugins byllm
+
+# Set a plugin configuration value
+jac config set plugins.byllm.temperature 0.5
+
+# Validate all configurations
+jac config validate
+```
+
+### Implementation Tasks for Plugin Configuration
+
+- [ ] Add `get_config_schema`, `on_config_loaded`, `validate_config` hooks to `JacRuntimeInterface`
+- [ ] Create `jaclang/project/plugin_config.py` with `PluginConfigManager`
+- [ ] Integrate plugin config loading into `JacConfig.load()`
+- [ ] Add `jac config` CLI commands
+- [ ] Update existing plugins (jac-byllm, jac-client, jac-scale) with config schemas
+- [ ] Write documentation for plugin authors
+- [ ] Add unit tests for plugin configuration system
+
+### Example: jac-scale Plugin Configuration
+
+```python
+# jac-scale/jac_scale/plugin.py
+
+from jaclang.pycore.runtime import hookimpl
+
+class JacScalePlugin:
+
+    @staticmethod
+    @hookimpl
+    def get_config_schema() -> dict:
+        return {
+            "section_name": "scale",
+            "options": {
+                "kubernetes_namespace": {
+                    "type": "str",
+                    "default": "default",
+                    "description": "Kubernetes namespace for deployments",
+                    "env_var": "JAC_K8S_NAMESPACE",
+                },
+                "auto_scale": {
+                    "type": "bool",
+                    "default": False,
+                    "description": "Enable automatic scaling",
+                },
+                "min_replicas": {
+                    "type": "int",
+                    "default": 1,
+                    "description": "Minimum number of replicas",
+                },
+                "max_replicas": {
+                    "type": "int",
+                    "default": 5,
+                    "description": "Maximum number of replicas",
+                },
+                "cpu_threshold": {
+                    "type": "int",
+                    "default": 80,
+                    "description": "CPU threshold percentage for scaling",
+                },
+                "storage_class": {
+                    "type": "str",
+                    "default": "standard",
+                    "description": "Kubernetes storage class",
+                    "choices": ["standard", "ssd", "premium"],
+                },
+            }
+        }
+
+    @staticmethod
+    @hookimpl
+    def validate_config(config: dict) -> list[str]:
+        errors = []
+        min_r = config.get("min_replicas", 1)
+        max_r = config.get("max_replicas", 5)
+        if min_r > max_r:
+            errors.append("min_replicas cannot be greater than max_replicas")
+        if config.get("cpu_threshold", 80) < 1 or config.get("cpu_threshold", 80) > 100:
+            errors.append("cpu_threshold must be between 1 and 100")
+        return errors
+```
+
+---
+
 ## Open Questions
 
 1. **Workspace Support**: Should we support multi-project workspaces (like Cargo workspaces)?
@@ -849,6 +1247,7 @@ $ jac run other.jac --port 9000
 3. Virtual environment automatically created and managed
 4. All existing `jac` commands work with project context
 5. Settings from `jac.toml` properly loaded and applied
-6. Backward compatibility with existing projects
-7. Clear migration path documented
-8. Comprehensive test coverage
+6. Legacy `settings.py` completely removed
+7. Plugins can register and use their own configuration options
+8. Clear migration documentation for users
+9. Comprehensive test coverage
