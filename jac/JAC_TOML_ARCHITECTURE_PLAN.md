@@ -908,6 +908,7 @@ Profiles can be selected via:
 1. **CLI flag**: `jac run --env production`
 2. **Environment variable**: `JAC_ENV=production jac run`
 3. **Config file**: Set default in `jac.toml`:
+
    ```toml
    [environment]
    default_profile = "development"
@@ -1667,10 +1668,10 @@ jac plugins info byllm
 jac plugins list
 # Output:
 # Installed Plugins:
-#   ✓ byllm (0.4.8) - enabled
-#   ✓ client (0.2.3) - enabled
-#   ✗ scale (0.1.0) - disabled
-#   ✓ streamlit (0.0.5) - enabled
+#    byllm (0.4.8) - enabled
+#    client (0.2.3) - enabled
+#    scale (0.1.0) - disabled
+#    streamlit (0.0.5) - enabled
 
 # Show plugin load order
 jac plugins order
@@ -2805,6 +2806,7 @@ class JacScalePlugin:
 5. **Shell Integration**: Should `jac env activate` modify the current shell, or just print instructions?
 
    **Decision: PRINT INSTRUCTIONS** - Following the pattern of `poetry shell` and `pipenv shell`:
+
    ```bash
    $ jac env activate
    # To activate the environment, run:
@@ -2813,6 +2815,7 @@ class JacScalePlugin:
    # Or use this shortcut:
    eval $(jac env activate --shell)
    ```
+
    Direct shell modification is not possible from a subprocess.
 
 ---
@@ -2837,31 +2840,35 @@ class JacScalePlugin:
 ## Success Criteria
 
 ### Core Functionality
-1. ✅ New projects can be created with `jac init`
-2. ✅ Dependencies managed via `jac.toml` and `jac install`
-3. ✅ Virtual environment automatically created and managed
-4. ✅ All existing `jac` commands work with project context
-5. ✅ Settings from `jac.toml` properly loaded and applied
-6. ✅ Legacy `settings.py` completely removed
+
+1.  New projects can be created with `jac init`
+2.  Dependencies managed via `jac.toml` and `jac install`
+3.  Virtual environment automatically created and managed
+4.  All existing `jac` commands work with project context
+5.  Settings from `jac.toml` properly loaded and applied
+6.  Legacy `settings.py` completely removed
 
 ### Plugin System
-7. ✅ Plugins can register configuration schemas via hooks
-8. ✅ Plugin configurations loaded from `[plugins.<name>]` sections
-9. ✅ Plugin configuration validation with helpful error messages
-10. ✅ Plugin dependency resolution and load ordering
+
+7.  Plugins can register configuration schemas via hooks
+2.  Plugin configurations loaded from `[plugins.<name>]` sections
+3.  Plugin configuration validation with helpful error messages
+4.  Plugin dependency resolution and load ordering
 
 ### Developer Experience
-11. ✅ Environment variable interpolation for secrets (`${VAR}`)
-12. ✅ Configuration profiles for dev/staging/production (`--env`)
-13. ✅ Workspace support for monorepos (`jac-workspace.toml`)
-14. ✅ Configuration inheritance (`extends` key)
-15. ✅ Hot reload during development (`config_hot_reload`)
-16. ✅ JSON Schema generation for IDE support
+
+11.  Environment variable interpolation for secrets (`${VAR}`)
+2.  Configuration profiles for dev/staging/production (`--env`)
+3.  Workspace support for monorepos (`jac-workspace.toml`)
+4.  Configuration inheritance (`extends` key)
+5.  Hot reload during development (`config_hot_reload`)
+6.  JSON Schema generation for IDE support
 
 ### Documentation & Testing
-17. ✅ Plugin author documentation for config hooks
-18. ✅ User documentation for `jac.toml`
-19. ✅ Comprehensive test coverage
+
+17.  Plugin author documentation for config hooks
+2.  User documentation for `jac.toml`
+3.  Comprehensive test coverage
 
 ---
 
@@ -2886,26 +2893,31 @@ class JacScalePlugin:
 ## Recommended Implementation Order
 
 ### Phase 1: Foundation (Weeks 1-2)
+
 1. Task 1: Core Infrastructure
 2. Task 2: Virtual Environment Management
 3. Task 8: Environment Variable Interpolation (basic)
 
 ### Phase 2: CLI & Integration (Weeks 3-4)
+
 4. Task 3: New CLI Commands
-5. Task 4: Integrate with Existing Commands
-6. Task 6: Plugin Configuration System
+2. Task 4: Integrate with Existing Commands
+3. Task 6: Plugin Configuration System
 
 ### Phase 3: Plugin Updates (Weeks 5-6)
+
 7. Task 15: Update Existing Plugins
-8. Task 5: Remove Legacy Settings
+2. Task 5: Remove Legacy Settings
 
 ### Phase 4: Advanced Features (Weeks 7-8)
+
 9. Task 9: Configuration Profiles
-10. Task 10: Workspace Support
-11. Task 13: JSON Schema Generation
+2. Task 10: Workspace Support
+3. Task 13: JSON Schema Generation
 
 ### Phase 5: Polish (Week 9+)
+
 12. Task 11: Configuration Inheritance
-13. Task 12: Hot Reload Configuration
-14. Task 14: Plugin Metadata and Dependencies
-15. Task 7: Documentation and Testing
+2. Task 12: Hot Reload Configuration
+3. Task 14: Plugin Metadata and Dependencies
+4. Task 7: Documentation and Testing
