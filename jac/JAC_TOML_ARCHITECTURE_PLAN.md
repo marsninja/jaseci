@@ -11,7 +11,8 @@ This document outlines a comprehensive plan to introduce `jac.toml` as the centr
 3. **Dependency Management**: First-class Jac and Python dependency declaration and installation
 4. **Project Initialization**: `jac init` command for project scaffolding
 5. **Environment Detection**: All `jac` commands auto-detect and use project environment
-6. **Backward Compatibility**: Graceful migration path from current settings system
+
+**Note**: This is a clean break from the legacy `settings.py` and `~/.jaclang/config.ini` system. No backward compatibility is maintained. All plugins in this repository will be updated directly to use the new configuration system.
 
 ---
 
@@ -59,6 +60,10 @@ The current system uses a dataclass-based approach with three-tier loading:
 ```toml
 # jac.toml - Jac Project Configuration
 
+#===============================================================================
+# PROJECT METADATA
+#===============================================================================
+
 [project]
 name = "my-jac-project"
 version = "0.1.0"
@@ -74,11 +79,17 @@ homepage = "https://example.com"
 repository = "https://github.com/user/repo"
 documentation = "https://docs.example.com"
 
+#===============================================================================
+# DEPENDENCIES
+#===============================================================================
+
 # Dependencies section - supports both Jac plugins and Python packages
 [dependencies]
 # Jac plugins (from PyPI or git)
 jac-byllm = ">=0.4.8"
 jac-client = ">=0.2.3"
+jac-scale = ">=0.1.0"
+jac-streamlit = ">=0.0.5"
 
 # Python dependencies
 requests = ">=2.28.0"
@@ -92,7 +103,10 @@ my-jac-plugin = { git = "https://github.com/user/plugin.git", branch = "main" }
 pytest = ">=8.2.1"
 pytest-cov = ">=5.0.0"
 
-# All settings from current settings.py + expansions
+#===============================================================================
+# CORE SETTINGS (from settings.py)
+#===============================================================================
+
 [settings]
 # Compiler settings
 max_line_length = 88
@@ -113,22 +127,34 @@ lsp_debug = false
 # Alert settings
 all_warnings = false
 
-# NEW: Cache settings
+# Cache settings
 cache_enabled = true
 cache_dir = ".jac_cache"
 
-# NEW: Output settings
+# Output settings
 output_dir = "dist"
+
+# Configuration behavior
+config_hot_reload = false         # Reload config on file change (dev mode)
+config_watch_interval = 1.0       # Seconds between config file checks
 
 [settings.paths]
 # Module search paths (replaces JACPATH env var)
 include = ["src", "lib", "vendor"]
+
+#===============================================================================
+# ENVIRONMENT
+#===============================================================================
 
 [environment]
 # Virtual environment configuration
 python_version = "3.11"           # Minimum Python version
 env_dir = ".jac_env"              # Environment directory name
 auto_activate = true              # Auto-activate on jac commands
+
+#===============================================================================
+# BUILD CONFIGURATION
+#===============================================================================
 
 [build]
 # Build configuration
@@ -146,6 +172,10 @@ type_stubs = true
 module_format = "esm"             # esm | cjs
 minify = false
 
+#===============================================================================
+# TEST CONFIGURATION
+#===============================================================================
+
 [test]
 # Test configuration
 directory = "tests"
@@ -153,6 +183,12 @@ pattern = "test_*.jac"
 verbose = false
 fail_fast = false
 max_failures = 0                  # 0 = unlimited
+coverage = false
+coverage_report = "html"          # html | xml | json | term
+
+#===============================================================================
+# SERVER CONFIGURATION
+#===============================================================================
 
 [serve]
 # Server configuration
@@ -160,6 +196,12 @@ port = 8000
 host = "0.0.0.0"
 reload = true                     # Hot reload on file changes
 cors_origins = ["*"]
+cors_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+cors_headers = ["*"]
+
+#===============================================================================
+# FORMATTER CONFIGURATION
+#===============================================================================
 
 [format]
 # Formatter configuration
@@ -167,16 +209,314 @@ max_line_length = 88
 indent_size = 4
 use_tabs = false
 auto_lint = false                 # Apply linting during format
+exclude = [".jac_env", "node_modules", "dist", ".jac_cache"]
+
+#===============================================================================
+# PLUGIN SYSTEM CONFIGURATION
+#===============================================================================
 
 [plugins]
-# Plugin configuration
-enabled = ["byllm", "client"]
-disabled = []
+# Plugin discovery and loading
+discovery = "auto"                # "auto" | "explicit"
+                                  # auto: Load all installed plugins except disabled
+                                  # explicit: Only load enabled plugins
+enabled = []                      # For explicit mode: plugins to load
+disabled = []                     # For auto mode: plugins to skip
+load_order = []                   # Optional: explicit load order for hook priority
+
+#-------------------------------------------------------------------------------
+# jac-byllm Plugin Configuration
+# LLM integration for the `by` operator and AI-powered features
+#-------------------------------------------------------------------------------
 
 [plugins.byllm]
-# Plugin-specific configuration
+# Model settings
 default_model = "gpt-4"
 temperature = 0.7
+max_tokens = 4096
+top_p = 1.0
+frequency_penalty = 0.0
+presence_penalty = 0.0
+
+# API configuration
+api_base_url = ""                 # Custom API endpoint (leave empty for default)
+api_key_env = "OPENAI_API_KEY"    # Environment variable containing API key
+timeout_seconds = 60
+retry_attempts = 3
+retry_delay_seconds = 1
+
+# Caching
+cache_enabled = true
+cache_dir = ".jac_cache/llm"
+cache_ttl_seconds = 3600          # Cache time-to-live
+
+# Logging (use with caution - may log sensitive data)
+log_prompts = false
+log_responses = false
+
+# Plugin metadata
+depends_on = []                   # No plugin dependencies
+conflicts_with = []
+
+[plugins.byllm.logging]
+level = "INFO"                    # DEBUG | INFO | WARNING | ERROR
+file = ""                         # Optional: log file path
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Multi-model support - define named model configurations
+[plugins.byllm.models.claude]
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+api_base_url = ""
+temperature = 0.7
+max_tokens = 4096
+
+[plugins.byllm.models.local]
+model = "ollama/llama2"
+api_base_url = "http://localhost:11434"
+api_key_env = ""                  # Local models typically don't need keys
+temperature = 0.8
+
+[plugins.byllm.models.azure]
+model = "azure/gpt-4"
+api_key_env = "AZURE_API_KEY"
+api_base_url = "${AZURE_OPENAI_ENDPOINT}"  # Environment variable interpolation
+temperature = 0.7
+
+#-------------------------------------------------------------------------------
+# jac-client Plugin Configuration
+# Client-side bundling with Vite for web applications
+#-------------------------------------------------------------------------------
+
+[plugins.client]
+# Output settings
+bundle_output_dir = "dist/client"
+source_maps = true
+minify = false
+
+# Asset handling
+asset_dir = "assets"
+public_dir = "public"
+
+# Plugin metadata
+depends_on = []
+conflicts_with = []
+
+[plugins.client.logging]
+level = "INFO"
+file = ""
+
+[plugins.client.vite]
+# Vite plugins to load (npm package names)
+plugins = []
+
+# Additional library imports for vite.config.js
+lib_imports = []
+
+[plugins.client.vite.build]
+outDir = "dist/client"
+sourcemap = true
+minify = "esbuild"                # "esbuild" | "terser" | false
+target = "es2020"
+cssCodeSplit = true
+chunkSizeWarningLimit = 500
+
+[plugins.client.vite.server]
+port = 5173
+host = "localhost"
+open = false
+strictPort = false
+https = false
+
+[plugins.client.vite.resolve]
+# Module aliases (e.g., "@" -> "./src")
+alias = {}
+
+[plugins.client.vite.optimizeDeps]
+# Dependencies to pre-bundle
+include = []
+exclude = []
+
+[plugins.client.typescript]
+strict = true
+target = "ES2020"
+module = "ESNext"
+moduleResolution = "bundler"
+jsx = "react-jsx"
+esModuleInterop = true
+skipLibCheck = true
+declaration = true
+
+#-------------------------------------------------------------------------------
+# jac-scale Plugin Configuration
+# Kubernetes and Docker deployment for scalable Jac applications
+#-------------------------------------------------------------------------------
+
+[plugins.scale]
+# Kubernetes settings
+kubernetes_namespace = "default"
+kubernetes_context = ""           # Optional: specific k8s context to use
+kubernetes_config_path = ""       # Optional: path to kubeconfig file
+
+# Docker settings
+docker_registry = ""              # Docker registry URL (e.g., "gcr.io/my-project")
+docker_tag_prefix = "jac-"
+dockerfile_path = ""              # Custom Dockerfile path (auto-generated if empty)
+
+# Scaling settings
+auto_scale = false
+min_replicas = 1
+max_replicas = 5
+cpu_threshold = 80                # CPU percentage to trigger scale-up
+memory_threshold = 80             # Memory percentage to trigger scale-up
+scale_up_cooldown = 60            # Seconds to wait before scaling up again
+scale_down_cooldown = 300         # Seconds to wait before scaling down
+
+# Resource limits
+cpu_request = "100m"
+cpu_limit = "1000m"
+memory_request = "128Mi"
+memory_limit = "512Mi"
+
+# Database settings (support environment variable interpolation)
+mongodb_uri = "${MONGODB_URI}"
+redis_url = "${REDIS_URL}"
+
+# Authentication settings
+jwt_secret_env = "JAC_JWT_SECRET" # Env var name containing JWT secret
+jwt_algorithm = "HS256"
+jwt_expiration_hours = 24
+
+# Plugin metadata
+depends_on = []
+conflicts_with = []
+
+[plugins.scale.logging]
+level = "INFO"
+file = ""
+
+[plugins.scale.healthcheck]
+enabled = true
+path = "/health"
+interval_seconds = 30
+timeout_seconds = 5
+failure_threshold = 3
+
+[plugins.scale.ingress]
+enabled = false
+host = ""                         # e.g., "myapp.example.com"
+tls_enabled = false
+tls_secret_name = ""
+annotations = {}
+
+#-------------------------------------------------------------------------------
+# jac-streamlit Plugin Configuration
+# Streamlit integration for data visualization and dashboards
+#-------------------------------------------------------------------------------
+
+[plugins.streamlit]
+# Page configuration
+theme = "light"                   # "light" | "dark"
+page_layout = "wide"              # "wide" | "centered"
+page_icon = ""                    # Emoji or path to icon file
+page_title = ""                   # Browser tab title
+initial_sidebar_state = "auto"    # "auto" | "expanded" | "collapsed"
+
+# Server settings
+server_port = 8501
+server_address = "localhost"
+server_headless = true            # Run without opening browser
+
+# Features
+enable_xsrf_protection = true
+enable_cors = false
+enable_websocket_compression = true
+max_upload_size = 200             # MB
+
+# Plugin metadata
+depends_on = []
+conflicts_with = []
+
+[plugins.streamlit.logging]
+level = "INFO"
+file = ""
+
+[plugins.streamlit.theme_config]
+# Custom theme colors (optional)
+primaryColor = ""
+backgroundColor = ""
+secondaryBackgroundColor = ""
+textColor = ""
+font = ""                         # "sans serif" | "serif" | "monospace"
+
+#===============================================================================
+# ENVIRONMENT PROFILES
+#===============================================================================
+
+# Environment-specific configuration overrides
+# Use with: jac run --env production
+
+[environments.development]
+# Development overrides
+[environments.development.settings]
+show_internal_stack_errs = true
+all_warnings = true
+config_hot_reload = true
+
+[environments.development.serve]
+reload = true
+host = "127.0.0.1"
+
+[environments.development.plugins.byllm]
+log_prompts = true
+log_responses = true
+cache_enabled = false
+
+[environments.development.plugins.scale]
+auto_scale = false
+min_replicas = 1
+max_replicas = 1
+
+[environments.staging]
+# Staging overrides
+[environments.staging.serve]
+reload = false
+host = "0.0.0.0"
+
+[environments.staging.plugins.scale]
+kubernetes_namespace = "staging"
+auto_scale = true
+min_replicas = 1
+max_replicas = 3
+
+[environments.production]
+# Production overrides
+[environments.production.settings]
+show_internal_stack_errs = false
+all_warnings = false
+config_hot_reload = false
+
+[environments.production.serve]
+reload = false
+host = "0.0.0.0"
+cors_origins = ["https://myapp.example.com"]
+
+[environments.production.plugins.byllm]
+log_prompts = false
+log_responses = false
+cache_enabled = true
+retry_attempts = 5
+
+[environments.production.plugins.scale]
+kubernetes_namespace = "production"
+auto_scale = true
+min_replicas = 3
+max_replicas = 10
+cpu_threshold = 70
+
+#===============================================================================
+# CUSTOM SCRIPTS
+#===============================================================================
 
 [scripts]
 # Custom scripts (like npm scripts)
@@ -184,6 +524,8 @@ dev = "jac run main.jac --watch"
 build = "jac build main.jac"
 test = "jac test tests/"
 lint = "jac format . --check"
+deploy-staging = "jac scale --env staging"
+deploy-prod = "jac scale --env production"
 ```
 
 ---
@@ -316,6 +658,1026 @@ All existing commands (`run`, `build`, `test`, `format`, `serve`, etc.) will:
 2. **Auto-activate** `.jac_env/` if present
 3. **Load settings** from `jac.toml` (overridable by CLI args)
 4. **Use project paths** for module resolution
+5. **Support `--env` flag** to load environment-specific overrides
+
+### `jac config`
+
+Manage and inspect configuration.
+
+```bash
+# Show current resolved configuration
+jac config show
+
+# Show specific section
+jac config show plugins.byllm
+
+# Show resolved value (with env var interpolation)
+jac config resolve plugins.scale.mongodb_uri
+
+# Validate configuration
+jac config validate
+
+# List all plugin configuration schemas
+jac config plugins
+
+# Show specific plugin schema
+jac config plugins byllm
+
+# Set a configuration value
+jac config set plugins.byllm.temperature 0.5
+
+# Generate JSON Schema for IDE support
+jac config schema > jac-toml-schema.json
+
+# Edit config interactively
+jac config edit
+```
+
+### `jac workspace`
+
+Manage multi-project workspaces.
+
+```bash
+# Initialize a workspace
+jac workspace init
+
+# List workspace members
+jac workspace list
+
+# Add a project to workspace
+jac workspace add ./packages/my-plugin
+
+# Run command across all workspace members
+jac workspace run test
+
+# Install dependencies for all members
+jac workspace install
+```
+
+---
+
+## Environment Variable Interpolation
+
+Values in `jac.toml` can reference environment variables using special syntax. This is critical for managing secrets and environment-specific configuration.
+
+### Syntax
+
+| Syntax | Behavior |
+|--------|----------|
+| `${VAR_NAME}` | Required - fails if not set |
+| `${VAR_NAME:-default}` | Optional with default value |
+| `${VAR_NAME:?error message}` | Required with custom error message |
+
+### Examples
+
+```toml
+[plugins.scale]
+# Required environment variables
+mongodb_uri = "${MONGODB_URI}"
+jwt_secret = "${JAC_JWT_SECRET:?JWT secret must be set}"
+
+# Optional with defaults
+debug_mode = "${DEBUG:-false}"
+log_level = "${LOG_LEVEL:-INFO}"
+
+# Nested in URLs
+api_base_url = "https://${API_HOST:-localhost}:${API_PORT:-8080}/api"
+
+[plugins.byllm]
+# Reference env var name (alternative pattern for sensitive data)
+api_key_env = "OPENAI_API_KEY"  # Plugin reads from this env var at runtime
+```
+
+### Implementation
+
+```python
+# jaclang/project/interpolation.py
+
+import os
+import re
+from typing import Any
+
+ENV_VAR_PATTERN = re.compile(
+    r'\$\{(?P<name>[A-Z_][A-Z0-9_]*)'
+    r'(?:(?P<op>:[-?])(?P<value>[^}]*))?\}'
+)
+
+def interpolate_value(value: Any, context: dict = None) -> Any:
+    """Interpolate environment variables in a value.
+
+    Args:
+        value: The value to interpolate (string, dict, or list)
+        context: Optional context dict for additional variables
+
+    Returns:
+        The interpolated value
+
+    Raises:
+        ValueError: If required env var is not set
+    """
+    if isinstance(value, str):
+        return _interpolate_string(value, context)
+    elif isinstance(value, dict):
+        return {k: interpolate_value(v, context) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [interpolate_value(item, context) for item in value]
+    return value
+
+def _interpolate_string(text: str, context: dict = None) -> str:
+    """Interpolate environment variables in a string."""
+    def replace(match):
+        name = match.group('name')
+        op = match.group('op')
+        default_or_msg = match.group('value')
+
+        # Check context first, then environment
+        if context and name in context:
+            return str(context[name])
+
+        env_value = os.environ.get(name)
+
+        if env_value is not None:
+            return env_value
+
+        if op == ':-':
+            # Default value
+            return default_or_msg if default_or_msg else ''
+        elif op == ':?':
+            # Required with error message
+            msg = default_or_msg or f"Environment variable {name} is not set"
+            raise ValueError(msg)
+        else:
+            # Required (no operator)
+            raise ValueError(f"Required environment variable {name} is not set")
+
+    return ENV_VAR_PATTERN.sub(replace, text)
+
+def validate_interpolation(config: dict) -> list[str]:
+    """Validate that all required environment variables are set.
+
+    Returns list of error messages for missing required variables.
+    """
+    errors = []
+
+    def check_value(value: Any, path: str):
+        if isinstance(value, str):
+            for match in ENV_VAR_PATTERN.finditer(value):
+                name = match.group('name')
+                op = match.group('op')
+                if op != ':-' and name not in os.environ:
+                    errors.append(f"{path}: Missing required env var ${name}")
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                check_value(v, f"{path}.{k}")
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                check_value(item, f"{path}[{i}]")
+
+    check_value(config, "jac.toml")
+    return errors
+```
+
+### CLI Support
+
+```bash
+# Show resolved configuration with interpolated values
+jac config resolve
+
+# Validate all environment variables are set
+jac config validate --check-env
+
+# Show which env vars are required
+jac config env-vars
+# Output:
+# Required:
+#   MONGODB_URI (plugins.scale.mongodb_uri)
+#   JAC_JWT_SECRET (plugins.scale.jwt_secret)
+# Optional (with defaults):
+#   DEBUG=false (plugins.scale.debug_mode)
+#   LOG_LEVEL=INFO (plugins.scale.log_level)
+```
+
+---
+
+## Configuration Profiles (Environments)
+
+Support different configurations for development, staging, and production environments.
+
+### Profile Definition
+
+Profiles are defined under `[environments.<name>]` and can override any configuration value:
+
+```toml
+# Base configuration (always applied)
+[settings]
+show_internal_stack_errs = false
+
+[serve]
+port = 8000
+
+[plugins.byllm]
+temperature = 0.7
+
+# Development profile
+[environments.development]
+# Nested overrides
+[environments.development.settings]
+show_internal_stack_errs = true
+all_warnings = true
+
+[environments.development.serve]
+reload = true
+port = 3000
+
+[environments.development.plugins.byllm]
+log_prompts = true
+
+# Production profile
+[environments.production.serve]
+reload = false
+host = "0.0.0.0"
+
+[environments.production.plugins.scale]
+min_replicas = 3
+```
+
+### Profile Selection
+
+Profiles can be selected via:
+
+1. **CLI flag**: `jac run --env production`
+2. **Environment variable**: `JAC_ENV=production jac run`
+3. **Config file**: Set default in `jac.toml`:
+   ```toml
+   [environment]
+   default_profile = "development"
+   ```
+
+### Profile Inheritance
+
+Profiles can inherit from other profiles:
+
+```toml
+[environments.staging]
+inherits = "production"  # Start with production settings
+
+# Then override specific values
+[environments.staging.plugins.scale]
+kubernetes_namespace = "staging"
+min_replicas = 1
+```
+
+### Implementation
+
+```python
+# jaclang/project/profiles.py
+
+from typing import Any, Dict, Optional
+from copy import deepcopy
+
+def merge_configs(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Deep merge override into base config."""
+    result = deepcopy(base)
+
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = merge_configs(result[key], value)
+        else:
+            result[key] = deepcopy(value)
+
+    return result
+
+def resolve_profile(
+    config: Dict[str, Any],
+    profile_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """Resolve configuration with profile overrides.
+
+    Args:
+        config: Full parsed jac.toml config
+        profile_name: Name of profile to apply (e.g., "production")
+
+    Returns:
+        Merged configuration with profile overrides applied
+    """
+    # Start with base config (excluding environments section)
+    result = {k: v for k, v in config.items() if k != 'environments'}
+
+    if not profile_name:
+        return result
+
+    environments = config.get('environments', {})
+
+    if profile_name not in environments:
+        raise ValueError(f"Unknown profile: {profile_name}")
+
+    profile = environments[profile_name]
+
+    # Handle inheritance
+    if 'inherits' in profile:
+        parent_name = profile['inherits']
+        result = resolve_profile(config, parent_name)
+        profile = {k: v for k, v in profile.items() if k != 'inherits'}
+
+    # Merge profile overrides
+    return merge_configs(result, profile)
+```
+
+---
+
+## Workspace Support
+
+Support for monorepos and multi-project setups using `jac-workspace.toml`.
+
+### Workspace Configuration
+
+```toml
+# jac-workspace.toml (in repository root)
+
+[workspace]
+# Member projects (glob patterns supported)
+members = [
+    "packages/*",
+    "apps/web",
+    "apps/api",
+    "plugins/jac-*",
+]
+
+# Exclude patterns
+exclude = [
+    "packages/deprecated-*",
+]
+
+# Shared settings for all members
+[workspace.settings]
+max_line_length = 100
+filter_sym_builtins = true
+
+# Shared dependencies (inherited by all members)
+[workspace.dependencies]
+jaclang = ">=0.9.3"
+
+[workspace.dev-dependencies]
+pytest = ">=8.0.0"
+
+# Shared plugin configuration
+[workspace.plugins.byllm]
+default_model = "gpt-4"
+cache_enabled = true
+```
+
+### Member Project Configuration
+
+Individual `jac.toml` files can extend workspace settings:
+
+```toml
+# packages/my-plugin/jac.toml
+
+[project]
+name = "my-plugin"
+version = "1.0.0"
+
+# Inherit from workspace
+extends = "workspace"  # Special keyword to inherit workspace settings
+
+# Override specific settings
+[settings]
+max_line_length = 120  # Override workspace default
+
+# Add project-specific dependencies
+[dependencies]
+requests = ">=2.28.0"
+```
+
+### Workspace Commands
+
+```bash
+# Initialize workspace
+jac workspace init
+
+# List all workspace members
+jac workspace list
+# Output:
+# Workspace: my-monorepo
+# Members:
+#   - packages/core (jac-core@1.0.0)
+#   - packages/utils (jac-utils@0.5.0)
+#   - apps/web (web-app@2.0.0)
+
+# Run command in all members
+jac workspace run test
+jac workspace run build
+
+# Run command in specific members
+jac workspace run test --filter "packages/*"
+
+# Install all workspace dependencies
+jac workspace install
+
+# Add dependency to workspace
+jac workspace add numpy --workspace  # Add to workspace.dependencies
+jac workspace add pytest --dev       # Add to workspace.dev-dependencies
+
+# Check workspace consistency
+jac workspace check
+# Verifies:
+#   - All members have valid jac.toml
+#   - No conflicting dependency versions
+#   - All extends references are valid
+```
+
+### Workspace Discovery
+
+```python
+# jaclang/project/workspace.py
+
+from pathlib import Path
+from typing import Optional, List, Tuple
+import tomllib
+from glob import glob
+
+WORKSPACE_FILE = "jac-workspace.toml"
+
+def find_workspace_root(start: Path = None) -> Optional[Path]:
+    """Find workspace root by looking for jac-workspace.toml."""
+    if start is None:
+        start = Path.cwd()
+
+    current = start.resolve()
+
+    while current != current.parent:
+        if (current / WORKSPACE_FILE).exists():
+            return current
+        current = current.parent
+
+    return None
+
+def get_workspace_members(workspace_root: Path) -> List[Tuple[Path, dict]]:
+    """Get all workspace member projects.
+
+    Returns:
+        List of (project_path, parsed_jac_toml) tuples
+    """
+    workspace_toml = workspace_root / WORKSPACE_FILE
+    with open(workspace_toml, 'rb') as f:
+        workspace_config = tomllib.load(f)
+
+    members = []
+    patterns = workspace_config.get('workspace', {}).get('members', [])
+    excludes = workspace_config.get('workspace', {}).get('exclude', [])
+
+    for pattern in patterns:
+        for path in glob(str(workspace_root / pattern)):
+            project_path = Path(path)
+            jac_toml = project_path / 'jac.toml'
+
+            if not jac_toml.exists():
+                continue
+
+            # Check exclusions
+            rel_path = project_path.relative_to(workspace_root)
+            if any(rel_path.match(exc) for exc in excludes):
+                continue
+
+            with open(jac_toml, 'rb') as f:
+                project_config = tomllib.load(f)
+
+            members.append((project_path, project_config))
+
+    return members
+
+def resolve_workspace_config(
+    project_config: dict,
+    workspace_config: dict
+) -> dict:
+    """Resolve project config with workspace inheritance."""
+    if project_config.get('extends') != 'workspace':
+        return project_config
+
+    # Start with workspace settings
+    result = {}
+    workspace_settings = workspace_config.get('workspace', {})
+
+    for key in ['settings', 'dependencies', 'dev-dependencies', 'plugins']:
+        if key in workspace_settings:
+            result[key] = deepcopy(workspace_settings[key])
+
+    # Merge project-specific settings
+    for key, value in project_config.items():
+        if key == 'extends':
+            continue
+        if key in result and isinstance(result[key], dict):
+            result[key] = merge_configs(result[key], value)
+        else:
+            result[key] = value
+
+    return result
+```
+
+---
+
+## Configuration Inheritance
+
+Projects can inherit configuration from parent files.
+
+### Syntax
+
+```toml
+# Inherit from parent directory's jac.toml
+extends = "../jac.toml"
+
+# Inherit from user-level shared config
+extends = "~/.jaclang/shared.toml"
+
+# Inherit from workspace
+extends = "workspace"
+
+# Multiple inheritance (processed in order)
+extends = ["~/.jaclang/base.toml", "../common.toml"]
+```
+
+### Resolution Order
+
+1. Base file(s) specified in `extends` (in order)
+2. Current `jac.toml` values (override inherited values)
+3. Environment profile overrides (if `--env` specified)
+4. Environment variable overrides
+5. CLI argument overrides
+
+---
+
+## Hot Reload Configuration
+
+Support automatic configuration reloading during development.
+
+### Enable Hot Reload
+
+```toml
+[settings]
+config_hot_reload = true           # Enable hot reload
+config_watch_interval = 1.0        # Check every 1 second
+config_watch_debounce = 0.5        # Wait for file to stabilize
+```
+
+### Plugin Hook for Config Changes
+
+```python
+# In JacRuntimeInterface (runtime.py)
+
+@staticmethod
+@hookspec
+def on_config_changed(
+    old_config: dict[str, Any],
+    new_config: dict[str, Any],
+    changed_keys: list[str]
+) -> None:
+    """Called when configuration is hot-reloaded.
+
+    Args:
+        old_config: Previous configuration values
+        new_config: New configuration values
+        changed_keys: List of dot-notation keys that changed
+                     (e.g., ["plugins.byllm.temperature", "serve.port"])
+    """
+    pass
+```
+
+### Implementation
+
+```python
+# jaclang/project/watcher.py
+
+import threading
+import time
+from pathlib import Path
+from typing import Callable, Optional
+import hashlib
+
+class ConfigWatcher:
+    """Watch jac.toml for changes and trigger reloads."""
+
+    def __init__(
+        self,
+        config_path: Path,
+        on_change: Callable[[dict, dict, list], None],
+        interval: float = 1.0,
+        debounce: float = 0.5
+    ):
+        self.config_path = config_path
+        self.on_change = on_change
+        self.interval = interval
+        self.debounce = debounce
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._last_hash: Optional[str] = None
+        self._last_change_time: float = 0
+
+    def start(self):
+        """Start watching for config changes."""
+        self._last_hash = self._compute_hash()
+        self._thread = threading.Thread(target=self._watch_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        """Stop watching."""
+        self._stop.set()
+        if self._thread:
+            self._thread.join()
+
+    def _compute_hash(self) -> str:
+        """Compute hash of config file."""
+        if not self.config_path.exists():
+            return ""
+        content = self.config_path.read_bytes()
+        return hashlib.sha256(content).hexdigest()
+
+    def _watch_loop(self):
+        """Main watch loop."""
+        while not self._stop.is_set():
+            time.sleep(self.interval)
+
+            current_hash = self._compute_hash()
+            if current_hash != self._last_hash:
+                # File changed, wait for debounce
+                now = time.time()
+                if now - self._last_change_time < self.debounce:
+                    continue
+
+                self._last_change_time = now
+                self._last_hash = current_hash
+
+                # Reload and notify
+                try:
+                    self._reload_and_notify()
+                except Exception as e:
+                    print(f"Error reloading config: {e}")
+
+    def _reload_and_notify(self):
+        """Reload config and notify listeners."""
+        from jaclang.project.config import JacConfig, get_config
+
+        old_config = get_config()._to_dict()
+        new_config_obj = JacConfig.load(self.config_path)
+        new_config = new_config_obj._to_dict()
+
+        # Find changed keys
+        changed_keys = self._find_changed_keys(old_config, new_config)
+
+        if changed_keys:
+            # Update global config
+            from jaclang.project.config import _set_config
+            _set_config(new_config_obj)
+
+            # Notify via hook
+            from jaclang.pycore.runtime import plugin_manager
+            plugin_manager.hook.on_config_changed(
+                old_config=old_config,
+                new_config=new_config,
+                changed_keys=changed_keys
+            )
+
+    def _find_changed_keys(
+        self,
+        old: dict,
+        new: dict,
+        prefix: str = ""
+    ) -> list[str]:
+        """Find all keys that changed between two configs."""
+        changed = []
+        all_keys = set(old.keys()) | set(new.keys())
+
+        for key in all_keys:
+            full_key = f"{prefix}.{key}" if prefix else key
+            old_val = old.get(key)
+            new_val = new.get(key)
+
+            if old_val != new_val:
+                if isinstance(old_val, dict) and isinstance(new_val, dict):
+                    changed.extend(self._find_changed_keys(old_val, new_val, full_key))
+                else:
+                    changed.append(full_key)
+
+        return changed
+```
+
+---
+
+## JSON Schema Generation
+
+Generate JSON Schema for IDE support (autocomplete, validation).
+
+### CLI Command
+
+```bash
+# Generate full schema
+jac config schema > jac-toml-schema.json
+
+# Generate schema for specific section
+jac config schema --section plugins.byllm
+
+# Generate schema including all installed plugins
+jac config schema --include-plugins
+```
+
+### Schema Structure
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://jac-lang.org/schemas/jac-toml.json",
+  "title": "Jac Project Configuration",
+  "description": "Schema for jac.toml configuration file",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+",
+          "description": "Project version (semver)"
+        }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "properties": {
+        "byllm": {
+          "$ref": "#/definitions/plugins/byllm"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "plugins": {
+      "byllm": {
+        "type": "object",
+        "properties": {
+          "default_model": {
+            "type": "string",
+            "default": "gpt-4",
+            "description": "Default LLM model"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 0.7,
+            "description": "Temperature for LLM calls"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Implementation
+
+```python
+# jaclang/project/schema.py
+
+from typing import Any, Dict
+from jaclang.pycore.runtime import plugin_manager
+
+def generate_json_schema(include_plugins: bool = True) -> Dict[str, Any]:
+    """Generate JSON Schema for jac.toml."""
+    schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "$id": "https://jac-lang.org/schemas/jac-toml.json",
+        "title": "Jac Project Configuration",
+        "type": "object",
+        "properties": {},
+        "definitions": {"plugins": {}}
+    }
+
+    # Add core sections
+    schema["properties"]["project"] = _project_schema()
+    schema["properties"]["settings"] = _settings_schema()
+    schema["properties"]["environment"] = _environment_schema()
+    schema["properties"]["dependencies"] = _dependencies_schema()
+    schema["properties"]["plugins"] = {"type": "object", "properties": {}}
+
+    # Add plugin schemas
+    if include_plugins:
+        results = plugin_manager.hook.get_config_schema()
+        for plugin_schema in results:
+            if plugin_schema:
+                section_name = plugin_schema.get("section_name")
+                if section_name:
+                    json_schema = _convert_plugin_schema(plugin_schema)
+                    schema["definitions"]["plugins"][section_name] = json_schema
+                    schema["properties"]["plugins"]["properties"][section_name] = {
+                        "$ref": f"#/definitions/plugins/{section_name}"
+                    }
+
+    return schema
+
+def _convert_plugin_schema(plugin_schema: dict) -> dict:
+    """Convert plugin config schema to JSON Schema format."""
+    properties = {}
+    required = []
+
+    for opt_name, opt_spec in plugin_schema.get("options", {}).items():
+        prop = {
+            "description": opt_spec.get("description", "")
+        }
+
+        # Map types
+        type_map = {
+            "str": "string",
+            "int": "integer",
+            "float": "number",
+            "bool": "boolean",
+            "list": "array",
+            "dict": "object"
+        }
+        prop["type"] = type_map.get(opt_spec.get("type", "str"), "string")
+
+        if "default" in opt_spec:
+            prop["default"] = opt_spec["default"]
+
+        if "choices" in opt_spec:
+            prop["enum"] = opt_spec["choices"]
+
+        if opt_spec.get("required", False):
+            required.append(opt_name)
+
+        properties[opt_name] = prop
+
+    result = {"type": "object", "properties": properties}
+    if required:
+        result["required"] = required
+
+    return result
+```
+
+### VS Code Integration
+
+Create `.vscode/settings.json` for schema association:
+
+```json
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["jac.toml"],
+      "url": "./jac-toml-schema.json"
+    }
+  ],
+  "evenBetterToml.schema.associations": {
+    "jac.toml": "./jac-toml-schema.json"
+  }
+}
+```
+
+---
+
+## Plugin Dependency and Metadata System
+
+Plugins can declare dependencies on other plugins and provide metadata.
+
+### Plugin Metadata Hook
+
+```python
+# jaclang/pycore/runtime.py - Add to JacRuntimeInterface
+
+@staticmethod
+@hookspec
+def get_plugin_metadata() -> dict[str, Any] | None:
+    """Return plugin metadata including dependencies.
+
+    Returns:
+        {
+            "name": "byllm",
+            "version": "0.4.8",
+            "description": "LLM integration for Jac",
+            "author": "Jaseci Team",
+            "homepage": "https://github.com/Jaseci-Labs/jaseci",
+
+            # Python package dependencies
+            "requires": ["litellm>=1.75.5", "loguru>=0.7.2"],
+
+            # Jac plugin dependencies
+            "plugin_depends_on": [],  # e.g., ["client"] if depends on jac-client
+
+            # Plugins that conflict with this one
+            "conflicts_with": [],
+
+            # Minimum jaclang version
+            "jac_version": ">=0.9.3",
+
+            # Configuration schema version (for migrations)
+            "config_schema_version": "1.0"
+        }
+    """
+    return None
+```
+
+### Plugin Dependency Resolution
+
+```python
+# jaclang/project/plugin_deps.py
+
+from typing import Dict, List, Set
+from dataclasses import dataclass
+
+@dataclass
+class PluginInfo:
+    name: str
+    version: str
+    depends_on: List[str]
+    conflicts_with: List[str]
+
+def resolve_plugin_load_order(
+    plugins: Dict[str, PluginInfo],
+    enabled: List[str]
+) -> List[str]:
+    """Resolve plugin load order based on dependencies.
+
+    Args:
+        plugins: Dict mapping plugin name to PluginInfo
+        enabled: List of enabled plugin names
+
+    Returns:
+        Ordered list of plugin names to load
+
+    Raises:
+        ValueError: If circular dependency or conflict detected
+    """
+    # Build dependency graph
+    graph: Dict[str, Set[str]] = {}
+    for name in enabled:
+        if name in plugins:
+            deps = set(plugins[name].depends_on) & set(enabled)
+            graph[name] = deps
+        else:
+            graph[name] = set()
+
+    # Topological sort
+    result = []
+    visited = set()
+    temp_visited = set()
+
+    def visit(node: str):
+        if node in temp_visited:
+            raise ValueError(f"Circular dependency detected involving {node}")
+        if node in visited:
+            return
+
+        temp_visited.add(node)
+        for dep in graph.get(node, []):
+            visit(dep)
+        temp_visited.remove(node)
+        visited.add(node)
+        result.append(node)
+
+    for name in enabled:
+        visit(name)
+
+    # Check for conflicts
+    for name in result:
+        if name in plugins:
+            for conflict in plugins[name].conflicts_with:
+                if conflict in result:
+                    raise ValueError(
+                        f"Plugin {name} conflicts with {conflict}"
+                    )
+
+    return result
+```
+
+### CLI Commands
+
+```bash
+# Show plugin info
+jac plugins info byllm
+# Output:
+# Plugin: byllm (v0.4.8)
+# Description: LLM integration for Jac
+# Requires: litellm>=1.75.5, loguru>=0.7.2
+# Plugin Dependencies: none
+# Conflicts With: none
+# Config Schema Version: 1.0
+
+# List all plugins
+jac plugins list
+# Output:
+# Installed Plugins:
+#   ✓ byllm (0.4.8) - enabled
+#   ✓ client (0.2.3) - enabled
+#   ✗ scale (0.1.0) - disabled
+#   ✓ streamlit (0.0.5) - enabled
+
+# Show plugin load order
+jac plugins order
+
+# Check plugin compatibility
+jac plugins check
+```
 
 ---
 
@@ -693,6 +2055,121 @@ The new system maintains the three-tier approach but adds project-level configur
 - [ ] Add example projects
 - [ ] Update README
 
+### Task 8: Environment Variable Interpolation
+
+- [ ] Create `jaclang/project/interpolation.py` module
+- [ ] Implement `${VAR}` syntax parsing and resolution
+- [ ] Implement `${VAR:-default}` optional syntax
+- [ ] Implement `${VAR:?error}` required with message syntax
+- [ ] Add recursive interpolation for nested dicts/lists
+- [ ] Add `jac config resolve` command to show resolved values
+- [ ] Add `jac config env-vars` command to list required env vars
+- [ ] Add `--check-env` flag to `jac config validate`
+- [ ] Write unit tests for all interpolation patterns
+- [ ] Document environment variable syntax in user docs
+
+### Task 9: Configuration Profiles (Environments)
+
+- [ ] Create `jaclang/project/profiles.py` module
+- [ ] Implement `[environments.<name>]` section parsing
+- [ ] Implement deep config merging for profile overrides
+- [ ] Implement profile inheritance (`inherits` key)
+- [ ] Add `--env` flag to all CLI commands
+- [ ] Support `JAC_ENV` environment variable for profile selection
+- [ ] Add `default_profile` setting in `[environment]` section
+- [ ] Validate profile names and inheritance chains
+- [ ] Write unit tests for profile resolution
+- [ ] Document profile system in user docs
+
+### Task 10: Workspace Support
+
+- [ ] Create `jaclang/project/workspace.py` module
+- [ ] Implement `jac-workspace.toml` file format
+- [ ] Implement workspace root discovery
+- [ ] Implement glob pattern matching for workspace members
+- [ ] Implement workspace config inheritance (`extends = "workspace"`)
+- [ ] Add `jac workspace init` command
+- [ ] Add `jac workspace list` command
+- [ ] Add `jac workspace run` command (execute across members)
+- [ ] Add `jac workspace install` command
+- [ ] Add `jac workspace add` command
+- [ ] Add `jac workspace check` command (consistency validation)
+- [ ] Support `--filter` flag for selective member operations
+- [ ] Write unit tests for workspace operations
+- [ ] Document workspace setup and usage
+
+### Task 11: Configuration Inheritance
+
+- [ ] Implement `extends` key parsing in `jac.toml`
+- [ ] Support relative path inheritance (`extends = "../jac.toml"`)
+- [ ] Support absolute path inheritance (`extends = "~/.jaclang/shared.toml"`)
+- [ ] Support workspace inheritance (`extends = "workspace"`)
+- [ ] Support multiple inheritance (`extends = ["base.toml", "common.toml"]`)
+- [ ] Implement inheritance chain resolution and cycle detection
+- [ ] Define clear resolution order documentation
+- [ ] Write unit tests for inheritance scenarios
+
+### Task 12: Hot Reload Configuration
+
+- [ ] Create `jaclang/project/watcher.py` module
+- [ ] Implement `ConfigWatcher` class with file monitoring
+- [ ] Add `config_hot_reload` setting to `[settings]`
+- [ ] Add `config_watch_interval` setting
+- [ ] Add `config_watch_debounce` setting
+- [ ] Add `on_config_changed` hook to `JacRuntimeInterface`
+- [ ] Implement change detection and diff calculation
+- [ ] Notify plugins of configuration changes
+- [ ] Handle reload errors gracefully
+- [ ] Write unit tests for watcher functionality
+- [ ] Document hot reload feature and limitations
+
+### Task 13: JSON Schema Generation
+
+- [ ] Create `jaclang/project/schema.py` module
+- [ ] Implement core section schemas (project, settings, environment, etc.)
+- [ ] Implement plugin schema collection from `get_config_schema` hook
+- [ ] Implement schema conversion from plugin format to JSON Schema
+- [ ] Add `jac config schema` command
+- [ ] Add `--section` flag for partial schema generation
+- [ ] Add `--include-plugins` flag (default true)
+- [ ] Generate VS Code settings.json snippet for schema association
+- [ ] Publish schema to jac-lang.org/schemas
+- [ ] Write unit tests for schema generation
+- [ ] Document IDE integration setup
+
+### Task 14: Plugin Metadata and Dependencies
+
+- [ ] Add `get_plugin_metadata` hook to `JacRuntimeInterface`
+- [ ] Create `jaclang/project/plugin_deps.py` module
+- [ ] Implement plugin dependency graph construction
+- [ ] Implement topological sort for load order
+- [ ] Implement conflict detection
+- [ ] Add `jac plugins list` command
+- [ ] Add `jac plugins info <name>` command
+- [ ] Add `jac plugins order` command
+- [ ] Add `jac plugins check` command
+- [ ] Add `depends_on` and `conflicts_with` to plugin TOML config
+- [ ] Update all existing plugins with metadata hooks
+- [ ] Write unit tests for dependency resolution
+- [ ] Document plugin dependency system for authors
+
+### Task 15: Update Existing Plugins
+
+- [ ] **jac-byllm**: Add `get_config_schema()` hook implementation
+- [ ] **jac-byllm**: Add `get_plugin_metadata()` hook implementation
+- [ ] **jac-byllm**: Add `on_config_loaded()` hook implementation
+- [ ] **jac-byllm**: Add `validate_config()` hook implementation
+- [ ] **jac-byllm**: Update to load config from TOML
+- [ ] **jac-client**: Add `get_config_schema()` hook implementation
+- [ ] **jac-client**: Add `get_plugin_metadata()` hook implementation
+- [ ] **jac-client**: Update to load config from TOML (replace `config.json`)
+- [ ] **jac-scale**: Add `get_config_schema()` hook implementation
+- [ ] **jac-scale**: Add `get_plugin_metadata()` hook implementation
+- [ ] **jac-scale**: Update to load config from TOML (replace `.env`)
+- [ ] **jac-streamlit**: Add `get_config_schema()` hook implementation
+- [ ] **jac-streamlit**: Add `get_plugin_metadata()` hook implementation
+- [ ] Write integration tests for each plugin's config loading
+
 ---
 
 ## Example Workflows
@@ -773,37 +2250,102 @@ $ jac run other.jac --port 9000
 
 ## Files to Create/Modify
 
-### New Files
+### New Files - Core Project Module
 
 | File | Description |
 |------|-------------|
-| `jaclang/project/__init__.py` | Module exports |
-| `jaclang/project/config.py` | `JacConfig` class |
-| `jaclang/project/toml_parser.py` | TOML parsing and validation |
-| `jaclang/project/environment.py` | `JacEnvironment` class |
-| `jaclang/project/dependencies.py` | Dependency resolution |
-| `jaclang/project/lockfile.py` | Lock file management |
-| `jaclang/project/discovery.py` | Project root discovery |
-| `jaclang/project/templates/` | Project templates |
+| `jaclang/project/__init__.py` | Module exports and public API |
+| `jaclang/project/config.py` | `JacConfig` class - main configuration |
+| `jaclang/project/toml_parser.py` | TOML parsing and schema validation |
+| `jaclang/project/environment.py` | `JacEnvironment` class - venv management |
+| `jaclang/project/dependencies.py` | Dependency resolution and installation |
+| `jaclang/project/lockfile.py` | `jac.lock` file management |
+| `jaclang/project/discovery.py` | Project root and workspace discovery |
+| `jaclang/project/interpolation.py` | Environment variable interpolation |
+| `jaclang/project/profiles.py` | Configuration profiles (dev/staging/prod) |
+| `jaclang/project/workspace.py` | Workspace support (`jac-workspace.toml`) |
+| `jaclang/project/watcher.py` | Config file hot reload watcher |
+| `jaclang/project/schema.py` | JSON Schema generation |
+| `jaclang/project/plugin_config.py` | `PluginConfigManager` class |
+| `jaclang/project/plugin_deps.py` | Plugin dependency resolution |
+| `jaclang/project/templates/` | Project templates directory |
+| `jaclang/project/templates/default/` | Default project template |
+| `jaclang/project/templates/web-app/` | Web application template |
+| `jaclang/project/templates/library/` | Library/plugin template |
+
+### New Files - CLI Commands
+
+| File | Description |
+|------|-------------|
+| `jaclang/cli/commands/__init__.py` | Commands module exports |
 | `jaclang/cli/commands/init.py` | `jac init` implementation |
 | `jaclang/cli/commands/install.py` | `jac install` implementation |
 | `jaclang/cli/commands/env.py` | `jac env` implementation |
+| `jaclang/cli/commands/add.py` | `jac add` implementation |
+| `jaclang/cli/commands/remove.py` | `jac remove` implementation |
 | `jaclang/cli/commands/script.py` | `jac script` implementation |
+| `jaclang/cli/commands/config.py` | `jac config` implementation |
+| `jaclang/cli/commands/workspace.py` | `jac workspace` implementation |
+| `jaclang/cli/commands/plugins.py` | `jac plugins` implementation |
+
+### New Files - Plugin Updates
+
+| File | Description |
+|------|-------------|
+| `jac-byllm/byllm/config_schema.py` | byllm plugin config schema |
+| `jac-client/jac_client/config_schema.py` | client plugin config schema |
+| `jac-scale/jac_scale/config_schema.py` | scale plugin config schema |
+| `jac-streamlit/jaclang_streamlit/config_schema.py` | streamlit plugin config schema |
+
+### New Files - Documentation & Schemas
+
+| File | Description |
+|------|-------------|
+| `docs/configuration/jac-toml.md` | User documentation for jac.toml |
+| `docs/configuration/plugins.md` | Plugin configuration documentation |
+| `docs/plugins/config-hooks.md` | Plugin author config documentation |
+| `schemas/jac-toml-schema.json` | JSON Schema for IDE support |
+| `schemas/jac-workspace-schema.json` | JSON Schema for workspace files |
 
 ### Modified Files
 
 | File | Changes |
 |------|---------|
-| `jaclang/cli/cli.jac` | Add new commands, project detection |
-| `jaclang/pycore/settings.py` | Deprecate, wrap `JacConfig` |
-| `jaclang/__init__.py` | Initialize project config |
+| `jaclang/cli/cli.jac` | Add new commands, project detection, `--env` flag |
+| `jaclang/pycore/settings.py` | Deprecate, wrap `JacConfig` (Phase 2) |
+| `jaclang/pycore/runtime.py` | Add new plugin hooks (`get_config_schema`, `get_plugin_metadata`, `on_config_loaded`, `validate_config`, `on_config_changed`) |
+| `jaclang/__init__.py` | Initialize project config, load plugin configs |
+| `jaclang/cli/cmdreg.jac` | Register new commands |
 | `pyproject.toml` | Add tomllib dependency (stdlib in 3.11+) |
+
+### Modified Files - Plugins
+
+| File | Changes |
+|------|---------|
+| `jac-byllm/byllm/plugin.jac` | Add config hook implementations |
+| `jac-byllm/pyproject.toml` | Update entry points for config hooks |
+| `jac-client/jac_client/plugin/client.jac` | Add config hook implementations, replace JSON config loading |
+| `jac-client/pyproject.toml` | Update entry points for config hooks |
+| `jac-scale/jac_scale/plugin.py` | Add config hook implementations |
+| `jac-scale/pyproject.toml` | Update entry points for config hooks |
+| `jac-streamlit/jaclang_streamlit/commands.py` | Add config hook implementations |
+| `jac-streamlit/pyproject.toml` | Update entry points for config hooks |
 
 ### Removed Files (Phase 3)
 
 | File | Replacement |
 |------|-------------|
 | `jaclang/pycore/settings.py` | `jaclang/project/config.py` |
+| `~/.jaclang/config.ini` | `jac.toml` (project-level) |
+
+### New Project Files (Generated by `jac init`)
+
+| File | Description |
+|------|-------------|
+| `jac.toml` | Project configuration |
+| `jac.lock` | Dependency lock file |
+| `.jac_env/` | Virtual environment directory |
+| `jac-workspace.toml` | Workspace configuration (monorepos only) |
 
 ---
 
@@ -1226,28 +2768,144 @@ class JacScalePlugin:
 
 ---
 
-## Open Questions
+## Open Questions (Resolved)
 
 1. **Workspace Support**: Should we support multi-project workspaces (like Cargo workspaces)?
 
+   **Decision: YES** - Implemented via `jac-workspace.toml`. This is essential for the jaseci monorepo structure and allows shared configuration across plugins. See "Workspace Support" section for full specification.
+
 2. **Lock File Strategy**: Should `jac.lock` be committed to git? (Recommended: yes, for reproducibility)
+
+   **Decision: YES** - Lock files should be committed for reproducible builds. The lock file includes:
+   - Package versions with hashes
+   - Platform information
+   - Config hash for change detection
+   - Plugin config schema versions
 
 3. **Plugin Configuration**: How deeply should plugins be configurable via `jac.toml`?
 
+   **Decision: FULLY CONFIGURABLE** - Plugins define their own configuration schema via the `get_config_schema()` hook. This allows:
+   - All plugin settings in `[plugins.<name>]` section
+   - Type validation and defaults
+   - Environment variable overrides
+   - Per-environment profile overrides
+   - IDE autocomplete via JSON Schema generation
+
+   See complete plugin schemas for jac-byllm, jac-client, jac-scale, and jac-streamlit in the "Complete Schema" section.
+
 4. **Remote Registries**: Should we have a Jac-specific package registry, or rely entirely on PyPI?
 
+   **Decision: PyPI ONLY (for now)** - Continue using PyPI for package distribution. A Jac-specific registry could be considered in the future for:
+   - Pure Jac packages (not Python)
+   - Faster discovery of Jac plugins
+   - Curated/verified plugin listings
+
+   **Future consideration**: Add `[registries]` section for custom registries when needed.
+
 5. **Shell Integration**: Should `jac env activate` modify the current shell, or just print instructions?
+
+   **Decision: PRINT INSTRUCTIONS** - Following the pattern of `poetry shell` and `pipenv shell`:
+   ```bash
+   $ jac env activate
+   # To activate the environment, run:
+   source /path/to/project/.jac_env/bin/activate
+
+   # Or use this shortcut:
+   eval $(jac env activate --shell)
+   ```
+   Direct shell modification is not possible from a subprocess.
+
+---
+
+## Remaining Open Questions
+
+1. **Configuration Schema Versioning**: How should we handle breaking changes to plugin configuration schemas?
+   - Option A: Automatic migration with `config_schema_version`
+   - Option B: Manual migration via `jac migrate-config`
+   - Option C: Both (auto-migrate when possible, prompt otherwise)
+
+2. **Secrets Management**: Should we integrate with external secrets managers (Vault, AWS Secrets Manager)?
+   - Current approach: Environment variable interpolation (`${SECRET}`)
+   - Future: Optional integration with secrets backends
+
+3. **Remote Configuration**: Should we support loading configuration from remote URLs?
+   - Use case: Shared team configurations
+   - Security implications need consideration
 
 ---
 
 ## Success Criteria
 
-1. New projects can be created with `jac init`
-2. Dependencies managed via `jac.toml` and `jac install`
-3. Virtual environment automatically created and managed
-4. All existing `jac` commands work with project context
-5. Settings from `jac.toml` properly loaded and applied
-6. Legacy `settings.py` completely removed
-7. Plugins can register and use their own configuration options
-8. Clear migration documentation for users
-9. Comprehensive test coverage
+### Core Functionality
+1. ✅ New projects can be created with `jac init`
+2. ✅ Dependencies managed via `jac.toml` and `jac install`
+3. ✅ Virtual environment automatically created and managed
+4. ✅ All existing `jac` commands work with project context
+5. ✅ Settings from `jac.toml` properly loaded and applied
+6. ✅ Legacy `settings.py` completely removed
+
+### Plugin System
+7. ✅ Plugins can register configuration schemas via hooks
+8. ✅ Plugin configurations loaded from `[plugins.<name>]` sections
+9. ✅ Plugin configuration validation with helpful error messages
+10. ✅ Plugin dependency resolution and load ordering
+
+### Developer Experience
+11. ✅ Environment variable interpolation for secrets (`${VAR}`)
+12. ✅ Configuration profiles for dev/staging/production (`--env`)
+13. ✅ Workspace support for monorepos (`jac-workspace.toml`)
+14. ✅ Configuration inheritance (`extends` key)
+15. ✅ Hot reload during development (`config_hot_reload`)
+16. ✅ JSON Schema generation for IDE support
+
+### Documentation & Testing
+17. ✅ Plugin author documentation for config hooks
+18. ✅ User documentation for `jac.toml`
+19. ✅ Comprehensive test coverage
+
+---
+
+## Priority Matrix
+
+| Priority | Feature | Complexity | Impact |
+|----------|---------|------------|--------|
+| **P0 - Critical** | Core TOML parsing and JacConfig | Medium | High |
+| **P0 - Critical** | Plugin config hook system | Medium | High |
+| **P0 - Critical** | Basic CLI commands (init, install, env) | Medium | High |
+| **P1 - High** | Environment variable interpolation | Low | High |
+| **P1 - High** | Update existing plugins with schemas | Medium | High |
+| **P2 - Medium** | Configuration profiles | Medium | Medium |
+| **P2 - Medium** | Workspace support | High | Medium |
+| **P2 - Medium** | JSON Schema generation | Low | Medium |
+| **P3 - Low** | Configuration inheritance | Medium | Low |
+| **P3 - Low** | Hot reload | Medium | Low |
+| **P3 - Low** | Plugin dependencies | Medium | Low |
+
+---
+
+## Recommended Implementation Order
+
+### Phase 1: Foundation (Weeks 1-2)
+1. Task 1: Core Infrastructure
+2. Task 2: Virtual Environment Management
+3. Task 8: Environment Variable Interpolation (basic)
+
+### Phase 2: CLI & Integration (Weeks 3-4)
+4. Task 3: New CLI Commands
+5. Task 4: Integrate with Existing Commands
+6. Task 6: Plugin Configuration System
+
+### Phase 3: Plugin Updates (Weeks 5-6)
+7. Task 15: Update Existing Plugins
+8. Task 5: Remove Legacy Settings
+
+### Phase 4: Advanced Features (Weeks 7-8)
+9. Task 9: Configuration Profiles
+10. Task 10: Workspace Support
+11. Task 13: JSON Schema Generation
+
+### Phase 5: Polish (Week 9+)
+12. Task 11: Configuration Inheritance
+13. Task 12: Hot Reload Configuration
+14. Task 14: Plugin Metadata and Dependencies
+15. Task 7: Documentation and Testing
