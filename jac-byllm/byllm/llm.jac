@@ -36,18 +36,6 @@ with entry {
 glob DEFAULT_BASE_URL = "http://localhost:4000";
 glob MODEL_MOCK = "mockllm";
 
-glob SYSTEM_PERSONA = """\
-This is a task you must complete by returning only the output.
-Do not include explanations, code, or extra text—only the result.
-""";
-
-glob INSTRUCTION_TOOL = """
-Use the tools provided to reach the goal. Call one tool at a time with \
-proper args—no explanations, no narration. Think step by step, invoking tools \
-as needed. When done, always call finish_tool(output) to return the final \
-output. Only use tools.
-""";
-
 """Base class for LLM implementations.
 
 Provides the core interface and shared functionality for all LLM connectors.
