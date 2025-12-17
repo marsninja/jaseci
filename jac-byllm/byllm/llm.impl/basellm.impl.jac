@@ -1,18 +1,3 @@
-"""Initialize the BaseLLM instance.
-
-Args:
-    model_name: The model identifier (e.g., "gpt-4", "claude-3-opus").
-    **kwargs: Configuration options including api_key, base_url, verbose, etc.
-"""
-impl BaseLLM.init(model_name: str, **kwargs: object) -> None {
-    self.model_name = model_name;
-    self.config = kwargs;
-    self.api_key = self.config.get("api_key", "");
-    # The parameters for the llm call like temperature, top_k, max_token, etc.
-    # This is only applicable for the next call passed from `by llm(**kwargs)`.
-    self.call_params: dict[str, object] = {};
-}
-
 """Construct the call parameters and return self (factory pattern).
 
 Allows chaining like: `model(temperature=0.5).invoke(mtir)`.

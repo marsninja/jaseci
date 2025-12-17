@@ -39,16 +39,14 @@ glob MODEL_MOCK = "mockllm";
 glob SYSTEM_PERSONA = """\
 This is a task you must complete by returning only the output.
 Do not include explanations, code, or extra text—only the result.
-""";  # noqa E501
-
+""";
 
 glob INSTRUCTION_TOOL = """
 Use the tools provided to reach the goal. Call one tool at a time with \
 proper args—no explanations, no narration. Think step by step, invoking tools \
 as needed. When done, always call finish_tool(output) to return the final \
 output. Only use tools.
-""";  # noqa E501
-
+""";
 
 """Base class for LLM implementations.
 
@@ -57,7 +55,11 @@ Subclasses must implement model_call_no_stream and model_call_with_stream
 to define how the actual LLM API is called.
 """
 obj BaseLLM {
-    def init(model_name: str, **kwargs: object) -> None;
+    has model_name: str;
+    has config: dict = {};
+    has api_key: str = "";
+    has call_params: dict[str, object] = {};
+
     def __call__( **kwargs: object)  -> BaseLLM;
     def invoke(mtir: MTRuntime) -> object;
     def make_model_params(mtir: MTRuntime) -> dict;
@@ -76,7 +78,7 @@ Useful for unit testing and development without making real API calls.
 Configure outputs via the 'outputs' kwarg to control mock responses.
 """
 obj MockLLM(BaseLLM) {
-    def init(model_name: str, **kwargs: object) -> None;
+    def postinit -> None;
     override def dispatch_no_streaming(mtir: MTRuntime) -> CompletionResult;
     override def dispatch_streaming(mtir: MTRuntime) -> Generator[str, None, None];
 }
@@ -89,7 +91,10 @@ and proxy-based routing. Automatically delegates to MockLLM when model_name
 is 'mockllm'.
 """
 obj Model(BaseLLM) {
-    def init(model_name: str, **kwargs: object) -> None;
+    has proxy: bool = False;
+    has _mock_delegate: MockLLM | None = None;
+
+    def postinit -> None;
     override def invoke(mtir: MTRuntime) -> object;
     def model_call_no_stream(params: dict) -> dict;
     def model_call_with_stream(params: dict);

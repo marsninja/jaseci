@@ -1,17 +1,14 @@
-"""Initialize the Model instance.
+"""Post-initialization hook for Model.
 
-Args:
-    model_name: The model identifier (e.g., "gpt-4", "claude-3-opus").
-                Use "mockllm" to delegate to MockLLM for testing.
-    **kwargs: Configuration options including api_key, base_url, proxy, etc.
+Sets up proxy mode and mock delegation based on config.
+Configures logging when using real LLM backends.
 """
-impl Model.init(model_name: str, **kwargs: object) -> None {
-    super.init(model_name, **kwargs);
-    self.proxy = kwargs.get("proxy", False);
+impl Model.postinit -> None {
+    self.proxy = bool(self.config.get("proxy", False));
     # When model_name is 'mockllm', delegate to MockLLM behavior
-    self._mock_delegate = MockLLM(model_name=model_name, **kwargs)
-    if model_name == MODEL_MOCK
-    else None;
+    if self.model_name == MODEL_MOCK {
+        self._mock_delegate = MockLLM(model_name=self.model_name, config=self.config);
+    }
     if not self._mock_delegate {
         logging.getLogger("httpx").setLevel(logging.WARNING);
         _disable_debugging();

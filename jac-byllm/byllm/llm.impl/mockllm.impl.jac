@@ -1,11 +1,10 @@
-"""Initialize the MockLLM connector.
+"""Post-initialization hook for MockLLM.
 
-Configures logging to stdout and delegates to BaseLLM initialization.
+Configures logging to stdout.
 """
-impl MockLLM.init(model_name: str, **kwargs: object) -> None {
+impl MockLLM.postinit -> None {
     logger.remove();  # remove default stderr sink
     logger.add(sys.stdout);
-    super.init(model_name, **kwargs);
 }
 
 """Dispatch the mock LLM call without streaming.
