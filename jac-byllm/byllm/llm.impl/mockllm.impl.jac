@@ -1,9 +1,18 @@
+"""Initialize the MockLLM connector.
+
+Configures logging to stdout and delegates to BaseLLM initialization.
+"""
 impl MockLLM.init(model_name: str, **kwargs: object) -> None {
     logger.remove();  # remove default stderr sink
     logger.add(sys.stdout);
     super.init(model_name, **kwargs);
 }
 
+"""Dispatch the mock LLM call without streaming.
+
+Pops the next output from the configured 'outputs' list and returns it.
+Supports both regular outputs and MockToolCall objects.
+"""
 impl MockLLM.dispatch_no_streaming(mtir: MTRuntime) -> CompletionResult {
     params = self.make_model_params(mtir);
     message = "{'role': 'assistant', 'content': {'text': 'Mock response'}}";
@@ -26,6 +35,10 @@ impl MockLLM.dispatch_no_streaming(mtir: MTRuntime) -> CompletionResult {
     return CompletionResult(output=output, tool_calls=[],);
 }
 
+"""Dispatch the mock LLM call with streaming.
+
+Simulates streaming by yielding random-sized chunks with artificial delays.
+"""
 impl MockLLM.dispatch_streaming(mtir: MTRuntime) -> Generator[str, None, None] {
     output = self.config["outputs"].pop(0);  # type: ignore
     if mtir.stream {

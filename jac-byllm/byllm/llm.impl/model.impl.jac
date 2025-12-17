@@ -1,3 +1,10 @@
+"""Initialize the Model instance.
+
+Args:
+    model_name: The model identifier (e.g., "gpt-4", "claude-3-opus").
+                Use "mockllm" to delegate to MockLLM for testing.
+    **kwargs: Configuration options including api_key, base_url, proxy, etc.
+"""
 impl Model.init(model_name: str, **kwargs: object) -> None {
     super.init(model_name, **kwargs);
     self.proxy = kwargs.get("proxy", False);
@@ -12,6 +19,7 @@ impl Model.init(model_name: str, **kwargs: object) -> None {
     }
 }
 
+"""Invoke the LLM, delegating to MockLLM if applicable."""
 impl Model.invoke(mtir: MTRuntime) -> object {
     if self._mock_delegate {
         return self._mock_delegate.invoke(mtir);
@@ -19,6 +27,10 @@ impl Model.invoke(mtir: MTRuntime) -> object {
     return super.invoke(mtir);
 }
 
+"""Make a direct model call without streaming.
+
+Uses OpenAI client if proxy mode is enabled, otherwise uses LiteLLM.
+"""
 impl Model.model_call_no_stream(params: dict) -> dict {
     if self.proxy {
         client = OpenAI(base_url=self.api_base);
@@ -29,6 +41,11 @@ impl Model.model_call_no_stream(params: dict) -> dict {
     return response;
 }
 
+"""Make a direct model call with streaming.
+
+Uses OpenAI client if proxy mode is enabled, otherwise uses LiteLLM.
+Returns a generator that yields response chunks.
+"""
 impl Model.model_call_with_stream(params: dict) -> Generator[str, None, None] {
     if self.proxy {
         client = OpenAI(base_url=self.api_base, api_key=self.api_key,);
