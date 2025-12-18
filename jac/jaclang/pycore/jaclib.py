@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from jaclang.pycore.runtime import JacClassReferences, JacRuntimeInterface
 
@@ -58,7 +58,7 @@ if TYPE_CHECKING:  # pragma: no cover
     visit: Callable[..., object] = JacRT.visit
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     if name.startswith("_"):
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
@@ -86,7 +86,9 @@ def __dir__() -> list[str]:
     from jaclang.pycore.runtime import _init_lazy_imports
 
     _init_lazy_imports()
-    return sorted([name for name in dir(JacRuntimeInterface) if not name.startswith("_")])
+    return sorted(
+        [name for name in dir(JacRuntimeInterface) if not name.startswith("_")]
+    )
 
 
 def _populate_namespace() -> None:
@@ -119,4 +121,3 @@ def _populate_namespace() -> None:
 
 
 _populate_namespace()
-

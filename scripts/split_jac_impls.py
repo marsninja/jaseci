@@ -97,7 +97,9 @@ def _make_impl_text(block_lines: list[str], class_name: str | None) -> str:
     if class_name is None:
         impl_first = indent + "impl " + method_name + rest[len(method_name) :]
     else:
-        impl_first = indent + "impl " + class_name + "." + method_name + rest[len(method_name) :]
+        impl_first = (
+            indent + "impl " + class_name + "." + method_name + rest[len(method_name) :]
+        )
 
     out = block_lines[:]
     out[def_idx] = impl_first
@@ -111,8 +113,8 @@ def _extract_blocks_for_file(path: Path) -> list[ImplChunk]:
     if str(jac_root) not in sys.path:
         sys.path.insert(0, str(jac_root))
 
-    from jaclang.pycore.program import JacProgram  # type: ignore
     import jaclang.pycore.unitree as uni  # type: ignore
+    from jaclang.pycore.program import JacProgram  # type: ignore
 
     prog = JacProgram()
     mod = prog.compile(file_path=str(path), no_cgen=True)
@@ -156,17 +158,23 @@ def _extract_blocks_for_file(path: Path) -> list[ImplChunk]:
             # Extract and remove ability docstring (if any) using AST token location.
             doc_text = ""
             doc_span: Span | None = None
-            if getattr(container, "doc", None) is not None and getattr(container.doc, "loc", None) is not None:
-                doc_span = Span(container.doc.loc.first_line, container.doc.loc.last_line)
+            doc = getattr(container, "doc", None)
+            if doc is not None and getattr(doc, "loc", None) is not None:
+                doc_span = Span(doc.loc.first_line, doc.loc.last_line)
                 doc_lines = slice_lines(doc_span)
                 # normalize to top-level docstring block style
                 doc_text = "".join([ln.lstrip(" ") for ln in doc_lines]).rstrip() + "\n"
 
-            def remove_span_from_block(block: list[str], full_span: Span, remove: Span | None) -> list[str]:
+            def remove_span_from_block(
+                block: list[str], full_span: Span, remove: Span | None
+            ) -> list[str]:
                 if remove is None:
                     return block
                 # Only remove when the doc span is fully inside the ability span.
-                if remove.start_line < full_span.start_line or remove.end_line > full_span.end_line:
+                if (
+                    remove.start_line < full_span.start_line
+                    or remove.end_line > full_span.end_line
+                ):
                     return block
                 rel_start = remove.start_line - full_span.start_line
                 rel_end = remove.end_line - full_span.start_line
@@ -180,9 +188,10 @@ def _extract_blocks_for_file(path: Path) -> list[ImplChunk]:
             if def_idx2 is None:
                 return
             deco_start = def_idx2
-            while deco_start - 1 >= 0 and DECORATOR_LINE_RE.match(block_wo_doc[deco_start - 1]):
+            while deco_start - 1 >= 0 and DECORATOR_LINE_RE.match(
+                block_wo_doc[deco_start - 1]
+            ):
                 deco_start -= 1
-            decorators = block_wo_doc[deco_start:def_idx2]
             impl_block = block_wo_doc[:deco_start] + block_wo_doc[def_idx2:]
             decl_block = block_wo_doc
 
@@ -263,7 +272,7 @@ def should_split(path: Path, min_def_bodies: int, min_lines: int) -> bool:
         return False
     # quick def-body estimate
     bodies = 0
-    for i, line in enumerate(txt.splitlines()):
+    for line in txt.splitlines():
         s = line.lstrip(" ")
         if s.startswith("def ") or s.startswith("static def "):
             if s.rstrip().endswith(";"):
@@ -323,7 +332,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Split implementation-heavy Jac modules into .jac interface + .impl annexes."
     )
-    parser.add_argument("--dry-run", action="store_true", help="Only print what would change.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Only print what would change."
+    )
     parser.add_argument(
         "--roots",
         nargs="*",
