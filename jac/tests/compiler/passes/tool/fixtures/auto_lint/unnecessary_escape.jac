@@ -24,7 +24,7 @@ obj TestClass {
         <>init: int = 4;
 
     # Method with unnecessary escaping in parameter name - should be removed
-    def process(self: TestClass, <>item: str) -> str {
+    def process(<>item: str) -> str {
         # Local variable with unnecessary escaping - should be removed
         <>result = self.name + <>item;
         return <>result;
