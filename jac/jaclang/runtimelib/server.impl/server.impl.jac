@@ -138,6 +138,7 @@ impl UserManager.close(self: UserManager) -> None {
     self._persist();
 }
 
+"""Initialize execution manager."""
 impl ExecutionManager.init(
     self: ExecutionManager, session_path: str, user_manager: UserManager
 ) -> None {
@@ -593,6 +594,7 @@ impl ResponseBuilder._add_cors_headers(handler: BaseHTTPRequestHandler) -> None 
     handler.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
+"""Initialize route handler."""
 impl RouteHandler.init(
     self: RouteHandler,
     introspector: ModuleIntrospector,
@@ -694,6 +696,7 @@ impl ExecutionHandler.spawn_walker(
     return Response(200, result);
 }
 
+"""Initialize the API server."""
 impl JacAPIServer.init(
     self: JacAPIServer,
     module_name: str,
@@ -1103,6 +1106,7 @@ impl JacAPIServer.start(self: JacAPIServer) -> None {
     }
 }
 
+"""Print comprehensive documentation for all endpoints that would be generated."""
 impl print_endpoint_docs(server: JacAPIServer) -> None {
     server.introspector.load();
     functions = server.introspector.get_functions();
