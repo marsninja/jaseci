@@ -8,13 +8,16 @@ This pass applies automatic linting corrections to Jac code, including:
 - Converting `def __init__` to `can init` (Jac style)
 - Converting `def __post_init__` to `can postinit` (Jac style)
 - Removing empty parentheses from function/method declarations (def foo() -> def foo)
+- Removing unnecessary <> from names that are not actual keywords
 - (Future) Import organization
 - (Future) Redundant code removal
 """
 
+import keyword;
 import jaclang.pycore.unitree as uni;
 import from jaclang.pycore.passes { UniPass }
 import from jaclang.pycore.constant { Tokens as Tok }
+import from jaclang.pycore.jac_parser { TOKEN_MAP }
 
 """Auto linting pass that applies code style corrections to Jac AST."""
 class JacAutoLintPass(UniPass) {
@@ -534,6 +537,95 @@ class JacAutoLintPass(UniPass) {
             }
             if len(new_kid) != len(sig.kid) and len(new_kid) > 0 {
                 sig.set_kids(nodes=new_kid);
+            }
+        }
+    }
+
+    """Remove unnecessary <> from names that are not actual keywords.
+
+    Names only need <> escaping if they conflict with:
+    - Python keywords (and, or, if, else, etc.)
+    - Jac reserved keywords from the grammar
+
+    This also handles SpecialVarRef where the underlying name should
+    never have <> since it's already recognized as a special keyword.
+    """
+    def enter_name(self: JacAutoLintPass, <>node: uni.Name) -> None {
+        if not self.lint_enabled {
+            return;
+        }
+
+        # Skip if not escaped or if it's a SpecialVarRef (handled separately)
+        if not <>node.is_kwesc or isinstance(<>node, uni.SpecialVarRef) {
+            return;
+        }
+
+        # Get the set of reserved keywords that actually need escaping
+        # This includes Jac keywords from the grammar
+        jac_keywords = <>set(TOKEN_MAP.values());
+
+        # Also include Python keywords
+        python_keywords = <>set(keyword.kwlist);
+
+        # Combine both sets
+        reserved = jac_keywords | python_keywords;
+
+        # If the name value is NOT a reserved keyword, remove the <>
+        if <>node.value not in reserved {
+            <>node.is_kwesc = False;
+            # Also update the token name from KWESC_NAME to NAME
+            if <>node.name == Tok.KWESC_NAME {
+                <>node.name = Tok.NAME;
+            }
+        }
+    }
+
+    """Remove <> from SpecialVarRef's underlying name.
+
+    SpecialVarRef wraps special keywords like init, postinit, self, super,
+    root, here, visitor. The underlying Name should never have <> escaping
+    since these are already recognized as special tokens in the grammar.
+    """
+    def enter_special_var_ref(self: JacAutoLintPass, <>node: uni.SpecialVarRef) -> None {
+        if not self.lint_enabled {
+            return;
+        }
+
+        # The 'orig' attribute holds the underlying Name token
+        if hasattr(<>node, 'orig') and isinstance(<>node.orig, uni.Name) {
+            if <>node.orig.is_kwesc {
+                <>node.orig.is_kwesc = False;
+                # Update token name if needed
+                if <>node.orig.name == Tok.KWESC_NAME {
+                    <>node.orig.name = Tok.NAME;
+                }
+            }
+        }
+
+        # Also check if the SpecialVarRef itself has is_kwesc set
+        # (it inherits from Name)
+        if <>node.is_kwesc {
+            <>node.is_kwesc = False;
+        }
+    }
+
+    """Remove <> from BuiltinType nodes.
+
+    BuiltinType represents built-in types like str, int, float, bool, etc.
+    These should never have <> escaping since they are recognized as
+    built-in type tokens in the grammar.
+    """
+    def enter_builtin_type(self: JacAutoLintPass, <>node: uni.BuiltinType) -> None {
+        if not self.lint_enabled {
+            return;
+        }
+
+        # BuiltinType inherits from Name, so it has is_kwesc
+        # Built-in types should never be escaped
+        if <>node.is_kwesc {
+            <>node.is_kwesc = False;
+            if <>node.name == Tok.KWESC_NAME {
+                <>node.name = Tok.NAME;
             }
         }
     }
