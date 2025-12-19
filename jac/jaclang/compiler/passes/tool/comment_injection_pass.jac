@@ -9,13 +9,14 @@ This pass injects comments into the DocIR structure by:
 """
 import from bisect { bisect_left }
 import from collections.abc { Sequence }
+import from dataclasses { dataclass }
 import from typing { NamedTuple }
 import jaclang.compiler.passes.tool.doc_ir as doc;
 import jaclang.pycore.unitree as uni;
 import from jaclang.pycore.constant { Tokens as Tok }
 import from jaclang.pycore.passes { Transform }
 """Information about a pair of delimiters and their positions."""
-obj DelimiterInfo {
+class DelimiterInfo(NamedTuple) {
     has open_idx: int,
         close_idx: int,
         open_line: int,
@@ -23,7 +24,8 @@ obj DelimiterInfo {
 }
 
 """Rich metadata about a source comment."""
-obj CommentInfo {
+@dataclass(slots=True)
+class CommentInfo {
     has index: int,
         token: uni.CommentToken,
         anchor_token_id: (int | None);

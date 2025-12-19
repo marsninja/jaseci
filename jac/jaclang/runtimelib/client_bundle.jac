@@ -2,6 +2,7 @@
 import hashlib;
 import json;
 import from collections.abc { Iterable, Sequence }
+import from dataclasses { dataclass }
 import from pathlib { Path }
 import from types { ModuleType }
 import from typing { TYPE_CHECKING, Any, NamedTuple }
@@ -18,13 +19,14 @@ with entry {
 class ClientBundleError(RuntimeError) {}
 
 """Result of processing client imports."""
-obj ProcessedImports {
+class ProcessedImports(NamedTuple) {
     has import_pieces: list[str],
         bundled_module_names: set[str];
 }
 
 """Container for a compiled client bundle."""
-obj ClientBundle {
+@dataclass(slots=True)
+class ClientBundle {
     has module_name: str,
         code: str,
         client_functions: list[str],
@@ -32,7 +34,8 @@ obj ClientBundle {
         hash: str;
 }
 
-obj _CachedBundle {
+@dataclass(slots=True)
+class _CachedBundle {
     has signature: str,
         bundle: ClientBundle;
 }

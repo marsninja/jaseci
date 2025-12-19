@@ -1,6 +1,6 @@
 """Core constructs for Jac Language."""
 import from collections.abc { Callable, Generator, Iterable }
-import from dataclasses { field }
+import from dataclasses { dataclass, field }
 import from pickle { dumps }
 import from shelve { Shelf, open }
 import from typing { Any, Generic, TypeVar, cast }
@@ -10,9 +10,10 @@ import from .archetype { TANCH, Anchor, NodeAnchor, Root }
 glob ID = TypeVar('ID');
 
 """Generic Memory Handler."""
-obj Memory(Generic[(ID, TANCH)]) {
-    has __mem__: <>dict[((ID | UUID), TANCH)] = {},
-        __gc__: <>set[TANCH] = set();
+@dataclass
+class Memory(Generic[(ID, TANCH)]) {
+    has __mem__: <>dict[((ID | UUID), TANCH)] = field(default_factory=<>dict),
+        __gc__: <>set[TANCH] = field(default_factory=<>set);
 
     def close(self: Memory) -> None;
     def is_cached(self: Memory, id: ID) -> bool;
@@ -46,7 +47,8 @@ obj Memory(Generic[(ID, TANCH)]) {
 }
 
 """Shelf Handler."""
-obj ShelfStorage :Memory[(UUID, Anchor)]: {
+@dataclass
+class ShelfStorage(Memory[(UUID, Anchor)]) {
     has __shelf__: (Shelf[Anchor] | None) = None;
 
     def init(self: ShelfStorage, session: (str | None) = None) -> None;
