@@ -110,16 +110,16 @@ class BlockStatement(Node) {
 @dataclass
 class EmptyStatement(Node) {
     has <>type: TypingLiteral['EmptyStatement'] = field(
-            <>default='EmptyStatement', <>init=False
-        );
+        <>default='EmptyStatement', <>init=False
+    );
 }
 
 """Debugger statement."""
 @dataclass
 class DebuggerStatement(Node) {
     has <>type: TypingLiteral['DebuggerStatement'] = field(
-            <>default='DebuggerStatement', <>init=False
-        );
+        <>default='DebuggerStatement', <>init=False
+    );
 }
 
 """With statement."""
@@ -322,16 +322,16 @@ class VariableDeclarator(Node) {
 @dataclass
 class ThisExpression(Node) {
     has <>type: TypingLiteral['ThisExpression'] = field(
-            <>default='ThisExpression', <>init=False
-        );
+        <>default='ThisExpression', <>init=False
+    );
 }
 
 """Array expression."""
 @dataclass
 class ArrayExpression(Node) {
     has elements: list[Expression | SpreadElement | None] = field(
-            default_factory=<>list
-        ),
+        default_factory=<>list
+    ),
         <>type: TypingLiteral['ArrayExpression'] = field(
             <>default='ArrayExpression', <>init=False
         );
@@ -597,8 +597,8 @@ class ArrayPattern(Node) {
 @dataclass
 class ObjectPattern(Node) {
     has properties: list[(AssignmentProperty | RestElement)] = field(
-            default_factory=<>list
-        ),
+        default_factory=<>list
+    ),
         <>type: TypingLiteral['ObjectPattern'] = field(
             <>default='ObjectPattern', <>init=False
         );
@@ -651,8 +651,8 @@ class ClassExpression(Node) {
 @dataclass
 class ClassBody(Node) {
     has body: list[MethodDefinition | PropertyDefinition | StaticBlock] = field(
-            default_factory=<>list
-        ),
+        default_factory=<>list
+    ),
         <>type: TypingLiteral['ClassBody'] = field(<>default='ClassBody', <>init=False);
 }
 
@@ -694,9 +694,9 @@ class StaticBlock(Node) {
 @dataclass
 class ImportDeclaration(Node) {
     has specifiers:
-            list[ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier] = field(
-            default_factory=<>list
-        ),
+        list[ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier] = field(
+        default_factory=<>list
+    ),
         source: (Literal | None) = None,
         <>type: TypingLiteral['ImportDeclaration'] = field(
             <>default='ImportDeclaration', <>init=False
