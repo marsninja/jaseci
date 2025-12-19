@@ -3,7 +3,6 @@ Functions that operate on Type objects.
 
 PyrightReference: packages/pyright-internal/src/analyzer/typeUtils.ts
 """
-import from dataclasses { dataclass }
 import from enum { Enum }
 import jaclang.pycore.unitree as uni;
 import from jaclang.pycore.constant { Tokens as Tok }
@@ -45,13 +44,10 @@ class ParamAssignmentTracker {
 }
 
 """A completion item."""
-@dataclass
-class CompletionItem {
-    with entry {
-        label: str;
-        kind: int;
+obj CompletionItem {
+    has label: str,
+        kind: int,
         detail: (str | None) = None;
-    }
 }
 
 """The kind of a completion entry."""

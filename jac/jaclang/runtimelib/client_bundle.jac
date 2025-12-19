@@ -2,7 +2,6 @@
 import hashlib;
 import json;
 import from collections.abc { Iterable, Sequence }
-import from dataclasses { dataclass }
 import from pathlib { Path }
 import from types { ModuleType }
 import from typing { TYPE_CHECKING, Any, NamedTuple }
@@ -19,31 +18,23 @@ with entry {
 class ClientBundleError(RuntimeError) {}
 
 """Result of processing client imports."""
-class ProcessedImports(NamedTuple) {
-    with entry {
-        import_pieces: list[str];
+obj ProcessedImports {
+    has import_pieces: list[str],
         bundled_module_names: set[str];
-    }
 }
 
 """Container for a compiled client bundle."""
-@dataclass(slots=True)
-class ClientBundle {
-    with entry {
-        module_name: str;
-        code: str;
-        client_functions: list[str];
-        client_globals: list[str];
+obj ClientBundle {
+    has module_name: str,
+        code: str,
+        client_functions: list[str],
+        client_globals: list[str],
         hash: str;
-    }
 }
 
-@dataclass(slots=True)
-class _CachedBundle {
-    with entry {
-        signature: str;
+obj _CachedBundle {
+    has signature: str,
         bundle: ClientBundle;
-    }
 }
 
 """Compile Jac modules and runtime support into a browser-ready bundle."""

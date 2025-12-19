@@ -1,6 +1,6 @@
 """Core constructs for Jac Language."""
 import from collections.abc { Callable }
-import from dataclasses { asdict, dataclass, field, fields, is_dataclass }
+import from dataclasses { asdict, field, fields, is_dataclass }
 import from enum { IntEnum }
 import from functools { cached_property }
 import from inspect { _empty, signature }
@@ -30,57 +30,42 @@ class AccessLevel(IntEnum) {
 }
 
 """Access Structure."""
-@dataclass
-class Access {
-    with entry {
-        anchors: <>dict[(str, AccessLevel)] = field(default_factory=<>dict);
-    }
+obj Access {
+    has anchors: <>dict[(str, AccessLevel)] = {};
 
     def check(self: Access, anchor: str) -> (AccessLevel | None);
 }
 
 """Anchor Access Handler."""
-@dataclass
-class Permission {
-    with entry {
-        all: AccessLevel = AccessLevel.NO_ACCESS;
-        roots: Access = field(default_factory=Access);
-    }
+obj Permission {
+    has all: AccessLevel = AccessLevel.NO_ACCESS,
+        roots: Access = Access();
 }
 
 """Report Handler."""
-@dataclass
-class AnchorReport {
-    with entry {
-        id: str;
+obj AnchorReport {
+    has id: str,
         context: <>dict[(str, Any)];
-    }
 }
 
 glob ObjectSpatialFilter: TypeAlias = 'Callable[[Archetype], bool] | Archetype | list[Archetype] | None';
 
 """Object-Spatial Destination."""
-@dataclass(eq=False, repr=False)
-class ObjectSpatialDestination {
-    with entry {
-        direction: EdgeDir;
-        <>edge: (Callable[([Archetype], bool)] | None) = None;
+obj ObjectSpatialDestination {
+    has direction: EdgeDir,
+        <>edge: (Callable[([Archetype], bool)] | None) = None,
         <>node: (Callable[([Archetype], bool)] | None) = None;
-    }
 
     def edge_filter(self: ObjectSpatialDestination, arch: Archetype) -> bool;
     def node_filter(self: ObjectSpatialDestination, arch: Archetype) -> bool;
 }
 
 """Object-Spatial Path."""
-@dataclass(eq=False, repr=False)
-class ObjectSpatialPath {
-    with entry {
-        origin: <>list[NodeArchetype];
-        destinations: <>list[ObjectSpatialDestination];
-        edge_only: bool;
+obj ObjectSpatialPath {
+    has origin: <>list[NodeArchetype],
+        destinations: <>list[ObjectSpatialDestination],
+        edge_only: bool,
         from_visit: bool;
-    }
 
     def init(
         self: ObjectSpatialPath,
@@ -127,16 +112,13 @@ class ObjectSpatialPath {
 }
 
 """Object Anchor."""
-@dataclass(eq=False, repr=False, kw_only=True)
-class Anchor {
-    with entry {
-        archetype: Archetype;
-        id: UUID = field(default_factory=uuid4);
-        <>root: (UUID | None) = None;
-        access: Permission = field(default_factory=Permission);
-        persistent: bool = False;
+obj Anchor {
+    has archetype: Archetype,
+        id: UUID = uuid4(),
+        <>root: (UUID | None) = None,
+        access: Permission = Permission(),
+        persistent: bool = False,
         hash: int = 0;
-    }
 
     def is_populated(self: Anchor) -> bool;
     def make_stub(self: Anchor) -> TANCH;
@@ -151,56 +133,41 @@ class Anchor {
 }
 
 """Node Anchor."""
-@dataclass(eq=False, repr=False, kw_only=True)
-class NodeAnchor(Anchor) {
-    with entry {
-        archetype: NodeArchetype;
+obj NodeAnchor :Anchor: {
+    has archetype: NodeArchetype,
         edges: <>list[EdgeAnchor];
-    }
 
     def __getstate__(self: NodeAnchor) -> <>dict[str, object];
 }
 
 """Edge Anchor."""
-@dataclass(eq=False, repr=False, kw_only=True)
-class EdgeAnchor(Anchor) {
-    with entry {
-        archetype: EdgeArchetype;
-        source: NodeAnchor;
-        target: NodeAnchor;
+obj EdgeAnchor :Anchor: {
+    has archetype: EdgeArchetype,
+        source: NodeAnchor,
+        target: NodeAnchor,
         is_undirected: bool;
-    }
 
     def __getstate__(self: EdgeAnchor) -> <>dict[str, object];
 }
 
 """Walker Anchor."""
-@dataclass(eq=False, repr=False, kw_only=True)
-class WalkerAnchor(Anchor) {
-    with entry {
-        archetype: WalkerArchetype;
-        path: <>list[NodeAnchor] = field(default_factory=<>list);
-        next: <>list[(NodeAnchor | EdgeAnchor)] = field(default_factory=<>list);
-        ignores: <>list[NodeAnchor] = field(default_factory=<>list);
+obj WalkerAnchor :Anchor: {
+    has archetype: WalkerArchetype,
+        path: <>list[NodeAnchor] = [],
+        next: <>list[(NodeAnchor | EdgeAnchor)] = [],
+        ignores: <>list[NodeAnchor] = [],
         disengaged: bool = False;
-    }
 }
 
 """Edge Anchor."""
-@dataclass(eq=False, repr=False, kw_only=True)
-class ObjectAnchor(Anchor) {
-    with entry {
-        archetype: ObjectArchetype;
-    }
+obj ObjectAnchor :Anchor: {
+    has archetype: ObjectArchetype;
 }
 
 """Archetype Protocol."""
-@dataclass(eq=False, repr=False, kw_only=True)
-class Archetype {
-    with entry {
-        _jac_entry_funcs_: ClassVar[<>list[ObjectSpatialFunction]] = [];
+obj Archetype {
+    has _jac_entry_funcs_: ClassVar[<>list[ObjectSpatialFunction]] = [],
         _jac_exit_funcs_: ClassVar[<>list[ObjectSpatialFunction]] = [];
-    }
 
     @cached_property
     def __jac__(self: Archetype) -> Anchor;
@@ -250,21 +217,15 @@ class ObjectArchetype(Archetype) {
 }
 
 """Generic Edge."""
-@dataclass(eq=False)
-class GenericEdge(EdgeArchetype) {
-    with entry {
-        __jac_base__: ClassVar[bool] = True;
-    }
+obj GenericEdge :EdgeArchetype: {
+    has __jac_base__: ClassVar[bool] = True;
 
     def __repr__(self: GenericEdge) -> str;
 }
 
 """Generic Root Node."""
-@dataclass(eq=False)
-class Root(NodeArchetype) {
-    with entry {
-        __jac_base__: ClassVar[bool] = True;
-    }
+obj Root :NodeArchetype: {
+    has __jac_base__: ClassVar[bool] = True;
 
     @cached_property
     def __jac__(self: Root) -> NodeAnchor;
@@ -273,12 +234,9 @@ class Root(NodeArchetype) {
 }
 
 """Object-Spatial Function."""
-@dataclass(eq=False)
-class ObjectSpatialFunction {
-    with entry {
-        name: str;
+obj ObjectSpatialFunction {
+    has name: str,
         func: Callable[([Any, Any], Any)];
-    }
 
     @cached_property
     def trigger(
