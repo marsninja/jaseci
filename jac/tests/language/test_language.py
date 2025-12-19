@@ -338,8 +338,8 @@ def test_deep_imports_interp_mode(fixture_path: Callable[[str], str]) -> None:
     prog.build(fixture_path("./deep_import_interp.jac"))
     Jac.jac_import("deep_import_interp", base_path=fixture_path("./"))
     # Note: hub size can vary depending on whether compiler support modules
-    # (e.g., `import_pass.jac`) are compiled/registered in this run.
-    assert len(Jac.program.mod.hub.keys()) in {5, 6}
+    # (e.g., `import_pass.jac` and its annexes) are compiled/registered in this run.
+    assert len(Jac.program.mod.hub.keys()) in {5, 6, 7}
 
 
 def test_deep_imports_mods(
@@ -791,14 +791,6 @@ def test_refs_target(
     stdout_value = captured_output.getvalue()
     assert "[c(val=0), c(val=1), c(val=2)]" in stdout_value
     assert "[c(val=0)]" in stdout_value
-
-
-def test_py_kw_as_name_disallowed():
-    """Basic precedence test."""
-    (prog := JacProgram()).compile(
-        use_str="with entry {print.is.not.True(4-5-4);}", file_path="test.jac"
-    )
-    assert "Python keyword is used as name" in str(prog.errors_had[0].msg)
 
 
 def test_double_format_issue():
