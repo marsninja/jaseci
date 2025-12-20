@@ -243,14 +243,14 @@ jaclang/
 
 ```jac
 """Jac project configuration - replaces settings.py."""
-
-import:py from pathlib { Path }
-import:py tomllib;  # Python 3.11+ (tomli for 3.10)
+import from pathlib { Path }
+import from typing { Any }
 
 #-------------------------------------------------------------------------------
 # Core Settings (exact mirror of settings.py)
 #-------------------------------------------------------------------------------
 
+"""Debug configuration settings."""
 obj DebugSettings {
     has filter_sym_builtins: bool = True,
         ast_symbol_info_detailed: bool = False,
@@ -259,22 +259,25 @@ obj DebugSettings {
         show_internal_stack_errs: bool = False;
 }
 
+"""Compiler configuration settings."""
 obj CompilerSettings {
     has ignore_test_annex: bool = False,
         pyfile_raise: bool = False,
         pyfile_raise_full: bool = False;
 }
 
+"""LSP configuration settings."""
 obj LspSettings {
     has lsp_debug: bool = False;
 }
 
+"""Alert configuration settings."""
 obj AlertSettings {
     has all_warnings: bool = False;
 }
 
+"""Core settings - complete replacement for settings.py."""
 obj JacSettings {
-    """Core settings - complete replacement for settings.py."""
     has max_line_length: int = 88,
         debug: DebugSettings = DebugSettings(),
         compiler: CompilerSettings = CompilerSettings(),
@@ -286,6 +289,7 @@ obj JacSettings {
 # Project Configuration
 #-------------------------------------------------------------------------------
 
+"""Project metadata from [project] section."""
 obj ProjectMetadata {
     has name: str = "",
         version: str = "0.1.0",
@@ -294,65 +298,71 @@ obj ProjectMetadata {
         jac_version: str = "";
 }
 
+"""Environment configuration from [environment] section."""
 obj EnvironmentConfig {
     has python_version: str = "3.10",
         env_dir: str = ".jac_env";
 }
 
+"""Main configuration object for Jac projects."""
 obj JacConfig {
-    """Main configuration object for Jac projects."""
     has project: ProjectMetadata = ProjectMetadata(),
         environment: EnvironmentConfig = EnvironmentConfig(),
         settings: JacSettings = JacSettings(),
         dependencies: dict[str, str] = {},
         dev_dependencies: dict[str, str] = {},
-        plugins: dict[str, dict] = {},
-        environments: dict[str, dict] = {};
+        plugins: dict[str, Any] = {},
+        environments: dict[str, Any] = {};
 
-    has project_root: Path | None = None,
-        toml_path: Path | None = None;
+    has project_root: (Path | None) = None,
+        toml_path: (Path | None) = None;
 
-    can load(toml_path: Path) -> JacConfig;
-    can discover(start_path: Path | None = None) -> JacConfig;
-    can apply_environment(env_name: str) -> None;
-    can get_plugin_config(plugin_name: str) -> dict;
+    static def load(toml_path: Path) -> JacConfig;
+    static def discover(start_path: (Path | None) = None) -> JacConfig;
+    def apply_environment(env_name: str) -> None;
+    def get_plugin_config(plugin_name: str) -> dict;
 }
 
 #-------------------------------------------------------------------------------
 # Global Access (drop-in replacement for settings.settings)
 #-------------------------------------------------------------------------------
 
-glob _config: JacConfig | None = None;
+glob _config: (JacConfig | None) = None;
 
-can get_config -> JacConfig {
-    """Get or discover the global configuration."""
-    if _config is None {
-        _config = JacConfig.discover();
-    }
-    return _config;
-}
+"""Get or discover the global configuration."""
+def get_config() -> JacConfig;
 
-can get_settings -> JacSettings {
-    """Get settings - replaces `from jaclang.pycore.settings import settings`."""
-    return get_config().settings;
-}
+"""Get settings - replaces `from jaclang.pycore.settings import settings`."""
+def get_settings() -> JacSettings;
 ```
 
 ### 2. Config Implementation (`jaclang/project/impl/config.impl.jac`)
 
 ```jac
 """Implementation of JacConfig loading and discovery."""
+import os;
+import from pathlib { Path }
+import from typing { Any }
+import from ..toml_loader { load_toml }
+import from ..discovery { find_project_root }
+import from ..interpolation { interpolate_value }
 
-import:py os;
-import:py from pathlib { Path }
+"""Get or discover the global configuration."""
+impl get_config() -> JacConfig {
+    glob _config;
+    if _config is None {
+        _config = JacConfig.discover();
+    }
+    return _config;
+}
 
-include:jac from jaclang.project.toml_loader { load_toml }
-include:jac from jaclang.project.discovery { find_project_root }
-include:jac from jaclang.project.interpolation { interpolate_value }
-include:jac from jaclang.project.plugin_config { load_plugin_configs }
+"""Get settings - replaces `from jaclang.pycore.settings import settings`."""
+impl get_settings() -> JacSettings {
+    return get_config().settings;
+}
 
-:obj:JacConfig:can:load(toml_path: Path) -> JacConfig {
-    """Load configuration from a jac.toml file."""
+"""Load configuration from a jac.toml file."""
+impl JacConfig.load(toml_path: Path) -> JacConfig {
     raw = load_toml(toml_path);
 
     config = JacConfig();
@@ -382,7 +392,7 @@ include:jac from jaclang.project.plugin_config { load_plugin_configs }
 
     # Load settings (replaces settings.py)
     if "settings" in raw {
-        config.settings = :self:_load_settings(raw["settings"]);
+        config.settings = _load_settings(raw["settings"]);
     }
 
     # Load dependencies
@@ -400,8 +410,8 @@ include:jac from jaclang.project.plugin_config { load_plugin_configs }
     return config;
 }
 
-:obj:JacConfig:can:discover(start_path: Path | None = None) -> JacConfig {
-    """Discover and load jac.toml from current or parent directories."""
+"""Discover and load jac.toml from current or parent directories."""
+impl JacConfig.discover(start_path: (Path | None) = None) -> JacConfig {
     if start_path is None {
         start_path = Path(os.getcwd());
     }
@@ -416,8 +426,8 @@ include:jac from jaclang.project.plugin_config { load_plugin_configs }
     return JacConfig();
 }
 
-:obj:JacConfig:can:apply_environment(env_name: str) -> None {
-    """Apply environment-specific overrides."""
+"""Apply environment-specific overrides."""
+impl JacConfig.apply_environment(env_name: str) -> None {
     if env_name not in self.environments {
         raise ValueError(f"Unknown environment: {env_name}");
     }
@@ -426,22 +436,21 @@ include:jac from jaclang.project.plugin_config { load_plugin_configs }
 
     # Deep merge environment overrides into current config
     if "settings" in env_config {
-        :self:_merge_settings(env_config["settings"]);
+        _merge_settings(self, env_config["settings"]);
     }
     if "plugins" in env_config {
-        :self:_merge_plugins(env_config["plugins"]);
+        _merge_plugins(self, env_config["plugins"]);
     }
 }
 
-:obj:JacConfig:can:get_plugin_config(plugin_name: str) -> dict {
-    """Get configuration for a specific plugin."""
+"""Get configuration for a specific plugin."""
+impl JacConfig.get_plugin_config(plugin_name: str) -> dict {
     return self.plugins.get(plugin_name, {});
 }
 
-:obj:JacConfig:can:_load_settings(raw: dict) -> JacSettings {
-    """Parse settings section into JacSettings object."""
+"""Parse settings section into JacSettings object."""
+def _load_settings(raw: dict) -> JacSettings {
     settings = JacSettings();
-
     settings.max_line_length = raw.get("max_line_length", 88);
 
     if "debug" in raw {
@@ -475,48 +484,48 @@ include:jac from jaclang.project.plugin_config { load_plugin_configs }
     return settings;
 }
 
-:obj:JacConfig:can:_merge_settings(overrides: dict) -> None {
-    """Merge environment settings overrides."""
+"""Merge environment settings overrides."""
+def _merge_settings(config: JacConfig, overrides: dict) -> None {
     if "debug" in overrides {
         for (key, val) in overrides["debug"].items() {
-            setattr(self.settings.debug, key, val);
+            setattr(config.settings.debug, key, val);
         }
     }
     if "compiler" in overrides {
         for (key, val) in overrides["compiler"].items() {
-            setattr(self.settings.compiler, key, val);
+            setattr(config.settings.compiler, key, val);
         }
     }
     if "lsp" in overrides {
         for (key, val) in overrides["lsp"].items() {
-            setattr(self.settings.lsp, key, val);
+            setattr(config.settings.lsp, key, val);
         }
     }
     if "alerts" in overrides {
         for (key, val) in overrides["alerts"].items() {
-            setattr(self.settings.alerts, key, val);
+            setattr(config.settings.alerts, key, val);
         }
     }
     if "max_line_length" in overrides {
-        self.settings.max_line_length = overrides["max_line_length"];
+        config.settings.max_line_length = overrides["max_line_length"];
     }
 }
 
-:obj:JacConfig:can:_merge_plugins(overrides: dict) -> None {
-    """Merge environment plugin overrides."""
+"""Merge environment plugin overrides."""
+def _merge_plugins(config: JacConfig, overrides: dict) -> None {
     for (plugin_name, plugin_overrides) in overrides.items() {
-        if plugin_name not in self.plugins {
-            self.plugins[plugin_name] = {};
+        if plugin_name not in config.plugins {
+            config.plugins[plugin_name] = {};
         }
-        :self:_deep_merge(self.plugins[plugin_name], plugin_overrides);
+        _deep_merge(config.plugins[plugin_name], plugin_overrides);
     }
 }
 
-:obj:JacConfig:can:_deep_merge(base: dict, override: dict) -> None {
-    """Recursively merge override into base."""
+"""Recursively merge override into base."""
+def _deep_merge(base: dict, override: dict) -> None {
     for (key, val) in override.items() {
-        if key in base and isinstance(base[key], dict) and isinstance(val, dict) {
-            :self:_deep_merge(base[key], val);
+        if (key in base and isinstance(base[key], dict) and isinstance(val, dict)) {
+            _deep_merge(base[key], val);
         } else {
             base[key] = val;
         }
@@ -528,35 +537,36 @@ include:jac from jaclang.project.plugin_config { load_plugin_configs }
 
 ```jac
 """TOML file loading with Python 3.10+ compatibility."""
+import from pathlib { Path }
+import from typing { Any }
 
-import:py sys;
-import:py from pathlib { Path }
-
-can load_toml(file_path: Path) -> dict;
+"""Load and parse a TOML file."""
+def load_toml(file_path: Path) -> dict[str, Any];
 ```
 
 ### 4. TOML Loader Implementation (`jaclang/project/impl/toml_loader.impl.jac`)
 
 ```jac
 """TOML loader implementation with fallback for Python < 3.11."""
-
-import:py sys;
-import:py from pathlib { Path }
+import sys;
+import from pathlib { Path }
+import from types { ModuleType }
+import from typing { Any }
 
 # Python 3.11+ has tomllib in stdlib, older versions need tomli
-glob _tomllib: module | None = None;
+glob _tomllib: (ModuleType | None) = None;
 
-can _get_toml_parser -> module {
-    """Get the appropriate TOML parser for this Python version."""
+"""Get the appropriate TOML parser for this Python version."""
+def _get_toml_parser() -> ModuleType {
     glob _tomllib;
 
     if _tomllib is None {
         if sys.version_info >= (3, 11) {
-            import:py tomllib;
+            import tomllib;
             _tomllib = tomllib;
         } else {
             try {
-                import:py tomli as tomllib;
+                import tomli as tomllib;
                 _tomllib = tomllib;
             } except ImportError {
                 raise ImportError(
@@ -569,10 +579,9 @@ can _get_toml_parser -> module {
     return _tomllib;
 }
 
-:can:load_toml(file_path: Path) -> dict {
-    """Load and parse a TOML file."""
+"""Load and parse a TOML file."""
+impl load_toml(file_path: Path) -> dict[str, Any] {
     parser = _get_toml_parser();
-
     with open(file_path, "rb") as f {
         return parser.load(f);
     }
@@ -583,31 +592,30 @@ can _get_toml_parser -> module {
 
 ```jac
 """Project root discovery by finding jac.toml."""
-
-import:py from pathlib { Path }
+import from pathlib { Path }
 
 glob JAC_TOML = "jac.toml";
 
-can find_project_root(start: Path | None = None) -> tuple[Path, Path] | None;
-can is_in_project -> bool;
+"""Find project root by looking for jac.toml."""
+def find_project_root(start: (Path | None) = None) -> (tuple[Path, Path] | None);
+
+"""Check if currently in a Jac project."""
+def is_in_project() -> bool;
 ```
 
 ### 6. Discovery Implementation (`jaclang/project/impl/discovery.impl.jac`)
 
 ```jac
 """Implementation of project root discovery."""
+import os;
+import from pathlib { Path }
 
-import:py os;
-import:py from pathlib { Path }
+"""Find project root by looking for jac.toml.
 
-include:jac from jaclang.project.discovery { JAC_TOML }
-
-:can:find_project_root(start: Path | None = None) -> tuple[Path, Path] | None {
-    """Find project root by looking for jac.toml.
-
-    Returns:
-        Tuple of (project_root, toml_path) or None if not found.
-    """
+Returns:
+    Tuple of (project_root, toml_path) or None if not found.
+"""
+impl find_project_root(start: (Path | None) = None) -> (tuple[Path, Path] | None) {
     if start is None {
         start = Path(os.getcwd());
     }
@@ -615,7 +623,7 @@ include:jac from jaclang.project.discovery { JAC_TOML }
     current = start.resolve();
 
     while current != current.parent {
-        toml_path = current / JAC_TOML;
+        toml_path = current / "jac.toml";
         if toml_path.exists() {
             return (current, toml_path);
         }
@@ -625,8 +633,8 @@ include:jac from jaclang.project.discovery { JAC_TOML }
     return None;
 }
 
-:can:is_in_project -> bool {
-    """Check if currently in a Jac project."""
+"""Check if currently in a Jac project."""
+impl is_in_project() -> bool {
     return find_project_root() is not None;
 }
 ```
@@ -635,10 +643,9 @@ include:jac from jaclang.project.discovery { JAC_TOML }
 
 ```jac
 """Environment variable interpolation for jac.toml values."""
-
-import:py os;
-import:py re;
-import:py from typing { Any }
+import os;
+import re;
+import from typing { Any }
 
 # Pattern: ${VAR}, ${VAR:-default}, ${VAR:?error message}
 glob ENV_VAR_PATTERN = re.compile(
@@ -646,23 +653,27 @@ glob ENV_VAR_PATTERN = re.compile(
     r'(?:(?P<op>:[-?])(?P<value>[^}]*))?\}'
 );
 
-can interpolate_value(value: Any) -> Any;
-can interpolate_string(text: str) -> str;
-can validate_env_vars(config: dict) -> list[str];
+"""Recursively interpolate environment variables in a value."""
+def interpolate_value(value: Any) -> Any;
+
+"""Interpolate environment variables in a string."""
+def interpolate_string(text: str) -> str;
+
+"""Validate that all required environment variables are set."""
+def validate_env_vars(config: dict) -> list[str];
 ```
 
 ### 8. Interpolation Implementation (`jaclang/project/impl/interpolation.impl.jac`)
 
 ```jac
 """Implementation of environment variable interpolation."""
+import os;
+import re;
+import from typing { Any }
+import from ..interpolation { ENV_VAR_PATTERN }
 
-import:py os;
-import:py from typing { Any }
-
-include:jac from jaclang.project.interpolation { ENV_VAR_PATTERN }
-
-:can:interpolate_value(value: Any) -> Any {
-    """Recursively interpolate environment variables in a value."""
+"""Recursively interpolate environment variables in a value."""
+impl interpolate_value(value: Any) -> Any {
     if isinstance(value, str) {
         return interpolate_string(value);
     } elif isinstance(value, dict) {
@@ -673,10 +684,9 @@ include:jac from jaclang.project.interpolation { ENV_VAR_PATTERN }
     return value;
 }
 
-:can:interpolate_string(text: str) -> str {
-    """Interpolate environment variables in a string."""
-
-    can replace_match(match: re.Match) -> str {
+"""Interpolate environment variables in a string."""
+impl interpolate_string(text: str) -> str {
+    def replace_match(match: re.Match) -> str {
         name = match.group("name");
         op = match.group("op");
         default_or_msg = match.group("value");
@@ -703,19 +713,19 @@ include:jac from jaclang.project.interpolation { ENV_VAR_PATTERN }
     return ENV_VAR_PATTERN.sub(replace_match, text);
 }
 
-:can:validate_env_vars(config: dict) -> list[str] {
-    """Validate that all required environment variables are set.
+"""Validate that all required environment variables are set.
 
-    Returns list of error messages for missing required variables.
-    """
+Returns list of error messages for missing required variables.
+"""
+impl validate_env_vars(config: dict) -> list[str] {
     errors: list[str] = [];
 
-    can check_value(value: Any, path: str) -> None {
+    def check_value(value: Any, path: str) -> None {
         if isinstance(value, str) {
             for match in ENV_VAR_PATTERN.finditer(value) {
                 name = match.group("name");
                 op = match.group("op");
-                if op != ":-" and name not in os.environ {
+                if (op != ":-" and name not in os.environ) {
                     errors.append(f"{path}: Missing required env var ${name}");
                 }
             }
@@ -739,69 +749,68 @@ include:jac from jaclang.project.interpolation { ENV_VAR_PATTERN }
 
 ```jac
 """Virtual environment management for .jac_env."""
+import from pathlib { Path }
 
-import:py from pathlib { Path }
-
+"""Manages the .jac_env virtual environment."""
 obj JacEnvironment {
-    """Manages the .jac_env virtual environment."""
     has project_root: Path,
         env_dir: str = ".jac_env";
 
-    can env_path -> Path;
-    can exists -> bool;
-    can python -> Path;
-    can pip -> Path;
-    can create(python_version: str | None = None) -> None;
-    can install_package(package: str, dev: bool = False) -> None;
-    can install_requirements(requirements: dict[str, str]) -> None;
-    can remove -> None;
-    can activate -> None;
+    def env_path() -> Path;
+    def exists() -> bool;
+    def python() -> Path;
+    def pip() -> Path;
+    def create(python_version: (str | None) = None) -> None;
+    def install_package(package: str, dev: bool = False) -> None;
+    def install_requirements(requirements: dict[str, str]) -> None;
+    def remove() -> None;
+    def activate() -> None;
 }
 
-can ensure_project_env -> JacEnvironment | None;
+"""Ensure project environment exists and is activated."""
+def ensure_project_env() -> (JacEnvironment | None);
 ```
 
 ### 10. Environment Implementation (`jaclang/project/impl/environment.impl.jac`)
 
 ```jac
 """Implementation of virtual environment management."""
+import os;
+import sys;
+import venv;
+import subprocess;
+import shutil;
+import from pathlib { Path }
+import from .config { get_config }
 
-import:py os;
-import:py sys;
-import:py venv;
-import:py subprocess;
-import:py shutil;
-import:py from pathlib { Path }
-
-include:jac from jaclang.project.config { get_config }
-
-:obj:JacEnvironment:can:env_path -> Path {
+"""Get the environment path."""
+impl JacEnvironment.env_path() -> Path {
     return self.project_root / self.env_dir;
 }
 
-:obj:JacEnvironment:can:exists -> bool {
-    """Check if environment exists."""
+"""Check if environment exists."""
+impl JacEnvironment.exists() -> bool {
     return (self.env_path() / "bin" / "python").exists();
 }
 
-:obj:JacEnvironment:can:python -> Path {
-    """Get Python executable path."""
+"""Get Python executable path."""
+impl JacEnvironment.python() -> Path {
     if sys.platform == "win32" {
         return self.env_path() / "Scripts" / "python.exe";
     }
     return self.env_path() / "bin" / "python";
 }
 
-:obj:JacEnvironment:can:pip -> Path {
-    """Get pip executable path."""
+"""Get pip executable path."""
+impl JacEnvironment.pip() -> Path {
     if sys.platform == "win32" {
         return self.env_path() / "Scripts" / "pip.exe";
     }
     return self.env_path() / "bin" / "pip";
 }
 
-:obj:JacEnvironment:can:create(python_version: str | None = None) -> None {
-    """Create the virtual environment."""
+"""Create the virtual environment."""
+impl JacEnvironment.create(python_version: (str | None) = None) -> None {
     print(f"Creating virtual environment at {self.env_path()}...");
     venv.create(self.env_path(), with_pip=True);
 
@@ -821,8 +830,8 @@ include:jac from jaclang.project.config { get_config }
     }
 }
 
-:obj:JacEnvironment:can:install_package(package: str, dev: bool = False) -> None {
-    """Install a package in the environment."""
+"""Install a package in the environment."""
+impl JacEnvironment.install_package(package: str, dev: bool = False) -> None {
     subprocess.run(
         [str(self.pip()), "install", package],
         check=True,
@@ -830,8 +839,8 @@ include:jac from jaclang.project.config { get_config }
     );
 }
 
-:obj:JacEnvironment:can:install_requirements(requirements: dict[str, str]) -> None {
-    """Install all requirements from dependencies dict."""
+"""Install all requirements from dependencies dict."""
+impl JacEnvironment.install_requirements(requirements: dict[str, str]) -> None {
     for (package, version) in requirements.items() {
         spec = f"{package}{version}" if version else package;
         print(f"Installing {spec}...");
@@ -839,16 +848,16 @@ include:jac from jaclang.project.config { get_config }
     }
 }
 
-:obj:JacEnvironment:can:remove -> None {
-    """Remove the virtual environment."""
+"""Remove the virtual environment."""
+impl JacEnvironment.remove() -> None {
     if self.exists() {
         print(f"Removing {self.env_path()}...");
         shutil.rmtree(self.env_path());
     }
 }
 
-:obj:JacEnvironment:can:activate -> None {
-    """Modify sys.path to use this environment's packages."""
+"""Modify sys.path to use this environment's packages."""
+impl JacEnvironment.activate() -> None {
     if sys.platform == "win32" {
         site_packages = self.env_path() / "Lib" / "site-packages";
     } else {
@@ -862,13 +871,13 @@ include:jac from jaclang.project.config { get_config }
         }
     }
 
-    if site_packages.exists() and str(site_packages) not in sys.path {
+    if (site_packages.exists() and str(site_packages) not in sys.path) {
         sys.path.insert(0, str(site_packages));
     }
 }
 
-:can:ensure_project_env -> JacEnvironment | None {
-    """Ensure project environment exists and is activated."""
+"""Ensure project environment exists and is activated."""
+impl ensure_project_env() -> (JacEnvironment | None) {
     config = get_config();
 
     if config.project_root is None {
@@ -893,37 +902,34 @@ include:jac from jaclang.project.config { get_config }
 
 ```jac
 """Plugin configuration loading and validation."""
+import from typing { Any }
 
-import:py from typing { Any }
-
-include:jac from jaclang.pycore.runtime { plugin_manager }
-
+"""Manages plugin configuration loading and validation."""
 obj PluginConfigManager {
-    """Manages plugin configuration loading and validation."""
     has schemas: dict[str, dict] = {},
         configs: dict[str, dict] = {};
 
-    can collect_schemas -> None;
-    can load_from_toml(plugins_section: dict) -> None;
-    can validate_all -> list[str];
-    can notify_plugins -> None;
-    can get_plugin_config(section_name: str) -> dict;
+    def collect_schemas() -> None;
+    def load_from_toml(plugins_section: dict) -> None;
+    def validate_all() -> list[str];
+    def notify_plugins() -> None;
+    def get_plugin_config(section_name: str) -> dict;
 }
 
-can load_plugin_configs(plugins_section: dict) -> dict[str, dict];
+"""Convenience function to load all plugin configs."""
+def load_plugin_configs(plugins_section: dict) -> dict[str, dict];
 ```
 
 ### 12. Plugin Config Implementation (`jaclang/project/impl/plugin_config.impl.jac`)
 
 ```jac
 """Implementation of plugin configuration system."""
+import sys;
+import from typing { Any }
+import from jaclang.pycore.runtime { plugin_manager }
 
-import:py from typing { Any }
-
-include:jac from jaclang.pycore.runtime { plugin_manager }
-
-:obj:PluginConfigManager:can:collect_schemas -> None {
-    """Collect configuration schemas from all registered plugins."""
+"""Collect configuration schemas from all registered plugins."""
+impl PluginConfigManager.collect_schemas() -> None {
     # Call the hook on all plugins
     results = plugin_manager.hook.get_config_spec();
 
@@ -937,8 +943,8 @@ include:jac from jaclang.pycore.runtime { plugin_manager }
     }
 }
 
-:obj:PluginConfigManager:can:load_from_toml(plugins_section: dict) -> None {
-    """Load plugin configurations from jac.toml [plugins] section."""
+"""Load plugin configurations from jac.toml [plugins] section."""
+impl PluginConfigManager.load_from_toml(plugins_section: dict) -> None {
     for (section_name, schema) in self.schemas.items() {
         raw_config = plugins_section.get(section_name, {});
 
@@ -948,7 +954,7 @@ include:jac from jaclang.pycore.runtime { plugin_manager }
 
         for (opt_name, opt_spec) in options.items() {
             if opt_name in raw_config {
-                config[opt_name] = :self:_coerce_type(
+                config[opt_name] = _coerce_type(
                     raw_config[opt_name],
                     opt_spec.get("type", "str")
                 );
@@ -975,8 +981,8 @@ include:jac from jaclang.pycore.runtime { plugin_manager }
     }
 }
 
-:obj:PluginConfigManager:can:validate_all -> list[str] {
-    """Validate all plugin configurations."""
+"""Validate all plugin configurations."""
+impl PluginConfigManager.validate_all() -> list[str] {
     all_errors: list[str] = [];
 
     for (section_name, config) in self.configs.items() {
@@ -994,20 +1000,20 @@ include:jac from jaclang.pycore.runtime { plugin_manager }
     return all_errors;
 }
 
-:obj:PluginConfigManager:can:notify_plugins -> None {
-    """Notify plugins that configuration has been loaded."""
+"""Notify plugins that configuration has been loaded."""
+impl PluginConfigManager.notify_plugins() -> None {
     for (section_name, config) in self.configs.items() {
         plugin_manager.hook.configure(plugin_name=section_name, config=config);
     }
 }
 
-:obj:PluginConfigManager:can:get_plugin_config(section_name: str) -> dict {
-    """Get configuration for a specific plugin."""
+"""Get configuration for a specific plugin."""
+impl PluginConfigManager.get_plugin_config(section_name: str) -> dict {
     return self.configs.get(section_name, {});
 }
 
-:obj:PluginConfigManager:can:_coerce_type(value: Any, type_name: str) -> Any {
-    """Coerce a value to the specified type."""
+"""Coerce a value to the specified type."""
+def _coerce_type(value: Any, type_name: str) -> Any {
     if type_name == "int" {
         return int(value);
     } elif type_name == "float" {
@@ -1026,8 +1032,8 @@ include:jac from jaclang.pycore.runtime { plugin_manager }
     return value;
 }
 
-:can:load_plugin_configs(plugins_section: dict) -> dict[str, dict] {
-    """Convenience function to load all plugin configs."""
+"""Convenience function to load all plugin configs."""
+impl load_plugin_configs(plugins_section: dict) -> dict[str, dict] {
     manager = PluginConfigManager();
     manager.collect_schemas();
     manager.load_from_toml(plugins_section);
@@ -1105,12 +1111,11 @@ def validate_config(config: dict) -> list[str]:
 
 ```jac
 """Command line interface tool for the Jac language."""
-
-import:py from jaclang.cli.cmdreg { cmd_registry }
+import from jaclang.cli.cmdreg { cmd_registry }
 
 # NEW: Import project config
-include:jac from jaclang.project.config { get_config, get_settings }
-include:jac from jaclang.project.environment { ensure_project_env }
+import from jaclang.project.config { get_config, get_settings }
+import from jaclang.project.environment { ensure_project_env }
 
 glob _runtime_initialized = False;
 
@@ -1147,26 +1152,24 @@ def init(name: str = '', quick: bool = False) -> None;
 def install(packages: list[str] = [], dev: bool = False) -> None;
 
 @cmd_registry.register
-def env(action: str = 'info') -> None;  # info, create, remove
+def jac_env(action: str = 'info') -> None;  # info, create, remove
 
 @cmd_registry.register
 def config(action: str = 'show', path: str = '') -> None;  # show, validate
 
-def start_cli -> None;
+def start_cli() -> None;
 ```
 
 ### Updated `cli.impl.jac` Start Function
 
 ```jac
 """CLI implementation - loads config before executing commands."""
+import argparse;
+import from jaclang.project.config { get_config }
+import from jaclang.project.environment { ensure_project_env }
 
-include:jac from jaclang.project.config { get_config, _config }
-include:jac from jaclang.project.environment { ensure_project_env }
-
-:can:start_cli -> None {
-    """Main entry point - now loads jac.toml first."""
-    import:py argparse;
-
+"""Main entry point - now loads jac.toml first."""
+impl start_cli() -> None {
     # 1. Discover and load jac.toml BEFORE anything else
     config = get_config();
 
@@ -1188,7 +1191,7 @@ include:jac from jaclang.project.environment { ensure_project_env }
     args = parser.parse_args();
 
     # 6. Apply environment profile if specified
-    if hasattr(args, 'env') and args.env {
+    if (hasattr(args, 'env') and args.env) {
         config.apply_environment(args.env);
     }
 
@@ -1200,10 +1203,10 @@ include:jac from jaclang.project.environment { ensure_project_env }
 # NEW COMMAND IMPLEMENTATIONS
 #-------------------------------------------------------------------------------
 
-:can:init(name: str = '', quick: bool = False) -> None {
-    """Initialize a new Jac project."""
-    import:py os;
-    import:py from pathlib { Path }
+"""Initialize a new Jac project."""
+impl init(name: str = '', quick: bool = False) -> None {
+    import os;
+    import from pathlib { Path }
 
     project_dir = Path(os.getcwd());
 
@@ -1234,7 +1237,7 @@ show_internal_stack_errs = false
 ''';
 
     toml_path = project_dir / "jac.toml";
-    if toml_path.exists() and not quick {
+    if (toml_path.exists() and not quick) {
         print("jac.toml already exists. Use --quick to overwrite.");
         return;
     }
@@ -1257,17 +1260,17 @@ show_internal_stack_errs = false
     }
 
     # Create virtual environment
-    include:jac from jaclang.project.environment { JacEnvironment }
+    import from jaclang.project.environment { JacEnvironment }
     env = JacEnvironment(project_root=project_dir);
     env.create();
 
-    print(f"\n Project '{name}' initialized successfully!");
+    print(f"\nProject '{name}' initialized successfully!");
     print("\nNext steps:");
     print("  jac run main.jac");
 }
 
-:can:install(packages: list[str] = [], dev: bool = False) -> None {
-    """Install dependencies."""
+"""Install dependencies."""
+impl install(packages: list[str] = [], dev: bool = False) -> None {
     config = get_config();
 
     if config.project_root is None {
@@ -1275,7 +1278,7 @@ show_internal_stack_errs = false
         return;
     }
 
-    include:jac from jaclang.project.environment { JacEnvironment }
+    import from jaclang.project.environment { JacEnvironment }
     env = JacEnvironment(
         project_root=config.project_root,
         env_dir=config.environment.env_dir
@@ -1300,11 +1303,11 @@ show_internal_stack_errs = false
         }
     }
 
-    print(" Installation complete!");
+    print("Installation complete!");
 }
 
-:can:env(action: str = 'info') -> None {
-    """Manage project environment."""
+"""Manage project environment."""
+impl jac_env(action: str = 'info') -> None {
     config = get_config();
 
     if config.project_root is None {
@@ -1312,7 +1315,7 @@ show_internal_stack_errs = false
         return;
     }
 
-    include:jac from jaclang.project.environment { JacEnvironment }
+    import from jaclang.project.environment { JacEnvironment }
     env = JacEnvironment(
         project_root=config.project_root,
         env_dir=config.environment.env_dir
@@ -1331,24 +1334,23 @@ show_internal_stack_errs = false
             print("Environment already exists.");
         } else {
             env.create();
-            print(" Environment created.");
+            print("Environment created.");
         }
     } elif action == 'remove' {
         env.remove();
-        print(" Environment removed.");
+        print("Environment removed.");
     } else {
         print(f"Unknown action: {action}");
         print("Valid actions: info, create, remove");
     }
 }
 
-:can:config(action: str = 'show', path: str = '') -> None {
-    """Show or validate configuration."""
+"""Show or validate configuration."""
+impl config(action: str = 'show', path: str = '') -> None {
+    import json;
     config = get_config();
 
     if action == 'show' {
-        import:py json;
-
         if path {
             # Show specific path
             parts = path.split('.');
@@ -1356,7 +1358,7 @@ show_internal_stack_errs = false
             for part in parts {
                 if hasattr(value, part) {
                     value = getattr(value, part);
-                } elif isinstance(value, dict) and part in value {
+                } elif (isinstance(value, dict) and part in value) {
                     value = value[part];
                 } else {
                     print(f"Path not found: {path}");
@@ -1378,7 +1380,7 @@ show_internal_stack_errs = false
             print(f"\nPlugins: {list(config.plugins.keys())}");
         }
     } elif action == 'validate' {
-        include:jac from jaclang.project.interpolation { validate_env_vars }
+        import from jaclang.project.interpolation { validate_env_vars }
 
         errors = validate_env_vars(config.plugins);
         if errors {
@@ -1387,7 +1389,7 @@ show_internal_stack_errs = false
                 print(f"  - {err}");
             }
         } else {
-            print(" Configuration is valid.");
+            print("Configuration is valid.");
         }
     }
 }
@@ -1441,13 +1443,12 @@ show_internal_stack_errs = false
 
 ```jac
 """jac-byllm plugin with jac.toml configuration."""
-
-include:jac from jaclang.pycore.runtime { hookimpl }
+import from jaclang.pycore.runtime { hookimpl }
 
 glob _plugin_config: dict = {};
 
 @hookimpl
-can get_config_spec -> dict {
+def get_config_spec() -> dict {
     return {
         "section": "byllm",
         "schema": {
@@ -1461,7 +1462,7 @@ can get_config_spec -> dict {
 }
 
 @hookimpl
-can configure(plugin_name: str, config: dict) -> None {
+def configure(plugin_name: str, config: dict) -> None {
     if plugin_name == "byllm" {
         glob _plugin_config;
         _plugin_config = config;
@@ -1471,11 +1472,11 @@ can configure(plugin_name: str, config: dict) -> None {
 }
 
 @hookimpl
-can validate_config(config: dict) -> list[str] {
+def validate_config(config: dict) -> list[str] {
     errors: list[str] = [];
 
     temp = config.get("temperature", 0.7);
-    if temp < 0 or temp > 2 {
+    if (temp < 0 or temp > 2) {
         errors.append("temperature must be between 0 and 2");
     }
 
@@ -1492,13 +1493,12 @@ can validate_config(config: dict) -> list[str] {
 
 ```jac
 """jac-client plugin with jac.toml configuration."""
-
-include:jac from jaclang.pycore.runtime { hookimpl }
+import from jaclang.pycore.runtime { hookimpl }
 
 glob _plugin_config: dict = {};
 
 @hookimpl
-can get_config_spec -> dict {
+def get_config_spec() -> dict {
     return {
         "section": "client",
         "schema": {
@@ -1510,7 +1510,7 @@ can get_config_spec -> dict {
 }
 
 @hookimpl
-can configure(plugin_name: str, config: dict) -> None {
+def configure(plugin_name: str, config: dict) -> None {
     if plugin_name == "client" {
         glob _plugin_config;
         _plugin_config = config;
@@ -1525,13 +1525,12 @@ can configure(plugin_name: str, config: dict) -> None {
 
 ```jac
 """jac-scale plugin with jac.toml configuration."""
-
-include:jac from jaclang.pycore.runtime { hookimpl }
+import from jaclang.pycore.runtime { hookimpl }
 
 glob _plugin_config: dict = {};
 
 @hookimpl
-can get_config_spec -> dict {
+def get_config_spec() -> dict {
     return {
         "section": "scale",
         "schema": {
@@ -1545,7 +1544,7 @@ can get_config_spec -> dict {
 }
 
 @hookimpl
-can configure(plugin_name: str, config: dict) -> None {
+def configure(plugin_name: str, config: dict) -> None {
     if plugin_name == "scale" {
         glob _plugin_config;
         _plugin_config = config;
@@ -1553,7 +1552,7 @@ can configure(plugin_name: str, config: dict) -> None {
 }
 
 @hookimpl
-can validate_config(config: dict) -> list[str] {
+def validate_config(config: dict) -> list[str] {
     errors: list[str] = [];
 
     min_r = config.get("min_replicas", 1);
