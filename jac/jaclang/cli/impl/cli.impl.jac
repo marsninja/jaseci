@@ -993,14 +993,8 @@ impl create(name: str = '', force: bool = False) -> None {
         f.write(toml_content);
     }
     print(f"Created {toml_path}");
-    # Create src directory if it doesn't exist
-    src_dir = cwd / "src";
-    if not src_dir.exists() {
-        src_dir.mkdir(parents=True, exist_ok=True);
-        print(f"Created {src_dir}/");
-    }
-    # Create main.jac if it doesn't exist
-    main_jac = src_dir / "main.jac";
+    # Create main.jac in project root if it doesn't exist
+    main_jac = cwd / "main.jac";
     if not main_jac.exists() {
         with open(main_jac, "w") as f {
             f.write(
@@ -1068,9 +1062,9 @@ with entry {{
     }
     print(f"\nProject '{project_name}' initialized successfully!");
     print("\nNext steps:");
-    print("  jac run src/main.jac    # Run the main entry point");
-    print("  jac add <package>       # Add dependencies");
-    print("  jac install             # Install all dependencies");
+    print("  jac run main.jac    # Run the main entry point");
+    print("  jac add <package>   # Add dependencies");
+    print("  jac install         # Install all dependencies");
 }
 
 """Install all dependencies from jac.toml.
@@ -1326,7 +1320,7 @@ impl script(name: str = '', list_scripts: bool = False) -> None {
             print("No scripts defined in jac.toml.");
             print("\nTo add scripts, add a [scripts] section to your jac.toml:");
             print('  [scripts]');
-            print('  dev = "jac run src/main.jac"');
+            print('  dev = "jac run main.jac"');
             print('  test = "jac test"');
             return;
         }

@@ -319,14 +319,13 @@ jac init --name my-project
 my-project/
 ├── jac.toml
 ├── .gitignore
+├── main.jac            # Entry point
 ├── packages/           # Python/Jac dependencies (added to .gitignore)
 ├── client/             # Client-side files (created by jac-client, added to .gitignore)
 │   ├── node_modules/   # NPM dependencies
 │   ├── package.json    # Generated from [dependencies.npm]
 │   ├── package-lock.json
 │   └── tsconfig.json   # Generated from [plugins.client.typescript]
-├── src/
-│   └── main.jac
 └── README.md
 ```
 
@@ -406,6 +405,7 @@ All NPM-related files are placed in a `client/` directory at the project root, k
 ```
 my-project/
 ├── jac.toml
+├── main.jac               # Jac entry point
 ├── packages/              # Python/Jac dependencies
 ├── client/                # All client-side/NPM files
 │   ├── node_modules/      # NPM packages installed here
@@ -415,8 +415,7 @@ my-project/
 │   ├── vite.config.ts     # Generated from [plugins.client.vite]
 │   └── src/               # Client source (if using jac-client's bundler)
 │       └── ...
-└── src/
-    └── main.jac
+└── README.md
 ```
 
 **Why a separate `client/` directory?**
@@ -854,7 +853,7 @@ The new system maintains the three-tier approach but adds project-level configur
 $ mkdir my-project && cd my-project
 $ jac init
 Created jac.toml
-Created src/main.jac
+Created main.jac
 
 Project 'my-project' initialized successfully!
 

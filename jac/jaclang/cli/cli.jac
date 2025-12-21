@@ -106,7 +106,7 @@ def serve(
 # PROJECT MANAGEMENT COMMANDS
 #===============================================================================
 @cmd_registry.register
-def create(name: str = '', force: bool = False) -> None;
+def create(name: str = 'main', force: bool = False) -> None;
 
 @cmd_registry.register
 def install(dev: bool = False, verbose: bool = False) -> None;
@@ -128,8 +128,6 @@ def script(name: str = '', list_scripts: bool = False) -> None;
 
 def start_cli -> None;
 
-with entry {
-    if (__name__ == '__main__') {
-        start_cli();
-    }
+with entry:__main__ {
+    start_cli();
 }

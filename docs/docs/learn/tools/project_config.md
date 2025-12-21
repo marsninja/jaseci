@@ -39,8 +39,10 @@ my-project/
 ├── jac.lock          # Lock file (auto-generated)
 ├── main.jac          # Entry point
 ├── packages/         # Installed dependencies
-└── src/              # Source files
-    └── ...
+├── lib/              # Library modules (optional)
+│   └── utils.jac
+└── tests/            # Test files (optional)
+    └── test_main.jac
 ```
 
 ## Configuration Reference
@@ -478,8 +480,8 @@ clean = "jac clean"
 Jac automatically discovers `jac.toml` by searching from the current directory upward to the filesystem root. This means you can run Jac commands from any subdirectory within your project:
 
 ```bash
-cd my-project/src/components
-jac run ../../main.jac  # jac.toml is found automatically
+cd my-project/lib
+jac run ../main.jac  # jac.toml is found automatically
 ```
 
 ## Programmatic Access
