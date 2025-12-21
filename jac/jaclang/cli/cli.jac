@@ -102,6 +102,30 @@ def serve(
     faux: bool = False
 ) -> None;
 
+#===============================================================================
+# PROJECT MANAGEMENT COMMANDS
+#===============================================================================
+@cmd_registry.register
+def create(name: str = '', force: bool = False) -> None;
+
+@cmd_registry.register
+def install(dev: bool = False, verbose: bool = False) -> None;
+
+@cmd_registry.register
+def add(
+    packages: list,
+    dev: bool = False,
+    git: str = '',
+    npm: bool = False,
+    verbose: bool = False
+) -> None;
+
+@cmd_registry.register
+def remove(packages: list, dev: bool = False, npm: bool = False) -> None;
+
+@cmd_registry.register
+def script(name: str = '', list_scripts: bool = False) -> None;
+
 def start_cli -> None;
 
 with entry {

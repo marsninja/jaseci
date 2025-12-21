@@ -2,6 +2,8 @@
 
 impl start_cli -> None {
     import from jaclang.pycore.runtime { JacRuntime as Jac }
+    # Auto-discover and load jac.toml project configuration
+    _load_project_config();
     Jac.create_cmd();
     cmd_registry.finalize();
     parser = cmd_registry.parser;
@@ -33,6 +35,8 @@ impl start_cli -> None {
     args_dict = vars(args);
     args_dict.pop('command');
     args_dict.pop('version', None);
+    # Apply environment profile if specified
+    _apply_env_profile(args_dict);
     allowed_params = <>set(command.sig.parameters.keys());
     filtered_args = {
         k: v
@@ -42,6 +46,52 @@ impl start_cli -> None {
     ret = command.call(**filtered_args);
     if ret {
         print(ret);
+    }
+}
+
+"""Load project configuration from jac.toml if present."""
+def _load_project_config -> None {
+    try {
+        import from jaclang.project.config { get_config, set_config }
+        import from jaclang.project.dependencies { add_packages_to_path }
+
+        # Auto-discover jac.toml
+        config = get_config();
+        if config is not None {
+            # Add packages/ directory to Python path
+            add_packages_to_path(config);
+        }
+    } except Exception {
+        # Silently ignore if project module not available or config discovery fails
+        pass;
+    }
+}
+
+"""Apply environment profile from --env flag or JAC_ENV environment variable."""
+def _apply_env_profile(args_dict: dict) -> None {
+    try {
+        import from jaclang.project.config { get_config }
+
+        config = get_config();
+        if config is None {
+            return;
+        }
+
+        # Check for --env argument or JAC_ENV environment variable
+        profile = args_dict.pop('env', None);
+        if profile is None {
+            profile = os.environ.get('JAC_ENV');
+        }
+        if profile is None and config.environment.default_profile {
+            profile = config.environment.default_profile;
+        }
+
+        if profile {
+            config.apply_profile(profile);
+        }
+    } except Exception {
+        # Silently ignore profile loading errors
+        pass;
     }
 }
 
@@ -899,5 +949,414 @@ impl _ensure_jac_runtime -> None {
         import from jaclang.pycore.runtime { JacRuntime as Jac }
         Jac.setup();
         _runtime_initialized = True;
+    }
+}
+
+#===============================================================================
+# PROJECT MANAGEMENT COMMAND IMPLEMENTATIONS
+#===============================================================================
+"""Initialize a new Jac project.
+
+Creates a jac.toml configuration file and basic project structure in the
+current directory or a new directory with the specified name.
+
+Args:
+    name: Optional project name. If not provided, uses current directory name.
+    force: Overwrite existing jac.toml if present.
+
+Examples:
+    jac create
+    jac create --name my-project
+    jac create --force
+"""
+impl create(name: str = '', force: bool = False) -> None {
+    import from jaclang.project.config { JacConfig, find_project_root }
+    cwd = Path.cwd();
+    # Check if already in a project
+    existing = find_project_root(cwd);
+    if existing and not force {
+        (project_root, toml_path) = existing;
+        print(f"Already in a Jac project: {toml_path}", file=sys.stderr);
+        print("Use --force to reinitialize.", file=sys.stderr);
+        <>exit(1);
+    }
+    # Determine project name
+    project_name = name if name else cwd.name;
+    # Create jac.toml
+    toml_path = cwd / "jac.toml";
+    if toml_path.exists() and not force {
+        print(f"jac.toml already exists. Use --force to overwrite.", file=sys.stderr);
+        <>exit(1);
+    }
+    toml_content = JacConfig.create_default_toml(project_name);
+    with open(toml_path, "w") as f {
+        f.write(toml_content);
+    }
+    print(f"Created {toml_path}");
+    # Create src directory if it doesn't exist
+    src_dir = cwd / "src";
+    if not src_dir.exists() {
+        src_dir.mkdir(parents=True, exist_ok=True);
+        print(f"Created {src_dir}/");
+    }
+    # Create main.jac if it doesn't exist
+    main_jac = src_dir / "main.jac";
+    if not main_jac.exists() {
+        with open(main_jac, "w") as f {
+            f.write(
+                f'''"""Main entry point for {project_name}."""
+
+with entry {{
+    print("Hello from {project_name}!");
+}}
+'''
+            );
+        }
+        print(f"Created {main_jac}");
+    }
+    # Create packages directory
+    packages_dir = cwd / "packages";
+    if not packages_dir.exists() {
+        packages_dir.mkdir(parents=True, exist_ok=True);
+        print(f"Created {packages_dir}/");
+    }
+    # Create or update .gitignore
+    gitignore_path = cwd / ".gitignore";
+    gitignore_entries = [
+        "# Jac project",
+        "packages/",
+        ".jac_cache/",
+        "*.jbc",
+        "*.jir",
+        "*.session",
+        "__jaccache__/",
+        "",
+        "# Python",
+        "__pycache__/",
+        "*.py[cod]",
+        ".venv/",
+        "venv/",
+        "",
+        "# IDE",
+        ".idea/",
+        ".vscode/",
+        "*.swp",
+        ""
+    ];
+    if gitignore_path.exists() {
+        with open(gitignore_path, "r") as f {
+            existing_content = f.read();
+        }
+        # Add entries that don't exist
+        new_entries = [];
+        for entry in gitignore_entries {
+            if entry and entry not in existing_content {
+                new_entries.append(entry);
+            }
+        }
+        if new_entries {
+            with open(gitignore_path, "a") as f {
+                f.write("\n" + "\n".join(new_entries));
+            }
+            print(f"Updated {gitignore_path}");
+        }
+    } else {
+        with open(gitignore_path, "w") as f {
+            f.write("\n".join(gitignore_entries));
+        }
+        print(f"Created {gitignore_path}");
+    }
+    print(f"\nProject '{project_name}' initialized successfully!");
+    print("\nNext steps:");
+    print("  jac run src/main.jac    # Run the main entry point");
+    print("  jac add <package>       # Add dependencies");
+    print("  jac install             # Install all dependencies");
+}
+
+"""Install all dependencies from jac.toml.
+
+Reads the jac.toml configuration and installs all declared dependencies
+into the local packages/ directory.
+
+Args:
+    dev: Include dev dependencies in installation.
+    verbose: Show detailed installation progress.
+
+Examples:
+    jac install
+    jac install --dev
+    jac install --verbose
+"""
+impl install(dev: bool = False, verbose: bool = False) -> None {
+    import from jaclang.project.config { get_config }
+    import from jaclang.project.dependencies { DependencyInstaller }
+    import from jaclang.project.lockfile { Lockfile, LockedPackage }
+    config = get_config();
+    if config is None {
+        print(
+            "No jac.toml found. Run 'jac init' to create a project.", file=sys.stderr
+        );
+        <>exit(1);
+    }
+    print(f"Installing dependencies for '{config.project.name}'...");
+    print(f"Packages directory: {config.get_packages_dir()}");
+    print();
+    installer = DependencyInstaller(config=config, verbose=verbose);
+    success = installer.install_all(include_dev=dev);
+    if success {
+        # Create/update lock file
+        installed_packages = [];
+        for name in installer.list_installed() {
+            installed_packages.append(
+                LockedPackage(name=name, version="installed", source="pypi")
+            );
+        }
+        lockfile = Lockfile.create(config, installed_packages);
+        try {
+            lockfile.save();
+            print(f"\nUpdated jac.lock");
+        } except Exception as e {
+            print(f"Warning: Could not save lock file: {e}", file=sys.stderr);
+        }
+        print("\nAll dependencies installed successfully!");
+    } else {
+        print("\nSome dependencies failed to install.", file=sys.stderr);
+        <>exit(1);
+    }
+}
+
+"""Add dependencies to the project.
+
+Adds one or more packages to jac.toml and installs them to the packages/
+directory. Supports Python/Jac packages, git repositories, and npm packages
+(when jac-client is available).
+
+Args:
+    packages: List of package specifications (e.g., "requests>=2.28.0")
+    dev: Add as development dependency.
+    git: Git repository URL (for git-based dependencies).
+    npm: Add as npm dependency (requires jac-client plugin).
+    verbose: Show detailed installation progress.
+
+Examples:
+    jac add requests
+    jac add "numpy>=1.24" pandas
+    jac add pytest --dev
+    jac add --git https://github.com/user/plugin.git
+    jac add react --npm
+"""
+impl add(
+    packages: list,
+    dev: bool = False,
+    git: str = '',
+    npm: bool = False,
+    verbose: bool = False
+) -> None {
+    import from jaclang.project.config { get_config }
+    import from jaclang.project.dependencies { DependencyInstaller, DependencyResolver }
+    config = get_config();
+    if config is None {
+        print(
+            "No jac.toml found. Run 'jac init' to create a project.", file=sys.stderr
+        );
+        <>exit(1);
+    }
+    if not packages and not git {
+        print("No packages specified.", file=sys.stderr);
+        <>exit(1);
+    }
+    installer = DependencyInstaller(config=config, verbose=verbose);
+    resolver = DependencyResolver(config=config);
+    # Handle git dependency
+    if git {
+        # Use first package name or derive from URL
+        if packages {
+            pkg_name = packages[0];
+        } else {
+            # Extract name from git URL
+            pkg_name = git.rstrip("/").split("/")[-1];
+            if pkg_name.endswith(".git") {
+                pkg_name = pkg_name[:-4];
+            }
+        }
+        print(f"Adding {pkg_name} from git: {git}");
+        config.add_dependency(pkg_name, git, dev=dev, dep_type="git");
+        if installer.install_git_package(pkg_name, git) {
+            config.save();
+            print(f"Added {pkg_name} from git");
+        } else {
+            <>exit(1);
+        }
+        return;
+    }
+    # Handle npm dependencies
+    if npm {
+        print("Adding npm dependencies...");
+        for pkg_spec in packages {
+            (name, version) = resolver.parse_spec(pkg_spec);
+            config.add_dependency(name, version or "latest", dev=dev, dep_type="npm");
+            print(f"  Added {name} to [dependencies.npm]");
+        }
+        config.save();
+        print(
+            "\nNote: Run 'npm install' in the client/ directory to install npm packages."
+        );
+        return;
+    }
+    # Handle Python/Jac dependencies
+    for pkg_spec in packages {
+        (name, version) = resolver.parse_spec(pkg_spec);
+        version_str = version if version else ">=0.0.0";
+
+        print(f"Adding {name}{version_str}...");
+
+        if installer.install_package(name, version) {
+            config.add_dependency(name, version_str, dev=dev, dep_type="python");
+        } else {
+            print(f"Failed to install {name}", file=sys.stderr);
+            <>exit(1);
+        }
+    }
+    # Save updated config
+    try {
+        config.save();
+        print("\nUpdated jac.toml");
+    } except Exception as e {
+        print(f"Warning: Could not save jac.toml: {e}", file=sys.stderr);
+    }
+}
+
+"""Remove dependencies from the project.
+
+Removes one or more packages from jac.toml and uninstalls them from the
+packages/ directory.
+
+Args:
+    packages: List of package names to remove.
+    dev: Remove from development dependencies.
+    npm: Remove npm dependency (requires jac-client plugin).
+
+Examples:
+    jac remove requests
+    jac remove pytest --dev
+    jac remove react --npm
+"""
+impl remove(packages: list, dev: bool = False, npm: bool = False) -> None {
+    import from jaclang.project.config { get_config }
+    import from jaclang.project.dependencies { DependencyInstaller }
+    config = get_config();
+    if config is None {
+        print(
+            "No jac.toml found. Run 'jac init' to create a project.", file=sys.stderr
+        );
+        <>exit(1);
+    }
+    if not packages {
+        print("No packages specified.", file=sys.stderr);
+        <>exit(1);
+    }
+    installer = DependencyInstaller(config=config);
+    # Handle npm dependencies
+    if npm {
+        for name in packages {
+            if config.remove_dependency(name, dev=dev, dep_type="npm") {
+                print(f"Removed {name} from [dependencies.npm]");
+            } else {
+                print(f"Package {name} not found in npm dependencies", file=sys.stderr);
+            }
+        }
+        config.save();
+        print(
+            "\nNote: Run 'npm uninstall' in the client/ directory to uninstall npm packages."
+        );
+        return;
+    }
+    # Handle Python/Jac dependencies
+    for name in packages {
+        dep_type = "python";
+
+        # Check if it's a git dependency
+        if name in config.git_dependencies {
+            dep_type = "git";
+        }
+
+        if config.remove_dependency(name, dev=dev, dep_type=dep_type) {
+            print(f"Removed {name} from jac.toml");
+            installer.uninstall_package(name);
+        } else {
+            print(f"Package {name} not found in dependencies", file=sys.stderr);
+        }
+    }
+    # Save updated config
+    try {
+        config.save();
+        print("\nUpdated jac.toml");
+    } except Exception as e {
+        print(f"Warning: Could not save jac.toml: {e}", file=sys.stderr);
+    }
+}
+
+"""Run custom scripts defined in jac.toml.
+
+Executes a named script from the [scripts] section of jac.toml, or lists
+all available scripts.
+
+Args:
+    name: Name of the script to run.
+    list_scripts: List all available scripts without running any.
+
+Examples:
+    jac script dev
+    jac script build
+    jac script --list_scripts
+"""
+impl script(name: str = '', list_scripts: bool = False) -> None {
+    import subprocess;
+    import shlex;
+    import from jaclang.project.config { get_config }
+    config = get_config();
+    if config is None {
+        print(
+            "No jac.toml found. Run 'jac init' to create a project.", file=sys.stderr
+        );
+        <>exit(1);
+    }
+    if list_scripts or not name {
+        if not config.scripts {
+            print("No scripts defined in jac.toml.");
+            print("\nTo add scripts, add a [scripts] section to your jac.toml:");
+            print('  [scripts]');
+            print('  dev = "jac run src/main.jac"');
+            print('  test = "jac test"');
+            return;
+        }
+        print("Available scripts:");
+        for (script_name, script_cmd) in sorted(config.scripts.items()) {
+            print(f"  {script_name}: {script_cmd}");
+        }
+        return;
+    }
+    if name not in config.scripts {
+        print(f"Script '{name}' not found in jac.toml.", file=sys.stderr);
+        print("\nAvailable scripts:");
+        for script_name in sorted(config.scripts.keys()) {
+            print(f"  {script_name}");
+        }
+        <>exit(1);
+    }
+    script_cmd = config.scripts[name];
+    print(f"Running: {script_cmd}");
+    print();
+    # Run the script in a shell
+    try {
+        result = subprocess.run(
+            script_cmd,
+            shell=True,
+            cwd=str(config.project_root) if config.project_root else None
+        );
+        <>exit(result.returncode);
+    } except Exception as e {
+        print(f"Error running script: {e}", file=sys.stderr);
+        <>exit(1);
     }
 }
