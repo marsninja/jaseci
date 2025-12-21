@@ -17,6 +17,23 @@ from pathlib import Path
 from typing import Final
 
 
+def discover_annex_files(source_path: str, suffix: str = ".impl.jac") -> list[str]:
+    """Discover annex files (.impl.jac, .test.jac, .cl.jac) for a source .jac file.
+
+    Searches: same directory, module-specific folder (foo.impl/), shared folder (impl/ for .impl.jac only).
+    """
+    src = Path(source_path).resolve()
+    if not src.name.endswith(".jac") or src.name.endswith((".impl.jac", ".test.jac", ".cl.jac")):
+        return []
+
+    base, mod_folder = src.stem, src.with_suffix(suffix[:-4])
+    dirs = [src.parent, mod_folder] + ([src.parent / "impl"] if suffix == ".impl.jac" else [])
+    return [
+        str(f) for d in dirs if d.is_dir() for f in d.iterdir()
+        if f.is_file() and f.name.endswith(suffix) and (d == mod_folder or f.name.startswith(f"{base}."))
+    ]
+
+
 @dataclass(frozen=True, slots=True)
 class CacheKey:
     """Immutable key identifying a cached bytecode entry.
@@ -92,14 +109,35 @@ class DiskBytecodeCache(BytecodeCache):
         return cache_dir / cache_name
 
     def _is_valid(self, key: CacheKey, cache_path: Path) -> bool:
-        """Check if cached bytecode is still valid (exists and newer than source)."""
+        """Check if cached bytecode is still valid.
+
+        The cache is valid if:
+        - The cache file exists
+        - The cache is newer than the source file
+        - The cache is newer than all impl files associated with the source
+        """
         if not cache_path.exists():
             return False
 
         try:
-            source_mtime = os.path.getmtime(key.source_path)
             cache_mtime = os.path.getmtime(cache_path)
-            return cache_mtime > source_mtime
+
+            # Check source file modification time
+            source_mtime = os.path.getmtime(key.source_path)
+            if cache_mtime <= source_mtime:
+                return False
+
+            # Check all impl files - cache must be newer than all of them
+            for impl_path in discover_annex_files(key.source_path):
+                try:
+                    impl_mtime = os.path.getmtime(impl_path)
+                    if cache_mtime <= impl_mtime:
+                        return False
+                except OSError:
+                    # If we can't stat an impl file, invalidate cache to be safe
+                    return False
+
+            return True
         except OSError:
             return False
 

@@ -994,7 +994,7 @@ impl create(name: str = '', force: bool = False) -> None {
     }
     print(f"Created {toml_path}");
     # Create main.jac in project root if it doesn't exist
-    main_jac = cwd / "main.jac";
+    main_jac = cwd / f"{name}.jac";
     if not main_jac.exists() {
         with open(main_jac, "w") as f {
             f.write(
