@@ -20,18 +20,20 @@ from typing import Final
 def discover_annex_files(source_path: str, suffix: str = ".impl.jac") -> list[str]:
     """Discover annex files (.impl.jac, .test.jac, .cl.jac) for a source .jac file.
 
-    Searches: same directory, module-specific folder (foo.impl/), shared folder (impl/ for .impl.jac only).
+    Searches: same directory, module-specific folder (foo.impl/), shared folder (impl/, test/, cl/).
+    Also handles .cl.jac files looking for their .impl.jac annexes.
     """
     src = Path(source_path).resolve()
-    if not src.name.endswith(".jac") or src.name.endswith(
-        (".impl.jac", ".test.jac", ".cl.jac")
-    ):
+    # Skip non-.jac files and files that are the same annex type as requested
+    if not src.name.endswith(".jac") or src.name.endswith(suffix):
         return []
 
-    base, mod_folder = src.stem, src.with_suffix(suffix[:-4])
-    dirs = [src.parent, mod_folder] + (
-        [src.parent / "impl"] if suffix == ".impl.jac" else []
-    )
+    # Get base name, handling .cl.jac files specially (foo.cl.jac -> foo)
+    base = src.name[:-7] if src.name.endswith(".cl.jac") else src.stem
+
+    mod_folder = src.parent / (base + suffix[:-4])  # foo.impl/, foo.test/, foo.cl/
+    shared_folder = suffix[1:-4]  # Extract "impl", "test", or "cl"
+    dirs = [src.parent, mod_folder, src.parent / shared_folder]
     return [
         str(f)
         for d in dirs
