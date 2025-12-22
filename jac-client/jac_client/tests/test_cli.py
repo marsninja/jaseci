@@ -271,32 +271,23 @@ def test_generate_client_config_existing_file() -> None:
 
 
 def _create_jac_toml(temp_dir: str, deps: str = "", dev_deps: str = "") -> str:
-    """Create a jac.toml file for testing."""
+    """Create a minimal jac.toml file for testing.
+
+    Note: These CLI tests run jac commands as subprocesses and include npm install.
+    For faster tests, consider using unit tests with mocked PackageInstaller.
+    """
+    deps_section = f"\n{deps}" if deps else ""
+    dev_deps_section = f"\n{dev_deps}" if dev_deps else ""
+
     toml_content = f"""[project]
 name = "test-project"
 version = "1.0.0"
 description = "Test project"
 entry-point = "app.jac"
 
-[plugins.client]
+[dependencies.npm]{deps_section}
 
-[plugins.client.vite]
-plugins = []
-lib_imports = []
-
-[plugins.client.vite.build]
-
-[plugins.client.vite.server]
-
-[plugins.client.vite.resolve]
-
-[plugins.client.ts]
-
-[dependencies.npm]
-{deps}
-
-[dependencies.npm.dev]
-{dev_deps}
+[dependencies.npm.dev]{dev_deps_section}
 """
     config_path = os.path.join(temp_dir, "jac.toml")
     with open(config_path, "w") as f:
