@@ -44,17 +44,11 @@ obj Lockfile {
         packages: list[LockedPackage] = [],
         lockfile_path: Path | None = None;
 
-    # Load a lock file from disk
     static def load(lockfile_path: Path) -> Lockfile | None;
-    # Create a new lock file from current state
     static def create(config: JacConfig, packages: list[LockedPackage]) -> Lockfile;
-    # Save the lock file to disk
     def save -> None;
-    # Check if the lock file is up to date with jac.toml
     def is_current(config: JacConfig) -> bool;
-    # Get a package by name
     def get_package(name: str) -> LockedPackage | None;
-    # Generate a hash of the configuration for change detection
     static def hash_config(config: JacConfig) -> str;
 }
 
