@@ -36,7 +36,6 @@ A typical Jac project looks like:
 ```
 my-project/
 ├── jac.toml          # Project configuration
-├── jac.lock          # Lock file (auto-generated)
 ├── main.jac          # Entry point
 ├── packages/         # Installed dependencies
 ├── lib/              # Library modules (optional)
@@ -307,34 +306,6 @@ jac add requests>=2.28.0
 jac add --dev pytest
 ```
 
-### Lock File (jac.lock)
-
-The `jac.lock` file is automatically generated when you install dependencies. It ensures reproducible builds by locking exact versions:
-
-```toml
-# jac.lock - Auto-generated, do not edit manually
-
-[metadata]
-generated_at = "2024-01-15T10:30:00Z"
-jac_version = "0.7.19"
-python_version = "3.12.3"
-platform = "linux"
-config_hash = "a1b2c3d4e5f6"
-
-[[package]]
-name = "requests"
-version = "2.31.0"
-hash = "sha256:abcd1234..."
-source = "pypi"
-dependencies = ["urllib3", "certifi"]
-```
-
-**Best Practices:**
-
-- Commit `jac.lock` to version control for reproducible builds
-- Run `jac install` after pulling changes to sync dependencies
-- Use `jac update` to update dependencies and regenerate the lock file
-
 ### Packages Directory
 
 Dependencies are installed to the `packages/` directory in your project root:
@@ -342,7 +313,6 @@ Dependencies are installed to the `packages/` directory in your project root:
 ```
 my-project/
 ├── jac.toml
-├── jac.lock
 └── packages/
     ├── requests/
     ├── numpy/

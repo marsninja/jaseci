@@ -16,9 +16,7 @@ keywords = [
     "artificial-intelligence",
 ]
 requires-python = ">=3.11"
-dependencies = [
-    "tomlkit>=0.12.0",  # For writing TOML files (jac.toml, jac.lock)
-]
+dependencies = []
 # Note: lark, interegular, pluggy, pygls are vendored
 
 [project.urls]

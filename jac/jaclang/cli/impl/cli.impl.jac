@@ -1084,7 +1084,6 @@ Examples:
 impl install(dev: bool = False, verbose: bool = False) -> None {
     import from jaclang.project.config { get_config }
     import from jaclang.project.dependencies { DependencyInstaller }
-    import from jaclang.project.lockfile { Lockfile, LockedPackage }
     config = get_config();
     if config is None {
         print(
@@ -1098,20 +1097,6 @@ impl install(dev: bool = False, verbose: bool = False) -> None {
     installer = DependencyInstaller(config=config, verbose=verbose);
     success = installer.install_all(include_dev=dev);
     if success {
-        # Create/update lock file
-        installed_packages = [];
-        for name in installer.list_installed() {
-            installed_packages.append(
-                LockedPackage(name=name, version="installed", source="pypi")
-            );
-        }
-        lockfile = Lockfile.create(config, installed_packages);
-        try {
-            lockfile.save();
-            print(f"\nUpdated jac.lock");
-        } except Exception as e {
-            print(f"Warning: Could not save lock file: {e}", file=sys.stderr);
-        }
         print("\nAll dependencies installed successfully!");
     } else {
         print("\nSome dependencies failed to install.", file=sys.stderr);

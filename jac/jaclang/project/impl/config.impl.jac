@@ -265,35 +265,119 @@ test = "jac test"
 }
 
 impl JacConfig.save -> None {
-    import tomlkit;
     if self.toml_path is None {
         raise ValueError("No toml_path set, cannot save configuration") ;
     }
+    # Load existing data or start fresh
     if self.toml_path.exists() {
-        with open(self.toml_path, "r") as f {
-            doc = tomlkit.load(f);
+        with open(self.toml_path, "rb") as f {
+            doc = tomllib.load(f);
         }
     } else {
-        doc = tomlkit.document();
+        doc = {};
     }
+    # Update dependencies
     if "dependencies" not in doc {
-        doc["dependencies"] = tomlkit.table();
+        doc["dependencies"] = {};
     }
-    deps_table = doc["dependencies"];
     for (name, version) in self.dependencies.items() {
-        deps_table[name] = version;
+        doc["dependencies"][name] = version;
     }
     if self.dev_dependencies {
         if "dev-dependencies" not in doc {
-            doc["dev-dependencies"] = tomlkit.table();
+            doc["dev-dependencies"] = {};
         }
-        dev_deps_table = doc["dev-dependencies"];
         for (name, version) in self.dev_dependencies.items() {
-            dev_deps_table[name] = version;
+            doc["dev-dependencies"][name] = version;
         }
     }
+    # Write using simple TOML serializer
     with open(self.toml_path, "w") as f {
-        f.write(tomlkit.dumps(doc));
+        f.write(_serialize_toml(doc));
+    }
+}
+
+# Simple TOML serializer (does not preserve comments)
+def _serialize_toml(
+    data: dict, prefix: str = ""
+) -> str {
+    lines: list[str] = [];
+    tables: list[tuple[str, dict]] = [];
+
+    # First pass: write simple key-value pairs
+    for (key, value) in data.items() {
+        if isinstance(value, dict) {
+            # Collect tables for later
+            table_key = f"{prefix}{key}" if prefix else key;
+            tables.append((table_key, value));
+        } else {
+            lines.append(f"{key} = {_toml_value(value)}");
+        }
+    }
+
+    # Add blank line before tables if we had values
+    if lines and tables {
+        lines.append("");
+    }
+
+    # Second pass: write tables
+    for (table_key, table_data) in tables {
+        # Check if this is a nested table or has nested tables
+        has_nested = any(isinstance(v, dict) for v in table_data.values());
+        if has_nested {
+            # Write nested tables with dotted keys
+            simple_values: list[tuple[str, Any]] = [];
+            nested_tables: list[tuple[str, dict]] = [];
+            for (k, v) in table_data.items() {
+                if isinstance(v, dict) {
+                    nested_tables.append((k, v));
+                } else {
+                    simple_values.append((k, v));
+                }
+            }
+            if simple_values {
+                lines.append(f"[{table_key}]");
+                for (k, v) in simple_values {
+                    lines.append(f"{k} = {_toml_value(v)}");
+                }
+                lines.append("");
+            }
+            for (nested_key, nested_data) in nested_tables {
+                nested_content = _serialize_toml(
+                    {nested_key: nested_data}, f"{table_key}."
+                );
+                lines.append(nested_content);
+            }
+        } else {
+            lines.append(f"[{table_key}]");
+            for (k, v) in table_data.items() {
+                lines.append(f"{k} = {_toml_value(v)}");
+            }
+            lines.append("");
+        }
+    }
+
+    return "\n".join(lines);
+}
+
+# Convert a Python value to TOML representation
+def _toml_value(value: Any) -> str {
+    if isinstance(value, bool) {
+        return "true" if value else "false";
+    } elif isinstance(value, int) {
+        return str(value);
+    } elif isinstance(value, float) {
+        return str(value);
+    } elif isinstance(value, str) {
+        # Escape quotes and backslashes
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"');
+        return f'"{escaped}"';
+    } elif isinstance(value, list) {
+        items = [_toml_value(item) for item in value];
+        return f"[{', '.join(items)}]";
+    } else {
+        # Fallback: convert to string
+        return f'"{value}"';
     }
 }
 

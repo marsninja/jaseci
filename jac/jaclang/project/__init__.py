@@ -4,17 +4,14 @@ This module provides the jac.toml configuration system, including:
 - JacConfig: Central configuration class for project settings
 - Project discovery: Auto-detection of jac.toml in parent directories
 - Dependency management: Install, add, remove dependencies
-- Lockfile management: jac.lock for reproducible builds
 """
 
 # Note: We only import what's needed. The meta_importer handles Jac compilation.
 # Import modules in dependency order to avoid circular imports
 # Import dependencies module after config (it depends on config)
-# Import lockfile module after config (it depends on config)
 from jaclang.project import (
     config,  # type: ignore[attr-defined]  # noqa: F401
     dependencies,  # type: ignore[attr-defined]  # noqa: F401
-    lockfile,  # type: ignore[attr-defined]  # noqa: F401
 )
 
 # Re-export from config module
@@ -48,15 +45,6 @@ from jaclang.project.dependencies import (
     remove_packages_from_path,
 )
 
-# Re-export from lockfile module
-from jaclang.project.lockfile import (
-    LockedPackage,
-    Lockfile,
-    LockfileMetadata,
-    get_lockfile_path,
-    lockfile_exists,
-)
-
 __all__ = [
     # Config
     "JacConfig",
@@ -83,10 +71,4 @@ __all__ = [
     "add_packages_to_path",
     "remove_packages_from_path",
     "is_packages_in_path",
-    # Lockfile
-    "Lockfile",
-    "LockfileMetadata",
-    "LockedPackage",
-    "get_lockfile_path",
-    "lockfile_exists",
 ]

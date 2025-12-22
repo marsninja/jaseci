@@ -10,9 +10,6 @@ import sys;
 import from pathlib { Path }
 import from jaclang.project.config { JacConfig }
 
-# ===============================================================================
-# Dependency Data Classes
-# ===============================================================================
 """Represents a resolved dependency with version info."""
 obj ResolvedDependency {
     has name: str,
@@ -22,9 +19,6 @@ obj ResolvedDependency {
         dependencies: list[str] = [];
 }
 
-# ===============================================================================
-# Dependency Installer
-# ===============================================================================
 """Manages installation of dependencies for Jac projects."""
 obj DependencyInstaller {
     has config: JacConfig | None = None,
@@ -47,9 +41,7 @@ obj DependencyResolver {
     has config: JacConfig | None = None;
 
     def postinit -> None;
-    # Parse a dependency specification (e.g., 'requests>=2.28.0')
     def parse_spec(spec: str) -> tuple[str, str];
-    # Resolve all dependencies from configuration
     def resolve(include_dev: bool = False) -> list[ResolvedDependency];
 }
 
