@@ -1,12 +1,9 @@
 """Command line interface tool for the Jac Client."""
 
-import json
 import os
 import re
 import subprocess
 import sys
-from pathlib import Path
-from typing import Any
 
 from jaclang.cli.cmdreg import CommandPriority, cmd_registry
 from jaclang.pycore.runtime import hookimpl
@@ -80,32 +77,20 @@ class JacCmd:
                 assets_folder = os.path.join(project_path, "assets")
                 os.makedirs(assets_folder, exist_ok=True)
 
-                # Create config.json with package configuration
-                # Default dependencies and scripts are added during build time, not in config.json
-                config_data = {
-                    "vite": {
-                        "plugins": [],
-                        "lib_imports": [],
-                        "build": {},
-                        "server": {},
-                        "resolve": {},
-                    },
-                    "ts": {},
-                    "package": {
-                        "name": name,
-                        "version": "1.0.0",
-                        "description": f"Jac application: {name}",
-                        "devDependencies": {},
-                        "dependencies": {},
-                    },
-                }
+                # Create jac.toml with project configuration
+                toml_content = f'''[project]
+name = "{name}"
+version = "1.0.0"
+description = "Jac application: {name}"
+entry-point = "app.jac"
+'''
 
-                # Write config.json
-                config_file_path = os.path.join(project_path, "config.json")
+                # Write jac.toml
+                config_file_path = os.path.join(project_path, "jac.toml")
                 with open(config_file_path, "w") as f:
-                    json.dump(config_data, f, indent=2)
+                    f.write(toml_content)
 
-                print("✅ Created config.json with package configuration")
+                print("Created jac.toml with project configuration")
 
                 # Create basic project structure
                 print("Setting up project structure...")
@@ -236,7 +221,7 @@ The `tsconfig.json` file is automatically generated during build time.
 
 For more information, see the [TypeScript guide](../../docs/working-with-ts.md).
 
-Happy coding with Jac and TypeScript! 🚀
+Happy coding with Jac and TypeScript!
 """
 
                 with open(os.path.join(project_path, "README.md"), "w") as f:
@@ -257,8 +242,8 @@ compiled/
                 # Return to original directory
                 os.chdir(original_cwd)
 
-                print(f"✅ Successfully created Jac application '{name}'!")
-                print(f"📁 Project location: {os.path.abspath(project_path)}")
+                print(f"Successfully created Jac application '{name}'!")
+                print(f"Project location: {os.path.abspath(project_path)}")
                 print("\nNext steps:")
                 print(f"  cd {name}")
                 print("  jac serve app.jac")
@@ -276,101 +261,23 @@ compiled/
                 print(f"Error creating project: {e}", file=sys.stderr)
                 exit(1)
 
-        @cmd_registry.register
-        def generate_client_config() -> None:
-            """Generate config.json file for customizing Jac Client build configuration.
-
-            Creates a config.json file in the current directory with default structure
-            that can be customized for plugins, build options, and other settings.
-
-            Examples:
-                jac generate_client_config
-            """
-            current_dir = Path(os.getcwd())
-            config_file = current_dir / "config.json"
-
-            if config_file.exists():
-                print(
-                    f"⚠️  config.json already exists at {config_file}",
-                    file=sys.stderr,
-                )
-                print(
-                    "If you want to regenerate it, delete the existing file first.",
-                    file=sys.stderr,
-                )
-                exit(1)
-
-            try:
-                # Get default configuration structure
-                default_config: dict[str, Any] = {
-                    "vite": {
-                        "plugins": [],
-                        "lib_imports": [],
-                        "build": {},
-                        "server": {},
-                        "resolve": {},
-                    },
-                    "ts": {},
-                    "package": {
-                        "name": "",
-                        "version": "1.0.0",
-                        "description": "",
-                        "dependencies": {},
-                        "devDependencies": {},
-                    },
-                }
-
-                # Write config.json
-                with config_file.open("w", encoding="utf-8") as f:
-                    json.dump(default_config, f, indent=2)
-
-                print(f"✅ Successfully created config.json at {config_file}")
-                print("\nYou can now customize:")
-                print("  - vite.plugins: Add Vite plugins (e.g., ['tailwindcss()'])")
-                print("  - vite.lib_imports: Add import statements")
-                print("  - vite.build: Override build options")
-                print("  - vite.server: Configure dev server")
-                print("  - vite.resolve: Override resolve options")
-                print("  - package.dependencies: Add npm dependencies")
-                print("  - package.devDependencies: Add npm dev dependencies")
-                print("  - package.scripts: Customize npm scripts")
-                print("\nExample for Tailwind CSS:")
-                print('  "vite": {')
-                print('    "plugins": ["tailwindcss()"],')
-                print(
-                    '    "lib_imports": ["import tailwindcss from \'@tailwindcss/vite\'"]'
-                )
-                print("  },")
-                print('  "package": {')
-                print('    "devDependencies": {')
-                print('      "@tailwindcss/vite": "^4.1.17"')
-                print("    }")
-                print("  }")
-                print(
-                    "\nNote: package.json will be generated in .jac-client.configs/ on build"
-                )
-
-            except Exception as e:
-                print(f"Error creating config.json: {e}", file=sys.stderr)
-                exit(1)
-
         @cmd_registry.register(priority=CommandPriority.PLUGIN, source="jac-client")
         def add(filepath: str = "", cl: bool = False, d: bool = False) -> None:
             """Add npm packages to Jac Client projects.
 
-            Adds packages to config.json (dependencies or devDependencies).
+            Adds packages to jac.toml [dependencies.npm] or [dependencies.npm.dev].
             The --cl flag indicates this is for client-side packages.
-            Use -D flag to add to devDependencies instead of dependencies.
+            Use -d flag to add to dev-dependencies instead of dependencies.
 
             Args:
                 filepath: Package name to add (e.g., "lodash" or "lodash@^4.17.21")
                 cl: Flag to indicate client-side package installation
-                d: Flag to add to devDependencies (default: dependencies)
+                d: Flag to add to dev-dependencies (default: dependencies)
 
             Examples:
-                jac add --cl                    # Install all packages from config.json
+                jac add --cl                    # Install all packages from jac.toml
                 jac add --cl lodash             # Add specific package
-                jac add --cl -d @types/react    # Add as devDependency
+                jac add --cl -d @types/react    # Add as dev-dependency
                 jac add --cl lodash@^4.17.21    # Add with specific version
             """
             # Note: cl should be detected as boolean, but if not, we check it here
@@ -384,7 +291,7 @@ compiled/
                     file=sys.stderr,
                 )
                 print(
-                    "       jac add --cl -d <package_name>  (for devDependencies)",
+                    "       jac add --cl -d <package_name>  (for dev-dependencies)",
                     file=sys.stderr,
                 )
                 exit(1)
@@ -397,11 +304,11 @@ compiled/
                 current_dir = Path(os.getcwd())
                 installer = PackageInstaller(current_dir)
 
-                # If no package name provided, install all packages from config.json
+                # If no package name provided, install all packages from jac.toml
                 if not filepath:
-                    print("📦 Installing all packages from config.json...")
+                    print("Installing all packages from jac.toml...")
                     installer.install_all()
-                    print("✅ Successfully installed all packages")
+                    print("Successfully installed all packages")
                     return
 
                 # Parse package name and version
@@ -430,14 +337,14 @@ compiled/
                     package_name=package_name, version=package_version, is_dev=d
                 )
 
-                dep_type = "devDependencies" if d else "dependencies"
+                dep_type = "npm.dev" if d else "npm"
                 version_str = f"@{package_version}" if package_version else ""
                 print(
-                    f"✅ Added {package_name}{version_str} to {dep_type} in config.json"
+                    f"Added {package_name}{version_str} to [dependencies.{dep_type}] in jac.toml"
                 )
-                print("📦 Installing package via npm...")
+                print("Installing package via npm...")
                 # npm install is handled by PackageInstaller.install_package()
-                print(f"✅ Successfully installed {package_name}{version_str}")
+                print(f"Successfully installed {package_name}{version_str}")
 
             except Exception as e:
                 print(f"Error adding package: {e}", file=sys.stderr)
@@ -447,18 +354,18 @@ compiled/
         def remove(filepath: str, cl: bool = False, d: bool = False) -> None:
             """Remove npm packages from Jac Client projects.
 
-            Removes packages from config.json (dependencies or devDependencies).
+            Removes packages from jac.toml [dependencies.npm] or [dependencies.npm.dev].
             The --cl flag indicates this is for client-side packages.
-            Use -D flag to remove from devDependencies instead of dependencies.
+            Use -d flag to remove from dev-dependencies instead of dependencies.
 
             Args:
                 filepath: Package name to remove (required)
                 cl: Flag to indicate client-side package removal
-                d: Flag to remove from devDependencies (default: dependencies)
+                d: Flag to remove from dev-dependencies (default: dependencies)
 
             Examples:
                 jac remove --cl lodash             # Remove from dependencies
-                jac remove --cl -D @types/react    # Remove from devDependencies
+                jac remove --cl -d @types/react    # Remove from dev-dependencies
             """
             if not cl:
                 print(
@@ -470,7 +377,7 @@ compiled/
                     file=sys.stderr,
                 )
                 print(
-                    "       jac remove --cl -D <package_name>  (for devDependencies)",
+                    "       jac remove --cl -d <package_name>  (for dev-dependencies)",
                     file=sys.stderr,
                 )
                 exit(1)
@@ -497,11 +404,11 @@ compiled/
                 # Uninstall the package
                 installer.uninstall_package(package_name=filepath, is_dev=d)
 
-                dep_type = "devDependencies" if d else "dependencies"
-                print(f"✅ Removed {filepath} from {dep_type} in config.json")
-                print("📦 Updating packages via npm...")
+                dep_type = "npm.dev" if d else "npm"
+                print(f"Removed {filepath} from [dependencies.{dep_type}] in jac.toml")
+                print("Updating packages via npm...")
                 # npm install is handled by PackageInstaller.uninstall_package()
-                print(f"✅ Successfully removed {filepath}")
+                print(f"Successfully removed {filepath}")
 
             except Exception as e:
                 print(f"Error removing package: {e}", file=sys.stderr)

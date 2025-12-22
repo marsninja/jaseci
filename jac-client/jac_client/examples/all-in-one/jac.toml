@@ -1,0 +1,5 @@
+[project]
+name = "all-in-one"
+version = "1.0.0"
+description = "Jac application: all-in-one"
+entry-point = "app.jac"

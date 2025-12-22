@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -24,44 +23,49 @@ def reset_jac_machine():
 def _create_test_project_with_vite(
     temp_path: Path, include_antd: bool = False
 ) -> tuple[Path, Path]:
-    """Create a minimal test project with Vite installed using config.json.
+    """Create a minimal test project with Vite installed using jac.toml.
 
     Args:
         temp_path: Path to the temporary directory
         include_antd: If True, includes antd in dependencies
     """
-    # Create config.json with package dependencies
-    # Note: React, React-DOM, React-Router-DOM, Vite, and Babel packages
-    # are automatically added during build time, so we only include custom packages
-    package_dependencies = {}
+    # Create jac.toml with project and client configuration
+    deps_section = ""
     if include_antd:
-        package_dependencies["antd"] = "^6.0.0"
+        deps_section = 'antd = "^6.0.0"'
 
-    config_data = {
-        "vite": {
-            "plugins": [],
-            "lib_imports": [],
-            "build": {
-                "minify": False,
-            },
-            "server": {},
-            "resolve": {},
-        },
-        "ts": {},
-        "package": {
-            "name": "test-client",
-            "version": "0.0.1",
-            "description": "Test client project",
-            "dependencies": package_dependencies,
-            "devDependencies": {},
-        },
-    }
+    toml_content = f"""[project]
+name = "test-client"
+version = "0.0.1"
+description = "Test client project"
+entry-point = "app.jac"
 
-    config_json = temp_path / "config.json"
-    with config_json.open("w", encoding="utf-8") as f:
-        json.dump(config_data, f, indent=2)
+[plugins.client]
 
-    # Install packages from config.json using jac add --cl
+[plugins.client.vite]
+plugins = []
+lib_imports = []
+
+[plugins.client.vite.build]
+minify = false
+
+[plugins.client.vite.server]
+
+[plugins.client.vite.resolve]
+
+[plugins.client.ts]
+
+[dependencies.npm]
+{deps_section}
+
+[dependencies.npm.dev]
+"""
+
+    jac_toml = temp_path / "jac.toml"
+    with jac_toml.open("w", encoding="utf-8") as f:
+        f.write(toml_content)
+
+    # Install packages from jac.toml using jac add --cl
     # This generates package.json in .jac-client.configs/ and runs npm install
     result = subprocess.run(
         ["jac", "add", "--cl"],

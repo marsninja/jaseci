@@ -276,7 +276,7 @@ impl JacConfig.save -> None {
     } else {
         doc = {};
     }
-    # Update dependencies
+    # Update Python dependencies
     if "dependencies" not in doc {
         doc["dependencies"] = {};
     }
@@ -291,10 +291,55 @@ impl JacConfig.save -> None {
             doc["dev-dependencies"][name] = version;
         }
     }
+    # Update plugin dependencies (npm, etc.)
+    # Replace the entire plugin dep section to handle removals
+    for (dep_type, deps) in self.plugin_dependencies.items() {
+        if dep_type not in doc["dependencies"] {
+            doc["dependencies"][dep_type] = {};
+        }
+        # Handle dev deps separately
+        dev_deps = deps.get("dev", {}) if isinstance(deps.get("dev"), dict) else {};
+        regular_deps = {
+            k: v
+            for (k, v) in deps.items()
+            if k != "dev"
+        };
+        # Replace the entire section (to handle removals)
+        doc["dependencies"][dep_type] = regular_deps.copy();
+        if dev_deps {
+            doc["dependencies"][dep_type]["dev"] = dev_deps;
+        }
+    }
+    # Update plugins configuration
+    if self.plugins {
+        if "plugins" not in doc {
+            doc["plugins"] = {};
+        }
+        for (plugin_name, plugin_config) in self.plugins.items() {
+            doc["plugins"][plugin_name] = plugin_config;
+        }
+    }
     # Write using simple TOML serializer
     with open(self.toml_path, "w") as f {
         f.write(_serialize_toml(doc));
     }
+}
+
+# Check if a TOML key needs quoting (bare keys can only contain A-Za-z0-9_-)
+def _needs_quoting(
+    key: str
+) -> bool {
+    import re;
+    return not bool(re.match(r'^[A-Za-z0-9_-]+$', key));
+}
+
+# Quote a TOML key if necessary
+def _quote_key(key: str) -> str {
+    if _needs_quoting(key) {
+        escaped = key.replace("\\", "\\\\").replace('"', '\\"');
+        return f'"{escaped}"';
+    }
+    return key;
 }
 
 # Simple TOML serializer (does not preserve comments)
@@ -311,7 +356,7 @@ def _serialize_toml(
             table_key = f"{prefix}{key}" if prefix else key;
             tables.append((table_key, value));
         } else {
-            lines.append(f"{key} = {_toml_value(value)}");
+            lines.append(f"{_quote_key(key)} = {_toml_value(value)}");
         }
     }
 
@@ -338,7 +383,7 @@ def _serialize_toml(
             if simple_values {
                 lines.append(f"[{table_key}]");
                 for (k, v) in simple_values {
-                    lines.append(f"{k} = {_toml_value(v)}");
+                    lines.append(f"{_quote_key(k)} = {_toml_value(v)}");
                 }
                 lines.append("");
             }
@@ -351,7 +396,7 @@ def _serialize_toml(
         } else {
             lines.append(f"[{table_key}]");
             for (k, v) in table_data.items() {
-                lines.append(f"{k} = {_toml_value(v)}");
+                lines.append(f"{_quote_key(k)} = {_toml_value(v)}");
             }
             lines.append("");
         }

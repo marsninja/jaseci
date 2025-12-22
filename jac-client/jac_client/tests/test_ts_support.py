@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 import tempfile
@@ -45,31 +44,39 @@ def _copy_ts_support_project(temp_path: Path) -> tuple[Path, Path]:
         else:
             shutil.copy2(item, dest)
 
-    # Ensure config.json exists with minify: false for tests
-    config_json = temp_path / "config.json"
-    config_data = {
-        "vite": {
-            "plugins": [],
-            "lib_imports": [],
-            "build": {
-                "minify": False,
-            },
-            "server": {},
-            "resolve": {},
-        },
-        "ts": {},
-        "package": {
-            "name": "ts-support",
-            "version": "1.0.0",
-            "description": "Jac application: ts-support",
-            "dependencies": {},
-            "devDependencies": {},
-        },
-    }
-    with config_json.open("w", encoding="utf-8") as f:
-        json.dump(config_data, f, indent=2)
+    # Ensure jac.toml exists with minify: false for tests
+    # The example already has jac.toml, so we just need to make sure it's copied
+    jac_toml = temp_path / "jac.toml"
+    if not jac_toml.exists():
+        toml_content = """[project]
+name = "ts-support"
+version = "1.0.0"
+description = "Jac application: ts-support"
+entry-point = "app.jac"
 
-    # Install packages from config.json using jac add --cl
+[plugins.client]
+
+[plugins.client.vite]
+plugins = []
+lib_imports = []
+
+[plugins.client.vite.build]
+minify = false
+
+[plugins.client.vite.server]
+
+[plugins.client.vite.resolve]
+
+[plugins.client.ts]
+
+[dependencies.npm]
+
+[dependencies.npm.dev]
+"""
+        with jac_toml.open("w", encoding="utf-8") as f:
+            f.write(toml_content)
+
+    # Install packages from jac.toml using jac add --cl
     # This generates package.json in .jac-client.configs/ and runs npm install
     result = subprocess.run(
         ["jac", "add", "--cl"],
