@@ -61,8 +61,22 @@ def _load_project_config -> None {
             # Add packages/ directory to Python path
             add_packages_to_path(config);
         }
+
+        # Initialize plugin-registered dependency types
+        _initialize_dependency_registry();
     } except Exception {
         # Silently ignore if project module not available or config discovery fails
+        pass;
+    }
+}
+
+"""Initialize the dependency registry from plugin hooks."""
+def _initialize_dependency_registry -> None {
+    try {
+        import from jaclang.project.dep_registry { initialize_dependency_registry }
+        initialize_dependency_registry();
+    } except Exception {
+        # Silently ignore if registry initialization fails
         pass;
     }
 }
@@ -1130,15 +1144,6 @@ impl add(
     cl: bool = False,
     verbose: bool = False
 ) -> None {
-    # Handle client-side packages (requires jac-client plugin)
-    if cl {
-        print(
-            "Error: --cl flag requires jac-client plugin to be installed.",
-            file=sys.stderr
-        );
-        print("Install with: pip install jac-client", file=sys.stderr);
-        <>exit(1);
-    }
     import from jaclang.project.config { get_config }
     import from jaclang.project.dependencies { DependencyInstaller, DependencyResolver }
     config = get_config();
@@ -1147,6 +1152,59 @@ impl add(
             "No jac.toml found. Run 'jac init' to create a project.", file=sys.stderr
         );
         <>exit(1);
+    }
+    # Handle client-side packages via plugin-registered dependency type
+    if cl {
+        import from jaclang.project.dep_registry { get_dependency_registry }
+        registry = get_dependency_registry();
+        dep_type = registry.get_by_flag("--cl");
+        if dep_type is None {
+            print(
+                "Error: --cl flag requires jac-client plugin to be installed.",
+                file=sys.stderr
+            );
+            print("Install with: pip install jac-client", file=sys.stderr);
+            <>exit(1);
+        }
+        # If no packages specified, install all using the install_all_handler
+        if not packages {
+            if dep_type.install_all_handler is None {
+                print(
+                    f"Error: No install_all handler registered for {dep_type.name}.",
+                    file=sys.stderr
+                );
+                <>exit(1);
+            }
+            try {
+                print(f"Installing all {dep_type.name} packages from jac.toml...");
+                dep_type.install_all_handler(config);
+                print(f"\nInstalled all {dep_type.name} packages successfully.");
+            } except Exception as e {
+                print(f"Error installing packages: {e}", file=sys.stderr);
+                <>exit(1);
+            }
+            return;
+        }
+        # Install specific packages using the registered install handler
+        try {
+            resolver = DependencyResolver(config=config);
+            for pkg_spec in packages {
+                (name, version) = resolver.parse_spec(pkg_spec);
+                print(f"Adding {name} ({dep_type.name})...");
+                dep_type.install_handler(config, name, version, dev);
+            }
+            print(
+                f"\nAdded {len(packages)} package(s) to [{(
+                    'dependencies.' + dep_type.dev_name
+                )
+                if dev
+                else ('dependencies.' + dep_type.name)}]"
+            );
+        } except Exception as e {
+            print(f"Error installing packages: {e}", file=sys.stderr);
+            <>exit(1);
+        }
+        return;
     }
     if not packages and not git {
         print("No packages specified.", file=sys.stderr);
@@ -1215,15 +1273,6 @@ Examples:
     jac remove --cl lodash
 """
 impl remove(packages: list = [], dev: bool = False, cl: bool = False) -> None {
-    # Handle client-side packages (requires jac-client plugin)
-    if cl {
-        print(
-            "Error: --cl flag requires jac-client plugin to be installed.",
-            file=sys.stderr
-        );
-        print("Install with: pip install jac-client", file=sys.stderr);
-        <>exit(1);
-    }
     import from jaclang.project.config { get_config }
     import from jaclang.project.dependencies { DependencyInstaller }
     config = get_config();
@@ -1236,6 +1285,32 @@ impl remove(packages: list = [], dev: bool = False, cl: bool = False) -> None {
     if not packages {
         print("No packages specified.", file=sys.stderr);
         <>exit(1);
+    }
+    # Handle client-side packages via plugin-registered dependency type
+    if cl {
+        import from jaclang.project.dep_registry { get_dependency_registry }
+        registry = get_dependency_registry();
+        dep_type = registry.get_by_flag("--cl");
+        if dep_type is None {
+            print(
+                "Error: --cl flag requires jac-client plugin to be installed.",
+                file=sys.stderr
+            );
+            print("Install with: pip install jac-client", file=sys.stderr);
+            <>exit(1);
+        }
+        # Use the registered remove handler
+        try {
+            for name in packages {
+                print(f"Removing {name} ({dep_type.name})...");
+                dep_type.remove_handler(config, name, dev);
+            }
+            print(f"\nRemoved {len(packages)} package(s)");
+        } except Exception as e {
+            print(f"Error removing packages: {e}", file=sys.stderr);
+            <>exit(1);
+        }
+        return;
     }
     installer = DependencyInstaller(config=config);
     # Handle Python/Jac dependencies
