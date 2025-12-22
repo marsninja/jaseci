@@ -113,15 +113,15 @@ def install(dev: bool = False, verbose: bool = False) -> None;
 
 @cmd_registry.register
 def add(
-    packages: list,
+    packages: list = [],
     dev: bool = False,
     git: str = '',
-    npm: bool = False,
+    cl: bool = False,
     verbose: bool = False
 ) -> None;
 
 @cmd_registry.register
-def remove(packages: list, dev: bool = False, npm: bool = False) -> None;
+def remove(packages: list = [], dev: bool = False, cl: bool = False) -> None;
 
 @cmd_registry.register
 def script(name: str = '', list_scripts: bool = False) -> None;

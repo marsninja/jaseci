@@ -1122,14 +1122,13 @@ impl install(dev: bool = False, verbose: bool = False) -> None {
 """Add dependencies to the project.
 
 Adds one or more packages to jac.toml and installs them to the packages/
-directory. Supports Python/Jac packages, git repositories, and npm packages
-(when jac-client is available).
+directory. Supports Python/Jac packages and git repositories.
 
 Args:
     packages: List of package specifications (e.g., "requests>=2.28.0")
     dev: Add as development dependency.
     git: Git repository URL (for git-based dependencies).
-    npm: Add as npm dependency (requires jac-client plugin).
+    cl: Add as client-side dependency (requires jac-client plugin).
     verbose: Show detailed installation progress.
 
 Examples:
@@ -1137,15 +1136,24 @@ Examples:
     jac add "numpy>=1.24" pandas
     jac add pytest --dev
     jac add --git https://github.com/user/plugin.git
-    jac add react --npm
+    jac add --cl lodash
 """
 impl add(
-    packages: list,
+    packages: list = [],
     dev: bool = False,
     git: str = '',
-    npm: bool = False,
+    cl: bool = False,
     verbose: bool = False
 ) -> None {
+    # Handle client-side packages (requires jac-client plugin)
+    if cl {
+        print(
+            "Error: --cl flag requires jac-client plugin to be installed.",
+            file=sys.stderr
+        );
+        print("Install with: pip install jac-client", file=sys.stderr);
+        <>exit(1);
+    }
     import from jaclang.project.config { get_config }
     import from jaclang.project.dependencies { DependencyInstaller, DependencyResolver }
     config = get_config();
@@ -1183,20 +1191,6 @@ impl add(
         }
         return;
     }
-    # Handle npm dependencies
-    if npm {
-        print("Adding npm dependencies...");
-        for pkg_spec in packages {
-            (name, version) = resolver.parse_spec(pkg_spec);
-            config.add_dependency(name, version or "latest", dev=dev, dep_type="npm");
-            print(f"  Added {name} to [dependencies.npm]");
-        }
-        config.save();
-        print(
-            "\nNote: Run 'npm install' in the client/ directory to install npm packages."
-        );
-        return;
-    }
     # Handle Python/Jac dependencies
     for pkg_spec in packages {
         (name, version) = resolver.parse_spec(pkg_spec);
@@ -1228,14 +1222,23 @@ packages/ directory.
 Args:
     packages: List of package names to remove.
     dev: Remove from development dependencies.
-    npm: Remove npm dependency (requires jac-client plugin).
+    cl: Remove client-side dependency (requires jac-client plugin).
 
 Examples:
     jac remove requests
     jac remove pytest --dev
-    jac remove react --npm
+    jac remove --cl lodash
 """
-impl remove(packages: list, dev: bool = False, npm: bool = False) -> None {
+impl remove(packages: list = [], dev: bool = False, cl: bool = False) -> None {
+    # Handle client-side packages (requires jac-client plugin)
+    if cl {
+        print(
+            "Error: --cl flag requires jac-client plugin to be installed.",
+            file=sys.stderr
+        );
+        print("Install with: pip install jac-client", file=sys.stderr);
+        <>exit(1);
+    }
     import from jaclang.project.config { get_config }
     import from jaclang.project.dependencies { DependencyInstaller }
     config = get_config();
@@ -1250,21 +1253,6 @@ impl remove(packages: list, dev: bool = False, npm: bool = False) -> None {
         <>exit(1);
     }
     installer = DependencyInstaller(config=config);
-    # Handle npm dependencies
-    if npm {
-        for name in packages {
-            if config.remove_dependency(name, dev=dev, dep_type="npm") {
-                print(f"Removed {name} from [dependencies.npm]");
-            } else {
-                print(f"Package {name} not found in npm dependencies", file=sys.stderr);
-            }
-        }
-        config.save();
-        print(
-            "\nNote: Run 'npm uninstall' in the client/ directory to uninstall npm packages."
-        );
-        return;
-    }
     # Handle Python/Jac dependencies
     for name in packages {
         dep_type = "python";

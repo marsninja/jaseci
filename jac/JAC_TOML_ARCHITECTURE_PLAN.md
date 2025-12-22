@@ -366,15 +366,15 @@ jac add "numpy>=1.24"
 # Add from git (updates [dependencies.git])
 jac add --git https://github.com/user/plugin.git
 
-# Add NPM dependency (updates [dependencies.npm]) - for jac-client projects
-jac add react --npm
+# Add client-side NPM dependency (requires jac-client plugin)
+jac add --cl react
 
-# Add NPM dev dependency (updates [dependencies.npm.dev])
-jac add vite --npm --dev
+# Add client-side NPM dev dependency
+jac add --cl -d vite
 
 # Remove a dependency
 jac remove requests
-jac remove react --npm
+jac remove --cl react
 ```
 
 **Behavior:**
@@ -430,7 +430,7 @@ my-project/
 1. **jac-client registers a dependency handler** via a new `register_dependency_type` hook
 2. **JacConfig** stores unknown `[dependencies.*]` sections in a `plugin_dependencies: dict[str, dict]` field
 3. **jac-client** reads its section via `get_config().plugin_dependencies.get("npm", {})`
-4. **jac-client extends the CLI** - adds `jac add --npm` flag (or keeps current `--cl` flag)
+4. **jac-client extends the CLI** - adds `jac add --cl` flag for client-side packages
 5. **PackageInstaller** generates `client/package.json` and runs `npm install` in `client/`
 
 **Plugin Dependency Hook:**
@@ -444,7 +444,7 @@ def register_dependency_type() -> dict | None;
 Returns:
     {
         "name": "npm",           # Section name: [dependencies.npm]
-        "cli_flag": "--npm",     # Flag for `jac add`
+        "cli_flag": "--cl",      # Flag for `jac add`
         "install_handler": fn,   # Called to install packages
         "remove_handler": fn,    # Called to remove packages
     }
@@ -997,7 +997,7 @@ def register_dependency_type() -> dict {
     return {
         "name": "npm",
         "dev_name": "npm.dev",           # For dev dependencies
-        "cli_flag": "--npm",             # Flag for `jac add --npm`
+        "cli_flag": "--cl",              # Flag for `jac add --cl`
         "install_dir": "client",         # Directory for all npm-related files
         "install_cmd": "npm install",
         "install_handler": install_npm_package,

@@ -1952,7 +1952,7 @@ class JacPluginConfig:
             dict with keys:
                 - name: Dependency type name (e.g., 'npm' for [dependencies.npm])
                 - dev_name: Dev dependency section (e.g., 'npm.dev')
-                - cli_flag: CLI flag for 'jac add' (e.g., '--npm')
+                - cli_flag: CLI flag for 'jac add' (e.g., '--cl')
                 - install_dir: Directory for installed deps (e.g., 'client')
                 - install_handler: Callable to install packages
                 - remove_handler: Callable to remove packages

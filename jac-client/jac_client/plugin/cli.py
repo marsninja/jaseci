@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from jaclang.cli.cmdreg import cmd_registry
+from jaclang.cli.cmdreg import CommandPriority, cmd_registry
 from jaclang.pycore.runtime import hookimpl
 
 
@@ -354,7 +354,7 @@ compiled/
                 print(f"Error creating config.json: {e}", file=sys.stderr)
                 exit(1)
 
-        @cmd_registry.register
+        @cmd_registry.register(priority=CommandPriority.PLUGIN, source="jac-client")
         def add(filepath: str = "", cl: bool = False, d: bool = False) -> None:
             """Add npm packages to Jac Client projects.
 
@@ -443,7 +443,7 @@ compiled/
                 print(f"Error adding package: {e}", file=sys.stderr)
                 exit(1)
 
-        @cmd_registry.register
+        @cmd_registry.register(priority=CommandPriority.PLUGIN, source="jac-client")
         def remove(filepath: str, cl: bool = False, d: bool = False) -> None:
             """Remove npm packages from Jac Client projects.
 
