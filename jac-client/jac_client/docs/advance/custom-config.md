@@ -42,7 +42,7 @@ lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 ### Client Plugin Sections
 
 - **`[plugins.client.vite]`**: Vite-specific configuration (plugins, build options, server, resolve)
-- **`[plugins.client.ts]`**: TypeScript configuration overrides
+- **`[plugins.client.ts]`**: TypeScript compiler options for `tsconfig.json`
 - **`[dependencies.npm]`**: npm runtime dependencies
 - **`[dependencies.npm.dev]`**: npm dev dependencies
 
@@ -124,6 +124,64 @@ dedupe = ["react", "react-dom"]
 
 - `@jac-client/utils` → `compiled/client_runtime.js`
 - `@jac-client/assets` → `compiled/assets`
+
+### TypeScript Configuration
+
+#### `[plugins.client.ts]`
+
+Customize the generated `tsconfig.json` by overriding compiler options:
+
+```toml
+[plugins.client.ts.compilerOptions]
+target = "ES2022"
+strict = false
+noUnusedLocals = false
+noUnusedParameters = false
+
+[plugins.client.ts]
+include = ["components/**/*", "lib/**/*"]
+exclude = ["node_modules", "dist", "tests"]
+```
+
+#### How TypeScript Configuration Works
+
+1. **Default tsconfig.json** is generated with sensible defaults
+2. **User overrides** from `[plugins.client.ts]` are merged in
+3. **compilerOptions**: User values override defaults
+4. **include/exclude**: User values replace defaults entirely (if provided)
+5. **Custom tsconfig.json**: If you provide your own `tsconfig.json` file, it's used as-is
+
+#### Default Compiler Options
+
+The following defaults are used (can be overridden):
+
+```json
+{
+  "target": "ES2020",
+  "module": "ESNext",
+  "jsx": "react-jsx",
+  "strict": true,
+  "moduleResolution": "bundler",
+  "noUnusedLocals": true,
+  "noUnusedParameters": true
+}
+```
+
+#### Example: Relaxed TypeScript Settings
+
+```toml
+[plugins.client.ts.compilerOptions]
+strict = false
+noUnusedLocals = false
+noUnusedParameters = false
+```
+
+#### Example: Custom Include Paths
+
+```toml
+[plugins.client.ts]
+include = ["components/**/*", "lib/**/*", "types/**/*"]
+```
 
 ## How It Works
 

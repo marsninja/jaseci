@@ -87,8 +87,9 @@ port = 5173
 # Custom resolve options
 
 # TypeScript configuration (optional)
-[plugins.client.ts]
-# TypeScript overrides
+[plugins.client.ts.compilerOptions]
+strict = true
+target = "ES2020"
 
 # npm dependencies
 [dependencies.npm]
@@ -104,7 +105,7 @@ sass = "^1.77.8"
 |---------|---------|--------------|
 | `[project]` | Project metadata | Core Jac config |
 | `[plugins.client.vite]` | Vite build configuration | [Custom Configuration](./custom-config.md) |
-| `[plugins.client.ts]` | TypeScript configuration | [Custom Configuration](./custom-config.md) |
+| `[plugins.client.ts]` | tsconfig.json customization | [Custom Configuration](./custom-config.md) |
 | `[dependencies.npm]` | npm runtime dependencies | [Package Management](./package-management.md) |
 | `[dependencies.npm.dev]` | npm dev dependencies | [Package Management](./package-management.md) |
 
@@ -118,7 +119,7 @@ The system starts with sensible defaults. **Default npm packages are automatical
 
 - **Dependencies**: `react`, `react-dom`, `react-router-dom`
 - **DevDependencies**: `vite`, `@babel/cli`, `@babel/core`, `@babel/preset-env`, `@babel/preset-react`
-- **TypeScript** (if detected): `typescript`, `@types/react`, `@types/react-dom`, `@vitejs/plugin-react`
+- **TypeScript** (always included): `typescript`, `@types/react`, `@types/react-dom`, `@vitejs/plugin-react`
 
 **Default Vite Config Structure:**
 

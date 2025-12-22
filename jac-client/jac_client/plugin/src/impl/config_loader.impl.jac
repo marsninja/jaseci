@@ -11,7 +11,6 @@ import from typing { Any }
 """Initialize config loader with project directory."""
 impl JacClientConfig.init(self: JacClientConfig, project_dir: Path) {
     self.project_dir = project_dir;
-    self.configs_dir = project_dir / '.jac-client.configs';
     self.config_file = project_dir / 'jac.toml';
     self._config: (dict[(str, Any)] | None) = None;
     self._jac_config: (JacConfig | None) = None;
@@ -38,16 +37,16 @@ impl JacClientConfig.get_package_config(self: JacClientConfig) -> dict[str, Any]
     return config.get('package', {});
 }
 
-"""Get TypeScript-specific configuration."""
-impl JacClientConfig.get_ts_config(self: JacClientConfig) -> dict[str, Any] {
-    config = self.load();
-    return config.get('ts', {});
-}
-
 """Get Vite-specific configuration."""
 impl JacClientConfig.get_vite_config(self: JacClientConfig) -> dict[str, Any] {
     config = self.load();
     return config.get('vite', {});
+}
+
+"""Get TypeScript-specific configuration for tsconfig.json customization."""
+impl JacClientConfig.get_ts_config(self: JacClientConfig) -> dict[str, Any] {
+    config = self.load();
+    return config.get('ts', {});
 }
 
 """Deep merge two dictionaries."""
@@ -142,7 +141,7 @@ impl JacClientConfig._get_default_config(self: JacClientConfig) -> dict[str, Any
             'server': {},
             'resolve': {}
         },
-        'ts': {},
+        'ts': {'compilerOptions': {}, 'include': [], 'exclude': []},
         'package': {
             'name': '',
             'version': '1.0.0',
