@@ -296,22 +296,22 @@ entry-point = "app.jac"
 
 
 def test_install_without_cl_flag() -> None:
-    """Test add command without --cl flag should fail."""
+    """Test add command without --cl flag should fail when no jac.toml exists."""
     with tempfile.TemporaryDirectory() as temp_dir:
         original_cwd = os.getcwd()
         try:
             os.chdir(temp_dir)
 
-            # Run add command without --cl flag
+            # Run add command without --cl flag and without jac.toml
             result = run(
                 ["jac", "add", "lodash"],
                 capture_output=True,
                 text=True,
             )
 
-            # Should fail with non-zero exit code
+            # Should fail with non-zero exit code because no jac.toml
             assert result.returncode != 0
-            assert "--cl flag is required" in result.stderr
+            assert "No jac.toml found" in result.stderr
 
         finally:
             os.chdir(original_cwd)
@@ -336,8 +336,8 @@ def test_install_all_packages() -> None:
 
             # Should succeed
             assert result.returncode == 0
-            assert "Installing all packages from jac.toml" in result.stdout
-            assert "Successfully installed all packages" in result.stdout
+            assert "Installing all npm packages" in result.stdout
+            assert "Installed all npm packages successfully" in result.stdout
 
         finally:
             os.chdir(original_cwd)
@@ -362,7 +362,8 @@ def test_install_package_to_dependencies() -> None:
 
             # Should succeed
             assert result.returncode == 0
-            assert "Added lodash to [dependencies.npm]" in result.stdout
+            assert "Adding lodash (npm)" in result.stdout
+            assert "Added 1 package(s) to [dependencies.npm]" in result.stdout
 
             # Verify package was added to jac.toml
             with open(config_path, "rb") as f:
@@ -393,7 +394,8 @@ def test_install_package_with_version() -> None:
 
             # Should succeed
             assert result.returncode == 0
-            assert "Added lodash@^4.17.21 to [dependencies.npm]" in result.stdout
+            assert "Adding lodash (npm)" in result.stdout
+            assert "Added 1 package(s) to [dependencies.npm]" in result.stdout
 
             # Verify package was added with correct version
             with open(config_path, "rb") as f:
@@ -452,29 +454,29 @@ def test_install_without_config_json() -> None:
 
             # Should fail with non-zero exit code
             assert result.returncode != 0
-            assert "jac.toml not found" in result.stderr
+            assert "No jac.toml found" in result.stderr
 
         finally:
             os.chdir(original_cwd)
 
 
 def test_uninstall_without_cl_flag() -> None:
-    """Test remove command without --cl flag should fail."""
+    """Test remove command without --cl flag should fail when no jac.toml exists."""
     with tempfile.TemporaryDirectory() as temp_dir:
         original_cwd = os.getcwd()
         try:
             os.chdir(temp_dir)
 
-            # Run remove command without --cl flag
+            # Run remove command without --cl flag and without jac.toml
             result = run(
                 ["jac", "remove", "lodash"],
                 capture_output=True,
                 text=True,
             )
 
-            # Should fail with non-zero exit code
+            # Should fail with non-zero exit code because no jac.toml
             assert result.returncode != 0
-            assert "--cl flag is required" in result.stderr
+            assert "No jac.toml found" in result.stderr
 
         finally:
             os.chdir(original_cwd)
@@ -499,7 +501,7 @@ def test_uninstall_without_package_name() -> None:
 
             # Should fail with non-zero exit code
             assert result.returncode != 0
-            assert "Package name is required" in result.stderr
+            assert "No packages specified" in result.stderr
 
         finally:
             os.chdir(original_cwd)
@@ -524,7 +526,8 @@ def test_uninstall_package_from_dependencies() -> None:
 
             # Should succeed
             assert result.returncode == 0
-            assert "Removed lodash from [dependencies.npm]" in result.stdout
+            assert "Removing lodash (npm)" in result.stdout
+            assert "Removed 1 package(s)" in result.stdout
 
             # Verify package was removed from jac.toml
             with open(config_path, "rb") as f:
@@ -559,7 +562,8 @@ def test_uninstall_package_from_devdependencies() -> None:
 
             # Should succeed
             assert result.returncode == 0
-            assert "Removed @types/react from [dependencies.npm.dev]" in result.stdout
+            assert "Removing @types/react (npm)" in result.stdout
+            assert "Removed 1 package(s)" in result.stdout
 
             # Verify package was removed from jac.toml
             with open(config_path, "rb") as f:
@@ -613,7 +617,7 @@ def test_uninstall_without_config_json() -> None:
 
             # Should fail with non-zero exit code
             assert result.returncode != 0
-            assert "jac.toml not found" in result.stderr
+            assert "No jac.toml found" in result.stderr
 
         finally:
             os.chdir(original_cwd)

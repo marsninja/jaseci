@@ -226,13 +226,29 @@ impl DependencyResolver.postinit -> None {
 
 impl DependencyResolver.parse_spec(spec: str) -> tuple[str, str] {
     import re;
-    m = re.match(r"^([a-zA-Z0-9_-]+)\s*([<>=!~]+.+)?$", spec.strip());
-    if m {
-        name = m.group(1);
-        version = m.group(2) or "";
+    spec = spec.strip();
+    # Handle npm scoped packages: @scope/name@version
+    npm_scoped_m = re.match(r"^(@[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+)@(.+)$", spec);
+    if npm_scoped_m {
+        return (npm_scoped_m.group(1), npm_scoped_m.group(2));
+    }
+    # Handle npm style: name@version
+    npm_m = re.match(r"^([a-zA-Z0-9_-]+)@(.+)$", spec);
+    if npm_m {
+        return (npm_m.group(1), npm_m.group(2));
+    }
+    # Handle Python style: name>=version, name~=version, etc.
+    py_m = re.match(r"^([a-zA-Z0-9_-]+)\s*([<>=!~]+.+)?$", spec);
+    if py_m {
+        name = py_m.group(1);
+        version = py_m.group(2) or "";
         return (name, version);
     }
-    return (spec.strip(), "");
+    # Handle scoped packages without version: @scope/name
+    if spec.startswith("@") and "/" in spec {
+        return (spec, "");
+    }
+    return (spec, "");
 }
 
 impl DependencyResolver.resolve(include_dev: bool = False) -> list[ResolvedDependency] {
