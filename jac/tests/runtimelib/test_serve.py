@@ -19,6 +19,14 @@ from jaclang.runtimelib.server import JacAPIServer, UserManager
 from tests.runtimelib.conftest import fixture_abs_path
 
 
+@pytest.fixture(scope="module", autouse=True)
+def reset_machine_module():
+    """Reset Jac machine once for all tests in this module."""
+    Jac.reset_machine()
+    yield
+    Jac.reset_machine()
+
+
 def get_free_port() -> int:
     """Get a free port by binding to port 0 and releasing it."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
