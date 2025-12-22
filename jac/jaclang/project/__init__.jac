@@ -34,30 +34,28 @@ import from jaclang.project.dependencies {
     remove_packages_from_path
 }
 
-with entry {
-    __all__ = [
-        'JacConfig',
-        'ProjectConfig',
-        'RunConfig',
-        'BuildConfig',
-        'TestConfig',
-        'ServeConfig',
-        'FormatConfig',
-        'CheckConfig',
-        'DotConfig',
-        'CacheConfig',
-        'PluginsConfig',
-        'EnvironmentConfig',
-        'get_config',
-        'set_config',
-        'find_project_root',
-        'is_in_project',
-        'interpolate_env_vars',
-        'DependencyInstaller',
-        'DependencyResolver',
-        'ResolvedDependency',
-        'add_packages_to_path',
-        'remove_packages_from_path',
-        'is_packages_in_path'
-    ];
-}
+glob __all__ = [
+         'JacConfig',
+         'ProjectConfig',
+         'RunConfig',
+         'BuildConfig',
+         'TestConfig',
+         'ServeConfig',
+         'FormatConfig',
+         'CheckConfig',
+         'DotConfig',
+         'CacheConfig',
+         'PluginsConfig',
+         'EnvironmentConfig',
+         'get_config',
+         'set_config',
+         'find_project_root',
+         'is_in_project',
+         'interpolate_env_vars',
+         'DependencyInstaller',
+         'DependencyResolver',
+         'ResolvedDependency',
+         'add_packages_to_path',
+         'remove_packages_from_path',
+         'is_packages_in_path'
+     ];
