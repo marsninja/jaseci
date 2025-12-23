@@ -25,10 +25,11 @@ def test_import_auto_impl(fixture_path: Callable[[str], str]) -> None:
     (prog := JacProgram()).compile(fixture_path("autoimpl.jac"))
     num_modules = len(list(prog.mod.hub.values())[0].impl_mod)
     mod_names = [i.name for i in list(prog.mod.hub.values())[0].impl_mod]
-    assert num_modules == 5
+    assert num_modules == 6
     assert "getme.impl" in mod_names
     assert "autoimpl.impl" in mod_names
     assert "autoimpl.something.else.impl" in mod_names
+    assert "autoimpl.shared.impl" in mod_names  # shared folder impl
     assert "autoimpl.cl" in mod_names
 
 
@@ -37,12 +38,13 @@ def test_import_include_auto_impl(fixture_path: Callable[[str], str]) -> None:
     (prog := JacProgram()).build(fixture_path("incautoimpl.jac"))
     num_modules = len(list(prog.mod.hub.values())[1].impl_mod) + 1
     mod_names = [i.name for i in list(prog.mod.hub.values())[1].impl_mod]
-    assert num_modules == 6
+    assert num_modules == 7
     assert list(prog.mod.hub.values())[0].name == "incautoimpl"
     assert list(prog.mod.hub.values())[1].name == "autoimpl"
     assert "getme.impl" in mod_names
     assert "autoimpl.impl" in mod_names
     assert "autoimpl.something.else.impl" in mod_names
+    assert "autoimpl.shared.impl" in mod_names  # shared folder impl
     assert "autoimpl.cl" in mod_names
 
 
