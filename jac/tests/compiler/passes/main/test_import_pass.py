@@ -55,13 +55,26 @@ def test_annexalbe_by_discovery(fixture_path: Callable[[str], str]) -> None:
     # ["incautoimpl", "autoimpl", "autoimpl.something.else.impl",
     #  "autoimpl.impl", "autoimpl.empty.impl", "autoimpl.cl",
     #  "getme.impl", "typing", "types", "builtins","jac_builtins", "typing_extensions"]
-    assert len(all_mods) == 12
+    assert len(all_mods) == 13
     for main_mod in all_mods:
         for i in main_mod.impl_mod:
             if i.name not in ["autoimpl", "incautoimpl"]:
                 count += 1
                 assert i.annexable_by == fixture_path("autoimpl.jac")
-    assert count == 5
+    assert count == 6
+
+
+def test_annexable_by_shared_folder(fixture_path: Callable[[str], str]) -> None:
+    """Test annexable_by correctly discovers base file from shared impl/ folder."""
+    (prog := JacProgram()).build(fixture_path("autoimpl.jac"))
+    main_mod = list(prog.mod.hub.values())[0]
+
+    # Find the shared folder impl module
+    shared_impl = next(
+        (m for m in main_mod.impl_mod if m.name == "autoimpl.shared.impl"), None
+    )
+    assert shared_impl is not None, "Expected shared folder impl to be loaded"
+    assert shared_impl.annexable_by == fixture_path("autoimpl.jac")
 
 
 def test_cl_annex_marked_client(fixture_path: Callable[[str], str]) -> None:
