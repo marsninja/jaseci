@@ -55,8 +55,8 @@ impl JacClient.get_client_bundle_builder -> ViteClientBundleBuilder {
         # Fallback to base_path_dir if no project root found
         base_path = base_path_dir;
     }
-    # package.json should only exist in .jac-client.configs/
-    generated_package_json = base_path / '.jac-client.configs' / 'package.json';
+    # package.json should only exist in .client-build/.jac-client.configs/
+    generated_package_json = base_path / '.client-build' / '.jac-client.configs' / 'package.json';
     # Generate package.json if it doesn't exist
     if not generated_package_json.exists() {
         # Use ViteBundler to generate package.json from config.json
@@ -78,7 +78,7 @@ impl JacClient.get_client_bundle_builder -> ViteClientBundleBuilder {
             f'package.json not found at {package_json_path}. Expected at {generated_package_json}'
         ) ;
     }
-    output_dir = base_path / 'dist';
+    output_dir = base_path / '.client-build' / 'dist';
     runtime_path = Path(__file__).with_name('client_runtime.cl.jac');
     return ViteClientBundleBuilder(
         runtime_path=runtime_path,
@@ -114,7 +114,7 @@ impl JacClientModuleIntrospector.render_page(
         # Fallback to base_path_dir if no project root found
         base_path = base_path_dir;
     }
-    dist_dir = base_path / 'dist';
+    dist_dir = base_path / '.client-build' / 'dist';
     css_link = '';
     css_file = dist_dir / 'main.css';
     if css_file.exists() {

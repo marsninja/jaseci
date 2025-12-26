@@ -157,7 +157,7 @@ def _create_client_project(cwd: pathlib.Path, name: str, force: bool) -> None {
     assets_dir = project_path / "assets";
     assets_dir.mkdir(parents=True, exist_ok=True);
 
-    (project_path / "build").mkdir(parents=True, exist_ok=True);
+    (project_path / ".client-build").mkdir(parents=True, exist_ok=True);
 
     toml_path = project_path / "jac.toml";
     toml_content = f'''[project]
@@ -359,9 +359,7 @@ def _create_gitignore(project_path: pathlib.Path, client: bool = False) -> None 
                 "node_modules/",
                 "",
                 "# Jac Client",
-                ".jac-client.configs/",
-                "build/",
-                "dist/",
+                ".client-build/",
                 "*.session",
                 "*.session.*"
             ]
