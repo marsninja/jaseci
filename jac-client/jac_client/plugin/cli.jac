@@ -180,7 +180,7 @@ entry-point = "src/app.jac"
 
 # Client-side imports
 cl import from react { useState, useEffect }
-cl import from "./components/Button.tsx" { Button }
+cl import from ".components/Button.tsx" { Button }
 
 # Client-side component
 cl {

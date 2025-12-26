@@ -87,11 +87,9 @@ impl ViteBundler.create_package_json(
 
 """Create tsconfig.json during build time, merging user config from jac.toml."""
 impl ViteBundler.create_tsconfig(self: ViteBundler) -> Path {
-    tsconfig_path = self.project_dir / 'tsconfig.json';
-    # Only create if it doesn't exist (user may have a fully custom one)
-    if tsconfig_path.exists() {
-        return tsconfig_path;
-    }
+    configs_dir = self.project_dir / '.jac-client.configs';
+    configs_dir.mkdir(exist_ok=True);
+    tsconfig_path = configs_dir / 'tsconfig.json';
     # Default tsconfig settings
     default_compiler_options = {
         'target': 'ES2020',
@@ -127,6 +125,7 @@ impl ViteBundler.create_tsconfig(self: ViteBundler) -> Path {
         'include': merged_include,
         'exclude': merged_exclude
     };
+    # Write the config to .jac-client.configs/tsconfig.json (no root config file)
     tsconfig_path.write_text(json.dumps(tsconfig_data, indent=2), encoding='utf-8');
     return tsconfig_path;
 }
@@ -279,7 +278,7 @@ impl ViteBundler.create_vite_config(self: ViteBundler, entry_file: Path) -> Path
     resolve_overrides_str = self._format_config_object(resolve_config, indent=6)
     if (isinstance(resolve_config, <>dict) and resolve_config)
     else '';
-    imports_section = f"{imports_str}" if imports_str else '';
+    imports_section = f"{imports_str}\n" if imports_str else '';
     newline = '\n';
     server_section = f"  server: {{{newline}{server_config_str}{newline}  }},{newline}"
     if server_config_str
@@ -403,9 +402,15 @@ impl ViteBundler.build(self: ViteBundler, entry_file: Optional[Path] = None) -> 
         } else {
             command = ['npm', 'run', 'build'];
         }
-        subprocess.run(
-            command, cwd=self.project_dir, check=True, capture_output=True, text=True
+        result = subprocess.run(
+            command, cwd=self.project_dir, check=False, capture_output=True, text=True
         );
+        if result.returncode != 0 {
+            error_msg = result.stderr or result.stdout or 'Unknown error';
+            raise ClientBundleError(
+                f"Vite build failed:\n{error_msg}\nCommand: {' '.join(command)}"
+            ) from None;
+        }
     } finally {
         self._cleanup_root_package_files();
     }
@@ -420,7 +425,7 @@ impl ViteBundler.init(
     config_path: Optional[Path] = None
 ) {
     self.project_dir = project_dir;
-    self.output_dir = output_dir or (project_dir / 'compiled' / 'dist' / 'assets');
+    self.output_dir = output_dir or (project_dir / 'dist');
     self.minify = minify;
     self.config_path = config_path;
     self.config_loader = JacClientConfig(project_dir);

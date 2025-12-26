@@ -45,7 +45,16 @@ impl JacClient.build_client_bundle(
 
 """Get the client bundle builder instance."""
 impl JacClient.get_client_bundle_builder -> ViteClientBundleBuilder {
-    base_path = Path(Jac.base_path_dir);
+    import from jaclang.project.config { find_project_root }
+    # Find project root by looking for jac.toml (base_path_dir might be src/ for entry files)
+    base_path_dir = Path(Jac.base_path_dir);
+    project_root_result = find_project_root(base_path_dir);
+    if project_root_result {
+        (base_path, _) = project_root_result;
+    } else {
+        # Fallback to base_path_dir if no project root found
+        base_path = base_path_dir;
+    }
     # package.json should only exist in .jac-client.configs/
     generated_package_json = base_path / '.jac-client.configs' / 'package.json';
     # Generate package.json if it doesn't exist
@@ -95,7 +104,16 @@ impl JacClientModuleIntrospector.render_page(
         raise ValueError(f"Client function '{function_name}' not found") ;
     }
     bundle_hash = self.ensure_bundle();
-    base_path = Path(Jac.base_path_dir);
+    import from jaclang.project.config { find_project_root }
+    # Find project root by looking for jac.toml (base_path_dir might be src/ for entry files)
+    base_path_dir = Path(Jac.base_path_dir);
+    project_root_result = find_project_root(base_path_dir);
+    if project_root_result {
+        (base_path, _) = project_root_result;
+    } else {
+        # Fallback to base_path_dir if no project root found
+        base_path = base_path_dir;
+    }
     dist_dir = base_path / 'dist';
     css_link = '';
     css_file = dist_dir / 'main.css';
