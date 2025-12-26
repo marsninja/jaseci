@@ -94,21 +94,25 @@ Given the following source structure:
 
 ```
 nested-basic/
-├── app.jac                    (root module)
-├── buttonroot.jac
-└── components/
-    └── button.jac
+├── src/
+│   ├── app.jac                (root module)
+│   ├── buttonroot.jac
+│   └── components/
+│       └── button.jac
+└── jac.toml                   (entry-point = "src/app.jac")
 ```
 
 The compiled output in `compiled/` will be:
 
 ```
 compiled/
-├── app.js                     (from app.jac)
-├── buttonroot.js              (from buttonroot.jac)
+├── app.js                     (from src/app.jac)
+├── buttonroot.js              (from src/buttonroot.jac)
 └── components/
-    └── button.js              (from components/button.jac)
+    └── button.js              (from src/components/button.jac)
 ```
+
+**Note**: The `src/` directory is the `source_root`, so files are compiled to `compiled/` maintaining relative structure but without the `src/` prefix.
 
 #### Benefits
 
