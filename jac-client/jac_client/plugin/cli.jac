@@ -11,6 +11,11 @@ import pathlib;
 import from jaclang.cli.cmdreg { cmd_registry, CommandPriority }
 import from jaclang.pycore.runtime { hookimpl }
 import from jaclang.project.config { JacConfig, find_project_root }
+import from .node_helper {
+    check_nodejs_installed,
+    get_nodejs_install_instructions,
+    setup_nodejs_with_nvm
+}
 
 """Jac CLI extensions for client-side development."""
 class JacCmd {
@@ -19,7 +24,12 @@ class JacCmd {
     static def create_cmd -> None {
         """Override core create command to add --cl flag for client-side setup.""";
 
-        def create(name: str = 'main', force: bool = False, cl: bool = False) -> None {
+        def create(
+            name: str = 'main',
+            force: bool = False,
+            cl: bool = False,
+            setup_node: bool = False
+        ) -> None {
             """Initialize a new Jac project.
 
             Creates a jac.toml configuration file and basic project structure.
@@ -29,17 +39,19 @@ class JacCmd {
                 name: Project name (default: 'main')
                 force: Overwrite existing jac.toml if present
                 cl: Include client-side (frontend) setup
+                setup_node: Automatically install Node.js via nvm if not found
 
             Examples:
                 jac create
                 jac create myapp
                 jac create --cl myapp
+                jac create --cl --setup-node myapp
                 jac create --force
             """;
             cwd = pathlib.Path(os.getcwd());
 
             if cl {
-                _create_client_project(cwd, name, force);
+                _create_client_project(cwd, name, force, setup_node);
             } else {
                 _create_core_project(cwd, name, force);
             }
@@ -107,7 +119,54 @@ with entry {{
 }
 
 """Create a client-side Jac project with organized folder structure."""
-def _create_client_project(cwd: pathlib.Path, name: str, force: bool) -> None {
+def _create_client_project(
+    cwd: pathlib.Path, name: str, force: bool, setup_node: bool = False
+) -> None {
+    # Check for Node.js before proceeding
+    (has_node, node_version, npm_version) = check_nodejs_installed();
+
+    if not has_node or not npm_version {
+        if setup_node {
+            # Attempt to install Node.js via nvm
+            print("Node.js not found. Attempting automatic installation...");
+            print("");
+            if setup_nodejs_with_nvm() {
+                # Re-check after installation
+                (has_node, node_version, npm_version) = check_nodejs_installed();
+                if not has_node or not npm_version {
+                    print(
+                        "Error: Node.js installation succeeded but is not accessible.",
+                        file=sys.stderr
+                    );
+                    print(
+                        "Please restart your terminal and try again.", file=sys.stderr
+                    );
+                    <>exit(1);
+                }
+            } else {
+                print(
+                    "Error: Failed to install Node.js automatically.", file=sys.stderr
+                );
+                print(get_nodejs_install_instructions(), file=sys.stderr);
+                <>exit(1);
+            }
+        } else {
+            if not has_node {
+                print(
+                    "Error: Node.js is not installed or not in PATH.", file=sys.stderr
+                );
+            } else {
+                print("Error: npm is not installed or not in PATH.", file=sys.stderr);
+                print("Node.js was found, but npm is missing.", file=sys.stderr);
+            }
+            print(get_nodejs_install_instructions(), file=sys.stderr);
+            <>exit(1);
+        }
+    }
+
+    # Show detected versions
+    print(f"Using Node.js {node_version} with npm {npm_version}");
+
     project_name = name or cwd.name;
 
     if not project_name or project_name == 'main' {
