@@ -4,4 +4,3 @@
   "preview": "vite preview --config .client-build/.jac-client.configs/vite.config.js",
   "compile": "babel compiled --out-dir build --extensions \".jsx,.js\" --out-file-extension .js"
 }
-

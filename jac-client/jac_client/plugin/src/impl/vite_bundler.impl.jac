@@ -477,25 +477,25 @@ impl ViteBundler.build(self: ViteBundler, entry_file: Optional[Path] = None) -> 
             error_msg = result.stderr or result.stdout or 'Unknown error';
             raise ClientBundleError(
                 f"Vite build failed:\n{error_msg}\nCommand: {' '.join(command)}"
-            ) from None;
+            ) from None ;
         }
-            } finally {
-                # Clean up temporary package.json in .client-build/
-                build_package_json = build_dir / 'package.json';
-                if build_package_json.exists() {
-                    build_package_json.unlink();
-                }
-                # Move package-lock.json to .jac-client.configs/ if it exists
-                build_package_lock = build_dir / 'package-lock.json';
-                if build_package_lock.exists() {
-                    configs_package_lock = build_dir / '.jac-client.configs' / 'package-lock.json';
-                    if configs_package_lock.exists() {
-                        configs_package_lock.unlink();
-                    }
-                    build_package_lock.rename(configs_package_lock);
-                }
+    } finally {
+        # Clean up temporary package.json in .client-build/
+        build_package_json = build_dir / 'package.json';
+        if build_package_json.exists() {
+            build_package_json.unlink();
+        }
+        # Move package-lock.json to .jac-client.configs/ if it exists
+        build_package_lock = build_dir / 'package-lock.json';
+        if build_package_lock.exists() {
+            configs_package_lock = build_dir / '.jac-client.configs' / 'package-lock.json';
+            if configs_package_lock.exists() {
+                configs_package_lock.unlink();
             }
+            build_package_lock.rename(configs_package_lock);
         }
+    }
+}
 
 """Initialize the Vite bundler."""
 impl ViteBundler.init(

@@ -70,11 +70,13 @@ jac create --cl --skip todo-app
 ```
 
 **When to use `--skip`:**
+
 - You want to manually control when packages are installed
 - You're setting up the project in an environment without npm/Node.js initially
 - You want to customize the package.json before installation
 
 **Note:** If you use `--skip`, you'll need to install packages manually later using:
+
 ```bash
 jac add --cl <package-name>
 ```

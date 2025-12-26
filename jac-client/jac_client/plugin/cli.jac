@@ -21,7 +21,12 @@ class JacCmd {
     static def create_cmd -> None {
         """Override core create command to add --cl flag for client-side setup.""";
 
-        def create(name: str = 'main', force: bool = False, cl: bool = False, skip: bool = False) -> None {
+        def create(
+            name: str = 'main',
+            force: bool = False,
+            cl: bool = False,
+            skip: bool = False
+        ) -> None {
             """Initialize a new Jac project.
 
             Creates a jac.toml configuration file and basic project structure.
@@ -111,7 +116,9 @@ with entry {{
 }
 
 """Create a client-side Jac project with organized folder structure."""
-def _create_client_project(cwd: pathlib.Path, name: str, force: bool, skip: bool = False) -> None {
+def _create_client_project(
+    cwd: pathlib.Path, name: str, force: bool, skip: bool = False
+) -> None {
     project_name = name or cwd.name;
 
     if not project_name or project_name == 'main' {
@@ -409,35 +416,41 @@ def _install_default_packages(project_path: pathlib.Path) -> None {
         # Verify jac.toml exists
         toml_path = project_path / "jac.toml";
         if not toml_path.exists() {
-            print("Warning: jac.toml not found, skipping package installation", file=sys.stderr);
+            print(
+                "Warning: jac.toml not found, skipping package installation",
+                file=sys.stderr
+            );
             return;
         }
 
         # Get project name from jac.toml or use directory name
         project_name = project_path.name;
-        
+
         # Create ViteBundler instance (it will load config internally)
         bundler = ViteBundler(project_path);
-        
+
         # Generate package.json with default packages (defaults are added automatically)
         bundler.create_package_json(project_name=project_name);
-        
+
         # Ensure .client-build directory exists
         build_dir = project_path / '.client-build';
         build_dir.mkdir(parents=True, exist_ok=True);
-        
+
         # Copy package.json to .client-build/ for npm install
         configs_package_json = build_dir / '.jac-client.configs' / 'package.json';
         build_package_json = build_dir / 'package.json';
-        
+
         if not configs_package_json.exists() {
-            print("Warning: package.json was not generated, skipping package installation", file=sys.stderr);
+            print(
+                "Warning: package.json was not generated, skipping package installation",
+                file=sys.stderr
+            );
             return;
         }
-        
+
         # Always copy the generated package.json to .client-build/ for npm install
         shutil.copy2(configs_package_json, build_package_json);
-        
+
         # Run npm install in .client-build/ directory
         try {
             subprocess.run(
@@ -447,7 +460,7 @@ def _install_default_packages(project_path: pathlib.Path) -> None {
                 capture_output=True,
                 text=True
             );
-            
+
             # Move package-lock.json to .jac-client.configs/ if it was created
             build_package_lock = build_dir / 'package-lock.json';
             configs_dir = build_dir / '.jac-client.configs';
@@ -459,13 +472,16 @@ def _install_default_packages(project_path: pathlib.Path) -> None {
                 }
                 shutil.move(str(build_package_lock), str(configs_package_lock));
             }
-            
+
             print("Default packages installed successfully");
         } except subprocess.CalledProcessError as e {
             print(f"Warning: Failed to install packages: {e.stderr}", file=sys.stderr);
             print("You can install packages later with: jac add --cl", file=sys.stderr);
         } except FileNotFoundError {
-            print("Warning: npm command not found. Install Node.js and npm to install packages.", file=sys.stderr);
+            print(
+                "Warning: npm command not found. Install Node.js and npm to install packages.",
+                file=sys.stderr
+            );
             print("You can install packages later with: jac add --cl", file=sys.stderr);
         } finally {
             # Clean up temporary package.json in .client-build/

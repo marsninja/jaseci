@@ -289,7 +289,9 @@ def test_all_in_one_app_endpoints() -> None:
                 # "/static/main.css" – CSS compiled and serving
                 # Note: CSS may be compiled asynchronously, so we retry if it's not ready
                 try:
-                    print("[DEBUG] Sending GET request to /static/main.css (with retry)")
+                    print(
+                        "[DEBUG] Sending GET request to /static/main.css (with retry)"
+                    )
                     css_bytes = _wait_for_endpoint(
                         "http://127.0.0.1:8000/static/main.css",
                         timeout=60.0,
@@ -518,10 +520,14 @@ def test_all_in_one_app_endpoints() -> None:
                 # Verify nested folder imports are working - /page/app#/nested route
                 # This route uses nested folder imports (components.button and button)
                 try:
-                    print("[DEBUG] Verifying nested folder imports via /page/app#/nested")
+                    print(
+                        "[DEBUG] Verifying nested folder imports via /page/app#/nested"
+                    )
                     # The nested route should load successfully (already tested above)
                     # Nested imports are compiled and included in the bundle
-                    assert "<html" in nested_body.lower(), "Nested route should contain HTML"
+                    assert "<html" in nested_body.lower(), (
+                        "Nested route should contain HTML"
+                    )
                 except Exception as exc:
                     print(f"[DEBUG] Error verifying nested folder imports: {exc}")
                     pytest.fail("Failed to verify nested folder imports")

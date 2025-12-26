@@ -121,16 +121,19 @@ my-app/
 To start your application, you can use either:
 
 **Option 1: Specify the file path**
+
 ```bash
 jac serve src/app.jac
 ```
 
 **Option 2: Use jac.toml entry-point (recommended)**
+
 ```bash
 jac serve
 ```
 
 The `jac serve` command (without arguments) reads the `entry-point` from `jac.toml`:
+
 ```toml
 [project]
 entry-point = "src/app.jac"

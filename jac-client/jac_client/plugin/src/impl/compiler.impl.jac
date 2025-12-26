@@ -19,7 +19,9 @@ impl ViteCompiler.compile_and_bundle(
     self.create_entry_file();
     self.babel_processor.compile();
     self.babel_processor.copy_assets_after_compile(
-        self.compiled_dir, (self.project_dir / '.client-build' / 'build'), self.asset_processor
+        self.compiled_dir,
+        (self.project_dir / '.client-build' / 'build'),
+        self.asset_processor
     );
     entry_file = self.project_dir / '.client-build' / 'build' / 'main.js';
     self.vite_bundler.build(entry_file=entry_file);
@@ -225,7 +227,10 @@ impl ViteCompiler.init(
     }
     self.vite_package_json = vite_package_json;
     # If package.json is in .client-build/.jac-client.configs/, go up two levels to get project root
-    if (vite_package_json.parent.name == '.jac-client.configs' and vite_package_json.parent.parent.name == '.client-build') {
+    if (
+        vite_package_json.parent.name == '.jac-client.configs'
+        and vite_package_json.parent.parent.name == '.client-build'
+    ) {
         self.project_dir = vite_package_json.parent.parent.parent;
     } elif (vite_package_json.parent.name == '.jac-client.configs') {
         self.project_dir = vite_package_json.parent.parent;
