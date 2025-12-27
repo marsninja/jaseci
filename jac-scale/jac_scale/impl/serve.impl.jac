@@ -77,6 +77,7 @@ impl JacAPIServer._configure_openapi_security(self: JacAPIServer) -> None {
 
 """Serve root-level assets like /img.png, /icons/logo.svg, etc."""
 impl JacAPIServer.serve_root_asset(self: JacAPIServer, file_path: str) -> Response {
+    import from jaclang.project.config { find_project_root }
     allowed_extensions = {'.png','.jpg','.jpeg','.gif','.webp','.svg','.ico','.woff','.woff2','.ttf','.otf','.eot','.mp4','.webm','.mp3','.wav','.css','.js','.json','.pdf','.txt','.xml'};
     file_ext = Path(file_path).suffix.lower();
     if (not file_ext or (file_ext not in allowed_extensions)) {
@@ -85,15 +86,33 @@ impl JacAPIServer.serve_root_asset(self: JacAPIServer, file_path: str) -> Respon
     if file_path.startswith(('page/', 'walker/', 'function/', 'user/', 'static/')) {
         return Response(status_code=404, content='Not found', media_type='text/plain');
     }
-    base_path = Path(Jac.base_path_dir) if Jac.base_path_dir else Path.cwd();
+    # Find project root by looking for jac.toml (base_path_dir might be src/ for entry files)
+    base_path_dir = Path(Jac.base_path_dir) if Jac.base_path_dir else Path.cwd();
+    project_root_result = find_project_root(base_path_dir);
+    if project_root_result {
+        (project_root, _) = project_root_result;
+    } else {
+        # Fallback to base_path_dir if no project root found
+        project_root = base_path_dir;
+    }
     file_name = Path(file_path).name;
     candidates = [
-        base_path / 'dist' / file_path,
-        base_path / 'dist' / file_name,
-        base_path / 'assets' / file_path,
-        base_path / 'assets' / file_name,
-        base_path / 'public' / file_path,
-        (base_path / file_path)
+        # Project root paths
+        project_root / '.client-build' / 'dist' / file_path,
+        project_root / '.client-build' / 'dist' / file_name,
+        project_root / 'dist' / file_path,
+        project_root / 'dist' / file_name,
+        project_root / 'assets' / file_path,
+        project_root / 'assets' / file_name,
+        project_root / 'public' / file_path,
+        (project_root / file_path),
+        # Base path dir for backwards compatibility
+        base_path_dir / 'dist' / file_path,
+        base_path_dir / 'dist' / file_name,
+        base_path_dir / 'assets' / file_path,
+        base_path_dir / 'assets' / file_name,
+        base_path_dir / 'public' / file_path,
+        (base_path_dir / file_path)
     ];
     for candidate_file in candidates {
         if (candidate_file.exists() and candidate_file.is_file()) {
@@ -143,34 +162,67 @@ impl JacAPIServer.register_root_asset_endpoint(self: JacAPIServer) -> None {
 """Serve a static file given its path."""
 impl JacAPIServer.serve_static_file(self: JacAPIServer, file_path: str) -> Response {
     try {
-        base_path = Path(Jac.base_path_dir) if Jac.base_path_dir else Path.cwd();
+        import from jaclang.project.config { find_project_root }
+        # Find project root by looking for jac.toml (base_path_dir might be src/ for entry files)
+        base_path_dir = Path(Jac.base_path_dir) if Jac.base_path_dir else Path.cwd();
+        project_root_result = find_project_root(base_path_dir);
+        if project_root_result {
+            (project_root, _) = project_root_result;
+        } else {
+            # Fallback to base_path_dir if no project root found
+            project_root = base_path_dir;
+        }
         file_name = Path(file_path).name;
-        dist_file = base_path / 'dist' / file_path;
-        dist_file_simple = base_path / 'dist' / file_name;
-        assets_file = base_path / 'assets' / file_path;
-        assets_file_simple = base_path / 'assets' / file_name;
+        # Check .client-build/dist first (where bundled CSS is placed)
+        client_build_file = project_root / '.client-build' / 'dist' / file_path;
+        client_build_file_simple = project_root / '.client-build' / 'dist' / file_name;
+        # Check direct path from project root
+        project_direct_file = project_root / file_path;
+        # Check project root level dist and assets
+        project_dist_file = project_root / 'dist' / file_path;
+        project_dist_file_simple = project_root / 'dist' / file_name;
+        project_assets_file = project_root / 'assets' / file_path;
+        project_assets_file_simple = project_root / 'assets' / file_name;
+        # Also check relative to base_path_dir for backwards compatibility
+        base_direct_file = base_path_dir / file_path;
+        dist_file = base_path_dir / 'dist' / file_path;
+        dist_file_simple = base_path_dir / 'dist' / file_name;
+        assets_file = base_path_dir / 'assets' / file_path;
+        assets_file_simple = base_path_dir / 'assets' / file_name;
         if file_name.endswith('.css') {
-            if dist_file.exists() {
-                css_content = dist_file.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif dist_file_simple.exists() {
-                css_content = dist_file_simple.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif assets_file.exists() {
-                css_content = assets_file.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif assets_file_simple.exists() {
-                css_content = assets_file_simple.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } else {
-                return Response(
-                    status_code=404,
-                    content='CSS file not found',
-                    media_type='text/plain'
-                );
+            css_candidates = [
+                client_build_file,
+                client_build_file_simple,
+                project_direct_file,
+                project_dist_file,
+                project_dist_file_simple,
+                project_assets_file,
+                project_assets_file_simple,
+                base_direct_file,
+                dist_file,
+                dist_file_simple,
+                assets_file,
+                assets_file_simple
+            ];
+            for css_file in css_candidates {
+                if css_file.exists() {
+                    css_content = css_file.read_text(encoding='utf-8');
+                    return Response(content=css_content, media_type='text/css');
+                }
             }
+            return Response(
+                status_code=404, content='CSS file not found', media_type='text/plain'
+            );
         }
         for candidate_file in [
+            client_build_file,
+            client_build_file_simple,
+            project_direct_file,
+            project_dist_file,
+            project_dist_file_simple,
+            project_assets_file,
+            project_assets_file_simple,
+            base_direct_file,
             dist_file,
             dist_file_simple,
             assets_file,

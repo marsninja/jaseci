@@ -787,12 +787,15 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                     # Use project root for client-build since that's where the bundle is created
                     client_build_file = project_root / '.client-build' / 'dist' / relative_path;
                     client_build_file_simple = project_root / '.client-build' / 'dist' / file_name;
+                    # Check direct path from project root (e.g., /static/assets/x.png -> project_root/assets/x.png)
+                    project_direct_file = project_root / relative_path;
                     # Check project root level dist and assets
                     project_dist_file = project_root / 'dist' / relative_path;
                     project_dist_file_simple = project_root / 'dist' / file_name;
                     project_assets_file = project_root / 'assets' / relative_path;
                     project_assets_file_simple = project_root / 'assets' / file_name;
                     # Also check relative to base_path_dir for backwards compatibility
+                    base_direct_file = base_path_dir / relative_path;
                     dist_file = base_path_dir / 'dist' / relative_path;
                     dist_file_simple = base_path_dir / 'dist' / file_name;
                     assets_file = base_path_dir / 'assets' / relative_path;
@@ -802,10 +805,12 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                         css_candidates = [
                             client_build_file,
                             client_build_file_simple,
+                            project_direct_file,
                             project_dist_file,
                             project_dist_file_simple,
                             project_assets_file,
                             project_assets_file_simple,
+                            base_direct_file,
                             dist_file,
                             dist_file_simple,
                             assets_file,
@@ -824,10 +829,12 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                     for candidate_file in [
                         client_build_file,
                         client_build_file_simple,
+                        project_direct_file,
                         project_dist_file,
                         project_dist_file_simple,
                         project_assets_file,
                         project_assets_file_simple,
+                        base_direct_file,
                         dist_file,
                         dist_file_simple,
                         assets_file,
