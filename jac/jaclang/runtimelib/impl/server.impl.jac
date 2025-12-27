@@ -765,44 +765,69 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
             );
             if (is_static_path or is_asset_file) {
                 try {
-                    base_path = Path(Jac.base_path_dir)
+                    import from jaclang.project.config { find_project_root }
+                    # Find project root by looking for jac.toml (base_path_dir might be src/ for entry files)
+                    base_path_dir = Path(Jac.base_path_dir)
                     if Jac.base_path_dir
                     else Path.cwd();
+                    project_root_result = find_project_root(base_path_dir);
+                    if project_root_result {
+                        (project_root, _) = project_root_result;
+                    } else {
+                        # Fallback to base_path_dir if no project root found
+                        project_root = base_path_dir;
+                    }
                     if is_static_path {
                         relative_path = path[8:];
                     } else {
                         relative_path = path[1:];
                     }
                     file_name = Path(relative_path).name;
-                    dist_file = base_path / 'dist' / relative_path;
-                    dist_file_simple = base_path / 'dist' / file_name;
-                    assets_file = base_path / 'assets' / relative_path;
-                    assets_file_simple = base_path / 'assets' / file_name;
+                    # Check .client-build/dist first (where bundled CSS is placed)
+                    # Use project root for client-build since that's where the bundle is created
+                    client_build_file = project_root / '.client-build' / 'dist' / relative_path;
+                    client_build_file_simple = project_root / '.client-build' / 'dist' / file_name;
+                    # Check project root level dist and assets
+                    project_dist_file = project_root / 'dist' / relative_path;
+                    project_dist_file_simple = project_root / 'dist' / file_name;
+                    project_assets_file = project_root / 'assets' / relative_path;
+                    project_assets_file_simple = project_root / 'assets' / file_name;
+                    # Also check relative to base_path_dir for backwards compatibility
+                    dist_file = base_path_dir / 'dist' / relative_path;
+                    dist_file_simple = base_path_dir / 'dist' / file_name;
+                    assets_file = base_path_dir / 'assets' / relative_path;
+                    assets_file_simple = base_path_dir / 'assets' / file_name;
                     if path.endswith('.css') {
-                        if dist_file.exists() {
-                            css_content = dist_file.read_text(encoding='utf-8');
-                            Jac.send_css(self, css_content);
-                            return;
-                        } elif dist_file_simple.exists() {
-                            css_content = dist_file_simple.read_text(encoding='utf-8');
-                            Jac.send_css(self, css_content);
-                            return;
-                        } elif assets_file.exists() {
-                            css_content = assets_file.read_text(encoding='utf-8');
-                            Jac.send_css(self, css_content);
-                            return;
-                        } elif assets_file_simple.exists() {
-                            css_content = assets_file_simple.read_text(
-                                encoding='utf-8'
-                            );
-                            Jac.send_css(self, css_content);
-                            return;
-                        } else {
-                            Jac.send_json(self, 404, {'error': 'CSS file not found'});
-                            return;
+                        # Check all CSS file locations in order of priority
+                        css_candidates = [
+                            client_build_file,
+                            client_build_file_simple,
+                            project_dist_file,
+                            project_dist_file_simple,
+                            project_assets_file,
+                            project_assets_file_simple,
+                            dist_file,
+                            dist_file_simple,
+                            assets_file,
+                            assets_file_simple
+                        ];
+                        for css_file in css_candidates {
+                            if css_file.exists() {
+                                css_content = css_file.read_text(encoding='utf-8');
+                                Jac.send_css(self, css_content);
+                                return;
+                            }
                         }
+                        Jac.send_json(self, 404, {'error': 'CSS file not found'});
+                        return;
                     }
                     for candidate_file in [
+                        client_build_file,
+                        client_build_file_simple,
+                        project_dist_file,
+                        project_dist_file_simple,
+                        project_assets_file,
+                        project_assets_file_simple,
                         dist_file,
                         dist_file_simple,
                         assets_file,
