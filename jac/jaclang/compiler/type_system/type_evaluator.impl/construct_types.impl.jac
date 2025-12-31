@@ -21,7 +21,11 @@ impl TypeEvaluator._get_type_of_self(
             return node_.type;
         }
         if isinstance(cls, uni.Enum) {
-            # TODO: Implement type from enum.
+            node_.sym = type_utils.lookup_symtab(
+                method, node_.value, self.builtins_module
+            );
+            node_.type = self.get_type_of_enum(cls).clone_as_instance();
+            return node_.type;
         }
     }
     return types.UnknownType();
@@ -52,6 +56,17 @@ impl TypeEvaluator.get_type_of_string(
     # file of the typing module).
     assert self.prefetch.str_class is not None;
     return self.prefetch.str_class;
+}
+
+"""Return the effective type of the boolean."""
+impl TypeEvaluator.get_type_of_bool(self: TypeEvaluator, node: uni.Bool) -> TypeBase {
+    assert self.prefetch.bool_class is not None;
+    # Create a LiteralType for boolean literals
+    bool_value = node.value;
+    return types.LiteralType(
+        value=bool_value,
+        base_type=self.prefetch.bool_class
+    );
 }
 
 """Return the effective type of an ability."""
@@ -178,6 +193,45 @@ impl TypeEvaluator.get_type_of_class(
     type_utils.compute_mro_linearization(cls_type);
     # Cache the type, pyright is doing invalidateTypeCacheIfCanceled()
     # we're not doing that any time sooner.
+    node_.name_spec.type = cls_type;
+    return cls_type;
+}
+
+"""Return the effective type of the enum."""
+impl TypeEvaluator.get_type_of_enum(
+    self: TypeEvaluator, node_: uni.Enum
+) -> types.ClassType {
+    # Is this type already cached?
+    if node_.name_spec.type is not None {
+        return cast(types.ClassType, node_.name_spec.type);
+    }
+
+    # Enums inherit from Enum base class
+    base_classes: list[TypeBase] = [];
+    for base_class in node_.base_classes or [] {
+        base_class_type = self.get_type_of_expression(base_class);
+        base_classes.append(base_class_type);
+    }
+
+    is_builtin_class = node_.find_parent_of_type(uni.Module) == self.builtins_module;
+
+    cls_type = types.ClassType(
+        types.ClassType.ClassDetailsShared(
+            class_name=node_.name_spec.sym_name,
+            symbol_table=node_,
+            type_params=[],
+            base_classes=base_classes,
+            is_builtin_class=is_builtin_class,
+            is_data_class=False,
+        ),
+        private=None,
+        flags=types.TypeFlags.Instantiable,
+    );
+
+    # Compute the MRO for the enum
+    type_utils.compute_mro_linearization(cls_type);
+
+    # Cache the type
     node_.name_spec.type = cls_type;
     return cls_type;
 }

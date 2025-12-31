@@ -106,10 +106,42 @@ impl TypeEvaluator.validate_call_args(
     }
     # 5. Call to a callable object (__call__).
     if caller_type.is_class_instance() {
-        # TODO: validate args.
-        magic_call_ret = self.get_type_of_magic_method_call(caller_type, "__call__");
-        if magic_call_ret {
-            return magic_call_ret;
+        assert isinstance(caller_type, types.ClassType);
+
+        # Look up __call__ method
+        if call_member := self._lookup_object_member(caller_type, "__call__") {
+            call_type = self.get_type_of_symbol(call_member.symbol);
+
+            # Handle FunctionType __call__
+            if isinstance(call_type, types.FunctionType) {
+                call_type = call_type.specialize(caller_type);
+                # Validate arguments against __call__ parameters
+                arg_param_match = self.match_args_to_params(expr, call_type);
+                if not arg_param_match.argument_errors {
+                    self.validate_arg_types(arg_param_match);
+                }
+                return call_type.return_type or types.UnknownType();
+            }
+
+            # Handle overloaded __call__
+            if isinstance(call_type, types.OverloadedType) {
+                for overload in call_type.overloads {
+                    specialized = overload.specialize(caller_type);
+                    arg_param_match = self.match_args_to_params(
+                        expr, specialized, checking_overload=True
+                    );
+                    if not arg_param_match.argument_errors {
+                        if self.validate_arg_types(arg_param_match, checking_overload=True) {
+                            return specialized.return_type or types.UnknownType();
+                        }
+                    }
+                }
+                self.add_diagnostic(
+                    expr,
+                    "No matching overload found for __call__ with the given arguments",
+                );
+                return types.UnknownType();
+            }
         }
     }
     return types.UnknownType();

@@ -248,9 +248,50 @@ impl ClassType.ClassDetailsShared.init(
     self.is_root_class = is_root_class;
 }
 
-"""Initialize obviously."""
-impl TypeVarType.init(self: TypeVarType) -> None {
+"""Initialize type variable with optional variance and bound."""
+impl TypeVarType.init(
+    self: TypeVarType,
+    name: str = "",
+    variance: Variance = Variance.Invariant,
+    bound: (TypeBase | None) = None
+) -> None {
     super.init();
+    self.name = name;
+    self.variance = variance;
+    self.bound = bound;
+}
+
+"""Initialize a literal type."""
+impl LiteralType.init(
+    self: LiteralType,
+    value: str | int | float | bool,
+    base_type: ClassType,
+    flags: TypeFlags = TypeFlags.Instance
+) -> None {
+    super.init(flags=flags);
+    self.value = value;
+    self.base_type = base_type;
+}
+
+"""String representation of literal type."""
+impl LiteralType.__str__(self: LiteralType) -> str {
+    if isinstance(self.value, str) {
+        return f'Literal["{self.value}"]';
+    }
+    return f'Literal[{self.value}]';
+}
+
+"""Check equality with another literal type."""
+impl LiteralType.__eq__(self: LiteralType, other: object) -> bool {
+    if not isinstance(other, LiteralType) {
+        return False;
+    }
+    return self.value == other.value and self.base_type.shared == other.base_type.shared;
+}
+
+"""Widen literal type to its base type."""
+impl LiteralType.widen(self: LiteralType) -> ClassType {
+    return self.base_type.clone_as_instance();
 }
 
 """Initialize the class."""

@@ -144,6 +144,7 @@ class TypeEvaluator {
     ) -> list[types.TypeVarType];
 
     def get_type_of_class(self: TypeEvaluator, node_: uni.Archetype) -> types.ClassType;
+    def get_type_of_enum(self: TypeEvaluator, node_: uni.Enum) -> types.ClassType;
     def get_type_of_ability(self: TypeEvaluator, node_: uni.Ability) -> TypeBase;
     def get_type_of_string(
         self: TypeEvaluator, node: uni.String | uni.MultiString
@@ -151,6 +152,7 @@ class TypeEvaluator {
 
     def get_type_of_int(self: TypeEvaluator, node: uni.Int) -> TypeBase;
     def get_type_of_float(self: TypeEvaluator, node: uni.Float) -> TypeBase;
+    def get_type_of_bool(self: TypeEvaluator, node: uni.Bool) -> TypeBase;
     # Pyright equivalent function name = getTypeOfExpression();
     def get_type_of_expression(self: TypeEvaluator, node_: uni.Expr) -> TypeBase;
     # Comments from pyright:

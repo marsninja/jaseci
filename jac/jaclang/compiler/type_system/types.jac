@@ -24,6 +24,16 @@ class TypeCategory(IntEnum) {
         Function = auto();
         Overload = auto();
         Union = auto();
+        Literal = auto();
+    }
+}
+
+"""Variance of a type parameter."""
+class Variance(IntEnum) {
+    with entry {
+        Invariant = 0;
+        Covariant = 1;
+        Contravariant = 2;
     }
 }
 
@@ -126,7 +136,12 @@ class TypeVarType(TypeBase) {
         CATEGORY: ClassVar[TypeCategory] = TypeCategory.TypeVar;
     }
 
-    def init(self: TypeVarType) -> None;
+    def init(
+        self: TypeVarType,
+        name: str = "",
+        variance: Variance = Variance.Invariant,
+        bound: (TypeBase | None) = None
+    ) -> None;
 }
 
 """Represents a class type."""
@@ -250,4 +265,22 @@ class UnionType(TypeBase) {
     }
 
     def init(self: UnionType, types: list[TypeBase]) -> None;
+}
+
+"""Represents a literal type with a specific value."""
+class LiteralType(TypeBase) {
+    with entry {
+        CATEGORY: ClassVar[TypeCategory] = TypeCategory.Literal;
+    }
+
+    def init(
+        self: LiteralType,
+        value: str | int | float | bool,
+        base_type: ClassType,
+        flags: TypeFlags = TypeFlags.Instance
+    ) -> None;
+
+    def __str__(self: LiteralType) -> str;
+    def __eq__(self: LiteralType, other: object) -> bool;
+    def widen(self: LiteralType) -> ClassType;
 }

@@ -28,7 +28,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                 return self._convert_to_instance(self.prefetch.none_type_class);
             }
 
-        # TODO: Boolean literals.
+        case uni.Bool():
+            if self.prefetch and self.prefetch.bool_class {
+                return self._convert_to_instance(self.get_type_of_bool(expr));
+            }
 
         # ----------------------------------------------------------------------
         # End of prefetched types
@@ -285,8 +288,11 @@ impl TypeEvaluator._get_type_of_symbol(
 ) -> TypeBase {
     node_ = symbol.decl.name_of;
     match node_ {
-        case uni.Archetype() | uni.Enum():
+        case uni.Archetype():
             return self.get_type_of_class(node_);
+
+        case uni.Enum():
+            return self.get_type_of_enum(node_);
 
         case uni.Ability():
             return self.get_type_of_ability(node_);
@@ -335,19 +341,20 @@ impl TypeEvaluator._get_type_of_symbol(
                 }
             }
 
-            # ---- Handle member assignment: for <name> in <expr> ----
+            # ---- Handle for statement: for <name> in <expr> ----
             if isinstance(node_.parent, uni.InForStmt) {
                 collection_type = self.get_type_of_expression(node_.parent.collection);
-                # FIXME: This is the proper way to do it however Iterator[T] cannot be
-                # resolved as a generic type because of the definition. So I'm doing this ad-hoc
-                # way, will come back and have to fix it properly.
-                #
-                # iter_type = self.get_type_of_magic_method_call(collection_type, "__iter__");
-                #
-                iter_type = self.get_type_of_magic_method_call(
-                    collection_type, "__getitem__"
-                );
-                return iter_type or types.UnknownType();
+
+                # Use the improved iterator element type resolution
+                if isinstance(collection_type, types.ClassType) {
+                    element_type = type_utils.get_iterator_element_type(self, collection_type);
+                    if element_type is not None {
+                        return element_type;
+                    }
+                }
+
+                # Fallback to unknown if we couldn't determine element type
+                return types.UnknownType();
             }
 
             if isinstance(node_.parent, uni.ModulePath) {
@@ -378,6 +385,10 @@ impl TypeEvaluator._assign_class(
     self: TypeEvaluator, src_type: types.ClassType, dest_type: types.ClassType
 ) -> bool {
     if src_type.shared == dest_type.shared {
+        # Same class - check type argument compatibility with variance
+        if not type_utils.check_type_args_compatibility(self, src_type, dest_type) {
+            return False;
+        }
         return True;
     }
     # Check if src class is a subclass of dest class.
@@ -389,8 +400,6 @@ impl TypeEvaluator._assign_class(
         dest_type.is_builtin("object")
         or dest_type.shared == self.prefetch.any_class.shared
     ) {
-        # TODO: Invariance not handled yet
-        # invariant contexts to avoid list[int] <: list[object] errors.
         return True;
     }
     # Integers can be used where floats are expected.
@@ -460,6 +469,30 @@ impl TypeEvaluator.assign_type(
     if src_type == dest_type {
         return True;
     }
+
+    # Handle LiteralType: Literal[x] is assignable to its base type
+    if isinstance(src_type, types.LiteralType) {
+        # Literal["foo"] is assignable to str, Literal[42] to int, etc.
+        if dest_type.is_class_instance() {
+            return self.assign_type(src_type.base_type.clone_as_instance(), dest_type);
+        }
+        # Literal["foo"] is assignable to Literal["foo"]
+        if isinstance(dest_type, types.LiteralType) {
+            return src_type.value == dest_type.value and \
+                   src_type.base_type.shared == dest_type.base_type.shared;
+        }
+    }
+
+    # Handle destination being Literal type
+    if isinstance(dest_type, types.LiteralType) {
+        # Only exact literal match is valid (handled above)
+        # str is NOT assignable to Literal["foo"]
+        if isinstance(src_type, types.LiteralType) {
+            return src_type.value == dest_type.value;
+        }
+        return False;
+    }
+
     # If destination is a union type, check if source is compatible with any of the
     # constituent types.
     if isinstance(dest_type, types.UnionType) {

@@ -241,3 +241,133 @@ impl compute_mro_linearization(cls: types.ClassType) -> None {
         }
     }
 }
+
+"""
+Get the element type of an iterable collection.
+
+This function resolves the element type by:
+1. Checking for generic type arguments (list[T] -> T)
+2. Falling back to __iter__ -> __next__ return type
+3. Falling back to __getitem__ return type
+"""
+impl get_iterator_element_type(
+    evaluator: "type_evaluator.TypeEvaluator",
+    collection_type: types.ClassType
+) -> types.TypeBase | None {
+    import from jaclang.compiler.type_system { type_evaluator }
+
+    # Strategy 1: Check generic type arguments
+    # For list[T], dict[K, V], set[T], tuple[T, ...], the first type arg is element type
+    if collection_type.private.type_args {
+        # For dict, iteration yields keys (first type arg)
+        # For list/set/tuple, iteration yields the element type (first type arg)
+        return evaluator._convert_to_instance(collection_type.private.type_args[0]);
+    }
+
+    # Strategy 2: Try __iter__ method
+    if iter_member := evaluator._lookup_class_member(collection_type, "__iter__") {
+        iter_type = evaluator.get_type_of_symbol(iter_member.symbol);
+        if isinstance(iter_type, types.FunctionType) and iter_type.return_type {
+            # The return type should be Iterator[T], get T from __next__
+            iter_return = iter_type.return_type;
+            if isinstance(iter_return, types.ClassType) {
+                # Try to get __next__ from the iterator
+                if next_member := evaluator._lookup_class_member(iter_return, "__next__") {
+                    next_type = evaluator.get_type_of_symbol(next_member.symbol);
+                    if isinstance(next_type, types.FunctionType) and next_type.return_type {
+                        return evaluator._convert_to_instance(next_type.return_type);
+                    }
+                }
+                # Fallback: check type args of iterator
+                if iter_return.private.type_args {
+                    return evaluator._convert_to_instance(iter_return.private.type_args[0]);
+                }
+            }
+        }
+    }
+
+    # Strategy 3: Fallback to __getitem__ (legacy iteration protocol)
+    if getitem_member := evaluator._lookup_class_member(collection_type, "__getitem__") {
+        getitem_type = evaluator.get_type_of_symbol(getitem_member.symbol);
+        if isinstance(getitem_type, types.FunctionType) and getitem_type.return_type {
+            return evaluator._convert_to_instance(getitem_type.return_type);
+        }
+    }
+
+    return None;
+}
+
+"""
+Check if type arguments are compatible considering variance.
+
+For invariant type parameters (most mutable containers):
+  list[int] is NOT assignable to list[object]
+
+For covariant type parameters (immutable containers, return types):
+  tuple[int, ...] IS assignable to tuple[object, ...]
+
+For contravariant type parameters (function parameters):
+  Callable[[object], None] IS assignable to Callable[[int], None]
+"""
+impl check_type_args_compatibility(
+    evaluator: "type_evaluator.TypeEvaluator",
+    src_type: types.ClassType,
+    dest_type: types.ClassType
+) -> bool {
+    import from jaclang.compiler.type_system { type_evaluator }
+
+    # If no type parameters, just check class compatibility
+    if not dest_type.shared.type_params {
+        return True;
+    }
+
+    # If dest has type args but src doesn't, allow (src is unparameterized)
+    if not src_type.private.type_args {
+        return True;
+    }
+
+    # Check each type parameter
+    for (i, type_param) in enumerate(dest_type.shared.type_params) {
+        if i >= len(src_type.private.type_args) or i >= len(dest_type.private.type_args) {
+            break;
+        }
+
+        src_arg = src_type.private.type_args[i];
+        dest_arg = dest_type.private.type_args[i];
+
+        # Get variance (default to invariant)
+        variance = types.Variance.Invariant;
+        if isinstance(type_param, types.TypeVarType) {
+            variance = type_param.variance;
+        }
+
+        match variance {
+            case types.Variance.Invariant:
+                # Must match exactly (same shared reference)
+                if isinstance(src_arg, types.ClassType) and isinstance(dest_arg, types.ClassType) {
+                    if src_arg.shared != dest_arg.shared {
+                        return False;
+                    }
+                }
+
+            case types.Variance.Covariant:
+                # src_arg must be subtype of dest_arg
+                if not evaluator.assign_type(
+                    evaluator._convert_to_instance(src_arg),
+                    evaluator._convert_to_instance(dest_arg)
+                ) {
+                    return False;
+                }
+
+            case types.Variance.Contravariant:
+                # dest_arg must be subtype of src_arg (reversed)
+                if not evaluator.assign_type(
+                    evaluator._convert_to_instance(dest_arg),
+                    evaluator._convert_to_instance(src_arg)
+                ) {
+                    return False;
+                }
+        }
+    }
+    return True;
+}

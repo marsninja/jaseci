@@ -4,10 +4,17 @@ Functions that operate on Type objects.
 PyrightReference: packages/pyright-internal/src/analyzer/typeUtils.ts
 """
 import from enum { Enum }
+import from typing { TYPE_CHECKING }
 import jaclang.pycore.unitree as uni;
 import from jaclang.pycore.constant { Tokens as Tok }
 import from jaclang.pycore.unitree { Symbol }
 import from . { types }
+
+with entry {
+    if TYPE_CHECKING {
+        import from . { type_evaluator }
+    }
+}
 """Represents a member of a class."""
 obj ClassMember {
     has symbol: Symbol,
@@ -96,3 +103,14 @@ def lookup_symtab(
 ) -> (Symbol | None);
 
 def class_implements_protocol(cls: types.ClassType, proto: types.ClassType) -> bool;
+
+def get_iterator_element_type(
+    evaluator: "type_evaluator.TypeEvaluator",
+    collection_type: types.ClassType
+) -> types.TypeBase | None;
+
+def check_type_args_compatibility(
+    evaluator: "type_evaluator.TypeEvaluator",
+    src_type: types.ClassType,
+    dest_type: types.ClassType
+) -> bool;
