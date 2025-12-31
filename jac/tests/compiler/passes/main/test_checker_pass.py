@@ -1019,3 +1019,36 @@ def test_iterator_protocol(fixture_path: Callable[[str], str]) -> None:
     """,
         program.errors_had[1].pretty_print(),
     )
+
+
+def test_lambda_expressions(fixture_path: Callable[[str], str]) -> None:
+    """Test lambda expression type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_lambda_expressions.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 3 errors:
+    # 1. result2: str = add(5, 3) - int not assignable to str
+    # 2. doubled_str: str = double(5) - int not assignable to str
+    # 3. add(1, "hello") - str not assignable to int parameter
+    assert len(program.errors_had) == 3
+    _assert_error_pretty_found(
+        """
+        result2: str = add(5, 3);  # <-- Error: int not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        doubled_str: str = double(5);  # <-- Error: int not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        add(1, "hello");  # <-- Error: str not assignable to int
+               ^^^^^^^
+    """,
+        program.errors_had[2].pretty_print(),
+    )

@@ -80,6 +80,80 @@ impl TypeEvaluator.get_type_of_bool(self: TypeEvaluator, node: uni.Bool) -> Type
     );
 }
 
+"""Return the effective type of a lambda expression."""
+impl TypeEvaluator.get_type_of_lambda(self: TypeEvaluator, node: uni.LambdaExpr) -> TypeBase {
+    # Define helper function for parameter category.
+    def _get_param_category(param: uni.ParamVar) -> types.ParameterCategory {
+        if param.is_vararg {
+            return types.ParameterCategory.ArgsList;
+        }
+        if param.is_kwargs {
+            return types.ParameterCategory.KwargsDict;
+        }
+        return types.ParameterCategory.Positional;
+    }
+
+    # Define helper function for parameter kind conversion.
+    def _convert_param_kind(kind: uni.ParamKind) -> types.ParamKind {
+        match kind {
+            case uni.ParamKind.POSONLY: return types.ParamKind.POSONLY;
+            case uni.ParamKind.NORMAL: return types.ParamKind.NORMAL;
+            case uni.ParamKind.VARARG: return types.ParamKind.VARARG;
+            case uni.ParamKind.KWONLY: return types.ParamKind.KWONLY;
+            case uni.ParamKind.KWARG: return types.ParamKind.KWARG;
+            case _: return types.ParamKind.NORMAL;
+        }
+    }
+
+    # Get return type
+    return_type: TypeBase = types.UnknownType();
+    if node.signature is not None and isinstance(node.signature.return_type, uni.Expr) {
+        return_type = self._convert_to_instance(
+            self.get_type_of_expression(node.signature.return_type)
+        );
+    } else {
+        # Infer return type from body if it's a single expression
+        if isinstance(node.body, uni.Expr) {
+            return_type = self.get_type_of_expression(node.body);
+        } elif self.prefetch and self.prefetch.none_type_class {
+            return_type = self._convert_to_instance(self.prefetch.none_type_class);
+        }
+    }
+
+    # Get parameters
+    parameters: list[types.Parameter] = [];
+    if node.signature is not None {
+        for param in node.signature.params {
+            if param.type_tag is not None {
+                param_type = self._convert_to_instance(
+                    self.get_type_of_expression(param.type_tag.tag)
+                );
+            } else {
+                param_type = types.UnknownType();
+            }
+            default_value = param.value is not None;
+            parameters.append(
+                types.Parameter(
+                    name=param.name.sym_name,
+                    category=_get_param_category(param),
+                    param_type=param_type,
+                    default_value=default_value,
+                    is_self=False,
+                    is_cls=False,
+                    param_kind=_convert_param_kind(param.param_kind)
+                )
+            );
+        }
+    }
+
+    func_type = types.FunctionType(
+        func_name="<lambda>",
+        return_type=return_type,
+        parameters=parameters
+    );
+    return func_type;
+}
+
 """Return the effective type of an ability."""
 impl TypeEvaluator.get_type_of_ability(
     self: TypeEvaluator, node_: uni.Ability

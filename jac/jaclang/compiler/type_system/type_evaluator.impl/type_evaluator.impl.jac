@@ -36,6 +36,11 @@ impl TypeEvaluator._get_type_of_expression_core(
         # ----------------------------------------------------------------------
         # End of prefetched types
         # ----------------------------------------------------------------------
+
+        # Lambda expressions: (x: int, y: int) -> int { return x + y; }
+        case uni.LambdaExpr():
+            return self.get_type_of_lambda(expr);
+
         case uni.AtomTrailer():
             # NOTE: Pyright is using CFG to figure out the member type by narrowing the base
             # type and filtering the members. We're not doing that anytime sooner.

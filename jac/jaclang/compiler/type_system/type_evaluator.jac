@@ -153,6 +153,7 @@ class TypeEvaluator {
     def get_type_of_int(self: TypeEvaluator, node: uni.Int) -> TypeBase;
     def get_type_of_float(self: TypeEvaluator, node: uni.Float) -> TypeBase;
     def get_type_of_bool(self: TypeEvaluator, node: uni.Bool) -> TypeBase;
+    def get_type_of_lambda(self: TypeEvaluator, node: uni.LambdaExpr) -> TypeBase;
     # Pyright equivalent function name = getTypeOfExpression();
     def get_type_of_expression(self: TypeEvaluator, node_: uni.Expr) -> TypeBase;
     # Comments from pyright:
