@@ -323,7 +323,13 @@ impl TypeEvaluator._get_type_of_symbol(
                 } else {  # Assignment without a type annotation.
 
                     if node_.parent.value is not None {
-                        return self.get_type_of_expression(node_.parent.value);
+                        expr_type = self.get_type_of_expression(node_.parent.value);
+                        # Widen literal types to their base type for variable inference
+                        # e.g., i = 42 should infer i as int, not Literal[42]
+                        if isinstance(expr_type, types.LiteralType) {
+                            return expr_type.widen();
+                        }
+                        return expr_type;
                     }
                 }
             }

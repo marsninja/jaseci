@@ -40,21 +40,32 @@ impl TypeEvaluator.get_type_of_float(self: TypeEvaluator, node: uni.Float) -> Ty
 """Return the effective type of the int."""
 impl TypeEvaluator.get_type_of_int(self: TypeEvaluator, node: uni.Int) -> TypeBase {
     assert self.prefetch.int_class is not None;
-    return self.prefetch.int_class;
+    # Create a LiteralType for integer literals
+    int_value = int(node.value);
+    return types.LiteralType(
+        value=int_value,
+        base_type=self.prefetch.int_class
+    );
 }
 
 """Return the effective type of the string."""
 impl TypeEvaluator.get_type_of_string(
     self: TypeEvaluator, node: uni.String | uni.MultiString
 ) -> TypeBase {
-    # FIXME: Strings are a type of LiteralString type:
-    # "foo" is not `str` but Literal["foo"], however for now we'll
-    # not considering that and make it work and will implement that
-    # later.
-    #
-    # see: getTypeOfString() in pyright (it requires parsing the sub
-    # file of the typing module).
     assert self.prefetch.str_class is not None;
+    # Create a LiteralType for string literals
+    if isinstance(node, uni.String) {
+        str_value = node.value;
+        # Remove quotes from the string value
+        if str_value.startswith('"') or str_value.startswith("'") {
+            str_value = str_value[1:-1];
+        }
+        return types.LiteralType(
+            value=str_value,
+            base_type=self.prefetch.str_class
+        );
+    }
+    # For MultiString, widen to str since value may be complex
     return self.prefetch.str_class;
 }
 

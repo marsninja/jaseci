@@ -601,7 +601,7 @@ def test_generics(fixture_path: Callable[[str], str]) -> None:
 
         """,
         """
-        Cannot assign <class int> to parameter 'value' of type <class str>
+        Cannot assign Literal[1] to parameter 'value' of type <class str>
             ht.insert(1, "one");
             ht.insert("one", "one");  # <-- Error
             ht.insert(1, 1);  # <-- Error
@@ -633,7 +633,7 @@ def test_return_type(fixture_path: Callable[[str], str]) -> None:
 
     expected_errors = [
         """
-        Cannot return <class int>, expected <class NoneType>
+        Cannot return Literal[1], expected <class NoneType>
         def foo() {
             return 1;  # <-- Error
             ^^^^^^^^^
