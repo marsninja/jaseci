@@ -924,3 +924,98 @@ def test_dict_pop(fixture_path: Callable[[str], str]) -> None:
     """,
         program.errors_had[2].pretty_print(),
     )
+
+
+def test_boolean_literals(fixture_path: Callable[[str], str]) -> None:
+    """Test boolean literal type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_boolean_literals.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    assert len(program.errors_had) == 1
+    _assert_error_pretty_found(
+        """
+        accepts_bool("true");  # <-- Error
+                     ^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+
+
+def test_enum_types(fixture_path: Callable[[str], str]) -> None:
+    """Test enum type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_enum_types.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    assert len(program.errors_had) == 2
+    _assert_error_pretty_found(
+        """
+        paint(Status.ACTIVE);  # <-- Error: Status not assignable to Color
+              ^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        set_status(Color.RED);  # <-- Error: Color not assignable to Status
+                   ^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )
+
+
+def test_callable_objects(fixture_path: Callable[[str], str]) -> None:
+    """Test callable object type checking with __call__ method."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_callable_objects.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect errors for:
+    # 1. result2: str = adder(5, 3) - int not assignable to str
+    # 2. adder("a", "b") - str not assignable to int (two errors)
+    # 3. adder(5) - missing argument 'y'
+    # 4. num: int = greeter("World") - str not assignable to int
+    # 5. greeter(42) - int not assignable to str
+    assert len(program.errors_had) == 6
+    _assert_error_pretty_found(
+        """
+        result2: str = adder(5, 3);  # <-- Error: int not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        adder("a", "b");  # <-- Error: str not assignable to int
+              ^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        adder(5);  # <-- Error: missing argument 'y'
+        ^^^^^^^^
+    """,
+        program.errors_had[3].pretty_print(),
+    )
+
+
+def test_iterator_protocol(fixture_path: Callable[[str], str]) -> None:
+    """Test iterator protocol type checking for for-loops."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_iterator_protocol.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 2 errors: one for list iteration, one for dict iteration
+    assert len(program.errors_had) == 2
+    _assert_error_pretty_found(
+        """
+        y: str = n;  # <-- Error
+        ^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        i: int = k;  # <-- Error
+        ^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )

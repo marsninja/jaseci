@@ -55,6 +55,13 @@ impl TypeEvaluator._get_type_of_expression_core(
                 } elif base_type.is_instantiable_class() {
                     assert isinstance(base_type, types.ClassType);
                     if member := self._lookup_class_member(base_type, expr.right.value) {
+                        # Check if this is an enum member access
+                        # For enums, accessing Color.RED should return an instance of Color
+                        if isinstance(base_type.shared.symbol_table, uni.Enum) {
+                            member.symbol.add_use(expr.right);
+                            expr.right.type = base_type.clone_as_instance();
+                            return expr.right.type;
+                        }
                         return self._set_symbol_to_expr(expr.right, member.symbol);
                     }
                     return types.UnknownType();
