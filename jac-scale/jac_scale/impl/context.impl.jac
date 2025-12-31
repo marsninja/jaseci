@@ -1,5 +1,9 @@
-"""Initialize JScaleExecutionContext."""
+import from dataclasses { MISSING }
+import from typing { Any }
+import from uuid { UUID }
+import from jaclang.pycore.constant { Constants as Con }
 
+"""Initialize JScaleExecutionContext."""
 impl JScaleExecutionContext.init(
     self: JScaleExecutionContext,
     session: (str | None) = None,

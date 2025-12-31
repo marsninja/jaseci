@@ -1,7 +1,11 @@
+import tempfile;
+import urllib.request;
+import from kubernetes { client, config, utils }
+import from kubernetes.client.exceptions { ApiException }
+
 """
     Downloads and applies the official metrics-server components YAML from GitHub.
 """
-
 impl install_metrics_server_yaml -> None {
     url = 'https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml';
     print(f"⬇️  Downloading Metrics Server manifest from: {url}");

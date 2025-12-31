@@ -1,5 +1,8 @@
-"""Build and push docker image to dockerhub."""
+import os;
+import docker;
+import from docker.errors { APIError, BuildError }
 
+"""Build and push docker image to dockerhub."""
 impl build_and_push_docker(code_folder: str) -> None {
     # Use configuration from jac.toml with env var overrides
     app_name = _k8s_config['app_name'];

@@ -1,7 +1,5 @@
 """File covering Docker implementation."""
 import os;
-import docker;
-import from docker.errors { APIError, BuildError }
 import from jac_scale.config_loader { get_scale_config }
 
 # Load kubernetes configuration from jac.toml with env var overrides

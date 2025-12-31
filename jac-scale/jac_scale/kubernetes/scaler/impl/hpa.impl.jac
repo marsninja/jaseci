@@ -1,7 +1,16 @@
+import from kubernetes.client {
+    AutoscalingV2Api,
+    V2CrossVersionObjectReference,
+    V2HorizontalPodAutoscaler,
+    V2HorizontalPodAutoscalerSpec,
+    V2MetricSpec,
+    V2ResourceMetricSource
+}
+import from kubernetes.client.exceptions { ApiException }
+
 """
     Create HPA for a deployment based on CPU utilization.
 """
-
 impl create_hpa(
     namespace: str,
     deployment_name: str,

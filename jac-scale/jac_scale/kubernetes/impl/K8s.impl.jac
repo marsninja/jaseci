@@ -1,5 +1,22 @@
-"""Deploy jac application to K8s."""
+import os;
+import time;
+import from typing { Any }
+import from kubernetes { client, config }
+import from kubernetes.client.exceptions { ApiException }
+import from jac_scale.kubernetes.database.mongo { mongo_db }
+import from jac_scale.kubernetes.database.redis { redis_db }
+import from jac_scale.kubernetes.utils {
+    check_deployment_status,
+    check_K8s_status,
+    cluster_type,
+    delete_if_exists,
+    ensure_namespace_exists,
+    ensure_pvc_exists,
+    load_env_variables,
+    sync_code_to_pvc
+}
 
+"""Deploy jac application to K8s."""
 impl deploy_K8s(
     code_folder: str,
     file_name: str = 'none',

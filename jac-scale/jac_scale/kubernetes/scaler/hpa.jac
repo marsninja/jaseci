@@ -1,12 +1,3 @@
-import from kubernetes.client {
-    AutoscalingV2Api,
-    V2CrossVersionObjectReference,
-    V2HorizontalPodAutoscaler,
-    V2HorizontalPodAutoscalerSpec,
-    V2MetricSpec,
-    V2ResourceMetricSource
-}
-import from kubernetes.client.exceptions { ApiException }
 def create_hpa(
     namespace: str,
     deployment_name: str,

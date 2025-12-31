@@ -1,26 +1,11 @@
-import mimetypes;
 import from collections.abc { Callable }
-import from datetime { UTC, datetime, timedelta }
-import from pathlib { Path }
 import from typing { Any }
-import jwt;
-import from os { getenv }
-import from fastapi.middleware.cors { CORSMiddleware }
-import from fastapi.responses { HTMLResponse, JSONResponse, Response, RedirectResponse }
-import from jac_scale.jserver.jfast_api { JFastApiServer }
-import from jac_scale.jserver.jserver {
-    APIParameter,
-    HTTPMethod,
-    JEndPoint,
-    ParameterType
-}
-import from jaclang.pycore.runtime { JacRuntime as Jac }
+import from fastapi.responses { HTMLResponse, JSONResponse, Response }
+import from jac_scale.jserver.jserver { APIParameter }
 import from jaclang.runtimelib.server { JacAPIServer as JServer }
-import from jaclang.runtimelib.server { JsonValue }
 import from jaclang.runtimelib.server { JsonValue }
 import from enum { StrEnum }
 import from fastapi_sso.sso.google { GoogleSSO }
-import from jac_scale.utils { generate_random_password }
 import from jac_scale.config_loader { get_scale_config }
 
 # Load configuration from jac.toml with env var overrides
