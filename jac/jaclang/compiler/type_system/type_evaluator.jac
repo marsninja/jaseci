@@ -54,7 +54,10 @@ obj PrefetchedTypes {
         int_class: TypeBase | None = None,
         float_class: TypeBase | None = None,
         str_class: TypeBase | None = None,
+        list_class: TypeBase | None = None,
+        set_class: TypeBase | None = None,
         dict_class: TypeBase | None = None,
+        generator_class: TypeBase | None = None,
         module_type_class: TypeBase | None = None,
         typed_dict_class: TypeBase | None = None,
         typed_dict_private_class: TypeBase | None = None,
@@ -154,6 +157,13 @@ class TypeEvaluator {
     def get_type_of_float(self: TypeEvaluator, node: uni.Float) -> TypeBase;
     def get_type_of_bool(self: TypeEvaluator, node: uni.Bool) -> TypeBase;
     def get_type_of_lambda(self: TypeEvaluator, node: uni.LambdaExpr) -> TypeBase;
+    def get_type_of_list_compr(self: TypeEvaluator, node: uni.ListCompr) -> TypeBase;
+    def get_type_of_set_compr(self: TypeEvaluator, node: uni.SetCompr) -> TypeBase;
+    def get_type_of_dict_compr(self: TypeEvaluator, node: uni.DictCompr) -> TypeBase;
+    def get_type_of_gen_compr(self: TypeEvaluator, node: uni.GenCompr) -> TypeBase;
+    def get_type_of_if_else_expr(self: TypeEvaluator, node: uni.IfElseExpr) -> TypeBase;
+    def get_type_of_bool_expr(self: TypeEvaluator, node: uni.BoolExpr) -> TypeBase;
+    def get_type_of_compare_expr(self: TypeEvaluator, node: uni.CompareExpr) -> TypeBase;
     # Pyright equivalent function name = getTypeOfExpression();
     def get_type_of_expression(self: TypeEvaluator, node_: uni.Expr) -> TypeBase;
     # Comments from pyright:

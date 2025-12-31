@@ -41,6 +41,20 @@ impl TypeEvaluator._get_type_of_expression_core(
         case uni.LambdaExpr():
             return self.get_type_of_lambda(expr);
 
+        # Comprehensions: [x for x in items], {x for x in items}, {k: v for ...}
+        # Note: Order matters - GenCompr and SetCompr extend ListCompr
+        case uni.GenCompr():
+            return self.get_type_of_gen_compr(expr);
+
+        case uni.SetCompr():
+            return self.get_type_of_set_compr(expr);
+
+        case uni.DictCompr():
+            return self.get_type_of_dict_compr(expr);
+
+        case uni.ListCompr():
+            return self.get_type_of_list_compr(expr);
+
         case uni.AtomTrailer():
             # NOTE: Pyright is using CFG to figure out the member type by narrowing the base
             # type and filtering the members. We're not doing that anytime sooner.
@@ -173,6 +187,53 @@ impl TypeEvaluator._get_type_of_expression_core(
                     }
                     return base_type.specialize_generics(type_args);
                 }
+
+                # Handle slice expressions: seq[start:stop:step]
+                # For slices, the result type is the same as the sequence type
+                if isinstance(expr.right, uni.IndexSlice) and expr.right.is_range {
+                    # Validate that slice indices are integers (if provided)
+                    for sl in expr.right.slices {
+                        if sl.start is not None {
+                            start_type = self.get_type_of_expression(sl.start);
+                            if isinstance(start_type, types.ClassType) and not (
+                                start_type.is_builtin("int") or start_type.is_builtin("NoneType")
+                            ) {
+                                self.add_diagnostic(
+                                    sl.start,
+                                    f'Slice index must be an integer, not {start_type}',
+                                    warning=True
+                                );
+                            }
+                        }
+                        if sl.stop is not None {
+                            stop_type = self.get_type_of_expression(sl.stop);
+                            if isinstance(stop_type, types.ClassType) and not (
+                                stop_type.is_builtin("int") or stop_type.is_builtin("NoneType")
+                            ) {
+                                self.add_diagnostic(
+                                    sl.stop,
+                                    f'Slice index must be an integer, not {stop_type}',
+                                    warning=True
+                                );
+                            }
+                        }
+                        if sl.step is not None {
+                            step_type = self.get_type_of_expression(sl.step);
+                            if isinstance(step_type, types.ClassType) and not (
+                                step_type.is_builtin("int") or step_type.is_builtin("NoneType")
+                            ) {
+                                self.add_diagnostic(
+                                    sl.step,
+                                    f'Slice index must be an integer, not {step_type}',
+                                    warning=True
+                                );
+                            }
+                        }
+                    }
+                    # Return the same sequence type for slice operations
+                    return base_type;
+                }
+
                 # Regular <expr>[<expr>] case, we need to call __getitem__()
                 return self.get_type_of_magic_method_call(base_type, "__getitem__")
                 or types.UnknownType();
@@ -186,6 +247,14 @@ impl TypeEvaluator._get_type_of_expression_core(
 
         case uni.BinaryExpr():
             return operations.get_type_of_binary_operation(self, expr);
+
+        # Boolean expressions: and/or
+        case uni.BoolExpr():
+            return self.get_type_of_bool_expr(expr);
+
+        # Comparison expressions: <, >, ==, etc.
+        case uni.CompareExpr():
+            return self.get_type_of_compare_expr(expr);
 
         case uni.FilterCompr():
             if expr.f_type {
@@ -288,6 +357,10 @@ impl TypeEvaluator._get_type_of_expression_core(
             if isinstance(ty, types.ClassType) {
                 return ty.clone_as_class();
             }
+
+        # Ternary/if-else expression: value if condition else else_value
+        case uni.IfElseExpr():
+            return self.get_type_of_if_else_expr(expr);
 
     }
     # TODO: More expressions.
@@ -615,7 +688,10 @@ impl TypeEvaluator._prefetch_types(self: TypeEvaluator) {
     self.prefetch.int_class = get_builtin_type("int");
     self.prefetch.float_class = get_builtin_type("float");
     self.prefetch.str_class = get_builtin_type("str");
+    self.prefetch.list_class = get_builtin_type("list");
+    self.prefetch.set_class = get_builtin_type("set");
     self.prefetch.dict_class = get_builtin_type("dict");
+    self.prefetch.generator_class = get_typing_type("Generator");
     # self.prefetch.module_type_class =
     # self.prefetch.typed_dict_class =
     # self.prefetch.typed_dict_private_class =

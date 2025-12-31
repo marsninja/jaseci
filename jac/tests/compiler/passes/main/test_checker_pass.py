@@ -1052,3 +1052,111 @@ def test_lambda_expressions(fixture_path: Callable[[str], str]) -> None:
     """,
         program.errors_had[2].pretty_print(),
     )
+
+
+def test_comprehensions(fixture_path: Callable[[str], str]) -> None:
+    """Test comprehension type checking (list, set, dict, generator)."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_comprehensions.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 2 errors:
+    # 1. result2: str = squares[0] - int not assignable to str
+    # 2. val2: str = d["1"] - int not assignable to str
+    assert len(program.errors_had) == 2
+    _assert_error_pretty_found(
+        """
+        result2: str = squares[0];  # <-- Error: int not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        val2: str = d["1"];  # <-- Error: int not assignable to str
+        ^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )
+
+
+def test_ternary_expressions(fixture_path: Callable[[str], str]) -> None:
+    """Test ternary (if-else) expression type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_ternary_expressions.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 2 errors:
+    # 1. result2: str = x if True else 20 - int not assignable to str
+    # 2. result4: int = a if True else b - float not assignable to int
+    assert len(program.errors_had) == 2
+    _assert_error_pretty_found(
+        """
+        result2: str = x if True else 20;  # <-- Error: int not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        result4: int = a if True else b;  # <-- Error: float not assignable to int
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )
+
+
+def test_boolean_operators(fixture_path: Callable[[str], str]) -> None:
+    """Test boolean operator (and/or) and comparison expression type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_boolean_operators.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 3 errors:
+    # 1. result2: str = a and b - int not assignable to str
+    # 2. result4: int = x or y - str not assignable to int
+    # 3. cmp5: str = a < b - bool not assignable to str
+    assert len(program.errors_had) == 3
+    _assert_error_pretty_found(
+        """
+        result2: str = a and b;  # <-- Error: int not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        result4: int = x or y;  # <-- Error: str not assignable to int
+        ^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        cmp5: str = a < b;  # <-- Error: bool not assignable to str
+        ^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[2].pretty_print(),
+    )
+
+
+def test_slice_expressions(fixture_path: Callable[[str], str]) -> None:
+    """Test slice expression type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_slice_expressions.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 2 errors:
+    # 1. sliced_err: str = nums[1:3] - list not assignable to str
+    # 2. elem_err: str = nums[0] - int not assignable to str
+    assert len(program.errors_had) == 2
+    _assert_error_pretty_found(
+        """
+        sliced_err: str = nums[1:3];  # <-- Error: list[int] not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        elem_err: str = nums[0];  # <-- Error: int not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )

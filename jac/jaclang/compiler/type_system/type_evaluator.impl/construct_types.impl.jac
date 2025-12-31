@@ -154,6 +154,173 @@ impl TypeEvaluator.get_type_of_lambda(self: TypeEvaluator, node: uni.LambdaExpr)
     return func_type;
 }
 
+"""Return the effective type of a list comprehension: [x for x in items]."""
+impl TypeEvaluator.get_type_of_list_compr(self: TypeEvaluator, node: uni.ListCompr) -> TypeBase {
+    # The element type is the type of the output expression
+    element_type = self.get_type_of_expression(node.out_expr);
+
+    # Get list type and create list[element_type]
+    if self.prefetch and self.prefetch.list_class {
+        list_type = self.prefetch.list_class;
+        if isinstance(list_type, types.ClassType) {
+            # Clone the class type and set the type argument
+            result = list_type.clone_as_instance();
+            result.private.type_args = [element_type];
+            return result;
+        }
+    }
+    return types.UnknownType();
+}
+
+"""Return the effective type of a set comprehension: {x for x in items}."""
+impl TypeEvaluator.get_type_of_set_compr(self: TypeEvaluator, node: uni.SetCompr) -> TypeBase {
+    # The element type is the type of the output expression
+    element_type = self.get_type_of_expression(node.out_expr);
+
+    # Get set type and create set[element_type]
+    if self.prefetch and self.prefetch.set_class {
+        set_type = self.prefetch.set_class;
+        if isinstance(set_type, types.ClassType) {
+            # Clone the class type and set the type argument
+            result = set_type.clone_as_instance();
+            result.private.type_args = [element_type];
+            return result;
+        }
+    }
+    return types.UnknownType();
+}
+
+"""Return the effective type of a dict comprehension: {k: v for k, v in items}."""
+impl TypeEvaluator.get_type_of_dict_compr(self: TypeEvaluator, node: uni.DictCompr) -> TypeBase {
+    # Get key and value types from the kv_pair
+    key_type = self.get_type_of_expression(node.kv_pair.key);
+    value_type = self.get_type_of_expression(node.kv_pair.value);
+
+    # Get dict type and create dict[key_type, value_type]
+    if self.prefetch and self.prefetch.dict_class {
+        dict_type = self.prefetch.dict_class;
+        if isinstance(dict_type, types.ClassType) {
+            # Clone the class type and set the type arguments
+            result = dict_type.clone_as_instance();
+            result.private.type_args = [key_type, value_type];
+            return result;
+        }
+    }
+    return types.UnknownType();
+}
+
+"""Return the effective type of a generator expression: (x for x in items)."""
+impl TypeEvaluator.get_type_of_gen_compr(self: TypeEvaluator, node: uni.GenCompr) -> TypeBase {
+    # The element type is the type of the output expression
+    element_type = self.get_type_of_expression(node.out_expr);
+
+    # Get Generator type and create Generator[element_type, None, None]
+    if self.prefetch and self.prefetch.generator_class {
+        gen_type = self.prefetch.generator_class;
+        if isinstance(gen_type, types.ClassType) {
+            # Clone the class type and set the type arguments
+            result = gen_type.clone_as_instance();
+            # Generator[YieldType, SendType, ReturnType] - for simple generators
+            # it's Generator[T, None, None]
+            if self.prefetch.none_type_class {
+                none_type = self._convert_to_instance(self.prefetch.none_type_class);
+                result.private.type_args = [element_type, none_type, none_type];
+            } else {
+                result.private.type_args = [element_type];
+            }
+            return result;
+        }
+    }
+    return types.UnknownType();
+}
+
+"""Return the effective type of an if-else expression: value if condition else else_value."""
+impl TypeEvaluator.get_type_of_if_else_expr(self: TypeEvaluator, node: uni.IfElseExpr) -> TypeBase {
+    # Get the types of both branches
+    true_type = self.get_type_of_expression(node.value);
+    false_type = self.get_type_of_expression(node.else_value);
+
+    # If both types are the same, return that type
+    if self.assign_type(true_type, false_type) and self.assign_type(false_type, true_type) {
+        # Types are equivalent, return either one (prefer non-literal)
+        if isinstance(true_type, types.LiteralType) {
+            return true_type.widen();
+        }
+        return true_type;
+    }
+
+    # If one type is assignable to the other, return the more general type
+    if self.assign_type(true_type, false_type) {
+        return false_type;
+    }
+    if self.assign_type(false_type, true_type) {
+        return true_type;
+    }
+
+    # Types are not compatible - create a union type
+    return types.UnionType(types=[true_type, false_type]);
+}
+
+"""Return the effective type of a boolean expression (and/or): a and b, a or b."""
+impl TypeEvaluator.get_type_of_bool_expr(self: TypeEvaluator, node: uni.BoolExpr) -> TypeBase {
+    # Boolean expressions with 'and' or 'or' can return either operand
+    # For static typing purposes:
+    # - 'and': Returns the first falsy value or the last value
+    # - 'or': Returns the first truthy value or the last value
+    # The result type is a union of all operand types (simplified)
+
+    if len(node.values) == 0 {
+        return types.UnknownType();
+    }
+
+    if len(node.values) == 1 {
+        return self.get_type_of_expression(node.values[0]);
+    }
+
+    # Collect all types from the values
+    result_types: list[types.TypeBase] = [];
+    for value in node.values {
+        val_type = self.get_type_of_expression(value);
+        result_types.append(val_type);
+    }
+
+    # If all types are the same, return that type
+    first_type = result_types[0];
+    all_same = True;
+    for t in result_types[1:] {
+        if not (self.assign_type(t, first_type) and self.assign_type(first_type, t)) {
+            all_same = False;
+            break;
+        }
+    }
+
+    if all_same {
+        # Return the widened type if it's a literal
+        if isinstance(first_type, types.LiteralType) {
+            return first_type.widen();
+        }
+        return first_type;
+    }
+
+    # Different types - for 'and' or 'or', create a union type
+    return types.UnionType(types=result_types);
+}
+
+"""Return the effective type of a comparison expression: a < b, a == b, etc."""
+impl TypeEvaluator.get_type_of_compare_expr(self: TypeEvaluator, node: uni.CompareExpr) -> TypeBase {
+    # Comparisons always return bool
+    # Evaluate the expressions for potential side effects (like symbol resolution)
+    _ = self.get_type_of_expression(node.left);
+    for right in node.rights {
+        _ = self.get_type_of_expression(right);
+    }
+
+    if self.prefetch and self.prefetch.bool_class {
+        return self._convert_to_instance(self.prefetch.bool_class);
+    }
+    return types.UnknownType();
+}
+
 """Return the effective type of an ability."""
 impl TypeEvaluator.get_type_of_ability(
     self: TypeEvaluator, node_: uni.Ability
