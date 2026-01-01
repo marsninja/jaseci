@@ -60,9 +60,38 @@ def get_type_of_binary_operation(
         # TODO: Pyright checks if the types support '__or__' and '__ror__' before returning UnionType
         # If they support, we can treat them as binary operands, instead of Union types.
         if expr.op.name == Tok.BW_OR {
-            # TODO: Handle None instance used
-            if left_type.is_instantiable() and right_type.is_instantiable() {
-                return jtypes.UnionType([left_type, right_type]);
+            # Check if this is a type union (T | U syntax)
+            # Types are instantiable (classes), but None is a special case - it's an instance
+            # but represents NoneType in type annotations
+
+            # Check if left type is valid for union
+            left_ok = left_type.is_instantiable();
+            if not left_ok and isinstance(left_type, jtypes.ClassType) {
+                left_ok = left_type.shared.class_name == "NoneType";
+            }
+
+            # Check if right type is valid for union
+            right_ok = right_type.is_instantiable();
+            if not right_ok and isinstance(right_type, jtypes.ClassType) {
+                right_ok = right_type.shared.class_name == "NoneType";
+            }
+
+            if left_ok and right_ok {
+                # Convert NoneType instance to class for proper union handling
+                union_left = left_type;
+                union_right = right_type;
+
+                if isinstance(left_type, jtypes.ClassType)
+                   and left_type.is_instance()
+                   and left_type.shared.class_name == "NoneType" {
+                    union_left = left_type.clone_as_class();
+                }
+                if isinstance(right_type, jtypes.ClassType)
+                   and right_type.is_instance()
+                   and right_type.shared.class_name == "NoneType" {
+                    union_right = right_type.clone_as_class();
+                }
+                return jtypes.UnionType([union_left, union_right]);
             }
         }
         (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];

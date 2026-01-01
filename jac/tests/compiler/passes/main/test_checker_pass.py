@@ -1160,3 +1160,37 @@ def test_slice_expressions(fixture_path: Callable[[str], str]) -> None:
     """,
         program.errors_had[1].pretty_print(),
     )
+
+
+def test_null_safe_operator(fixture_path: Callable[[str], str]) -> None:
+    """Test null-safe operator (?.) type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_null_safe_operator.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 1 error:
+    # strict_name: str = maybe_person?.name - str | None not assignable to str
+    assert len(program.errors_had) == 1
+    _assert_error_pretty_found(
+        """
+        strict_name: str = maybe_person?.name;  # <-- Error: str | None not assignable to str
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+
+
+def test_context_manager(fixture_path: Callable[[str], str]) -> None:
+    """Test context manager (with statement) type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_context_manager.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 1 error:
+    # num: int = f - str not assignable to int (f is str from __enter__)
+    assert len(program.errors_had) == 1
+    _assert_error_pretty_found(
+        """
+        num: int = f;  # <-- Error: str not assignable to int
+        ^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )

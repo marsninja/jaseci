@@ -361,6 +361,10 @@ class SymTabBuildPass(UniPass):
 
     def enter_with_stmt(self, node: uni.WithStmt) -> None:
         self.push_scope_and_link(node)
+        # Define symbols for context manager aliases: with expr as alias
+        for expr_item in node.exprs:
+            if expr_item.alias and isinstance(expr_item.alias, uni.Name):
+                node.sym_tab.def_insert(expr_item.alias, single_decl="context var")
 
     def exit_with_stmt(self, node: uni.WithStmt) -> None:
         self.pop_scope()

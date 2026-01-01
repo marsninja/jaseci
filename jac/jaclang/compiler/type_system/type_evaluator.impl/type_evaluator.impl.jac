@@ -119,10 +119,115 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return expr.right.type;
                     }
                     return types.UnknownType();
+                } elif isinstance(base_type, types.UnionType) and expr.is_null_ok {
+                    # Null-safe member access on union types: <expr>?.member where expr is T | None
+                    # Extract the non-None type and look up member, result is member_type | None
+                    non_none_types: list[types.TypeBase] = [];
+                    for t in base_type.types {
+                        if isinstance(t, types.ClassType) and t.shared.class_name == "NoneType" {
+                            continue;
+                        }
+                        non_none_types.append(t);
+                    }
+                    if len(non_none_types) == 1 and isinstance(non_none_types[0], types.ClassType) {
+                        inner_type = non_none_types[0];
+                        # The inner type may be a class, we need an instance for member lookup
+                        lookup_type = inner_type;
+                        if inner_type.is_instantiable_class() {
+                            lookup_type = inner_type.clone_as_instance();
+                        }
+                        if member := self._lookup_object_member(lookup_type, expr.right.value) {
+                            member_ty = self.get_type_of_symbol(member.symbol);
+                            if isinstance(member_ty, types.FunctionType) {
+                                member_ty = member_ty.specialize(lookup_type);
+                            }
+                            member.symbol.add_use(expr.right);
+                            expr.right.type = member_ty;
+                            # Result is member_type | None
+                            if self.prefetch and self.prefetch.none_type_class {
+                                none_type = self._convert_to_instance(self.prefetch.none_type_class);
+                                return types.UnionType(types=[member_ty, none_type]);
+                            }
+                            return member_ty;
+                        }
+                    }
+                    return types.UnknownType();
                 }
             } elif expr.is_null_ok {
-                # TODO:
-                # <expr>?.member
+                # Null-safe member access: <expr>?.member
+                # Returns T | None where T is the member type
+                assert isinstance(expr.right, uni.Name);
+
+                # Handle class types (for static member access)
+                if base_type.is_instantiable_class() {
+                    assert isinstance(base_type, types.ClassType);
+                    if member := self._lookup_class_member(base_type, expr.right.value) {
+                        member_type = self._set_symbol_to_expr(expr.right, member.symbol);
+                        # Wrap in union with None
+                        if self.prefetch and self.prefetch.none_type_class {
+                            none_type = self._convert_to_instance(self.prefetch.none_type_class);
+                            return types.UnionType(types=[member_type, none_type]);
+                        }
+                        return member_type;
+                    }
+                    return types.UnknownType();
+                }
+
+                # Handle instance types
+                if base_type.is_class_instance() {
+                    assert isinstance(base_type, types.ClassType);
+                    if member := self._lookup_object_member(base_type, expr.right.value) {
+                        member_ty = self.get_type_of_symbol(member.symbol);
+                        if isinstance(member_ty, types.FunctionType) {
+                            member_ty = member_ty.specialize(base_type);
+                        }
+                        member.symbol.add_use(expr.right);
+                        expr.right.type = member_ty;
+                        # Wrap in union with None
+                        if self.prefetch and self.prefetch.none_type_class {
+                            none_type = self._convert_to_instance(self.prefetch.none_type_class);
+                            return types.UnionType(types=[member_ty, none_type]);
+                        }
+                        return member_ty;
+                    }
+                    return types.UnknownType();
+                }
+
+                # For union types containing None, extract the non-None type
+                if isinstance(base_type, types.UnionType) {
+                    non_none_types: list[types.TypeBase] = [];
+                    for t in base_type.types {
+                        # Skip NoneType members
+                        if isinstance(t, types.ClassType) and t.shared.class_name == "NoneType" {
+                            continue;
+                        }
+                        non_none_types.append(t);
+                    }
+                    if len(non_none_types) == 1 and isinstance(non_none_types[0], types.ClassType) {
+                        inner_type = non_none_types[0];
+                        # The inner type may be a class, we need an instance for member lookup
+                        lookup_type = inner_type;
+                        if inner_type.is_instantiable_class() {
+                            lookup_type = inner_type.clone_as_instance();
+                        }
+                        if member := self._lookup_object_member(lookup_type, expr.right.value) {
+                            member_ty = self.get_type_of_symbol(member.symbol);
+                            if isinstance(member_ty, types.FunctionType) {
+                                member_ty = member_ty.specialize(lookup_type);
+                            }
+                            member.symbol.add_use(expr.right);
+                            expr.right.type = member_ty;
+                            # Keep as union with None
+                            if self.prefetch and self.prefetch.none_type_class {
+                                none_type = self._convert_to_instance(self.prefetch.none_type_class);
+                                return types.UnionType(types=[member_ty, none_type]);
+                            }
+                            return member_ty;
+                        }
+                    }
+                }
+
+                return types.UnknownType();
             } elif isinstance(expr.right, uni.AssignCompr) {
                 # base_type should be a sequence of [T].
                 if not isinstance(base_type, types.ClassType) {
@@ -445,6 +550,19 @@ impl TypeEvaluator._get_type_of_symbol(
                 }
 
                 # Fallback to unknown if we couldn't determine element type
+                return types.UnknownType();
+            }
+
+            # ---- Handle context manager: with <expr> as <name> ----
+            if isinstance(node_.parent, uni.ExprAsItem) {
+                ctx_type = self.get_type_of_expression(node_.parent.expr);
+                # Get __enter__ return type for context manager type inference
+                if isinstance(ctx_type, types.ClassType) {
+                    enter_type = self.get_type_of_magic_method_call(ctx_type, "__enter__");
+                    if enter_type is not None {
+                        return enter_type;
+                    }
+                }
                 return types.UnknownType();
             }
 
