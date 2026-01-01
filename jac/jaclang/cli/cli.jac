@@ -1,12 +1,4 @@
 """Command line interface tool for the Jac language."""
-import ast as ast3;
-import marshal;
-import os;
-import pickle;
-import sys;
-import types;
-import from importlib.metadata { version as pkg_version }
-import from pathlib { Path }
 import from jaclang.cli.cmdreg { cmd_registry }
 
 glob _runtime_initialized = False;

@@ -5,7 +5,6 @@ PyrightReference: packages/pyright-internal/src/analyzer/typeUtils.ts
 """
 import from enum { Enum }
 import jaclang.pycore.unitree as uni;
-import from jaclang.pycore.constant { Tokens as Tok }
 import from jaclang.pycore.unitree { Symbol }
 import from . { types }
 """Represents a member of a class."""

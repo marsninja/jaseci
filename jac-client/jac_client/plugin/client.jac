@@ -1,7 +1,4 @@
 """Jac Client plugin for client-side rendering."""
-import hashlib;
-import html;
-import mimetypes;
 import types;
 import from http.server { BaseHTTPRequestHandler }
 import from pathlib { Path }

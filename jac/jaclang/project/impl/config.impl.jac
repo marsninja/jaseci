@@ -1,4 +1,8 @@
 """Implementation of Jac project configuration module."""
+import os;
+import re;
+import tomllib;
+import from pathlib { Path }
 
 # ===============================================================================
 # Environment Variable Interpolation Implementation
@@ -6,8 +10,6 @@
 impl interpolate_env_vars(
     value: str
 ) -> str {
-    import os;
-    import re;
     if not isinstance(value, str) {
         return value;
     }
@@ -41,7 +43,6 @@ impl interpolate_env_vars(
 impl find_project_root(
     start: Path | None = None
 ) -> tuple[Path, Path] | None {
-    import from pathlib { Path }
     if start is None {
         start = Path.cwd();
     }
@@ -70,7 +71,6 @@ impl is_in_project -> bool {
 impl JacConfig.discover(
     start_path: Path | None = None
 ) -> JacConfig | None {
-    import from pathlib { Path }
     result = find_project_root(start_path);
     if result is None {
         return None;
@@ -80,7 +80,6 @@ impl JacConfig.discover(
 }
 
 impl JacConfig.load(toml_path: Path) -> JacConfig {
-    import tomllib;
     if not toml_path.exists() {
         raise FileNotFoundError(f"Configuration file not found: {toml_path}") ;
     }
@@ -93,7 +92,6 @@ impl JacConfig.load(toml_path: Path) -> JacConfig {
 }
 
 impl JacConfig.from_toml_str(toml_str: str, toml_path: Path | None = None) -> JacConfig {
-    import tomllib;
     data = tomllib.loads(toml_str);
     return _parse_toml_data(data, toml_path);
 }
@@ -197,7 +195,6 @@ impl JacConfig.get_plugin_config(plugin_name: str) -> dict[str, Any] {
 }
 
 impl JacConfig.get_packages_dir -> Path {
-    import from pathlib { Path }
     if self.project_root {
         return self.project_root / "packages";
     }
@@ -286,7 +283,6 @@ impl JacConfig.save -> None {
 def _needs_quoting(
     key: str
 ) -> bool {
-    import re;
     return not bool(re.match(r'^[A-Za-z0-9_-]+$', key));
 }
 

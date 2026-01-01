@@ -1,4 +1,5 @@
 """Remove redundant line breaks after inline comments."""
+import from bisect { bisect_left }
 
 impl CommentInjectionPass._remove_redundant_lines(
     self: CommentInjectionPass, <>node: doc.DocType

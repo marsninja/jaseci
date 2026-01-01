@@ -1,4 +1,5 @@
 """Print the control flow graph."""
+import from collections.abc { Sequence }
 
 impl cfg_dot_from_file(file_name: str) -> str {
     import from jaclang.pycore.program { JacProgram }

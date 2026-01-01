@@ -7,7 +7,6 @@ This pass injects comments into the DocIR structure by:
 3. Injecting standalone comments at appropriate positions (module, body, params)
 4. Handling spacing adjustments for empty structures that receive comments
 """
-import from bisect { bisect_left }
 import from collections.abc { Sequence }
 import from typing { NamedTuple }
 import jaclang.compiler.passes.tool.doc_ir as doc;

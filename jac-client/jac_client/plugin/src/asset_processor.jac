@@ -1,6 +1,4 @@
 """Asset file processing and copying utilities."""
-import contextlib;
-import shutil;
 import from pathlib { Path }
 
 """Handles copying of asset files (CSS, images, fonts, etc.) between directories."""

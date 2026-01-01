@@ -1,4 +1,14 @@
 """Add a new text edit to the changes dictionary if it is unique."""
+import asyncio;
+import builtins;
+import re;
+import from functools { wraps }
+
+import jaclang.pycore.unitree as uni;
+import from jaclang.pycore.unitree { Symbol }
+import from jaclang.vendor.pygls { uris }
+
+import lsprotocol.types as lspt;
 
 impl add_unique_text_edit(
     changes: dict[(str, list[lspt.TextEdit])], key: str, new_edit: lspt.TextEdit

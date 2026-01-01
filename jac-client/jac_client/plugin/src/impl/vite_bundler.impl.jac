@@ -1,4 +1,8 @@
 """Create package.json from config.json during bundling."""
+import hashlib;
+import json;
+import shutil;
+import subprocess;
 
 impl ViteBundler.create_package_json(
     self: ViteBundler, project_name: Optional[str] = None

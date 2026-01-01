@@ -1,4 +1,5 @@
 """Recursively print a Doc node or a list of Doc nodes."""
+import from collections { deque }
 
 impl JacFormatPass.format_doc_ir(
     self: JacFormatPass,

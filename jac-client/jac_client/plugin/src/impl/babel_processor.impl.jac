@@ -1,4 +1,5 @@
 """Copy CSS, assets, and TypeScript files from compiled/ to build/ after Babel compilation."""
+import subprocess;
 
 impl BabelProcessor.copy_assets_after_compile(
     self: BabelProcessor,

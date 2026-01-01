@@ -1,4 +1,5 @@
 """List all installed packages from jac.toml."""
+import subprocess;
 
 impl PackageInstaller.list_packages(
     self: PackageInstaller

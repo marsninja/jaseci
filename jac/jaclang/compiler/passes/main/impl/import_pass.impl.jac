@@ -1,4 +1,6 @@
 """Import a TypeScript/JavaScript module for type checking."""
+import os;
+import from jaclang.pycore.passes { UniPass }
 
 impl JacImportDepsPass.import_ts_module(
     self: JacImportDepsPass, <>node: uni.ModulePath

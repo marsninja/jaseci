@@ -6,19 +6,11 @@ PyrightReference:
     packages/pyright-internal/src/analyzer/typeEvaluatorTypes.ts
 """
 
-import ast as py_ast;
 import os;
-import from dataclasses { dataclass }
-import from pathlib { Path }
-import from typing { Callable, TYPE_CHECKING, cast }
+import from typing { Callable, TYPE_CHECKING }
 
 import jaclang.pycore.unitree as uni;
-import from jaclang.pycore.jac_parser { TOKEN_MAP }
-import from jaclang.pycore.constant { SymbolType, Tokens as Tok }
-import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-import from jaclang.pycore.passes.sym_tab_build_pass { SymTabBuildPass }
 import from jaclang.compiler.type_system { types }
-import from jaclang.runtimelib.utils { read_file_with_encoding }
 
 with entry {
     if TYPE_CHECKING {

@@ -1,4 +1,7 @@
 """Send static file response (images, fonts, etc.)."""
+import hashlib;
+import html;
+import mimetypes;
 
 impl JacClient.send_static_file(
     handler: BaseHTTPRequestHandler, file_path: Path, content_type: (str | None) = None

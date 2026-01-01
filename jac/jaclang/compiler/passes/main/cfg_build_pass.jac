@@ -9,7 +9,6 @@ This pass constructs a control flow graph (CFG) representation of the program by
 The CFG provides a foundation for data flow analysis, optimization, and understanding program execution paths.
 The pass also includes functionality to coalesce basic blocks and generate visual representations of the CFG.
 """
-import from collections.abc { Sequence }
 import jaclang.pycore.unitree as uni;
 import from jaclang.pycore.passes { UniPass }
 """Jac Symbol table build pass."""

@@ -3,6 +3,8 @@
 This is a placeholder function and should be implemented based on
 the specific requirements for protocol conformance checking.
 """
+import from jaclang.pycore.constant { Tokens as Tok }
+
 impl class_implements_protocol(cls: types.ClassType, proto: types.ClassType) -> bool {
     cls_ast: uni.Archetype = cls.shared.symbol_table;
     proto_ast: uni.Archetype = proto.shared.symbol_table;

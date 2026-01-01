@@ -1,3 +1,8 @@
+import from typing { get_type_hints }
+import from loguru { logger }
+import from pydantic { TypeAdapter }
+import from byllm.schema { tool_to_schema }
+
 """Validate the function and extract its type annotations and description."""
 impl Tool.postinit()  -> None {
     annotations = get_type_hints(self.func);

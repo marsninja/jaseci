@@ -12,13 +12,9 @@ This pass transforms Python AST nodes into equivalent Jac AST nodes by:
 This pass is crucial for Python interoperability, allowing Python code to be imported
 and used within Jac programs while maintaining type information and semantic relationships.
 """
-import from __future__ { annotations }
 import ast as py_ast;
-import os;
-import re;
-import from collections.abc { Sequence }
 import from threading { Event }
-import from typing { TYPE_CHECKING, TypeAlias, TypeVar, cast }
+import from typing { TYPE_CHECKING, TypeAlias, TypeVar }
 import jaclang.pycore.unitree as uni;
 import from jaclang.pycore.constant { Tokens as Tok }
 import from jaclang.pycore.passes.uni_pass { Transform }

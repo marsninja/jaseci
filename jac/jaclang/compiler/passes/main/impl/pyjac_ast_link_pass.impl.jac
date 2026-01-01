@@ -1,3 +1,5 @@
+import from collections.abc { Sequence }
+
 impl PyJacAstLinkPass.exit_atom_trailer(
     self: PyJacAstLinkPass, <>node: uni.AtomTrailer
 ) -> None {

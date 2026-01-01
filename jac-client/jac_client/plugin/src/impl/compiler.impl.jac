@@ -1,4 +1,5 @@
 """Compile module and dependencies, then bundle with Vite."""
+import contextlib;
 
 impl ViteCompiler.compile_and_bundle(
     self: ViteCompiler, module: ModuleType, module_path: Path

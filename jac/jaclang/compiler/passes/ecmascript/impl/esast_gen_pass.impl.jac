@@ -1,4 +1,5 @@
 """Extract literal value from an expression."""
+import json;
 
 impl EsastGenPass._literal_value(
     self: EsastGenPass, expr: (uni.UniNode | None)

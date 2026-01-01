@@ -1,13 +1,8 @@
 """Semantic Token Manager module."""
-import from typing { List, Optional, Tuple }
+import from typing { List, Tuple }
 
 import jaclang.pycore.unitree as uni;
-import from jaclang { JacRuntimeInterface as Jac }
-import from jaclang.langserve.utils {
-    find_surrounding_tokens,
-    get_token_start,
-    get_line_of_code
-}
+
 import lsprotocol.types as lspt;
 
 """Semantic Token Manager class."""

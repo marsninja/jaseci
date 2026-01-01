@@ -1,3 +1,8 @@
+import sys;
+import random;
+import time;
+import from loguru { logger }
+
 """Post-initialization hook for MockLLM.
 
 Configures logging to stdout.

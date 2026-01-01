@@ -1,4 +1,6 @@
 """Copy TypeScript files (.ts, .tsx) from source to destination recursively."""
+import contextlib;
+import shutil;
 
 impl AssetProcessor.copy_typescript_files(
     self: AssetProcessor,

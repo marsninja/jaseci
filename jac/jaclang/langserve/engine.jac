@@ -1,34 +1,18 @@
 """Living Workspace of Jac project."""
 
 import asyncio;
-import logging;
-import os;
-import sys;
-import time;
 import threading;
-import from concurrent.futures { ThreadPoolExecutor }
-import from queue { Queue, Empty }
-import from typing { Callable, Optional }
+import from queue { Queue }
+import from typing { Optional }
 
 import jaclang.pycore.unitree as uni;
-import from jaclang { JacRuntimeInterface as Jac }
-import from jaclang.pycore.constant { SymbolType }
 import from jaclang.pycore.program { JacProgram }
-import from jaclang.compiler.type_system.type_utils { get_completion_items }
-import from jaclang.compiler.type_system.types {
-    ClassType,
-    FunctionType,
-    OverloadedType,
-    ModuleType,
-    TypeBase
-}
 import from jaclang.pycore.unitree { UniScopeNode }
+import from jaclang.compiler.type_system.types { TypeBase }
 import from .sem_manager { SemTokManager }
-import from jaclang.vendor.pygls { uris }
 import from jaclang.vendor.pygls.server { LanguageServer }
 
 import lsprotocol.types as lspt;
-import from . { utils }
 import from .module_manager { ModuleManager }
 
 obj Task {

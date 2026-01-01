@@ -1,4 +1,12 @@
 """Start the command line interface."""
+import ast as ast3;
+import marshal;
+import os;
+import pickle;
+import sys;
+import types;
+import from importlib.metadata { version as pkg_version }
+import from pathlib { Path }
 
 impl start_cli -> None {
     import from jaclang.pycore.runtime { JacRuntime as Jac }

@@ -1,4 +1,12 @@
 """Run the language server."""
+import sys;
+
+import from jaclang.pycore.constant {
+    JacSemTokenModifier as SemTokMod,
+    JacSemTokenType as SemTokType
+}
+
+import lsprotocol.types as lspt;
 
 impl run_lang_server -> None {
     server = JacLangServer();

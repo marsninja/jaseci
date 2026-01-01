@@ -1,5 +1,4 @@
 """Jac specific builtins."""
-import json;
 import from abc { abstractmethod }
 import from collections.abc { Callable }
 import from typing { TYPE_CHECKING, Any, ClassVar, override }

@@ -5,8 +5,6 @@ for Jac projects, including Python/Jac packages, git dependencies, and
 plugin-provided dependency types (npm, etc.).
 """
 
-import subprocess;
-import sys;
 import from pathlib { Path }
 import from jaclang.project.config { JacConfig }
 

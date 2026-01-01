@@ -18,9 +18,8 @@ This pass handles the static resolution and loading of imported modules by:
 The pass runs early in the compilation pipeline to ensure all symbols from imported
 modules are available for subsequent passes like symbol table building and type checking.
 """
-import os;
 import jaclang.pycore.unitree as uni;
-import from jaclang.pycore.passes { Transform, UniPass }
+import from jaclang.pycore.passes { Transform }
 import from jaclang.pycore.log { logging }
 
 glob logger = logging.getLogger(__name__);

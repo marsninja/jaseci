@@ -1,4 +1,13 @@
 """Handle insert inside token."""
+import from typing { Optional }
+
+import from jaclang.langserve.utils {
+    find_surrounding_tokens,
+    get_token_start,
+    get_line_of_code
+}
+
+import lsprotocol.types as lspt;
 
 impl SemTokManager.handle_insert_inside_token(
     self: SemTokManager,

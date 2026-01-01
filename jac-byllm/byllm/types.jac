@@ -4,20 +4,12 @@ This module defines the types used in the LLM interactions, including messages,
 tools, and tool calls. It provides a structured way to represent messages,
 tool calls, and tools that can be used in LLM requests and responses.
 """
-import base64;
-import mimetypes;
-import os;
 import from contextlib { suppress }
 import from enum { StrEnum }
-import from io { BytesIO }
 import from typing { Callable, TypeAlias, get_type_hints }
-
-import from PIL.Image { Image as PILImageCls }
-import from PIL.Image { open as open_image }
 
 import from litellm.types.utils { Message as LiteLLMMessage }
 import from pydantic { TypeAdapter }
-import from .schema { tool_to_schema }
 
 # The message can be a jaclang defined message or what ever the llm
 # returned object that was feed back to the llm as it was given (dict).

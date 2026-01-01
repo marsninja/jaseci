@@ -1,10 +1,14 @@
 """Implementation of dependency management for Jac projects."""
+import subprocess;
+import sys;
+import re;
+import shutil;
+import from jaclang.project.config { get_config }
 
 # ===============================================================================
 # DependencyInstaller Implementation
 # ===============================================================================
 impl DependencyInstaller.postinit -> None {
-    import from jaclang.project.config { get_config }
     if self.config is None {
         self.config = get_config();
     }
@@ -15,7 +19,6 @@ impl DependencyInstaller.postinit -> None {
 }
 
 impl DependencyInstaller.ensure_packages_dir -> None {
-    import sys;
     self.packages_dir.mkdir(parents=True, exist_ok=True);
     packages_str = str(self.packages_dir);
     if packages_str not in sys.path {
@@ -24,8 +27,6 @@ impl DependencyInstaller.ensure_packages_dir -> None {
 }
 
 impl DependencyInstaller._run_pip(args: list[str]) -> tuple[int, str, str] {
-    import subprocess;
-    import sys;
     cmd = [sys.executable, "-m", "pip"] + args;
     if self.verbose {
         print(f"Running: {' '.join(cmd)}");
@@ -39,7 +40,6 @@ impl DependencyInstaller._run_pip(args: list[str]) -> tuple[int, str, str] {
 }
 
 impl DependencyInstaller.install_all(include_dev: bool = False) -> bool {
-    import sys;
     self.ensure_packages_dir();
     all_success = True;
     for (name, version) in self.config.dependencies.items() {
@@ -67,7 +67,6 @@ impl DependencyInstaller.install_all(include_dev: bool = False) -> bool {
 }
 
 impl DependencyInstaller.install_package(name: str, version: str = "") -> bool {
-    import sys;
     self.ensure_packages_dir();
     if version {
         if version.startswith(("=", ">", "<", "~", "!")) {
@@ -94,7 +93,6 @@ impl DependencyInstaller.install_package(name: str, version: str = "") -> bool {
 impl DependencyInstaller.install_git_package(
     name: str, git_url: str, branch: str = ""
 ) -> bool {
-    import sys;
     self.ensure_packages_dir();
     if branch {
         spec = f"git+{git_url}@{branch}";
@@ -115,8 +113,6 @@ impl DependencyInstaller.install_git_package(
 }
 
 impl DependencyInstaller.uninstall_package(name: str) -> bool {
-    import shutil;
-    import sys;
     package_dir = self.packages_dir / name;
     package_info_dir = None;
     for item in self.packages_dir.iterdir() {
@@ -215,7 +211,6 @@ impl DependencyInstaller.list_installed -> list[str] {
 # DependencyResolver Implementation
 # ===============================================================================
 impl DependencyResolver.postinit -> None {
-    import from jaclang.project.config { get_config }
     if self.config is None {
         self.config = get_config();
     }
@@ -225,7 +220,6 @@ impl DependencyResolver.postinit -> None {
 }
 
 impl DependencyResolver.parse_spec(spec: str) -> tuple[str, str] {
-    import re;
     spec = spec.strip();
     # Handle npm scoped packages: @scope/name@version
     npm_scoped_m = re.match(r"^(@[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+)@(.+)$", spec);
@@ -281,8 +275,6 @@ impl DependencyResolver.resolve(include_dev: bool = False) -> list[ResolvedDepen
 impl add_packages_to_path(
     config: JacConfig | None = None
 ) -> None {
-    import sys;
-    import from jaclang.project.config { get_config }
     if config is None {
         config = get_config();
     }
@@ -297,8 +289,6 @@ impl add_packages_to_path(
 }
 
 impl remove_packages_from_path(config: JacConfig | None = None) -> None {
-    import sys;
-    import from jaclang.project.config { get_config }
     if config is None {
         config = get_config();
     }
@@ -313,8 +303,6 @@ impl remove_packages_from_path(config: JacConfig | None = None) -> None {
 }
 
 impl is_packages_in_path(config: JacConfig | None = None) -> bool {
-    import sys;
-    import from jaclang.project.config { get_config }
     if config is None {
         config = get_config();
     }

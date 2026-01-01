@@ -1,3 +1,8 @@
+import logging;
+import litellm;
+import from litellm._logging { _disable_debugging }
+import from openai { OpenAI }
+
 """Post-initialization hook for Model.
 
 Sets up proxy mode and mock delegation based on config.

@@ -1,10 +1,6 @@
 """Vite-enhanced client bundle generation for Jac web front-ends."""
-import contextlib;
-import shutil;
-import from collections.abc { Callable }
 import from pathlib { Path }
 import from types { ModuleType }
-import from typing { cast }
 import from jaclang.runtimelib.client_bundle {
     ClientBundle,
     ClientBundleBuilder,

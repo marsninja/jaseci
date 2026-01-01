@@ -1,7 +1,8 @@
 """Get the graph in json string."""
+import json;
+import from jaclang.runtimelib.utils { collect_node_connections }
 
 impl _jac_graph_json(file: (str | None) = None) -> str {
-    import from jaclang.runtimelib.utils { collect_node_connections }
     jac = _get_jac();
     visited_nodes: set = <>set();
     connections: set = <>set();

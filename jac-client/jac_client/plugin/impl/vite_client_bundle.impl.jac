@@ -1,4 +1,8 @@
 """Clean up the compiled directory and its contents."""
+import contextlib;
+import shutil;
+import from collections.abc { Callable }
+import from typing { cast }
 
 impl ViteClientBundleBuilder.cleanup_temp_dir(self: ViteClientBundleBuilder) -> None {
     if (not self.vite_package_json or not self.vite_package_json.exists()) {

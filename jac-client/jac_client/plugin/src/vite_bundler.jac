@@ -1,8 +1,4 @@
 """Vite bundling module."""
-import hashlib;
-import json;
-import shutil;
-import subprocess;
 import from pathlib { Path }
 import from typing { Optional }
 import from jaclang.runtimelib.client_bundle { ClientBundleError }

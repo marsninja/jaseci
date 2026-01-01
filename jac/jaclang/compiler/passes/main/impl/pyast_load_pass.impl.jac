@@ -1,4 +1,9 @@
 """aug_mapper."""
+import from __future__ { annotations }
+import os;
+import re;
+import from collections.abc { Sequence }
+import from typing { cast }
 
 impl PyastBuildPass.aug_op_map(
     self: PyastBuildPass, tok_dict: dict, op: uni.Token

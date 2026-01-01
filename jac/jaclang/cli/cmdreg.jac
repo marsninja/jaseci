@@ -1,12 +1,6 @@
 """Common code for command line interface tool for the Jac language."""
 import from __future__ { annotations }
-import argparse;
-import inspect;
-import os;
-import re;
-import sys;
 import from collections.abc { Callable }
-import from dataclasses { fields as dataclass_fields }
 import from enum { IntEnum }
 """Priority levels for command registration.
 

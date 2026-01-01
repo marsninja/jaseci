@@ -1,4 +1,25 @@
 """Decorator that returns a random instance of the function's return type."""
+import inspect;
+import random;
+import sys;
+import types;
+import from collections { deque }
+import from dataclasses { is_dataclass, fields as dc_fields, MISSING }
+import from datetime { date, datetime, time, timedelta }
+import from decimal { Decimal }
+import from functools { wraps }
+import from typing {
+    Any,
+    Annotated,
+    Literal,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+    TypeVar
+}
+import from collections.abc { Callable }
+import from uuid { UUID, uuid4 }
 
 impl returns_fake(func: Any) -> Any {
     try {

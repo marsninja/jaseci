@@ -4,10 +4,6 @@ This module provides the JacConfig class and related types for managing
 project configuration from jac.toml files.
 """
 
-import os;
-import re;
-import sys;
-import tomllib;
 import from pathlib { Path }
 import from typing { Any }
 

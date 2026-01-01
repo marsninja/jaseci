@@ -1,4 +1,14 @@
 """Core function to get the type of the expression."""
+import ast as py_ast;
+import from dataclasses { dataclass }
+import from pathlib { Path }
+import from typing { cast }
+import from jaclang.pycore.jac_parser { TOKEN_MAP }
+import from jaclang.pycore.constant { SymbolType, Tokens as Tok }
+import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+import from jaclang.pycore.passes.sym_tab_build_pass { SymTabBuildPass }
+import from jaclang.runtimelib.utils { read_file_with_encoding }
+
 impl TypeEvaluator._get_type_of_expression_core(
     self: TypeEvaluator, expr: uni.Expr
 ) -> TypeBase {

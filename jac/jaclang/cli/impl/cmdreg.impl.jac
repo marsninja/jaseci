@@ -1,4 +1,10 @@
 """Get the Command instance for a given command name."""
+import argparse;
+import inspect;
+import os;
+import re;
+import sys;
+import from dataclasses { fields as dataclass_fields }
 
 impl CommandRegistry.get(self: CommandRegistry, name: str) -> (Command | None) {
     return self.registry.get(name);
