@@ -1219,3 +1219,20 @@ def test_property_decorator(fixture_path: Callable[[str], str]) -> None:
     """,
         program.errors_had[1].pretty_print(),
     )
+
+
+def test_mro_protocol(fixture_path: Callable[[str], str]) -> None:
+    """Test MRO and protocol matching with inherited methods."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_mro_protocol.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 1 error:
+    # print_it(np) - NotPrintable doesn't implement Printable protocol
+    assert len(program.errors_had) == 1
+    _assert_error_pretty_found(
+        """
+        print_it(np);     # <-- Error: NotPrintable doesn't have print_info
+                 ^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
