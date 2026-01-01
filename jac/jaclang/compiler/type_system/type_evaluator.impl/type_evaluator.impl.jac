@@ -92,6 +92,21 @@ impl TypeEvaluator._get_type_of_expression_core(
                         overloaded_ty: types.OverloadedType | None = None;
                         member_ty = self.get_type_of_symbol(member.symbol);
                         if isinstance(member_ty, types.FunctionType) {
+                            # Check if this is a @property decorated method
+                            # If so, return the property's return type instead of FunctionType
+                            member_decl = member.symbol.decl;
+                            if (
+                                member_decl is not None
+                                and isinstance(member_decl.name_of, uni.Ability)
+                                and self._is_ability_property(member_decl.name_of)
+                            ) {
+                                # Property accessor - return the return type directly
+                                member_ty = member_ty.specialize(base_type);
+                                member.symbol.add_use(expr.right);
+                                property_type = self._convert_to_instance(member_ty.return_type);
+                                expr.right.type = property_type;
+                                return property_type;
+                            }
                             member_ty = member_ty.specialize(base_type);
                             overloaded_fns: list[types.FunctionType] = [member_ty];
                             for overload in member.overloads {
@@ -797,6 +812,7 @@ impl TypeEvaluator._prefetch_types(self: TypeEvaluator) {
     self.prefetch.object_class = get_builtin_type("object");
     self.prefetch.type_class = get_builtin_type("type");
     self.prefetch.classmethod_class = get_builtin_type("classmethod");
+    self.prefetch.property_class = get_builtin_type("property");
     self.prefetch.union_type_class = get_types_type("UnionType");
     # self.prefetch.awaitable_class =
     # self.prefetch.function_class =

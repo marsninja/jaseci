@@ -225,3 +225,22 @@ impl TypeEvaluator._is_ability_classmethod(
     }
     return False;
 }
+
+"""Check if the ability has a @property decorator."""
+impl TypeEvaluator._is_ability_property(
+    self: TypeEvaluator, node_: uni.Ability
+) -> bool {
+    if node_.decorators {
+        for decorator in node_.decorators {
+            decor_type = self.get_type_of_expression(decorator);
+            if (
+                isinstance(decor_type, types.ClassType)
+                and self.prefetch.property_class is not None
+                and self.prefetch.property_class.shared == decor_type.shared
+            ) {
+                return True;
+            }
+        }
+    }
+    return False;
+}

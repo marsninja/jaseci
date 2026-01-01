@@ -1194,3 +1194,28 @@ def test_context_manager(fixture_path: Callable[[str], str]) -> None:
     """,
         program.errors_had[0].pretty_print(),
     )
+
+
+def test_property_decorator(fixture_path: Callable[[str], str]) -> None:
+    """Test @property decorator type checking."""
+    program = JacProgram()
+    mod = program.compile(fixture_path("checker_property_decorator.jac"))
+    TypeCheckPass(ir_in=mod, prog=program)
+    # Expect 2 errors:
+    # b: str = c.area - float not assignable to str
+    # e: int = c.diameter - float not assignable to int
+    assert len(program.errors_had) == 2
+    _assert_error_pretty_found(
+        """
+        b: str = c.area;  # <-- Error: float not assignable to str
+        ^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print(),
+    )
+    _assert_error_pretty_found(
+        """
+        e: int = c.diameter;  # <-- Error: float not assignable to int
+        ^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print(),
+    )
