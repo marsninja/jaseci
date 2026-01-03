@@ -29,8 +29,28 @@ impl ViteBundler.create_package_json(
     if not name {
         name = self.project_dir.name or 'jac-app';
     }
-    dependencies = package_config.get('dependencies', {});
-    dev_dependencies = package_config.get('devDependencies', {});
+    # Default hardcoded dependencies (always included)
+    default_dependencies = {
+        'react': '^18.2.0',
+        'react-dom': '^18.2.0',
+        'react-router-dom': '^6.22.0'
+    };
+    default_dev_dependencies = {
+        'vite': '^6.4.1',
+        '@babel/cli': '^7.28.3',
+        '@babel/core': '^7.28.5',
+        '@babel/preset-env': '^7.28.5',
+        '@babel/preset-react': '^7.28.5',
+        '@vitejs/plugin-react': '^4.2.1',
+        'typescript': '^5.3.3',
+        '@types/react': '^18.2.0',
+        '@types/react-dom': '^18.2.0'
+    };
+    # Merge user dependencies from TOML with defaults (user can override)
+    user_dependencies = package_config.get('dependencies', {});
+    user_dev_dependencies = package_config.get('devDependencies', {});
+    dependencies = {** default_dependencies, ** user_dependencies};
+    dev_dependencies = {** default_dev_dependencies, ** user_dev_dependencies};
     scripts = {
         'build': 'npm run compile && vite build --config .client-build/.jac-client.configs/vite.config.js',
         'dev': 'vite dev --config .client-build/.jac-client.configs/vite.config.js',
@@ -399,7 +419,6 @@ impl ViteBundler.build(self: ViteBundler, entry_file: Optional[Path] = None) -> 
         # Ensure tsconfig.json exists even if package.json already exists
         self.create_tsconfig();
     }
-    self._ensure_root_package_json();
     try {
         build_dir = self.project_dir / '.client-build';
         node_modules = build_dir / 'node_modules';
