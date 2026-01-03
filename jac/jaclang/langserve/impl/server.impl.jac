@@ -7,6 +7,9 @@ impl run_lang_server -> None {
     server.feature(lspt.TEXT_DOCUMENT_DID_SAVE)(did_save);
     server.feature(lspt.TEXT_DOCUMENT_DID_CHANGE)(did_change);
     server.feature(lspt.TEXT_DOCUMENT_FORMATTING)(formatting);
+    # Configuration handlers for stub generation settings
+    server.feature(lspt.WORKSPACE_DID_CHANGE_CONFIGURATION)(did_change_configuration);
+    server.feature(lspt.INITIALIZED)(initialized);
     server.feature(
         lspt.WORKSPACE_DID_CREATE_FILES,
         lspt.FileOperationRegistrationOptions(
@@ -130,4 +133,73 @@ impl formatting(
 
 impl debug(msg: str) -> None {
     print(f"[SERVER] {msg}", file=sys.stderr);
+}
+
+"""Handle configuration changes from the client.
+
+Updates stub generation settings when the user changes configuration
+in VSCode settings or other LSP clients.
+
+Expected settings structure:
+{
+    "jac": {
+        "stubGeneration": {
+            "enabled": true,
+            "outputDir": "typings"
+        }
+    }
+}
+"""
+impl did_change_configuration(
+    ls: JacLangServer, params: lspt.DidChangeConfigurationParams
+) -> None {
+    debug("Configuration changed, updating stub generation settings");
+    try {
+        settings = params.settings or {};
+        jac_settings = settings.get('jac', {});
+        stub_settings = jac_settings.get('stubGeneration', {});
+
+        ls.stub_generation_enabled = stub_settings.get('enabled', False);
+        ls.stub_output_dir = stub_settings.get('outputDir', 'typings');
+
+        debug(
+            f"Stub generation: enabled={ls.stub_generation_enabled}, "
+            f"outputDir={ls.stub_output_dir}"
+        );
+    } except Exception as e {
+        debug(f"Error updating configuration: {e}");
+    }
+}
+
+"""Handle LSP initialized notification to fetch initial configuration.
+
+This is called after the client has finished initialization. We use this
+to request the initial configuration from the client.
+"""
+async impl initialized(ls: JacLangServer, params: lspt.InitializedParams) -> None {
+    debug("LSP initialized, fetching initial configuration");
+    try {
+        # Request configuration from the client
+        config_params = lspt.ConfigurationParams(
+            items=[
+                lspt.ConfigurationItem(section='jac')
+            ]
+        );
+        config = await ls.get_configuration_async(config_params);
+
+        if config and len(config) > 0 {
+            jac_settings = config[0] or {};
+            stub_settings = jac_settings.get('stubGeneration', {});
+
+            ls.stub_generation_enabled = stub_settings.get('enabled', False);
+            ls.stub_output_dir = stub_settings.get('outputDir', 'typings');
+
+            debug(
+                f"Initial config loaded: stub_generation_enabled={ls.stub_generation_enabled}, "
+                f"stub_output_dir={ls.stub_output_dir}"
+            );
+        }
+    } except Exception as e {
+        debug(f"Error fetching initial configuration: {e}");
+    }
 }

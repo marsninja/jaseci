@@ -415,6 +415,9 @@ impl JacLangServer.type_check_file(
         }
         self.update_modules(fs_path, build);
 
+        # Generate .pyi stub for Pylance/Pyright integration
+        self.generate_pyi_stub(fs_path, build);
+
         if build.annexable_by {
             return self.type_check_file(
                 uris.from_fs_path(build.annexable_by),
@@ -517,4 +520,69 @@ impl Task.postinit -> None {
     self.task_id = Task._task_id;
     self.cancel_token = threading.Event();
     Task._task_id += 1;
+}
+
+"""Generate .pyi stub file for Pylance/Pyright type checking integration.
+
+This method generates Python stub files (.pyi) from compiled Jac modules,
+allowing external Python type checkers like Pylance to understand types
+exported from Jac code. Stubs are written to a configurable output directory
+(default: 'typings/') preserving the source file's relative path structure.
+"""
+impl JacLangServer.generate_pyi_stub(
+    self: JacLangServer, file_path: str, build: uni.Module
+) -> None {
+    # Skip if stub generation is disabled or no Python AST available
+    if not self.stub_generation_enabled {
+        return;
+    }
+    if not build.gen.py_ast {
+        self.debug(
+            f"No Python AST available for {file_path}, skipping stub generation"
+        );
+        return;
+    }
+    try {
+        # Get workspace root from LSP workspace
+        workspace_root = (
+            Path(self.workspace.root_path)
+            if self.workspace and self.workspace.root_path
+            else Path.cwd()
+        );
+
+        # Calculate relative path from workspace root
+        source_path = Path(file_path);
+        try {
+            rel_path = source_path.relative_to(workspace_root);
+        } except ValueError {
+            # File is outside workspace, use just the filename
+            rel_path = Path(source_path.name);
+        }
+
+        # Build stub output path: <stub_output_dir>/<rel_path>.pyi
+        # e.g., typings/src/mymodule.pyi
+        stub_path = workspace_root / self.stub_output_dir / rel_path.with_suffix(
+            '.pyi'
+        );
+
+        # Create parent directories if they don't exist
+        stub_path.parent.mkdir(parents=True, exist_ok=True);
+
+        # Generate Python source from AST
+        py_ast_node = build.gen.py_ast[0];
+        py_source = ast3.unparse(py_ast_node);
+
+        # Write stub file with header comment
+        header = "# Auto-generated stub file for Pylance/Pyright\n" + "# Source: " + str(
+            rel_path
+        ) + "\n" + "# Do not edit manually - regenerated on each save\n\n";
+        stub_content = header + py_source + "\n";
+        with open(stub_path, 'w') as stub_file {
+            stub_file.write(stub_content);
+        }
+
+        self.debug(f"Generated stub: {stub_path}");
+    } except Exception as e {
+        self.debug(f"Failed to generate stub for {file_path}: {e}");
+    }
 }

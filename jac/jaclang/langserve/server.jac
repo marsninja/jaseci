@@ -82,6 +82,14 @@ def semantic_tokens_full(
     ls: JacLangServer, params: lspt.SemanticTokensParams
 ) -> lspt.SemanticTokens;
 
+"""Handle configuration changes from the client."""
+def did_change_configuration(
+    ls: JacLangServer, params: lspt.DidChangeConfigurationParams
+) -> None;
+
+"""Handle LSP initialized notification to fetch initial configuration."""
+async def initialized(ls: JacLangServer, params: lspt.InitializedParams) -> None;
+
 def run_lang_server -> None;
 
 with entry:__main__ {

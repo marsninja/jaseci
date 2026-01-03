@@ -1,5 +1,6 @@
 """Living Workspace of Jac project."""
 
+import ast as ast3;
 import asyncio;
 import logging;
 import os;
@@ -7,6 +8,7 @@ import sys;
 import time;
 import threading;
 import from concurrent.futures { ThreadPoolExecutor }
+import from pathlib { Path }
 import from queue { Queue, Empty }
 import from typing { Callable, Optional }
 
@@ -48,7 +50,10 @@ class JacLangServer(JacProgram, LanguageServer) {
         queue: Queue,
         worker_thread: threading.Thread,
         last_task: Task | None = None,
-        _shutdown_called: bool = False;
+        _shutdown_called: bool = False,
+        # Stub generation config for Pylance/Pyright integration
+        stub_generation_enabled: bool = False,
+        stub_output_dir: str = "typings";
 
     def init(self: JacLangServer) -> None;
     def dispatcher(self: JacLangServer) -> None;
@@ -191,4 +196,8 @@ class JacLangServer(JacProgram, LanguageServer) {
     def log_info(self: JacLangServer, message: str) -> None;
     def log_py(self: JacLangServer, message: str) -> None;
     def shutdown(self: JacLangServer) -> None;
+    """Generate .pyi stub file for Pylance/Pyright type checking integration."""
+    def generate_pyi_stub(
+        self: JacLangServer, file_path: str, build: uni.Module
+    ) -> None;
 }

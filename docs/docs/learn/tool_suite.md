@@ -13,11 +13,15 @@ This extension includes:
 - Jac syntax highlighting
 - Jac Debugger
 - Jac Graph visualizer
+- [Python Type Checking Integration](./tools/pylance_integration.md) - Generate `.pyi` stubs for Pylance/Pyright
 
 To specifically learn how to setup the debugger or graph-visualizer check out the [Debugger Tutorial](https://www.jac-lang.org/learn/debugger/)
 
 ??? tip "Developing a Jac Scale Native application?"
     The debugger and graph visualizer included in the Jac VS Code Extension support only local Jac programs. They are not currently compatible with Scale Native. To visualize graphs for Scale Native programs, refer to [Jac Lens](#jac-lens).
+
+??? tip "Working with mixed Jac and Python codebases?"
+    Enable automatic stub generation to get Python type checking support for your Jac modules. See the [Pylance Integration Guide](./tools/pylance_integration.md) for setup instructions.
 
 ## Jac Playground
 

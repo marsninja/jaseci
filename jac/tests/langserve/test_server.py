@@ -591,3 +591,176 @@ def test_go_to_definition_impl_body_self_attr(
             )
     finally:
         lsp.shutdown()
+
+
+def test_stub_generation(fixture_path: Callable[[str], str]) -> None:
+    """Test that .pyi stub files are generated for Pylance/Pyright integration.
+
+    This tests the stub generation feature that creates .pyi files from compiled
+    Jac modules, allowing external Python type checkers to understand Jac types.
+    """
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    # Create a temporary directory for the test workspace
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        typings_dir = temp_path / "typings"
+
+        # Copy the fixture file to temp directory
+        src_file = fixture_path("circle.jac")
+        dest_file = temp_path / "circle.jac"
+        shutil.copy(src_file, dest_file)
+
+        # Create server with temp directory as workspace using helper
+        lsp = create_server(str(temp_path), fixture_path)
+
+        try:
+            # Enable stub generation
+            lsp.stub_generation_enabled = True
+            lsp.stub_output_dir = "typings"
+
+            # Type check the file - this should trigger stub generation
+            circle_uri = uris.from_fs_path(str(dest_file))
+            lsp.type_check_file(circle_uri)
+
+            # Verify stub file was created
+            stub_file = typings_dir / "circle.pyi"
+            assert stub_file.exists(), f"Stub file should be created at {stub_file}"
+
+            # Verify stub content
+            stub_content = stub_file.read_text()
+
+            # Check for header comments
+            assert "Auto-generated stub file" in stub_content, (
+                "Stub should have auto-generated header"
+            )
+            assert "circle.jac" in stub_content, "Stub should reference source file"
+
+            # Check that Python code was generated (should have class definitions)
+            assert "class" in stub_content or "def" in stub_content, (
+                f"Stub should contain class or function definitions, got:\n{stub_content}"
+            )
+
+        finally:
+            lsp.shutdown()
+
+
+def test_stub_generation_disabled_by_default(
+    fixture_path: Callable[[str], str],
+) -> None:
+    """Test that stub generation is disabled by default."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        typings_dir = temp_path / "typings"
+
+        # Copy fixture file
+        src_file = fixture_path("circle.jac")
+        dest_file = temp_path / "circle.jac"
+        shutil.copy(src_file, dest_file)
+
+        # Create server - stub_generation_enabled should be False by default
+        lsp = create_server(str(temp_path), fixture_path)
+
+        try:
+            # Verify default setting
+            assert lsp.stub_generation_enabled is False, (
+                "Stub generation should be disabled by default"
+            )
+
+            # Type check the file
+            circle_uri = uris.from_fs_path(str(dest_file))
+            lsp.type_check_file(circle_uri)
+
+            # Verify no stub file was created
+            stub_file = typings_dir / "circle.pyi"
+            assert not stub_file.exists(), (
+                "Stub file should NOT be created when stub generation is disabled"
+            )
+
+        finally:
+            lsp.shutdown()
+
+
+def test_stub_generation_custom_output_dir(
+    fixture_path: Callable[[str], str],
+) -> None:
+    """Test that stub files are generated to custom output directory."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        custom_dir = "custom_stubs"
+
+        # Copy fixture file
+        src_file = fixture_path("circle.jac")
+        dest_file = temp_path / "circle.jac"
+        shutil.copy(src_file, dest_file)
+
+        # Create server with custom output directory
+        lsp = create_server(str(temp_path), fixture_path)
+
+        try:
+            lsp.stub_generation_enabled = True
+            lsp.stub_output_dir = custom_dir
+
+            # Type check the file
+            circle_uri = uris.from_fs_path(str(dest_file))
+            lsp.type_check_file(circle_uri)
+
+            # Verify stub file was created in custom directory
+            stub_file = temp_path / custom_dir / "circle.pyi"
+            assert stub_file.exists(), (
+                f"Stub file should be created at custom path {stub_file}"
+            )
+
+        finally:
+            lsp.shutdown()
+
+
+def test_stub_generation_preserves_directory_structure(
+    fixture_path: Callable[[str], str],
+) -> None:
+    """Test that stub generation preserves source directory structure."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+
+        # Create a nested directory structure
+        nested_dir = temp_path / "src" / "models"
+        nested_dir.mkdir(parents=True)
+
+        # Copy fixture file to nested location
+        src_file = fixture_path("circle.jac")
+        dest_file = nested_dir / "circle.jac"
+        shutil.copy(src_file, dest_file)
+
+        # Create server
+        lsp = create_server(str(temp_path), fixture_path)
+
+        try:
+            lsp.stub_generation_enabled = True
+            lsp.stub_output_dir = "typings"
+
+            # Type check the file
+            circle_uri = uris.from_fs_path(str(dest_file))
+            lsp.type_check_file(circle_uri)
+
+            # Verify stub file preserves directory structure
+            stub_file = temp_path / "typings" / "src" / "models" / "circle.pyi"
+            assert stub_file.exists(), (
+                f"Stub file should preserve directory structure at {stub_file}"
+            )
+
+        finally:
+            lsp.shutdown()
