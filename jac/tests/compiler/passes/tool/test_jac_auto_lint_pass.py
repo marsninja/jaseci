@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-import jaclang.pycore.unitree as uni
 from jaclang.pycore.program import JacProgram
 
 
@@ -288,30 +287,6 @@ class TestCombineConsecutiveGlob:
         assert "glob x = 1;" in formatted
         assert "glob y = 2;" in formatted
         assert "glob z = 3;" in formatted
-
-
-class TestIsPureExpression:
-    """Unit tests for the is_pure_expression method."""
-
-    def _create_test_pass(self) -> object:
-        """Create a JacAutoLintPass instance for testing."""
-        from jaclang.compiler.passes.tool.jac_auto_lint_pass import JacAutoLintPass
-
-        prog = JacProgram()
-        # We need to create a stub module
-        module = uni.Module.make_stub()
-        return JacAutoLintPass(ir_in=module, prog=prog)
-
-    def test_literals_are_pure(self) -> None:
-        """Test that literal values are considered pure."""
-        # This is a conceptual test - the actual implementation
-        # checks isinstance against AST node types
-        pass  # Covered by integration tests above
-
-    def test_function_calls_not_pure(self) -> None:
-        """Test that function calls are NOT considered pure."""
-        # Covered by non_extractable integration test
-        pass
 
 
 class TestStaticmethodConversion:
