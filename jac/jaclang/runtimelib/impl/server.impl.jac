@@ -1,5 +1,6 @@
-"""Serialize objects to JSON-compatible format."""
+import from jaclang.project.config { get_config }
 
+"""Serialize objects to JSON-compatible format."""
 impl JacSerializer.serialize(<>obj: object) -> JsonValue {
     import from jaclang.pycore.constructs { Archetype }
     if ((<>obj is None) or isinstance(<>obj, (str, int, float, bool))) {
@@ -14,7 +15,7 @@ impl JacSerializer.serialize(<>obj: object) -> JsonValue {
     if isinstance(<>obj, Archetype) {
         return JacSerializer._serialize_archetype(<>obj);
     }
-    if hasattr(<>obj, '__dict__') {
+    if <>obj?.__dict__ {
         with suppress(Exception) {
             return JacSerializer.serialize(
                 {
@@ -103,7 +104,7 @@ impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
     };
     self._tokens[token] = username;
     self._persist();
-    return {'email': username, 'token': token, 'root_id': root_id};
+    return {'username': username, 'token': token, 'root_id': root_id};
 }
 
 """Authenticate a user and return their data."""
@@ -116,7 +117,11 @@ impl UserManager.authenticate(
     user = self._users[username];
     password_hash = hashlib.sha256(password.encode()).hexdigest();
     if (user['password_hash'] == password_hash) {
-        return {'email': username, 'token': user['token'], 'root_id': user['root_id']};
+        return {
+            'username': username,
+            'token': user['token'],
+            'root_id': user['root_id']
+        };
     }
     return None;
 }
@@ -145,20 +150,9 @@ impl UserManager.close -> None {
     self._persist();
 }
 
-"""Initialize execution manager."""
-impl ExecutionManager.init(
-    self: ExecutionManager, session_path: str, user_manager: UserManager
-) -> None {
-    self.session_path = session_path;
-    self.user_manager = user_manager;
-}
-
 """Execute a function in user's context."""
 impl ExecutionManager.execute_function(
-    self: ExecutionManager,
-    func: Callable[(..., Any)],
-    args: dict[(str, Any)],
-    username: str
+    func: Callable[(..., Any)], args: dict[(str, Any)], username: str
 ) -> dict[str, JsonValue] {
     root_id = self.user_manager.get_root_id(username);
     if not root_id {
@@ -183,10 +177,7 @@ impl ExecutionManager.execute_function(
 
 """Spawn a walker in user's context."""
 impl ExecutionManager.spawn_walker(
-    self: ExecutionManager,
-    walker_cls: type[WalkerArchetype],
-    fields: dict[(str, Any)],
-    username: str
+    walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
 ) -> dict[str, JsonValue] {
     import from jaclang.pycore.constructs { NodeArchetype }
     root_id = self.user_manager.get_root_id(username);
@@ -541,6 +532,7 @@ impl ResponseBuilder.send_json(
     handler.send_response(status);
     handler.send_header('Content-Type', 'application/json');
     ResponseBuilder._add_cors_headers(handler);
+    ResponseBuilder._add_custom_headers(handler);
     handler.end_headers();
     handler.wfile.write(json.dumps(data).encode());
 }
@@ -554,6 +546,7 @@ impl ResponseBuilder.send_html(
     handler.send_header('Content-Type', 'text/html; charset=utf-8');
     handler.send_header('Content-Length', str(len(payload)));
     ResponseBuilder._add_cors_headers(handler);
+    ResponseBuilder._add_custom_headers(handler);
     handler.end_headers();
     handler.wfile.write(payload);
 }
@@ -568,6 +561,7 @@ impl ResponseBuilder.send_javascript(
     handler.send_header('Content-Length', str(len(payload)));
     handler.send_header('Cache-Control', 'no-cache');
     ResponseBuilder._add_cors_headers(handler);
+    ResponseBuilder._add_custom_headers(handler);
     handler.end_headers();
     handler.wfile.write(payload);
 }
@@ -580,6 +574,7 @@ impl ResponseBuilder.send_css(handler: BaseHTTPRequestHandler, css: str) -> None
     handler.send_header('Content-Length', str(len(payload)));
     handler.send_header('Cache-Control', 'no-cache');
     ResponseBuilder._add_cors_headers(handler);
+    ResponseBuilder._add_custom_headers(handler);
     handler.end_headers();
     handler.wfile.write(payload);
 }
@@ -591,136 +586,134 @@ impl ResponseBuilder._add_cors_headers(handler: BaseHTTPRequestHandler) -> None 
     handler.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
-"""Initialize route handler."""
-impl RouteHandler.init(
-    self: RouteHandler,
-    introspector: ModuleIntrospector,
-    execution_manager: ExecutionManager,
-    user_manager: UserManager
-) -> None {
-    self.introspector = introspector;
-    self.execution_manager = execution_manager;
-    self.user_manager = user_manager;
+"""Add security headers to response."""
+impl ResponseBuilder._add_custom_headers(handler: BaseHTTPRequestHandler) -> None {
+    config = get_config();
+    if config
+    and config.environments
+    and "response" in config.environments
+    and "headers" in config.environments["response"] {
+        for (header_name, header_value) in config.environments["response"]["headers"].items() {
+            handler.send_header(header_name, header_value);
+        }
+    }
 }
 
 """Create new user."""
-impl AuthHandler.create_user(self: AuthHandler, email: str, password: str) -> Response {
-    if (not email or not password) {
-        return Response(400, {'error': 'Email and password required'});
+impl AuthHandler.create_user(username: str, password: str) -> Response {
+    if (not username or not password) {
+        return Response(status=400, body={'error': 'Username and password required'});
     }
-    result = self.user_manager.create_user(email, password);
+    result = self.user_manager.create_user(username, password);
     if ('error' in result) {
-        return Response(400, <>dict[(str, JsonValue)](result));
+        return Response(status=400, body=result);
     }
-    return Response(201, <>dict[(str, JsonValue)](result));
+    return Response(status=201, body=result);
 }
 
 """Authenticate user."""
-impl AuthHandler.login(self: AuthHandler, email: str, password: str) -> Response {
-    if (not email or not password) {
-        return Response(400, {'error': 'Email and password required'});
+impl AuthHandler.login(username: str, password: str) -> Response {
+    if (not username or not password) {
+        return Response(status=400, body={'error': 'Username and password required'});
     }
-    result = self.user_manager.authenticate(email, password);
+    result = self.user_manager.authenticate(username, password);
     if not result {
-        return Response(401, {'error': 'Invalid credentials'});
+        return Response(status=401, body={'error': 'Invalid credentials'});
     }
-    return Response(200, <>dict[(str, JsonValue)](result));
+    return Response(status=200, body=result);
 }
 
 """List all functions."""
-impl IntrospectionHandler.list_functions(self: IntrospectionHandler) -> Response {
+impl IntrospectionHandler.list_functions -> Response {
     self.introspector.load();
     return Response(
-        200, {'functions': <>list(self.introspector.get_functions().keys())}
+        status=200,
+        body={'functions': <>list(self.introspector.get_functions().keys())}
     );
 }
 
 """List all walkers."""
-impl IntrospectionHandler.list_walkers(self: IntrospectionHandler) -> Response {
+impl IntrospectionHandler.list_walkers -> Response {
     self.introspector.load();
-    return Response(200, {'walkers': <>list(self.introspector.get_walkers().keys())});
+    return Response(
+        status=200, body={'walkers': <>list(self.introspector.get_walkers().keys())}
+    );
 }
 
 """Get function signature."""
-impl IntrospectionHandler.get_function_info(
-    self: IntrospectionHandler, name: str
-) -> Response {
+impl IntrospectionHandler.get_function_info(name: str) -> Response {
     self.introspector.load();
     functions = self.introspector.get_functions();
     if (name not in functions) {
-        return Response(404, {'error': f"Function '{name}' not found"});
+        return Response(status=404, body={'error': f"Function '{name}' not found"});
     }
     signature = self.introspector.introspect_callable(functions[name]);
-    return Response(200, {'name': name, 'signature': signature});
+    return Response(status=200, body={'name': name, 'signature': signature});
 }
 
 """Get walker info."""
-impl IntrospectionHandler.get_walker_info(
-    self: IntrospectionHandler, name: str
-) -> Response {
+impl IntrospectionHandler.get_walker_info(name: str) -> Response {
     self.introspector.load();
     walkers = self.introspector.get_walkers();
     if (name not in walkers) {
-        return Response(404, {'error': f"Walker '{name}' not found"});
+        return Response(status=404, body={'error': f"Walker '{name}' not found"});
     }
     info = self.introspector.introspect_walker(walkers[name]);
-    return Response(200, {'name': name, 'info': info});
+    return Response(status=200, body={'name': name, 'info': info});
 }
 
 """Call a function."""
 impl ExecutionHandler.call_function(
-    self: ExecutionHandler, name: str, args: dict[(str, Any)], username: str
+    name: str, args: dict[(str, Any)], username: str
 ) -> Response {
     self.introspector.load();
     functions = self.introspector.get_functions();
     if (name not in functions) {
-        return Response(404, {'error': f"Function '{name}' not found"});
+        return Response(status=404, body={'error': f"Function '{name}' not found"});
     }
     result = self.execution_manager.execute_function(functions[name], args, username);
-    return Response(200, result);
+    return Response(status=200, body=result);
 }
 
 """Spawn a walker."""
 impl ExecutionHandler.spawn_walker(
-    self: ExecutionHandler, name: str, fields: dict[(str, Any)], username: str
+    name: str, fields: dict[(str, Any)], username: str
 ) -> Response {
     self.introspector.load();
     walkers = self.introspector.get_walkers();
     if (name not in walkers) {
-        return Response(404, {'error': f"Walker '{name}' not found"});
+        return Response(status=404, body={'error': f"Walker '{name}' not found"});
     }
     result = self.execution_manager.spawn_walker(walkers[name], fields, username);
-    return Response(200, result);
+    return Response(status=200, body=result);
 }
 
 """Initialize the API server."""
-impl JacAPIServer.init(
-    self: JacAPIServer,
-    module_name: str,
-    session_path: str,
-    port: int = 8000,
-    base_path: (str | None) = None
-) -> None {
-    self.module_name = module_name;
-    self.session_path = session_path;
-    self.port = port;
-    self.base_path = base_path;
-    self.user_manager = UserManager(session_path);
-    self.introspector = Jac.get_module_introspector(module_name, base_path);
-    self.execution_manager = ExecutionManager(session_path, self.user_manager);
+impl JacAPIServer.postinit -> None {
+    self.user_manager = UserManager(session_path=self.session_path);
+    self.introspector = Jac.get_module_introspector(self.module_name, self.base_path);
+    self.execution_manager = ExecutionManager(
+        session_path=self.session_path, user_manager=self.user_manager
+    );
     self.auth_handler = AuthHandler(
-        self.introspector, self.execution_manager, self.user_manager
+        introspector=self.introspector,
+        execution_manager=self.execution_manager,
+        user_manager=self.user_manager
     );
     self.introspection_handler = IntrospectionHandler(
-        self.introspector, self.execution_manager, self.user_manager
+        introspector=self.introspector,
+        execution_manager=self.execution_manager,
+        user_manager=self.user_manager
     );
     self.execution_handler = ExecutionHandler(
-        self.introspector, self.execution_manager, self.user_manager
+        introspector=self.introspector,
+        execution_manager=self.execution_manager,
+        user_manager=self.user_manager
     );
 }
 
 """Create HTTP request handler."""
-impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHandler] {
+impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
     server = self;
     """Handle HTTP requests.""";
     class JacRequestHandler(BaseHTTPRequestHandler) {
@@ -756,6 +749,7 @@ impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHand
         def do_OPTIONS(self: JacRequestHandler) -> None {
             self.send_response(200);
             ResponseBuilder._add_cors_headers(self);
+            ResponseBuilder._add_custom_headers(self);
             self.end_headers();
         }
 
@@ -769,11 +763,17 @@ impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHand
                     server.introspector.ensure_bundle();
                     Jac.send_javascript(self, server.introspector._bundle.code);
                 } except RuntimeError as exc {
-                    Jac.send_json(self, 503, {'error': str(exc)});
+                    Jac.send_json(self, 500, {'error': str(exc)});
                 }
                 return;
             }
             is_static_path = path.startswith('/static/');
+            import from jaclang.project.config { get_config }
+            ;
+            config = get_config();
+            client_cfg = config.get_plugin_config("client") if config else None;
+            assets_config = client_cfg.get("assets", {}) if client_cfg else {};
+            custom_asset_extensions = set(assets_config.get("custom_extensions", []));
             is_asset_file = (
                 not is_static_path
                 and (path != '/')
@@ -785,26 +785,58 @@ impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHand
                 and not path.startswith('/walkers')
                 and not path.startswith('/protected')
                 and (
-                    Path(path).suffix in {'.png','.jpg','.jpeg','.gif','.webp','.svg','.ico','.woff','.woff2','.ttf','.otf','.eot','.mp4','.webm','.mp3','.wav','.css'}
+                    Path(path).suffix in (
+                        custom_asset_extensions
+                        or {'.png','.jpg','.jpeg','.gif','.webp','.svg','.ico','.woff','.woff2','.ttf','.otf','.eot','.mp4','.webm','.mp3','.wav','.css'}
+                    )
                 )
             );
             if (is_static_path or is_asset_file) {
                 try {
-                    base_path = Path(Jac.base_path_dir)
+                    # Find project root (where jac.toml is) instead of using base_path_dir
+                    # base_path_dir might be src/ when serving src/app.jac, but we need project root
+                    import from jaclang.project.config { find_project_root }
+                    base_path_dir = Path(Jac.base_path_dir)
                     if Jac.base_path_dir
                     else Path.cwd();
+                    project_root_result = find_project_root(base_path_dir);
+                    if project_root_result {
+                        (base_path, _) = project_root_result;
+                    } else {
+                        # Fallback to base_path_dir if no project root found
+                        base_path = base_path_dir;
+                    }
                     if is_static_path {
                         relative_path = path[8:];
                     } else {
                         relative_path = path[1:];
                     }
                     file_name = Path(relative_path).name;
+                    # Check multiple locations for CSS files
+                    # 1. .client-build/dist/ (new structure)
+                    client_build_dist_file = base_path / '.client-build' / 'dist' / relative_path;
+                    client_build_dist_file_simple = base_path / '.client-build' / 'dist' / file_name;
+                    # 2. dist/ (legacy structure)
                     dist_file = base_path / 'dist' / relative_path;
                     dist_file_simple = base_path / 'dist' / file_name;
+                    # 3. assets/ (static assets)
                     assets_file = base_path / 'assets' / relative_path;
                     assets_file_simple = base_path / 'assets' / file_name;
                     if path.endswith('.css') {
-                        if dist_file.exists() {
+                        # Check .client-build/dist/ first (jac-client)
+                        if client_build_dist_file.exists() {
+                            css_content = client_build_dist_file.read_text(
+                                encoding='utf-8'
+                            );
+                            Jac.send_css(self, css_content);
+                            return;
+                        } elif client_build_dist_file_simple.exists() {
+                            css_content = client_build_dist_file_simple.read_text(
+                                encoding='utf-8'
+                            );
+                            Jac.send_css(self, css_content);
+                            return;
+                        } elif dist_file.exists() {
                             css_content = dist_file.read_text(encoding='utf-8');
                             Jac.send_css(self, css_content);
                             return;
@@ -828,6 +860,8 @@ impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHand
                         }
                     }
                     for candidate_file in [
+                        client_build_dist_file,
+                        client_build_dist_file_simple,
                         dist_file,
                         dist_file_simple,
                         assets_file,
@@ -888,7 +922,7 @@ impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHand
                 } except ValueError as exc {
                     Jac.send_json(self, 404, {'error': str(exc)});
                 } except RuntimeError as exc {
-                    Jac.send_json(self, 503, {'error': str(exc)});
+                    Jac.send_json(self, 500, {'error': str(exc)});
                 }
                 return;
             }
@@ -930,7 +964,9 @@ impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHand
                     Jac.send_json(self, 401, {'error': 'Unauthorized'});
                     return;
                 }
-                self._send_response(Response(200, {'message': 'sucessful'}));
+                self._send_response(
+                    Response(status=200, body={'message': 'sucessful'})
+                );
             } else {
                 Jac.send_json(self, 404, {'error': 'Not found'});
             }
@@ -948,14 +984,14 @@ impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHand
             }
             if (path == '/user/register') {
                 response = server.auth_handler.create_user(
-                    data.get('email', ''), data.get('password', '')
+                    data.get('username', ''), data.get('password', '')
                 );
                 self._send_response(response);
                 return;
             }
             if (path == '/user/login') {
                 response = server.auth_handler.login(
-                    data.get('email', ''), data.get('password', '')
+                    data.get('username', ''), data.get('password', '')
                 );
                 self._send_response(response);
                 return;
@@ -1025,60 +1061,58 @@ impl JacAPIServer.create_handler(self: JacAPIServer) -> type[BaseHTTPRequestHand
 }
 
 """Load the target module (backward compatibility)."""
-impl JacAPIServer.load_module(self: JacAPIServer, force_reload: bool = False) -> None {
+impl JacAPIServer.load_module(force_reload: bool = False) -> None {
     self.introspector.load(force_reload);
 }
 
 """Get loaded module (backward compatibility)."""
-impl JacAPIServer.module(self: JacAPIServer) -> object {
+impl JacAPIServer.module -> object {
     return self.introspector._module;
 }
 
 """Get all functions (backward compatibility)."""
-impl JacAPIServer.get_functions(self: JacAPIServer) -> dict[str, Callable[(..., Any)]] {
+impl JacAPIServer.get_functions -> dict[str, Callable[(..., Any)]] {
     return self.introspector.get_functions();
 }
 
 """Get all walkers (backward compatibility)."""
-impl JacAPIServer.get_walkers(self: JacAPIServer) -> dict[str, type[WalkerArchetype]] {
+impl JacAPIServer.get_walkers -> dict[str, type[WalkerArchetype]] {
     return self.introspector.get_walkers();
 }
 
 """Introspect callable (backward compatibility)."""
-impl JacAPIServer.introspect_callable(
-    self: JacAPIServer, func: Callable[(..., Any)]
-) -> dict[str, Any] {
+impl JacAPIServer.introspect_callable(func: Callable[(..., Any)]) -> dict[str, Any] {
     return self.introspector.introspect_callable(func);
 }
 
 """Introspect walker (backward compatibility)."""
 impl JacAPIServer.introspect_walker(
-    self: JacAPIServer, walker_cls: type[WalkerArchetype]
+    walker_cls: type[WalkerArchetype]
 ) -> dict[str, Any] {
     return self.introspector.introspect_walker(walker_cls);
 }
 
 """Render client page (backward compatibility)."""
 impl JacAPIServer.render_client_page(
-    self: JacAPIServer, function_name: str, args: dict[(str, Any)], username: str
+    function_name: str, args: dict[(str, Any)], username: str
 ) -> dict[str, Any] {
     return self.introspector.render_page(function_name, args, username);
 }
 
 """Get client bundle code (backward compatibility)."""
-impl JacAPIServer.get_client_bundle_code(self: JacAPIServer) -> str {
+impl JacAPIServer.get_client_bundle_code -> str {
     self.introspector.load();
     self.introspector.ensure_bundle();
     return self.introspector._bundle.code;
 }
 
 """Print comprehensive documentation for all endpoints that would be generated."""
-impl JacAPIServer.print_endpoint_docs(self: JacAPIServer) -> None {
+impl JacAPIServer.print_endpoint_docs -> None {
     print_endpoint_docs(self);
 }
 
 """Start the HTTP server."""
-impl JacAPIServer.start(self: JacAPIServer) -> None {
+impl JacAPIServer.start -> None {
     self.introspector.load();
     handler_class = self.create_handler();
     with HTTPServer(('0.0.0.0', self.port), handler_class) as httpd {
@@ -1135,13 +1169,13 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         'POST',
         '/user/register',
         'Create new user account',
-        'Body: { "email": str, "password": str }'
+        'Body: { "username": str, "password": str }'
     );
     endpoint(
         'POST',
         '/user/login',
         'Authenticate and get token',
-        'Body: { "email": str, "password": str }'
+        'Body: { "username": str, "password": str }'
     );
     section('INTROSPECTION', 'Authenticated');
     endpoint('GET', '/functions', 'List all functions → string[]');

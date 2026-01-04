@@ -323,23 +323,38 @@ def test_deep_imports(
     assert stdout_value.split("\n")[0] == "one level deeperslHello World!"
 
 
-def test_deep_imports_interp_mode(fixture_path: Callable[[str], str]) -> None:
+def test_deep_imports_interp_mode(
+    fixture_path: Callable[[str], str],
+    capture_stdout: Callable[[], AbstractContextManager[io.StringIO]],
+) -> None:
     """Parse micro jac file."""
     Jac.set_base_path(fixture_path("./"))
     Jac.attach_program(
         JacProgram(),
     )
-    Jac.jac_import("deep_import_interp", base_path=fixture_path("./"))
+    # Clear any cached module from previous test runs
+    for mod_name in list(sys.modules.keys()):
+        if "deep_import_interp" in mod_name:
+            del sys.modules[mod_name]
+    # Delete bytecode cache files to force recompilation
+    cache_dir = Path.cwd() / ".jaccache"
+    if cache_dir.exists():
+        for cache_file in cache_dir.glob("deep_import_interp*.jbc"):
+            cache_file.unlink()
+
+    with capture_stdout() as captured_output:
+        Jac.jac_import("deep_import_interp", base_path=fixture_path("./"))
+    stdout_value = captured_output.getvalue()
     assert len(Jac.get_program().mod.hub.keys()) == 1
+    assert "one level deeperslHello World!" in stdout_value
+
     Jac.set_base_path(fixture_path("./"))
     Jac.attach_program(
         (prog := JacProgram()),
     )
-    prog.build(fixture_path("./deep_import_interp.jac"))
-    Jac.jac_import("deep_import_interp", base_path=fixture_path("./"))
-    # Note: hub size can vary depending on whether compiler support modules
-    # (e.g., `import_pass.jac` and its annexes) are compiled/registered in this run.
-    assert len(Jac.get_program().mod.hub.keys()) in {5, 6, 7}
+    prog.compile(fixture_path("./deep_import_interp.jac"))
+    # as we use jac_import, only main module should be in the hub
+    assert len(Jac.get_program().mod.hub.keys()) == 1
 
 
 def test_deep_imports_mods(
@@ -1844,6 +1859,12 @@ def test_safe_call_operator(
     assert "None" in stdout_value[3]
     assert "3" in stdout_value[4]
     assert "None" in stdout_value[5]
+    assert "3" in stdout_value[6]
+    assert "None" in stdout_value[7]
+    assert "[2, 3]" in stdout_value[8]
+    assert "[]" in stdout_value[9]
+    assert "None" in stdout_value[10]
+    assert "None" in stdout_value[11]
 
 
 def test_anonymous_ability_execution(

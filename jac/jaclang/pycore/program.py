@@ -4,18 +4,12 @@ from __future__ import annotations
 
 import ast as py_ast
 import marshal
+import os
 import types
 from threading import Event
 from typing import TYPE_CHECKING
 
 import jaclang.pycore.unitree as uni
-from jaclang.compiler.passes.main import (
-    Alert,
-    PyastGenPass,
-    PyBytecodeGenPass,
-    SymTabBuildPass,
-    Transform,
-)
 from jaclang.pycore.bccache import (
     BytecodeCache,
     CacheKey,
@@ -23,6 +17,16 @@ from jaclang.pycore.bccache import (
 )
 from jaclang.pycore.helpers import read_file_with_encoding
 from jaclang.pycore.jac_parser import JacParser
+from jaclang.pycore.passes import (
+    Alert,
+    DeclImplMatchPass,
+    JacAnnexPass,
+    PyastGenPass,
+    PyBytecodeGenPass,
+    SemanticAnalysisPass,
+    SymTabBuildPass,
+    Transform,
+)
 from jaclang.pycore.tsparser import TypeScriptParser
 
 if TYPE_CHECKING:
@@ -32,19 +36,12 @@ if TYPE_CHECKING:
 # Lazy schedule getters - enables converting analysis passes to Jac
 def get_symtab_ir_sched() -> list[type[Transform[uni.Module, uni.Module]]]:
     """Return symbol table build schedule with lazy imports."""
-    from jaclang.compiler.passes.main import DeclImplMatchPass
-
     return [SymTabBuildPass, DeclImplMatchPass]
 
 
 def get_ir_gen_sched() -> list[type[Transform[uni.Module, uni.Module]]]:
     """Return full IR generation schedule with lazy imports."""
-    from jaclang.compiler.passes.main import (
-        CFGBuildPass,
-        DeclImplMatchPass,
-        SemanticAnalysisPass,
-        SemDefMatchPass,
-    )
+    from jaclang.compiler.passes.main import CFGBuildPass, SemDefMatchPass
 
     return [
         SymTabBuildPass,
@@ -76,8 +73,6 @@ def get_minimal_ir_gen_sched() -> list[type[Transform[uni.Module, uni.Module]]]:
     This schedule is used for bootstrap-critical modules that need basic
     semantic analysis but don't need full control flow analysis.
     """
-    from jaclang.compiler.passes.main import DeclImplMatchPass, SemanticAnalysisPass
-
     return [SymTabBuildPass, DeclImplMatchPass, SemanticAnalysisPass]
 
 
@@ -164,14 +159,14 @@ class JacProgram:
         # Clear the type evaluator (will be recreated lazily if needed)
         self.type_evaluator = None
 
-        # Clear .type attributes from all Expr nodes in all modules
-        for mod in self.mod.hub.values():
-            for node in mod.get_all_sub_nodes(uni.Expr, brute_force=True):
-                node.type = None
-
-        # Optionally clear the entire module hub
+        # Optionally clear the entire module hub (skip node traversal if clearing hub)
         if clear_hub:
             self.mod.hub.clear()
+        else:
+            # Clear .type attributes from all Expr nodes in all modules
+            for mod in self.mod.hub.values():
+                for node in mod.get_all_sub_nodes(uni.Expr, brute_force=True):
+                    node.type = None
 
     def get_bytecode(
         self, full_target: str, minimal: bool = False
@@ -245,8 +240,6 @@ class JacProgram:
         if self.mod.main.stub_only:
             self.mod = uni.ProgramModule(mod)
         self.mod.hub[mod.loc.mod_path] = mod
-        from jaclang.compiler.passes.main import JacAnnexPass
-
         JacAnnexPass(ir_in=mod, prog=self)
         return mod
 
@@ -274,7 +267,17 @@ class JacProgram:
                      This avoids circular imports for bootstrap-critical modules.
             cancel_token: Optional event to cancel compilation.
         """
-        keep_str = use_str or read_file_with_encoding(file_path)
+        if use_str:
+            keep_str = use_str
+        elif not os.path.exists(file_path):
+            if file_path.endswith(".jac") and os.path.exists(
+                file_path[:-4] + ".cl.jac"
+            ):
+                keep_str = ""
+            else:
+                raise OSError(f"File {file_path} does not exist.")
+        else:
+            keep_str = read_file_with_encoding(file_path)
         mod_targ = self.parse_str(keep_str, file_path, cancel_token=cancel_token)
         if symtab_ir_only:
             # only build symbol table and match decl/impl (skip semantic analysis and CFG)
@@ -309,10 +312,7 @@ class JacProgram:
         self, file_path: str, use_str: str | None = None, type_check: bool = False
     ) -> uni.Module:
         """Convert a Jac file to an AST."""
-        from jaclang.compiler.passes.main import JacImportDepsPass, SemanticAnalysisPass
-
         mod_targ = self.compile(file_path, use_str, type_check=type_check)
-        JacImportDepsPass(ir_in=mod_targ, prog=self)
         SemanticAnalysisPass(ir_in=mod_targ, prog=self)
         return mod_targ
 

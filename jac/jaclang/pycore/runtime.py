@@ -9,10 +9,11 @@ import os
 import sys
 import types
 from collections import OrderedDict
-from collections.abc import Callable, Coroutine, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Iterator, Mapping, Sequence
 
 # Direct imports from runtimelib (no longer lazy - these are now pure Python)
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager, suppress
 from dataclasses import MISSING, dataclass, field
 from functools import wraps
 from inspect import getfile
@@ -1351,6 +1352,14 @@ class JacBasics:
         return target
 
     @staticmethod
+    def safe_subscript(obj: Any, key: Any) -> Any:  # noqa: ANN401
+        """Jac's safe subscript feature."""
+        try:
+            return obj[key]
+        except (KeyError, IndexError, TypeError):
+            return None
+
+    @staticmethod
     def root() -> Root:
         """Jac's root getter."""
         return JacRuntime.get_context().get_root()
@@ -1882,6 +1891,84 @@ class JacUtils:
         return future.result()
 
 
+class JacPluginConfig:
+    """Plugin configuration hooks for jac.toml integration.
+
+    Plugins can implement these hooks to register their configuration schemas
+    and receive configuration values from jac.toml.
+    """
+
+    @staticmethod
+    def get_plugin_metadata() -> dict[str, Any] | None:
+        """Return plugin metadata.
+
+        Returns:
+            dict with keys:
+                - name: Plugin name (used in [plugins.<name>])
+                - version: Plugin version
+                - description: Brief description
+        """
+        return None
+
+    @staticmethod
+    def get_config_schema() -> dict[str, Any] | None:
+        """Return the plugin's configuration schema.
+
+        Returns:
+            dict with keys:
+                - section: Section name in jac.toml (e.g., 'byllm' for [plugins.byllm])
+                - options: dict mapping option names to their specs:
+                    {
+                        'option_name': {
+                            'type': 'str' | 'int' | 'float' | 'bool' | 'list' | 'dict',
+                            'default': <default_value>,
+                            'description': 'Description of the option',
+                            'env_var': 'OPTIONAL_ENV_VAR_OVERRIDE',
+                            'required': False,
+                        }
+                    }
+        """
+        return None
+
+    @staticmethod
+    def on_config_loaded(config: dict[str, Any]) -> None:
+        """Called when plugin configuration is loaded from jac.toml.
+
+        Args:
+            config: The plugin's configuration values from [plugins.<name>]
+        """
+        pass
+
+    @staticmethod
+    def validate_config(config: dict[str, Any]) -> list[str]:
+        """Validate plugin configuration.
+
+        Args:
+            config: The plugin's configuration values
+
+        Returns:
+            List of error messages (empty if valid)
+        """
+        return []
+
+    @staticmethod
+    def register_dependency_type() -> dict[str, Any] | None:
+        """Register a custom dependency type.
+
+        Allows plugins to extend [dependencies.*] sections in jac.toml.
+
+        Returns:
+            dict with keys:
+                - name: Dependency type name (e.g., 'npm' for [dependencies.npm])
+                - dev_name: Dev dependency section (e.g., 'npm.dev')
+                - cli_flag: CLI flag for 'jac add' (e.g., '--cl')
+                - install_dir: Directory for installed deps (e.g., 'client')
+                - install_handler: Callable to install packages
+                - remove_handler: Callable to remove packages
+        """
+        return None
+
+
 class JacRuntimeInterface(
     JacClassReferences,
     JacAccessValidation,
@@ -1896,6 +1983,7 @@ class JacRuntimeInterface(
     JacByLLM,
     JacResponseBuilder,
     JacUtils,
+    JacPluginConfig,
 ):
     """Jac Feature."""
 
@@ -2085,3 +2173,44 @@ class JacRuntime(JacRuntimeInterface):
         if JacRuntime.exec_ctx is not None:
             JacRuntime.exec_ctx.mem.close()
         JacRuntime.exec_ctx = JacRuntimeInterface.create_j_context()
+
+
+@contextmanager
+def without_plugins() -> Iterator[None]:
+    """Context manager to temporarily disable external plugins.
+
+    Useful for tests that need to run without plugin interference.
+    Core JacRuntimeImpl is preserved, only external plugins are disabled.
+
+    Usage:
+        from jaclang.pycore.runtime import without_plugins
+
+        def test_something():
+            with without_plugins():
+                # Test code runs without external plugins
+                pass
+
+        # Or as a pytest fixture:
+        @pytest.fixture
+        def no_plugins():
+            with without_plugins():
+                yield
+    """
+    # Store external plugins to restore later
+    external_plugins: list[tuple[str, Any]] = []
+
+    # Identify and unregister external plugins
+    for name, plugin in list(plugin_manager.list_name_plugin()):
+        # Keep JacRuntimeImpl (the core implementation)
+        if plugin is JacRuntimeImpl or name == "JacRuntimeImpl":
+            continue
+        external_plugins.append((name, plugin))
+        plugin_manager.unregister(plugin=plugin, name=name)
+
+    try:
+        yield
+    finally:
+        # Re-register all external plugins
+        for name, plugin in external_plugins:
+            with suppress(ValueError):
+                plugin_manager.register(plugin, name=name)

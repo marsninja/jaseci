@@ -1,5 +1,19 @@
 # Working with TypeScript in Jac
 
+> **️ Version Compatibility Warning**
+>
+> **For jac-client < 0.2.4:**
+>
+> - All `def` functions are **automatically exported** - no `:pub` needed
+> - You **cannot export variables** (globals)
+>
+> **For jac-client >= 0.2.4:**
+>
+> - Functions and variables **must be explicitly exported** with `:pub` to be importable
+> - This documentation assumes version 0.2.4 or later
+
+## TypeScript as Last Resort
+
 > **️ Warning: TypeScript as Last Resort**
 >
 > **Always prefer writing code in Jac when possible.** TypeScript support is provided for cases where you need to:
@@ -25,10 +39,10 @@ Jac supports importing and using TypeScript (`.ts`, `.tsx`) components alongside
 TypeScript is automatically supported by default. Simply create a new project:
 
 ```bash
-jac create_jac_app my-app
+jac create --cl my-app
 ```
 
-TypeScript is ready to use immediately. No configuration needed!
+TypeScript is ready to use immediately. A sample Button component is included in `src/components/Button.tsx`!
 
 ---
 
@@ -36,7 +50,7 @@ TypeScript is ready to use immediately. No configuration needed!
 
 ### Example: Creating a Button Component
 
-Create a TypeScript component in `components/Button.tsx`:
+Create a TypeScript component in `src/components/Button.tsx`:
 
 ```typescript
 import React from 'react';
@@ -129,6 +143,27 @@ cl {
 - Use quotes around the import path: `".components/Button.tsx"`
 - Include the `.tsx` extension in the import path
 - Import named exports: `{ Button }`
+
+## Customizing TypeScript Configuration
+
+While TypeScript works out of the box, you can customize the generated `tsconfig.json` via `jac.toml`:
+
+```toml
+# Override compiler options
+[plugins.client.ts.compilerOptions]
+target = "ES2022"
+strict = false
+noUnusedLocals = false
+
+# Custom include/exclude paths
+[plugins.client.ts]
+include = ["components/**/*", "lib/**/*"]
+exclude = ["node_modules", "dist", "tests"]
+```
+
+**Note**: If you provide your own `tsconfig.json` file in the project root, it will be used as-is instead of generating one.
+
+For more details, see [Custom Configuration](./advance/custom-config.md).
 
 ## Troubleshooting
 
