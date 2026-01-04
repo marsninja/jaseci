@@ -728,17 +728,8 @@ impl JacAutoLintPass._is_matching_attr_access(
         return False;
     }
     # The target must match the object expression
-    # For simple names, compare the values
-    if isinstance(obj_expr, uni.Name) and isinstance(trailer.target, uni.Name) {
-        return obj_expr.value == trailer.target.value;
-    }
-    # For more complex expressions, we'd need deeper comparison
-    # For now, use string comparison of unparsed expressions
-    try {
-        return obj_expr.unparse() == trailer.target.unparse();
-    } except Exception {
-        return False;
-    }
+    # Use structural comparison to avoid corrupting locations via unparse()
+    return self._exprs_are_identical(obj_expr, trailer.target);
 }
 
 """Convert an AtomTrailer to use null-safe access.
@@ -880,6 +871,34 @@ impl JacAutoLintPass._collect_atom_trailers(
     }
 }
 
+"""Build a string key from an expression without calling unparse().
+
+This avoids triggering normalize() which corrupts token locations.
+Returns None if the expression is too complex to build a key from.
+"""
+impl JacAutoLintPass._expr_to_key(
+    self: JacAutoLintPass, expr: uni.Expr
+) -> (str | None) {
+    if isinstance(expr, uni.Name) {
+        return expr.value;
+    }
+    if isinstance(expr, uni.AtomTrailer) {
+        if expr.is_attr and isinstance(expr.right, uni.Name) {
+            target_key = self._expr_to_key(expr.target);
+            if target_key is not None {
+                null_ok = "?" if expr.is_null_ok else "";
+                return f"{target_key}{null_ok}.{expr.right.value}";
+            }
+        }
+        return None;
+    }
+    if isinstance(expr, uni.SpecialVarRef) {
+        return expr.name.value if expr.name else None;
+    }
+    # For other expression types, return None (too complex)
+    return None;
+}
+
 """Get a unique key for an AtomTrailer based on its target and attribute.
 
 Returns a string like "obj.attr" that can be used to identify matching accesses.
@@ -895,24 +914,65 @@ impl JacAutoLintPass._get_trailer_key(
         return None;
     }
     attr_name = trailer.right.value;
-    # Get the target as a string
-    try {
-        target_str = trailer.target.unparse();
-        return f"{target_str}.{attr_name}";
-    } except Exception {
-        return None;
+    # Build key from target without calling unparse()
+    target_key = self._expr_to_key(trailer.target);
+    if target_key is not None {
+        null_ok = "?" if trailer.is_null_ok else "";
+        return f"{target_key}{null_ok}.{attr_name}";
     }
+    return None;
 }
 
-"""Check if two expressions are structurally identical by comparing their unparsed form."""
+"""Check if two expressions are structurally identical without calling unparse().
+
+This avoids triggering normalize() which corrupts token locations.
+"""
 impl JacAutoLintPass._exprs_are_identical(
     self: JacAutoLintPass, expr1: uni.Expr, expr2: uni.Expr
 ) -> bool {
-    try {
-        return expr1.unparse() == expr2.unparse();
-    } except Exception {
+    # Same object reference
+    if expr1 is expr2 {
+        return True;
+    }
+    # Must be same type
+    if type(expr1) != type(expr2) {
         return False;
     }
+    # Compare Names by value
+    if isinstance(expr1, uni.Name) and isinstance(expr2, uni.Name) {
+        return expr1.value == expr2.value;
+    }
+    # Compare AtomTrailers recursively
+    if isinstance(expr1, uni.AtomTrailer) and isinstance(expr2, uni.AtomTrailer) {
+        if expr1.is_attr != expr2.is_attr {
+            return False;
+        }
+        if expr1.is_null_ok != expr2.is_null_ok {
+            return False;
+        }
+        if not self._exprs_are_identical(expr1.target, expr2.target) {
+            return False;
+        }
+        if isinstance(expr1.right, uni.Name) and isinstance(expr2.right, uni.Name) {
+            return expr1.right.value == expr2.right.value;
+        }
+        return self._exprs_are_identical(expr1.right, expr2.right);
+    }
+    # Compare SpecialVarRef
+    if isinstance(expr1, uni.SpecialVarRef) and isinstance(expr2, uni.SpecialVarRef) {
+        if expr1.name and expr2.name {
+            return expr1.name.value == expr2.name.value;
+        }
+        return expr1.name is None and expr2.name is None;
+    }
+    # For other types, use key comparison as fallback
+    key1 = self._expr_to_key(expr1);
+    key2 = self._expr_to_key(expr2);
+    if key1 is not None and key2 is not None {
+        return key1 == key2;
+    }
+    # Cannot safely compare - assume not identical
+    return False;
 }
 
 """Convert IfElseExpr to BoolExpr with or when value equals condition.

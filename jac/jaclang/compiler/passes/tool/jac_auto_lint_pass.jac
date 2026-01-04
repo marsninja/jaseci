@@ -79,6 +79,7 @@ class JacAutoLintPass(UniPass) {
         self: JacAutoLintPass, uni_node: uni.UniNode, results: list
     ) -> None;
 
+    def _expr_to_key(self: JacAutoLintPass, expr: uni.Expr) -> (str | None);
     def _get_trailer_key(
         self: JacAutoLintPass, trailer: uni.AtomTrailer
     ) -> (str | None);
