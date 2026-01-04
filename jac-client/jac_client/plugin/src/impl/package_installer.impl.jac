@@ -98,7 +98,7 @@ impl PackageInstaller.install_package(
 }
 
 """Handles installing npm packages by updating jac.toml."""
-impl PackageInstaller.init(self: PackageInstaller, project_dir: Path){
+impl PackageInstaller.init(self: PackageInstaller, project_dir: Path) {
     self.project_dir = project_dir;
     self.config_loader = JacClientConfig(project_dir);
     self.config_file = project_dir / 'jac.toml';

@@ -16,7 +16,7 @@ impl GuessGame.start_game{
     visit [-->];
 }
 
-impl GuessGame.process_guess(guess: int){
+impl GuessGame.process_guess(guess: int) {
     if guess > self.correct_number {
         print("Too high!");
     } elif guess < self.correct_number {

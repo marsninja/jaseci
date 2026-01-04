@@ -2,7 +2,7 @@
 # Media Implementations
 #-------------------------------------------------------------------------------
 """Convert the content to a dictionary. Subclasses must implement."""
-impl Media.to_dict -> list[dict]{
+impl Media.to_dict -> list[dict] {
     raise NotImplementedError("Subclasses must implement this method.") ;
 }
 
@@ -10,7 +10,7 @@ impl Media.to_dict -> list[dict]{
 # Text
 #-------------------------------------------------------------------------------
 """Convert the text content to a dictionary."""
-impl Text.to_dict -> list[dict]{
+impl Text.to_dict -> list[dict] {
     return [{"type": "text", "text": self.text}];
 }
 
@@ -152,7 +152,7 @@ impl Image._data_url_from_bytes(data: bytes, fmt: str | None) -> str {
 }
 
 """Convert the image to a dictionary for LLM API calls."""
-impl Image.to_dict -> list[dict]{
+impl Image.to_dict -> list[dict] {
     image_url = {"url": self.url};
     if self.mime_type {
         image_url["format"] = self.mime_type;
@@ -202,7 +202,7 @@ impl Video.load_frames -> None {
 }
 
 """Convert the video frames to a list of image dictionaries."""
-impl Video.to_dict -> list[dict]{
+impl Video.to_dict -> list[dict] {
     if self._base64frames is None {
         self.load_frames();
     }

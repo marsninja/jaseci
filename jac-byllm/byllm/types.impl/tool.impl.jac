@@ -63,7 +63,7 @@ impl Tool.is_finish_tool -> bool {
 }
 
 """Return the JSON schema for the tool function."""
-impl Tool.get_json_schema -> dict[str, object]{
+impl Tool.get_json_schema -> dict[str, object] {
     return tool_to_schema(self.func, self.description, self.params_desc);
 }
 

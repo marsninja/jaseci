@@ -353,11 +353,11 @@ impl MongoDB.postinit -> None {
     self.collection = self.db[self.collection_name];
 }
 
-impl MultiHierarchyMemory.<>set(anchor: TANCH){
+impl MultiHierarchyMemory.<>set(anchor: TANCH) {
     self.mem.set(anchor);
 }
 
-impl MultiHierarchyMemory.delete(anchor: Anchor){
+impl MultiHierarchyMemory.delete(anchor: Anchor) {
     self.mem.remove(anchor.id);
     if self.redis.redis_is_available() {
         self.redis.remove(anchor);
@@ -381,7 +381,7 @@ impl MultiHierarchyMemory.close{
     self.mem.close();
 }
 
-impl MultiHierarchyMemory.commit(anchor: (Anchor | None) = None){
+impl MultiHierarchyMemory.commit(anchor: (Anchor | None) = None) {
     gc = self.mem.get_gc();
     memory = self.mem.get_mem();
     if anchor {

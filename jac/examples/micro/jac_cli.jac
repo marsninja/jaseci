@@ -13,7 +13,7 @@ obj Interface {
     has functions: list[callable] = [];
 
     def register(func: callable) -> callable;
-    def create_parser()  -> ArgumentParser;
+    def create_parser -> ArgumentParser;
     def run_from_cli;
     def run_shell;
 }
@@ -95,12 +95,12 @@ impl Interface.run_shell{
     ShellCmd(self).cmdloop();
 }
 
-impl ShellCmd.init(registry: Interface, *args: list, **kwargs: dict){
+impl ShellCmd.init(registry: Interface, *args: list, **kwargs: dict) {
     self.cmd.Cmd.__init__(*args, **kwargs);
     self.reg = registry;
 }
 
-impl ShellCmd.default(line: str){
+impl ShellCmd.default(line: str) {
     args = line.split();
     parser = self.reg.create_parser();
     try {

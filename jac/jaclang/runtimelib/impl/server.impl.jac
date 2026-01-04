@@ -304,7 +304,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
 }
 
 """Collect callable functions from module."""
-impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., Any)]]{
+impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., Any)]] {
     if not self._module {
         return {};
     }
@@ -334,7 +334,7 @@ impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., Any)]]{
 }
 
 """Collect walker classes from module."""
-impl ModuleIntrospector._collect_walkers -> dict[str, type[WalkerArchetype]]{
+impl ModuleIntrospector._collect_walkers -> dict[str, type[WalkerArchetype]] {
     import from jaclang.pycore.constructs { WalkerArchetype }
     if not self._module {
         return {};
@@ -354,7 +354,7 @@ impl ModuleIntrospector._collect_walkers -> dict[str, type[WalkerArchetype]]{
 }
 
 """Get all functions."""
-impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., Any)]]{
+impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., Any)]] {
     if not self._functions {
         self.load();
     }
@@ -362,7 +362,7 @@ impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., Any)]]{
 }
 
 """Get all walkers."""
-impl ModuleIntrospector.get_walkers -> dict[str, type[WalkerArchetype]]{
+impl ModuleIntrospector.get_walkers -> dict[str, type[WalkerArchetype]] {
     if not self._walkers {
         self.load();
     }
@@ -370,7 +370,7 @@ impl ModuleIntrospector.get_walkers -> dict[str, type[WalkerArchetype]]{
 }
 
 """Get client-exportable functions."""
-impl ModuleIntrospector.get_client_functions -> dict[str, Callable[(..., Any)]]{
+impl ModuleIntrospector.get_client_functions -> dict[str, Callable[(..., Any)]] {
     if not self._client_functions {
         self.load();
     }
@@ -506,7 +506,7 @@ impl ModuleIntrospector.is_auth_required_for_walker(walker_name: str) -> bool {
 }
 
 """Collect client-exposed global values."""
-impl ModuleIntrospector._collect_client_globals -> dict[str, Any]{
+impl ModuleIntrospector._collect_client_globals -> dict[str, Any] {
     if not self._module {
         return {};
     }
@@ -713,7 +713,7 @@ impl JacAPIServer.postinit -> None {
 }
 
 """Create HTTP request handler."""
-impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler]{
+impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
     server = self;
     """Handle HTTP requests.""";
     class JacRequestHandler(BaseHTTPRequestHandler) {
@@ -1071,12 +1071,12 @@ impl JacAPIServer.module -> object {
 }
 
 """Get all functions (backward compatibility)."""
-impl JacAPIServer.get_functions -> dict[str, Callable[(..., Any)]]{
+impl JacAPIServer.get_functions -> dict[str, Callable[(..., Any)]] {
     return self.introspector.get_functions();
 }
 
 """Get all walkers (backward compatibility)."""
-impl JacAPIServer.get_walkers -> dict[str, type[WalkerArchetype]]{
+impl JacAPIServer.get_walkers -> dict[str, type[WalkerArchetype]] {
     return self.introspector.get_walkers();
 }
 

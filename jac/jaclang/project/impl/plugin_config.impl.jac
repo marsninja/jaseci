@@ -21,7 +21,7 @@ impl deep_merge(base: dict[str, Any], override_dict: dict[str, Any]) -> dict[str
 }
 
 """Initialize config loader with project directory."""
-impl PluginConfigBase.init(self: PluginConfigBase, project_dir: Path | None = None){
+impl PluginConfigBase.init(self: PluginConfigBase, project_dir: Path | None = None) {
     if project_dir is None {
         self.project_dir = Path.cwd();
     } else {

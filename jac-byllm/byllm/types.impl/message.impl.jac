@@ -2,7 +2,7 @@
 # Message Implementations
 #-------------------------------------------------------------------------------
 """Convert the message to a dictionary for LLM API calls."""
-impl Message.to_dict -> dict[str, object]{
+impl Message.to_dict -> dict[str, object] {
     if isinstance(self.content, str) {
         return {"role": self.role.value, "content": self.content,};
     }
@@ -22,7 +22,7 @@ impl ToolCallResultMsg.postinit -> None {
 }
 
 """Convert the tool call result message to a dictionary."""
-impl ToolCallResultMsg.to_dict -> dict[str, object]{
+impl ToolCallResultMsg.to_dict -> dict[str, object] {
     return {
         "role": self.role.value,
         "content": self.content,

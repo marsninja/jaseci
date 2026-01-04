@@ -1209,17 +1209,20 @@ impl JacAutoLintPass._fix_impl_signature_mismatch(
     if not isinstance(impl_node.spec, uni.FuncSignature) {
         return;
     }
-    # Compare signatures using unparse
-    decl_sig_str: str = "";
-    impl_sig_str: str = "";
-    try {
-        decl_sig_str = decl.signature.unparse();
-        impl_sig_str = impl_node.spec.unparse();
-    } except Exception {
-        return;
-    }
-    # If signatures match, nothing to do
-    if decl_sig_str == impl_sig_str {
+    # Compare signatures structurally without calling unparse/normalize
+    # (unparse triggers normalize which corrupts token locations)
+    decl_sig = decl.signature;
+    impl_sig = impl_node.spec;
+    # Compare parameter counts
+    if (
+        len(decl_sig.params) == len(impl_sig.params)
+        and len(decl_sig.posonly_params) == len(impl_sig.posonly_params)
+        and len(decl_sig.kwonlyargs) == len(impl_sig.kwonlyargs)
+        and (decl_sig.varargs is None) == (impl_sig.varargs is None)
+        and (decl_sig.kwargs is None) == (impl_sig.kwargs is None)
+        and (decl_sig.return_type is None) == (impl_sig.return_type is None)
+    ) {
+        # Signatures are structurally equivalent, no need to replace
         return;
     }
     # Copy the declaration's signature to the impl
