@@ -65,7 +65,8 @@ impl JacFormatPass.format_doc_ir(
             }
             result.append(part_str);
             if ('\n' in part_str) {
-                last_line = part_str.splitlines()[-1];
+                lines = part_str.splitlines();
+                last_line = lines[-1] if lines else '';
                 full_budget = max(0, (self.MAX_LINE_LENGTH - total_indent));
                 indent_str = ' ' * total_indent;
                 if last_line.startswith(indent_str) {
