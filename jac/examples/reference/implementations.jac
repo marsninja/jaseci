@@ -48,7 +48,7 @@ impl Calculator.multiply(value: float){
     self.total *= value;
 }
 
-impl Calculator.get_result()  -> float {
+impl Calculator.get_result -> float {
     return self.total;
 }
 

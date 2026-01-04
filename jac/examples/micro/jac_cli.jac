@@ -54,7 +54,7 @@ impl Interface.register(func: callable) -> callable {
     return func;
 }
 
-impl Interface.create_parser()  -> ArgumentParser {
+impl Interface.create_parser -> ArgumentParser {
     parser = ArgumentParser();
     parser.add_argument(
         "base", choices=[f.__name__ for f in functions], help="The function to run"

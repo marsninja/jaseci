@@ -2,7 +2,7 @@
 
 impl PackageInstaller.list_packages(
     self: PackageInstaller
-) -> dict[str, dict[str, str]] {
+) -> dict[str, dict[(str, str)]] {
     if not self.config_file.exists() {
         raise ClientBundleError(
             f'jac.toml not found at {self.config_file}. Run "jac init" first.'
@@ -98,7 +98,7 @@ impl PackageInstaller.install_package(
 }
 
 """Handles installing npm packages by updating jac.toml."""
-impl PackageInstaller.init(self: PackageInstaller, project_dir: Path) {
+impl PackageInstaller.init(self: PackageInstaller, project_dir: Path){
     self.project_dir = project_dir;
     self.config_loader = JacClientConfig(project_dir);
     self.config_file = project_dir / 'jac.toml';

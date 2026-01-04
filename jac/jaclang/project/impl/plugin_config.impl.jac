@@ -21,7 +21,7 @@ impl deep_merge(base: dict[str, Any], override_dict: dict[str, Any]) -> dict[str
 }
 
 """Initialize config loader with project directory."""
-impl PluginConfigBase.init(self: PluginConfigBase, project_dir: Path | None = None) {
+impl PluginConfigBase.init(self: PluginConfigBase, project_dir: Path | None = None){
     if project_dir is None {
         self.project_dir = Path.cwd();
     } else {
@@ -64,7 +64,7 @@ impl PluginConfigBase.get_jac_config(self: PluginConfigBase) -> JacConfig {
 
 """Get a configuration section with optional defaults."""
 impl PluginConfigBase.get_section(
-    self: PluginConfigBase, section: str, defaults: dict[str, Any] | None = None
+    self: PluginConfigBase, section: str, defaults: dict[(str, Any)] | None = None
 ) -> dict[str, Any] {
     config = self.load();
     section_config = config.get(section, {});

@@ -85,7 +85,7 @@ impl completion_kind_from_sym(sym: Symbol) -> int {
 }
 
 """Check if there are any unmatched required parameters."""
-impl ParamAssignmentTracker.get_unmatched_required_params -> list[types.Parameter] {
+impl ParamAssignmentTracker.get_unmatched_required_params -> list[types.Parameter]{
     ret: list[types.Parameter] = [];
     for param in self.params {
         if (
