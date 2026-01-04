@@ -1,6 +1,9 @@
 """Test Jac Auto Lint Pass module."""
 
+import contextlib
 import os
+import shutil
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -374,6 +377,47 @@ class TestFormatCommandIntegration:
 
         # Linting should have been applied
         assert "glob" in formatted
+
+    def test_format_auto_formats_impl_files(
+        self, auto_lint_fixture_path: Callable[[str], str]
+    ) -> None:
+        """Test that CLI format command writes both main and impl files."""
+        from jaclang.cli import cli
+
+        # Copy fixture files to temp directory
+        fixture_dir = os.path.dirname(auto_lint_fixture_path("sig_mismatch.jac"))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Copy main file
+            main_src = auto_lint_fixture_path("sig_mismatch.jac")
+            main_dst = os.path.join(tmpdir, "sig_mismatch.jac")
+            shutil.copy2(main_src, main_dst)
+
+            # Copy impl file (create impl subdirectory)
+            impl_dir = os.path.join(tmpdir, "impl")
+            os.makedirs(impl_dir)
+            impl_src = os.path.join(fixture_dir, "impl", "sig_mismatch.impl.jac")
+            impl_dst = os.path.join(impl_dir, "sig_mismatch.impl.jac")
+            shutil.copy2(impl_src, impl_dst)
+
+            # Read original impl content (has wrong param names)
+            with open(impl_dst) as f:
+                original_impl = f.read()
+            assert "impl Calculator.add(a: int, b: int)" in original_impl
+
+            # Run CLI format command with --fix
+            # format exits 1 when files change (for pre-commit usage)
+            with contextlib.suppress(SystemExit):
+                cli.format([main_dst], fix=True)
+
+            # Read the updated impl file
+            with open(impl_dst) as f:
+                updated_impl = f.read()
+
+            # The impl file should have been fixed: param names changed from a,b to x,y
+            assert "impl Calculator.add(x: int, y: int)" in updated_impl, (
+                f"Impl file should have been updated with fixed params.\n"
+                f"Got: {updated_impl}"
+            )
 
 
 class TestRemoveUnnecessaryEscape:
