@@ -196,12 +196,31 @@ impl JacConfig.get_plugin_config(plugin_name: str) -> dict[str, Any] {
     return self.plugins.get(plugin_name, {});
 }
 
-impl JacConfig.get_packages_dir -> Path {
+impl JacConfig.get_build_dir -> Path {
+    """Get the base build directory for all artifacts."""
     import from pathlib { Path }
-    if self.project_root {
-        return self.project_root / "packages";
-    }
-    return Path.cwd() / "packages";
+    base = self.project_root if self.project_root else Path.cwd();
+    return base / self.build.dir;
+}
+
+impl JacConfig.get_cache_dir -> Path {
+    """Get the bytecode cache directory (.jac/cache)."""
+    return self.get_build_dir() / "cache";
+}
+
+impl JacConfig.get_packages_dir -> Path {
+    """Get the Python packages directory (.jac/packages)."""
+    return self.get_build_dir() / "packages";
+}
+
+impl JacConfig.get_data_dir -> Path {
+    """Get the data directory for runtime artifacts (.jac/data)."""
+    return self.get_build_dir() / "data";
+}
+
+impl JacConfig.get_client_dir -> Path {
+    """Get the client build directory (.jac/client)."""
+    return self.get_build_dir() / "client";
 }
 
 impl JacConfig.is_valid -> bool {
@@ -511,7 +530,10 @@ impl _parse_toml_data(
     }
     if "build" in data {
         build_data = data["build"];
-        config.build = BuildConfig(typecheck=build_data.get("typecheck", False));
+        config.build = BuildConfig(
+            typecheck=build_data.get("typecheck", False),
+            dir=build_data.get("dir", ".jac")
+        );
     }
     if "test" in data {
         test_data = data["test"];

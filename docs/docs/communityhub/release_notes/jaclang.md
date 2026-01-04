@@ -4,6 +4,8 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.9.5 (Unreleased)
 
+- **Consolidated Build Artifacts Directory**: All Jac project build artifacts are now organized under a single `.jac/` directory instead of being scattered across the project root. This includes bytecode cache (`.jac/cache/`), Python packages (`.jac/packages/`), client build artifacts (`.jac/client/`), and runtime data like ShelfDB (`.jac/data/`). The base directory is configurable via `[build].dir` in `jac.toml`. This simplifies `.gitignore` to a single entry and provides cleaner project structures.
+
 ## jaclang 0.9.4 (Latest Release)
 
 - **`let` Keyword Removed**: The `let` keyword has been removed from Jaclang. Variable declarations now use direct assignment syntax (e.g., `x = 10` instead of `let x = 10`), aligning with Python's approach to variable binding.
