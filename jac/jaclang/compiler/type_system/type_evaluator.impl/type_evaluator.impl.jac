@@ -645,7 +645,7 @@ impl TypeEvaluator.get_index_of_symbol_resolution(
 }
 
 """Return the prefetched types for the type evaluator."""
-impl TypeEvaluator._prefetch_types(self: TypeEvaluator){
+impl TypeEvaluator._prefetch_types(self: TypeEvaluator) {
     get_types_type = lambda  type_name: str  -> types.TypeBase:
         self._get_type_from_module(self.types_module, type_name);
     get_typing_type = lambda  type_name: str  -> types.TypeBase:

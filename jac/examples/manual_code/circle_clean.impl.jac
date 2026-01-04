@@ -12,7 +12,7 @@ impl calculate_area(radius: float) -> float {
     return math.pi * radius * radius;
 }
 
-impl Circle.init(radius: float){
+impl Circle.init(radius: float) {
     self.radius = radius;
     super.init(ShapeType.CIRCLE);
 }
