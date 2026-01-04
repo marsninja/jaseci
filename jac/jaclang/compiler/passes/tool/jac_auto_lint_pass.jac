@@ -52,6 +52,7 @@ class JacAutoLintPass(UniPass) {
     def enter_archetype(self: JacAutoLintPass, node: uni.Archetype) -> None;
     def enter_enum(self: JacAutoLintPass, node: uni.Enum) -> None;
     def enter_impl_def(self: JacAutoLintPass, node: uni.ImplDef) -> None;
+    def exit_impl_def(self: JacAutoLintPass, <>node: uni.ImplDef) -> None;
     def enter_ability(self: JacAutoLintPass, ability_node: uni.Ability) -> None;
     def _remove_staticmethod_from_kids(
         self: JacAutoLintPass, ability_node: uni.Ability

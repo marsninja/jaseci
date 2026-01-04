@@ -202,6 +202,58 @@ impl JacAutoLintPass.enter_impl_def(self: JacAutoLintPass, node: uni.ImplDef) ->
     }
 }
 
+"""Remove empty parentheses from impl signatures with no parameters.
+
+This handles both cases:
+- No params, no return type: Remove the entire signature from the impl
+- No params, with return type: Remove just LPAREN/RPAREN, keep return type
+"""
+impl JacAutoLintPass.exit_impl_def(self: JacAutoLintPass, <>node: uni.ImplDef) -> None {
+    if not self.lint_enabled {
+        return;
+    }
+    spec = <>node.spec;
+    if not isinstance(spec, uni.FuncSignature) {
+        return;
+    }
+    # Only remove parens if signature has no params at all
+    has_params = (
+        len(spec.params) > 0
+        or len(spec.posonly_params) > 0
+        or spec.varargs is not None
+        or len(spec.kwonlyargs) > 0
+        or spec.kwargs is not None
+    );
+    if has_params {
+        return;
+    }
+    # No params - check if there's a return type
+    if spec.return_type is None {
+        # No return type either - remove the entire signature
+        <>node.spec = None;
+        # Remove signature from impl's kid list
+        new_kid: list = [];
+        for kid in <>node.kid {
+            if kid is not spec {
+                new_kid.append(kid);
+            }
+        }
+        <>node.kid = new_kid;
+    } else {
+        # Has return type - remove just the parentheses tokens
+        new_kid: list = [];
+        for kid in spec.kid {
+            if isinstance(kid, uni.Token) and kid.name in (Tok.LPAREN, Tok.RPAREN) {
+                continue;
+            }
+            new_kid.append(kid);
+        }
+        if len(new_kid) != len(spec.kid) and len(new_kid) > 0 {
+            spec.set_kids(nodes=new_kid);
+        }
+    }
+}
+
 """Process Enum to combine consecutive has statements."""
 impl JacAutoLintPass.enter_enum(self: JacAutoLintPass, node: uni.Enum) -> None {
     if not self.lint_enabled {

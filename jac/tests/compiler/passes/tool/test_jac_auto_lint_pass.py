@@ -477,6 +477,29 @@ class TestRemoveEmptyParens:
         assert "def get_count -> int" in formatted
         assert "def get_count()" not in formatted
 
+    def test_impl_empty_parens_removed(
+        self, auto_lint_fixture_path: Callable[[str], str]
+    ) -> None:
+        """Test that empty parentheses are removed from impl blocks."""
+        input_path = auto_lint_fixture_path("empty_parens.jac")
+
+        prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
+        formatted = prog.mod.main.gen.jac
+
+        # Impl with no params but return type - parens should be removed
+        assert "impl Calculator.compute -> int" in formatted
+        assert "impl Calculator.compute()" not in formatted
+
+        # Impl with params - parens should stay
+        assert "impl Calculator.process(x: int)" in formatted
+
+        # Impl with no params and no return type - parens should be removed
+        # Note: formatter may or may not add space before {
+        assert (
+            "impl Calculator.run{" in formatted or "impl Calculator.run {" in formatted
+        )
+        assert "impl Calculator.run()" not in formatted
+
 
 class TestHasattrConversion:
     """Tests for converting hasattr(obj, 'attr') to obj?.attr."""
@@ -584,6 +607,8 @@ class TestSignatureMismatchFix:
         self, auto_lint_fixture_path: Callable[[str], str]
     ) -> None:
         """Test that impl signatures are fixed to match declarations."""
+        from jaclang.pycore import unitree as uni
+
         input_path = auto_lint_fixture_path("sig_mismatch.jac")
 
         prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
@@ -591,23 +616,49 @@ class TestSignatureMismatchFix:
         # Verify impl module is discovered
         assert len(prog.mod.main.impl_mod) == 1, "Should have one impl module"
 
-        # Check the impl signatures were fixed by examining the AST
+        # Check the impl signatures were fixed by examining the AST nodes directly
         impl_mod = prog.mod.main.impl_mod[0]
-        impl_output = impl_mod.unparse()
+
+        # Helper to get param names from an ImplDef
+        def get_impl_params(impl_def: uni.ImplDef) -> list[str]:
+            if isinstance(impl_def.spec, uni.FuncSignature):
+                return [p.name.value for p in impl_def.spec.params]
+            return []
+
+        # Find all impl definitions by name
+        impl_defs: dict[str, uni.ImplDef] = {}
+        for stmt in impl_mod.body:
+            if isinstance(stmt, uni.ImplDef):
+                # Get the method name (last part of target)
+                method_name = stmt.target[-1].sym_name
+                impl_defs[method_name] = stmt
 
         # add should have x, y params (from decl), not a, b
-        assert "add(x: int, y: int)" in impl_output, (
-            f"add should have x, y params from decl, got: {impl_output}"
+        assert "add" in impl_defs, "add impl not found"
+        add_params = get_impl_params(impl_defs["add"])
+        assert add_params == ["x", "y"], (
+            f"add should have x, y params from decl, got: {add_params}"
         )
 
         # multiply should have a, b params (from decl)
-        assert "multiply(a: int, b: int)" in impl_output, (
-            f"multiply should have a, b params from decl, got: {impl_output}"
+        assert "multiply" in impl_defs, "multiply impl not found"
+        multiply_params = get_impl_params(impl_defs["multiply"])
+        assert multiply_params == ["a", "b"], (
+            f"multiply should have a, b params from decl, got: {multiply_params}"
         )
 
         # no_change should remain unchanged (already matches)
-        assert "no_change(val: int)" in impl_output, (
-            f"no_change should have val param, got: {impl_output}"
+        assert "no_change" in impl_defs, "no_change impl not found"
+        no_change_params = get_impl_params(impl_defs["no_change"])
+        assert no_change_params == ["val"], (
+            f"no_change should have val param, got: {no_change_params}"
+        )
+
+        # reset should have no params (impl had extra param that should be removed)
+        assert "reset" in impl_defs, "reset impl not found"
+        reset_params = get_impl_params(impl_defs["reset"])
+        assert reset_params == [], (
+            f"reset should have no params from decl, got: {reset_params}"
         )
 
 
