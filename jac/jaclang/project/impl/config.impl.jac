@@ -192,38 +192,38 @@ impl JacConfig.get_plugin_deps(dep_type: str) -> dict[str, Any] {
     };
 }
 
-impl JacConfig.get_plugin_config(plugin_name: str) -> dict[str, Any] {
+impl JacConfig.get_plugin_config(self: JacConfig, plugin_name: str) -> dict[str, Any] {
     return self.plugins.get(plugin_name, {});
 }
 
-impl JacConfig.get_build_dir -> Path {
-    """Get the base build directory for all artifacts."""
+"""Get the base build directory for all artifacts."""
+impl JacConfig.get_build_dir(self: JacConfig) -> Path {
     import from pathlib { Path }
-    base = self.project_root if self.project_root else Path.cwd();
+    base = self.project_root or Path.cwd();
     return base / self.build.dir;
 }
 
-impl JacConfig.get_cache_dir -> Path {
-    """Get the bytecode cache directory (.jac/cache)."""
+"""Get the bytecode cache directory (.jac/cache)."""
+impl JacConfig.get_cache_dir(self: JacConfig) -> Path {
     return self.get_build_dir() / "cache";
 }
 
-impl JacConfig.get_packages_dir -> Path {
-    """Get the Python packages directory (.jac/packages)."""
+"""Get the Python packages directory (.jac/packages)."""
+impl JacConfig.get_packages_dir(self: JacConfig) -> Path {
     return self.get_build_dir() / "packages";
 }
 
-impl JacConfig.get_data_dir -> Path {
-    """Get the data directory for runtime artifacts (.jac/data)."""
+"""Get the data directory for runtime artifacts (.jac/data)."""
+impl JacConfig.get_data_dir(self: JacConfig) -> Path {
     return self.get_build_dir() / "data";
 }
 
-impl JacConfig.get_client_dir -> Path {
-    """Get the client build directory (.jac/client)."""
+"""Get the client build directory (.jac/client)."""
+impl JacConfig.get_client_dir(self: JacConfig) -> Path {
     return self.get_build_dir() / "client";
 }
 
-impl JacConfig.is_valid -> bool {
+impl JacConfig.is_valid(self: JacConfig) -> bool {
     return self.toml_path is not None and self.toml_path.exists();
 }
 
