@@ -706,6 +706,103 @@ class TestSignatureMismatchFix:
         )
 
 
+class TestNestedClassSignatureFix:
+    """Tests for fixing nested class impl signatures.
+
+    The auto-lint should properly fix nested class impl signatures to match
+    their nested class declarations, NOT the parent class declarations.
+    For example, `impl OuterClass.InnerClass.init` should be fixed to match
+    `InnerClass.init`, NOT `OuterClass.init`.
+    """
+
+    def test_nested_class_impl_signature_fixed(
+        self, auto_lint_fixture_path: Callable[[str], str]
+    ) -> None:
+        """Test that nested class impl signatures are fixed to match their declarations.
+
+        The impl file has intentionally wrong signatures:
+        - OuterClass.InnerClass.init has (self, a, b) but decl has (self, name)
+        - OuterClass.AnotherInner.init has (self, foo) but decl has (self, x, y, *, z=0)
+        - OuterClass.process has (wrong) but decl has (data)
+
+        This is a regression test for a bug where the auto-lint would look up
+        declarations using only the first and last elements of the target path,
+        e.g., for `impl OuterClass.InnerClass.init`, it would look up
+        `OuterClass.init` instead of `OuterClass.InnerClass.init`.
+        """
+        from jaclang.pycore import unitree as uni
+
+        input_path = auto_lint_fixture_path("nested_class_sig.jac")
+
+        prog = JacProgram.jac_file_formatter(input_path, auto_lint=True)
+
+        # Verify impl module is discovered
+        assert len(prog.mod.main.impl_mod) == 1, "Should have one impl module"
+
+        impl_mod = prog.mod.main.impl_mod[0]
+
+        # Helper to get the full target path as a string
+        def get_target_path(impl_def: uni.ImplDef) -> str:
+            return ".".join(t.sym_name for t in impl_def.target if t)
+
+        # Helper to get param names from an ImplDef
+        def get_impl_params(impl_def: uni.ImplDef) -> list[str]:
+            if isinstance(impl_def.spec, uni.FuncSignature):
+                return [p.name.value for p in impl_def.spec.params]
+            return []
+
+        # Find all impl definitions by full target path
+        impl_defs: dict[str, uni.ImplDef] = {}
+        for stmt in impl_mod.body:
+            if isinstance(stmt, uni.ImplDef):
+                target_path = get_target_path(stmt)
+                impl_defs[target_path] = stmt
+
+        # OuterClass.__init__ should have: self, shared, private (already correct)
+        assert "OuterClass.__init__" in impl_defs, "OuterClass.__init__ impl not found"
+        outer_init_params = get_impl_params(impl_defs["OuterClass.__init__"])
+        assert outer_init_params == ["self", "shared", "private"], (
+            f"OuterClass.__init__ should have [self, shared, private], got: {outer_init_params}"
+        )
+
+        # OuterClass.InnerClass.__init__ should be FIXED from (self, a, b) to (self, name)
+        # NOT: (self, shared, private) which would happen if bug exists
+        assert "OuterClass.InnerClass.__init__" in impl_defs, (
+            "OuterClass.InnerClass.__init__ impl not found"
+        )
+        inner_init_params = get_impl_params(impl_defs["OuterClass.InnerClass.__init__"])
+        assert inner_init_params == ["self", "name"], (
+            f"OuterClass.InnerClass.__init__ should be FIXED to [self, name] "
+            f"(matching InnerClass.init decl), got: {inner_init_params}. "
+            f"Original impl had [self, a, b]. "
+            f"If you got [self, shared, private], the bug is that auto-lint looked up "
+            f"OuterClass.__init__ instead of InnerClass.__init__."
+        )
+
+        # OuterClass.AnotherInner.__init__ should be FIXED from (self, foo) to (self, x, y)
+        # (plus kwonly z, but we only check positional params here)
+        assert "OuterClass.AnotherInner.__init__" in impl_defs, (
+            "OuterClass.AnotherInner.__init__ impl not found"
+        )
+        another_init_params = get_impl_params(
+            impl_defs["OuterClass.AnotherInner.__init__"]
+        )
+        assert another_init_params == ["self", "x", "y"], (
+            f"OuterClass.AnotherInner.__init__ should be FIXED to [self, x, y] "
+            f"(matching AnotherInner.init decl), got: {another_init_params}. "
+            f"Original impl had [self, foo]."
+        )
+
+        # OuterClass.process should be FIXED from (wrong) to (data)
+        assert "OuterClass.process" in impl_defs, "OuterClass.process impl not found"
+        process_params = get_impl_params(impl_defs["OuterClass.process"])
+        assert process_params == ["data"], (
+            f"OuterClass.process should be FIXED to [data] "
+            f"(matching process decl), got: {process_params}. "
+            f"Original impl had [wrong]."
+        )
+
+
 class TestRemoveImportSemicolons:
     """Tests for removing semicolons from import from {} style imports.
 

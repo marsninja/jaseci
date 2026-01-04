@@ -221,20 +221,22 @@ impl ClassType.init(
 
 """Initialize obviously."""
 impl ClassType.ClassDetailsPrivate.init(
-    self: ClassType,
-    shared: ClassType.ClassDetailsShared,
-    private: (ClassType.ClassDetailsPrivate | None) = None,
-    flags: TypeFlags = TypeFlags.Null
+    self: ClassDetailsPrivate, type_args: (list[TypeBase] | None) = None
 ) -> None {
     self.type_args = type_args or [];
 }
 
 """Initialize obviously."""
 impl ClassType.ClassDetailsShared.init(
-    self: ClassType,
-    shared: ClassType.ClassDetailsShared,
-    private: (ClassType.ClassDetailsPrivate | None) = None,
-    flags: TypeFlags = TypeFlags.Null
+    self: ClassDetailsShared,
+    class_name: str,
+    symbol_table: SymbolTable,
+    *,
+    type_params: (list[TypeVarType] | None) = None,
+    base_classes: (list[TypeBase] | None) = None,
+    is_builtin_class: bool = False,
+    is_data_class: bool = False,
+    is_root_class: bool = False
 ) -> None {
     self.class_name = class_name;
     self.symbol_table = symbol_table;

@@ -1134,6 +1134,9 @@ signature to the implementation to ensure consistency.
 
 This works by looking up the declaration via symbol table since decl_link may
 not be set yet when this pass runs during formatting.
+
+Supports nested classes: for `impl OuterClass.InnerClass.method`, it navigates
+through OuterClass -> InnerClass -> method to find the correct declaration.
 """
 impl JacAutoLintPass._fix_impl_signature_mismatch(
     self: JacAutoLintPass, impl_node: uni.ImplDef
@@ -1144,22 +1147,23 @@ impl JacAutoLintPass._fix_impl_signature_mismatch(
         decl = impl_node.decl_link;
     } else {
         # Look up the declaration via symbol table
-        # impl_node.target is a sequence like [Calculator, add]
+        # impl_node.target is a sequence like [Calculator, add] or
+        # [OuterClass, InnerClass, method] for nested classes
         if not impl_node.target or len(impl_node.target) < 2 {
             return;
         }
-        # Get the archetype name and ability name
-        arch_name = impl_node.target[0].sym_name if impl_node.target[0] else None;
+        # Get the root archetype name and ability name (last element)
+        root_arch_name = impl_node.target[0].sym_name if impl_node.target[0] else None;
         ability_name = impl_node.target[-1].sym_name if impl_node.target[-1] else None;
-        if not arch_name or not ability_name {
+        if not root_arch_name or not ability_name {
             return;
         }
         # Use the stored main_module reference
         if self.main_module is None or not self.main_module.sym_tab {
             return;
         }
-        # Look up archetype
-        arch_sym = self.main_module.sym_tab.lookup(arch_name);
+        # Look up root archetype
+        arch_sym = self.main_module.sym_tab.lookup(root_arch_name);
         if not arch_sym or not arch_sym.decl {
             return;
         }
@@ -1167,7 +1171,29 @@ impl JacAutoLintPass._fix_impl_signature_mismatch(
         if not isinstance(arch_node, uni.Archetype) or not arch_node.body {
             return;
         }
-        # Find the ability in the archetype
+        # Navigate through nested classes if target has more than 2 elements
+        # e.g., [OuterClass, InnerClass, method] -> navigate OuterClass -> InnerClass
+        for i in range(1, len(impl_node.target) - 1) {
+            nested_name = impl_node.target[i].sym_name if impl_node.target[i] else None;
+            if not nested_name {
+                return;
+            }
+            # Find the nested class in the current archetype's body
+            found_nested = False;
+            for member in arch_node.body {
+                if isinstance(member, uni.Archetype) {
+                    if member.name_spec and member.name_spec.sym_name == nested_name {
+                        arch_node = member;
+                        found_nested = True;
+                        break;
+                    }
+                }
+            }
+            if not found_nested or not arch_node.body {
+                return;
+            }
+        }
+        # Find the ability in the (possibly nested) archetype
         for member in arch_node.body {
             if isinstance(member, uni.Ability) {
                 if member.name_ref and member.name_ref.sym_name == ability_name {
