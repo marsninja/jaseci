@@ -390,7 +390,10 @@ impl JacLangServer.type_check_file(
     self: JacLangServer,
     file_uri: str,
     cancel_token: Event | None = None,
-    annex_view: Optional[str] = None
+    annex_view: Optional[str] = None,
+    # This parameter will be passed recursively
+    # and dont need to pass when the function itself is called
+    # outside.
 ) -> bool {
     if cancel_token and cancel_token.is_set() {
         return;
@@ -460,7 +463,7 @@ impl JacLangServer._clear_alerts_for_file(self: JacLangServer, file_path: str) -
 }
 
 """Return diagnostics for all files as a dict {uri: diagnostics}."""
-impl JacLangServer.diagnostics(self: JacLangServer) -> dict[str, list] {
+impl JacLangServer.diagnostics(self: JacLangServer,) -> dict[str, list] {
     result = {};
     for file_path in self.mod.hub {
         uri = uris.from_fs_path(file_path);
@@ -515,6 +518,3 @@ impl Task.postinit -> None {
     self.cancel_token = threading.Event();
     Task._task_id += 1;
 }
-# This parameter will be passed recursively
-# and dont need to pass when the function itself is called
-# outside.

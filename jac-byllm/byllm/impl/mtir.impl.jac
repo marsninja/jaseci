@@ -15,7 +15,7 @@ Builds the message history with system persona, user input, and any media.
 Prepares tools including the finish_tool for ReAct-style interactions.
 """
 impl MTRuntime.factory(
-    caller: Callable, args: dict[(int | str, object)], call_params: dict[(str, object)]
+    caller: Callable, args: dict[int | str, object], call_params: dict[str, object]
 ) -> MTRuntime {
     # Prepare the tools for the LLM call.
     tools = [Tool(func) for func in call_params.get("tools", [])];  # type: ignore
@@ -114,7 +114,7 @@ impl MTRuntime.add_message(message: MessageType) -> None {
 }
 
 """Return the messages in a format suitable for LLM API."""
-impl MTRuntime.get_msg_list -> list[dict[(str, object)] | LiteLLMMessage] {
+impl MTRuntime.get_msg_list -> list[dict[str, object] | LiteLLMMessage] {
     return [
         msg.to_dict() if isinstance(msg, Message) else msg for msg in self.messages
     ];

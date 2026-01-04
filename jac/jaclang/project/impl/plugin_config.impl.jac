@@ -64,7 +64,7 @@ impl PluginConfigBase.get_jac_config(self: PluginConfigBase) -> JacConfig {
 
 """Get a configuration section with optional defaults."""
 impl PluginConfigBase.get_section(
-    self: PluginConfigBase, section: str, defaults: dict[(str, Any)] | None = None
+    self: PluginConfigBase, section: str, defaults: dict[str, Any] | None = None
 ) -> dict[str, Any] {
     config = self.load();
     section_config = config.get(section, {});

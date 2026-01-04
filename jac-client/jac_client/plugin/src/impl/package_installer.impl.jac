@@ -2,7 +2,7 @@
 
 impl PackageInstaller.list_packages(
     self: PackageInstaller
-) -> dict[str, dict[(str, str)]] {
+) -> dict[str, dict[str, str]] {
     if not self.config_file.exists() {
         raise ClientBundleError(
             f'jac.toml not found at {self.config_file}. Run "jac init" first.'

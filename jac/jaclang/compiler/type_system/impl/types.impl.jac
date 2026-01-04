@@ -221,14 +221,14 @@ impl ClassType.init(
 
 """Initialize obviously."""
 impl ClassType.ClassDetailsPrivate.init(
-    self: ClassDetailsPrivate, type_args: (list[TypeBase] | None) = None
+    self: ClassType.ClassDetailsPrivate, type_args: (list[TypeBase] | None) = None
 ) -> None {
     self.type_args = type_args or [];
 }
 
 """Initialize obviously."""
 impl ClassType.ClassDetailsShared.init(
-    self: ClassDetailsShared,
+    self: ClassType.ClassDetailsShared,
     class_name: str,
     symbol_table: SymbolTable,
     *,
