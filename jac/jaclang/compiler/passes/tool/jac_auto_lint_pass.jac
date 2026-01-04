@@ -99,5 +99,9 @@ class JacAutoLintPass(UniPass) {
         self: JacAutoLintPass, impl_node: uni.ImplDef
     ) -> None;
 
+    def _signatures_match(
+        self: JacAutoLintPass, decl_sig: uni.FuncSignature, impl_sig: uni.FuncSignature
+    ) -> bool;
+
     def enter_import(self: JacAutoLintPass, import_node: uni.Import) -> None;
 }

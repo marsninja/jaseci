@@ -1273,16 +1273,8 @@ impl JacAutoLintPass._fix_impl_signature_mismatch(
     # (unparse triggers normalize which corrupts token locations)
     decl_sig = decl.signature;
     impl_sig = impl_node.spec;
-    # Compare parameter counts
-    if (
-        len(decl_sig.params) == len(impl_sig.params)
-        and len(decl_sig.posonly_params) == len(impl_sig.posonly_params)
-        and len(decl_sig.kwonlyargs) == len(impl_sig.kwonlyargs)
-        and (decl_sig.varargs is None) == (impl_sig.varargs is None)
-        and (decl_sig.kwargs is None) == (impl_sig.kwargs is None)
-        and (decl_sig.return_type is None) == (impl_sig.return_type is None)
-    ) {
-        # Signatures are structurally equivalent, no need to replace
+    # Check if signatures match (if they do, return early)
+    if self._signatures_match(decl_sig, impl_sig) {
         return;
     }
     # Copy the declaration's signature to the impl
@@ -1302,6 +1294,46 @@ impl JacAutoLintPass._fix_impl_signature_mismatch(
         }
     }
     impl_node.kid = new_kids;
+}
+
+"""Check if two FuncSignatures match structurally without calling unparse().
+
+Compares parameter counts and names to determine if signatures are equivalent.
+"""
+impl JacAutoLintPass._signatures_match(
+    self: JacAutoLintPass, decl_sig: uni.FuncSignature, impl_sig: uni.FuncSignature
+) -> bool {
+    # Compare parameter counts first
+    if (
+        len(decl_sig.params) != len(impl_sig.params)
+        or len(decl_sig.posonly_params) != len(impl_sig.posonly_params)
+        or len(decl_sig.kwonlyargs) != len(impl_sig.kwonlyargs)
+        or (decl_sig.varargs is None) != (impl_sig.varargs is None)
+        or (decl_sig.kwargs is None) != (impl_sig.kwargs is None)
+        or (decl_sig.return_type is None) != (impl_sig.return_type is None)
+    ) {
+        return False;
+    }
+    # Check parameter names match
+    for (i, decl_param) in enumerate(decl_sig.params) {
+        impl_param = impl_sig.params[i];
+        if decl_param.name.value != impl_param.name.value {
+            return False;
+        }
+    }
+    for (i, decl_param) in enumerate(decl_sig.posonly_params) {
+        impl_param = impl_sig.posonly_params[i];
+        if decl_param.name.value != impl_param.name.value {
+            return False;
+        }
+    }
+    for (i, decl_param) in enumerate(decl_sig.kwonlyargs) {
+        impl_param = impl_sig.kwonlyargs[i];
+        if decl_param.name.value != impl_param.name.value {
+            return False;
+        }
+    }
+    return True;
 }
 
 """Remove standalone semicolons after `import from X { ... }` inside code blocks.
