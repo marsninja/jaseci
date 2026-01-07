@@ -9,13 +9,13 @@ Requirements:
     - jaclang (jac) installed
     - jac-client installed
     - jac-scale installed
-    - jac-byllm installed (optional)
+    - byllm installed
     - jac-streamlit installed (optional)
 
 Usage:
     python scripts/integration_tests.py
 
-Note: This script should NOT be run with JAC_MUTED_PLUGINS set, as it needs
+Note: This script should NOT be run with JAC_DISABLED_PLUGINS set, as it needs
 all plugins to be loaded to verify the plugin system works correctly.
 """
 
@@ -130,28 +130,48 @@ def check_environment() -> bool:
 def run_plugin_tests(runner: IntegrationTestRunner) -> None:
     """Test the jac plugins command and plugin system."""
 
-    # Test: jac plugins list runs successfully
+    # Test: jac plugins list runs successfully with expected structure
     runner.run(
         ["jac", "plugins", "list"],
-        check_contains=["Installed Jac plugins", "jaclang (built-in)"],
-        description="jac plugins list shows installed plugins",
+        check_contains=[
+            "Installed Jac plugins",
+            "jaclang (built-in)",
+            "jaclang:JacRuntimeInterfaceImpl",  # Core plugin with qualified name
+        ],
+        description="jac plugins list shows installed plugins with qualified names",
     )
 
-    # Test: jac-client plugin is loaded
+    # Test: jac-client plugin is loaded with qualified names
     runner.run(
         ["jac", "plugins", "list"],
-        check_contains=["jac-client"],
-        description="jac-client plugin is loaded",
+        check_contains=[
+            "[jac-client",  # Package header (may include version)
+            "jac-client:serve",  # Qualified plugin name format
+        ],
+        description="jac-client plugins use qualified name format",
     )
 
-    # Test: jac-scale plugin is loaded
+    # Test: jac-scale plugin is loaded with qualified names
     runner.run(
         ["jac", "plugins", "list"],
-        check_contains=["jac-scale"],
-        description="jac-scale plugin is loaded",
+        check_contains=[
+            "[jac-scale",  # Package header
+            "jac-scale:scale",  # Qualified plugin name format
+        ],
+        description="jac-scale plugins use qualified name format",
     )
 
-    # Test: Plugin commands are registered
+    # Test: byllm plugin is loaded with qualified names
+    runner.run(
+        ["jac", "plugins", "list"],
+        check_contains=[
+            "[byllm",  # Package header
+            "byllm:byllm",  # Qualified plugin name format
+        ],
+        description="byllm plugins use qualified name format",
+    )
+
+    # Test: Plugin commands are registered and associated with packages
     runner.run(
         ["jac", "plugins", "list"],
         check_contains=["Commands:"],
@@ -170,6 +190,13 @@ def run_plugin_tests(runner: IntegrationTestRunner) -> None:
         ["jac", "plugins", "list", "--verbose"],
         check_contains=["Class:", "Module:"],
         description="jac plugins list --verbose shows detailed info",
+    )
+
+    # Test: jac plugins disabled shows no disabled plugins by default
+    runner.run(
+        ["jac", "plugins", "disabled"],
+        check_contains=["No plugins are currently disabled"],
+        description="jac plugins disabled shows no disabled by default",
     )
 
 
