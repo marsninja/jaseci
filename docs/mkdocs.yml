@@ -67,21 +67,21 @@ nav:
     - Scale-Native Programming:
       - Jac Lens: "learn/jac-lens.md"
       - (Deprecated) Jac-Cloud:
-        - "learn/jac-cloud/introduction.md"
-        - "learn/jac-cloud/quickstart.md"
+        - "archive/jac-cloud/introduction.md"
+        - "archive/jac-cloud/quickstart.md"
         - Core Features:
-          - "learn/jac-cloud/permission.md"
-          - "learn/jac-cloud/logging.md"
-          - "learn/jac-cloud/env_vars.md"
-          - "learn/jac-cloud/sso_implementation.md"
+          - "archive/jac-cloud/permission.md"
+          - "archive/jac-cloud/logging.md"
+          - "archive/jac-cloud/env_vars.md"
+          - "archive/jac-cloud/sso_implementation.md"
         - Real-time & Async:
-          - "learn/jac-cloud/websocket.md"
-          - "learn/jac-cloud/scheduler.md"
-          - "learn/jac-cloud/async_walker.md"
-          - "learn/jac-cloud/webhook.md"
+          - "archive/jac-cloud/websocket.md"
+          - "archive/jac-cloud/scheduler.md"
+          - "archive/jac-cloud/async_walker.md"
+          - "archive/jac-cloud/webhook.md"
         - Operations:
-          - "learn/jac-cloud/deployment.md"
-          - "learn/jac-cloud/utilities.md"
+          - "archive/jac-cloud/deployment.md"
+          - "archive/jac-cloud/utilities.md"
     - Jac Client:
       - Getting Started: "jac-client/README.md"
       - Step-by-Step Tutorial:
@@ -135,6 +135,7 @@ nav:
       - "learn/tools/streamlit.md"
       - LLMDocs: "learn/tools/llmdocs.md"
     - Examples:
+      - Overview: "learn/examples/index.md"
       - LittleX (your own twitter): "learn/examples/littleX/tutorial.md"
       - Jac MCP Conversational Chatbot: "learn/examples/rag_chatbot/Overview.md"
       - RPG game with AI Genarated Maps: "learn/examples/mtp_examples/rpg_game.md"
@@ -143,6 +144,23 @@ nav:
       - Aider Genius Lite: "learn/examples/agentic_ai/aider-genius-lite/aider-genius-lite.md"
       - Task Manager Lite: "learn/examples/agentic_ai/task-manager-lite/task-manager-lite.md"
       - EmailBuddy: "learn/examples/EmailBuddy/tutorial.md"
+  - Quick Reference:
+    - Getting Started: "getting-started/index.md"
+    - Language Guide:
+      - Overview: "language/index.md"
+      - Syntax & Basics: "language/syntax/index.md"
+      - Object-Spatial Programming: "language/osp/index.md"
+      - Enhanced OOP: "language/oop/index.md"
+    - AI Integration (byLLM): "ai-integration/index.md"
+    - Full-Stack (jac-client): "full-stack/index.md"
+    - Production (jac-scale): "production/index.md"
+    - CLI Reference: "cli/index.md"
+    - Configuration: "configuration/index.md"
+    - Testing & Debugging: "testing-debugging/index.md"
+    - Advanced Topics: "advanced/index.md"
+    - Contributing: "contributing/index.md"
+    - Archive:
+      - Deprecated Content: "archive/index.md"
   - Full Jac Specification:
     - Introduction: "learn/jac_ref.md"
     - Base Module structure: "learn/jac_ref/base_module_structure.md"
@@ -340,6 +358,19 @@ plugins:
   - redirects:
       redirect_maps:
         index.md: learn/installation.md
+        # jac-cloud redirects to archive
+        learn/jac-cloud/introduction.md: archive/jac-cloud/introduction.md
+        learn/jac-cloud/quickstart.md: archive/jac-cloud/quickstart.md
+        learn/jac-cloud/permission.md: archive/jac-cloud/permission.md
+        learn/jac-cloud/logging.md: archive/jac-cloud/logging.md
+        learn/jac-cloud/env_vars.md: archive/jac-cloud/env_vars.md
+        learn/jac-cloud/sso_implementation.md: archive/jac-cloud/sso_implementation.md
+        learn/jac-cloud/websocket.md: archive/jac-cloud/websocket.md
+        learn/jac-cloud/scheduler.md: archive/jac-cloud/scheduler.md
+        learn/jac-cloud/async_walker.md: archive/jac-cloud/async_walker.md
+        learn/jac-cloud/webhook.md: archive/jac-cloud/webhook.md
+        learn/jac-cloud/deployment.md: archive/jac-cloud/deployment.md
+        learn/jac-cloud/utilities.md: archive/jac-cloud/utilities.md
 
 hooks:
   - scripts/handle_jac_compile_data.py
