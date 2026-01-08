@@ -4,7 +4,7 @@ repo_url: https://github.com/Jaseci-Labs/jaseci
 edit_uri: edit/main/docs/docs
 use_directory_urls: true
 nav:
-  - Quick Reference:
+  - Quick Guide:
     - Getting Started: "getting-started/index.md"
     - Language Guide:
       - Overview: "language/index.md"
@@ -19,8 +19,6 @@ nav:
     - Testing & Debugging: "testing-debugging/index.md"
     - Advanced Topics: "advanced/index.md"
     - Contributing: "contributing/index.md"
-    - Archive:
-      - Deprecated Content: "archive/index.md"
   - Learn:
     # - Getting Started: "learn/getting_started.md"
     - Getting Started:
@@ -83,22 +81,6 @@ nav:
         - LiteLLM Proxy Server: "learn/jac-byllm/litellm_proxy.md"
     - Scale-Native Programming:
       - Jac Lens: "learn/jac-lens.md"
-      - (Deprecated) Jac-Cloud:
-        - "archive/jac-cloud/introduction.md"
-        - "archive/jac-cloud/quickstart.md"
-        - Core Features:
-          - "archive/jac-cloud/permission.md"
-          - "archive/jac-cloud/logging.md"
-          - "archive/jac-cloud/env_vars.md"
-          - "archive/jac-cloud/sso_implementation.md"
-        - Real-time & Async:
-          - "archive/jac-cloud/websocket.md"
-          - "archive/jac-cloud/scheduler.md"
-          - "archive/jac-cloud/async_walker.md"
-          - "archive/jac-cloud/webhook.md"
-        - Operations:
-          - "archive/jac-cloud/deployment.md"
-          - "archive/jac-cloud/utilities.md"
     - Jac Client:
       - Getting Started: "jac-client/README.md"
       - Step-by-Step Tutorial:
@@ -358,19 +340,6 @@ plugins:
   - redirects:
       redirect_maps:
         index.md: learn/installation.md
-        # jac-cloud redirects to archive
-        learn/jac-cloud/introduction.md: archive/jac-cloud/introduction.md
-        learn/jac-cloud/quickstart.md: archive/jac-cloud/quickstart.md
-        learn/jac-cloud/permission.md: archive/jac-cloud/permission.md
-        learn/jac-cloud/logging.md: archive/jac-cloud/logging.md
-        learn/jac-cloud/env_vars.md: archive/jac-cloud/env_vars.md
-        learn/jac-cloud/sso_implementation.md: archive/jac-cloud/sso_implementation.md
-        learn/jac-cloud/websocket.md: archive/jac-cloud/websocket.md
-        learn/jac-cloud/scheduler.md: archive/jac-cloud/scheduler.md
-        learn/jac-cloud/async_walker.md: archive/jac-cloud/async_walker.md
-        learn/jac-cloud/webhook.md: archive/jac-cloud/webhook.md
-        learn/jac-cloud/deployment.md: archive/jac-cloud/deployment.md
-        learn/jac-cloud/utilities.md: archive/jac-cloud/utilities.md
 
 hooks:
   - scripts/handle_jac_compile_data.py

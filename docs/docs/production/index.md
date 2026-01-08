@@ -391,7 +391,7 @@ jac scale main.jac -b
 ## Migration from jac-cloud
 
 !!! warning "jac-cloud is Deprecated"
-    If you're using jac-cloud, migrate to jac-scale. See [archived jac-cloud docs](../archive/jac-cloud/introduction.md).
+    If you're using jac-cloud, migrate to jac-scale. The jac-cloud package is no longer maintained.
 
 **Key Differences:**
 
