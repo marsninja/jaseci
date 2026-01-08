@@ -5,6 +5,67 @@
 
 ---
 
+## ️ Validation Requirements (MANDATORY)
+
+**CRITICAL**: All documentation changes MUST be validated against actual behavior before being marked complete. Never document based on assumptions.
+
+### Validation Environment
+
+```bash
+# ALWAYS activate the venv before any validation
+source /home/marsninja/repos/jaseci2/.venv/bin/activate
+
+# Verify jac is available and check version
+jac --version
+
+# List installed plugins to know what's available
+jac plugins list
+```
+
+### Per-Change Validation Checklist
+
+For EVERY documentation change, verify:
+
+| Change Type | Validation Method |
+|-------------|-------------------|
+| CLI command parameters | Run `jac <command> --help` and verify all flags/defaults |
+| CLI command behavior | Actually execute the command on a test file |
+| Code examples | Execute in `.venv` environment, verify output matches |
+| jac.toml options | Create test project, verify option works |
+| Plugin features | Verify plugin is installed, test feature |
+| Error messages | Trigger the error, verify message text |
+
+### Per-Phase Validation Gates
+
+Before marking ANY phase complete:
+
+- [ ] All CLI commands mentioned have been tested with `--help`
+- [ ] All code examples have been executed successfully
+- [ ] `mkdocs build` completes without new warnings
+- [ ] Any new features verified against actual behavior
+
+### Example Validation Session
+
+```bash
+# Activate environment
+source /home/marsninja/repos/jaseci2/.venv/bin/activate
+
+# Verify a CLI command
+jac format --help
+# Output: usage: jac format [-h] [-t] [-nt] [-f] [-nf] paths [paths ...]
+
+# Test actual behavior
+echo 'with entry { print("test"); }' > /tmp/test.jac
+jac format /tmp/test.jac --to_screen
+# Verify output matches documentation
+
+# Test code example
+jac run /tmp/test.jac
+# Verify it runs as documented
+```
+
+---
+
 ## Overview
 
 This plan outlines a complete documentation rewrite in 6 phases, designed to be executed incrementally while keeping the documentation functional throughout.
