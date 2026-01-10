@@ -733,9 +733,12 @@ impl JacAPIServer.init(
         allow_headers=['*']
     );
     # Add custom response headers from jac.toml [environments.response.headers]
-    import from jaclang.project.config { get_config }
+    import from jaclang.project.config { JacConfig }
     import from starlette.middleware.base { BaseHTTPMiddleware }
-    config = get_config();
+    import from pathlib { Path }
+    # Use base_path to find the correct jac.toml for this project
+    start_path = Path(base_path) if base_path else None;
+    config = JacConfig.discover(start_path);
     custom_headers: dict = {};
     if config
     and config.environments
