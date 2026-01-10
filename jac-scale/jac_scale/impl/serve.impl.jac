@@ -732,6 +732,31 @@ impl JacAPIServer.init(
         allow_methods=['*'],
         allow_headers=['*']
     );
+    # Add custom response headers from jac.toml [environments.response.headers]
+    import from jaclang.project.config { get_config }
+    import from starlette.middleware.base { BaseHTTPMiddleware }
+    config = get_config();
+    custom_headers: dict = {};
+    if config
+    and config.environments
+    and "response" in config.environments
+    and "headers" in config.environments["response"] {
+        custom_headers = config.environments["response"]["headers"];
+    }
+    if custom_headers {
+        class CustomHeadersMiddleware(BaseHTTPMiddleware) {
+            async def dispatch(
+                self: CustomHeadersMiddleware, request: Any, call_next: Any
+            ) -> Any {
+                response = await call_next(request);
+                for (header_name, header_value) in custom_headers.items() {
+                    response.headers[header_name] = header_value;
+                }
+                return response;
+            }
+        }
+        self.server_impl.app.add_middleware(CustomHeadersMiddleware);
+    }
     self.SUPPORTED_PLATFORMS: dict = {};
     # Load SSO config fresh (not from cached global) to support env var overrides at runtime
     sso_config = get_scale_config().get_sso_config();
