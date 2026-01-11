@@ -14,7 +14,12 @@ from contextlib import AbstractContextManager
 
 import pytest
 
-from jaclang.cli import cli
+from jaclang.cli.commands import (
+    analysis,  # type: ignore[attr-defined]
+    execution,  # type: ignore[attr-defined]
+    tools,  # type: ignore[attr-defined]
+    transform,  # type: ignore[attr-defined]
+)
 from jaclang.cli.registry import get_registry
 from jaclang.runtimelib.builtin import printgraph
 
@@ -56,7 +61,7 @@ def test_jac_cli_run(
 ) -> None:
     """Basic test for pass."""
     with capture_stdout() as output:
-        cli.run(fixture_path("hello.jac"))
+        execution.run(fixture_path("hello.jac"))
 
     stdout_value = output.getvalue()
     assert "Hello World!" in stdout_value
@@ -68,7 +73,7 @@ def test_jac_cli_run_python_file(
 ) -> None:
     """Test running Python files with jac run command."""
     with capture_stdout() as output:
-        cli.run(fixture_path("python_run_test.py"))
+        execution.run(fixture_path("python_run_test.py"))
 
     stdout_value = output.getvalue()
     assert "Hello from Python!" in stdout_value
@@ -84,7 +89,7 @@ def test_jac_run_py_fstr(
 ) -> None:
     """Test running Python files with jac run command."""
     with capture_stdout() as output:
-        cli.run(fixture_path("pyfunc_fstr.py"))
+        execution.run(fixture_path("pyfunc_fstr.py"))
 
     stdout_value = output.getvalue()
     assert "Hello Peter" in stdout_value
@@ -102,7 +107,7 @@ def test_jac_run_py_fmt(
 ) -> None:
     """Test running Python files with jac run command."""
     with capture_stdout() as output:
-        cli.run(fixture_path("pyfunc_fmt.py"))
+        execution.run(fixture_path("pyfunc_fmt.py"))
 
     stdout_value = output.getvalue()
     assert "One" in stdout_value
@@ -120,7 +125,7 @@ def test_jac_run_pyfunc_kwesc(
 ) -> None:
     """Test running Python files with jac run command."""
     with capture_stdout() as output:
-        cli.run(fixture_path("pyfunc_kwesc.py"))
+        execution.run(fixture_path("pyfunc_kwesc.py"))
 
     stdout_value = output.getvalue()
     out = stdout_value.split("\n")
@@ -137,7 +142,7 @@ def test_jac_cli_alert_based_err(fixture_path: Callable[[str], str]) -> None:
     sys.stderr = captured_output
 
     try:
-        cli.enter(fixture_path("err2.jac"), entrypoint="speak", args=[])
+        execution.enter(fixture_path("err2.jac"), entrypoint="speak", args=[])
     except Exception as e:
         print(f"Error: {e}")
 
@@ -154,7 +159,7 @@ def test_jac_cli_alert_based_runtime_err(fixture_path: Callable[[str], str]) -> 
     sys.stderr = captured_output
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.run(fixture_path("err_runtime.jac"))
+        execution.run(fixture_path("err_runtime.jac"))
 
     sys.stdout = sys.__stdout__
     sys.stderr = sys.__stderr__
@@ -196,7 +201,7 @@ def test_jac_impl_err(fixture_path: Callable[[str], str]) -> None:
     sys.stderr = captured_output
 
     try:
-        cli.enter(fixture_path("err.jac"), entrypoint="speak", args=[])
+        execution.enter(fixture_path("err.jac"), entrypoint="speak", args=[])
     except Exception:
         traceback.print_exc()
 
@@ -213,7 +218,7 @@ def test_param_name_diff(fixture_path: Callable[[str], str]) -> None:
     sys.stdout = captured_output
     sys.stderr = captured_output
     with contextlib.suppress(Exception):
-        cli.run(fixture_path("decl_defn_param_name.jac"))
+        execution.run(fixture_path("decl_defn_param_name.jac"))
     sys.stdout = sys.__stdout__
     sys.stderr = sys.__stderr__
 
@@ -231,7 +236,7 @@ def test_jac_test_err(fixture_path: Callable[[str], str]) -> None:
     captured_output = io.StringIO()
     sys.stdout = captured_output
     sys.stderr = captured_output
-    cli.test(fixture_path("baddy.jac"))
+    analysis.test(fixture_path("baddy.jac"))
     sys.stdout = sys.__stdout__
     sys.stderr = sys.__stderr__
     stdout_value = captured_output.getvalue()
@@ -244,7 +249,7 @@ def test_jac_ast_tool_pass_template(
 ) -> None:
     """Basic test for pass."""
     with capture_stdout() as output:
-        cli.tool("pass_template")
+        tools.tool("pass_template")
 
     stdout_value = output.getvalue()
     assert "Sub objects." in stdout_value
@@ -257,7 +262,7 @@ def test_ast_print(
 ) -> None:
     """Testing for print AstTool."""
     with capture_stdout() as output:
-        cli.tool("ir", ["ast", f"{fixture_path('hello.jac')}"])
+        tools.tool("ir", ["ast", f"{fixture_path('hello.jac')}"])
 
     stdout_value = output.getvalue()
     assert "+-- Token" in stdout_value
@@ -269,7 +274,7 @@ def test_ast_printgraph(
 ) -> None:
     """Testing for print AstTool."""
     with capture_stdout() as output:
-        cli.tool("ir", ["ast.", f"{fixture_path('hello.jac')}"])
+        tools.tool("ir", ["ast.", f"{fixture_path('hello.jac')}"])
 
     stdout_value = output.getvalue()
     assert '[label="MultiString"]' in stdout_value
@@ -281,7 +286,7 @@ def test_cfg_printgraph(
 ) -> None:
     """Testing for print CFG."""
     with capture_stdout() as output:
-        cli.tool("ir", ["cfg.", f"{fixture_path('hello.jac')}"])
+        tools.tool("ir", ["cfg.", f"{fixture_path('hello.jac')}"])
 
     stdout_value = output.getvalue()
     correct_graph = (
@@ -299,7 +304,7 @@ def test_del_clean(
 ) -> None:
     """Testing for print AstTool."""
     with capture_stdout() as output:
-        cli.check(f"{fixture_path('del_clean.jac')}")
+        analysis.check(f"{fixture_path('del_clean.jac')}")
 
     stdout_value = output.getvalue()
     assert "0 errors, 0 warnings" in stdout_value
@@ -313,8 +318,8 @@ def test_build_and_run(
     if os.path.exists(f"{fixture_path('needs_import.jir')}"):
         os.remove(f"{fixture_path('needs_import.jir')}")
     with capture_stdout() as output:
-        cli.build(f"{fixture_path('needs_import.jac')}")
-        cli.run(f"{fixture_path('needs_import.jir')}")
+        analysis.build(f"{fixture_path('needs_import.jac')}")
+        execution.run(f"{fixture_path('needs_import.jir')}")
 
     stdout_value = output.getvalue()
     assert "Errors: 0, Warnings: 0" in stdout_value
@@ -389,7 +394,7 @@ def test_run_specific_test_only(fixture_path: Callable[[str], str]) -> None:
 
 def test_graph_coverage() -> None:
     """Test for coverage of graph cmd."""
-    graph_params = set(inspect.signature(cli.dot).parameters.keys())
+    graph_params = set(inspect.signature(tools.dot).parameters.keys())
     printgraph_params = set(inspect.signature(printgraph).parameters.keys())
     printgraph_params = printgraph_params - {
         "node",
@@ -407,7 +412,7 @@ def test_graph(
 ) -> None:
     """Test for graph CLI cmd."""
     with capture_stdout() as output:
-        cli.dot(f"{examples_path('reference/connect_expressions_(osp).jac')}")
+        tools.dot(f"{examples_path('reference/connect_expressions_(osp).jac')}")
 
     stdout_value = output.getvalue()
     if os.path.exists("connect_expressions_(osp).dot"):
@@ -422,7 +427,7 @@ def test_py_to_jac(
 ) -> None:
     """Test for graph CLI cmd."""
     with capture_stdout() as output:
-        cli.py2jac(f"{fixture_path('pyfunc.py')}")
+        transform.py2jac(f"{fixture_path('pyfunc.py')}")
 
     stdout_value = output.getvalue()
     assert "def my_print(x: object) -> None" in stdout_value
@@ -436,7 +441,7 @@ def test_lambda_arg_annotation(
 ) -> None:
     """Test for lambda argument annotation."""
     with capture_stdout() as output:
-        cli.jac2py(f"{fixture_path('lambda_arg_annotation.jac')}")
+        transform.jac2py(f"{fixture_path('lambda_arg_annotation.jac')}")
 
     stdout_value = output.getvalue()
     assert "x = lambda a, b: b + a" in stdout_value
@@ -450,7 +455,7 @@ def test_lambda_self(
 ) -> None:
     """Test for lambda argument annotation."""
     with capture_stdout() as output:
-        cli.jac2py(f"{fixture_path('lambda_self.jac')}")
+        transform.jac2py(f"{fixture_path('lambda_self.jac')}")
 
     stdout_value = output.getvalue()
     assert "def travel(self, here: City) -> None:" in stdout_value
@@ -469,7 +474,7 @@ def test_param_arg(
 
     filename = fixture_path("params/test_complex_params.jac")
     with capture_stdout() as output:
-        cli.jac2py(f"{fixture_path('params/test_complex_params.jac')}")
+        transform.jac2py(f"{fixture_path('params/test_complex_params.jac')}")
         py_code = JacProgram().compile(file_path=filename).gen.py
 
         with tempfile.NamedTemporaryFile(
@@ -487,7 +492,7 @@ def test_param_arg(
             ) as temp_file:
                 temp_file.write(jac_code)
                 jac_file_path = temp_file.name
-            cli.run(jac_file_path)
+            execution.run(jac_file_path)
         finally:
             os.remove(py_file_path)
             os.remove(jac_file_path)
@@ -532,12 +537,29 @@ def test_caching_issue(fixture_path: Callable[[str], str]) -> None:
 
 def test_cli_docstring_parameters() -> None:
     """Test that all CLI command parameters are documented in their docstrings."""
+    # Map command names to their modules
+    command_modules = {
+        "run": execution,
+        "enter": execution,
+        "serve": execution,
+        "debug": execution,
+        "check": analysis,
+        "build": analysis,
+        "format": analysis,
+        "test": analysis,
+        "gen_parser": analysis,
+        "py2jac": transform,
+        "jac2py": transform,
+        "tool": tools,
+        "dot": tools,
+        "lsp": tools,
+    }
     commands = {}
     registry = get_registry()
     for cmd_spec in registry.get_all():
         name = cmd_spec.name
-        if hasattr(cli, name):
-            commands[name] = getattr(cli, name)
+        if name in command_modules and hasattr(command_modules[name], name):
+            commands[name] = getattr(command_modules[name], name)
 
     missing_params = {}
 
@@ -571,13 +593,22 @@ def test_cli_docstring_parameters() -> None:
 
 def test_cli_help_uses_docstring_descriptions() -> None:
     """Test that CLI help text uses parameter descriptions from docstrings."""
+    # Map test commands to their modules
+    command_modules = {
+        "run": execution,
+        "dot": tools,
+        "test": analysis,
+    }
     test_commands = ["run", "dot", "test"]
 
     for cmd_name in test_commands:
-        if not hasattr(cli, cmd_name):
+        if cmd_name not in command_modules:
+            continue
+        module = command_modules[cmd_name]
+        if not hasattr(module, cmd_name):
             continue
 
-        cmd_func = getattr(cli, cmd_name)
+        cmd_func = getattr(module, cmd_name)
         docstring = cmd_func.__doc__ or ""
         docstring_param_descriptions = extract_param_descriptions(docstring)
 
