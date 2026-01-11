@@ -25,7 +25,7 @@ obj Command {
         source: str = 'unknown'
     ) -> None;
 
-    def call( *args: list , **kwargs: dict)  -> str;
+    def call(*args: list, **kwargs: dict) -> str;
 }
 
 def extract_param_descriptions(docstring: str) -> dict[str, str];

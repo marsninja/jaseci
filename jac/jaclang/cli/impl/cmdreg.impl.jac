@@ -28,7 +28,7 @@ impl CommandRegistry._resolve_and_bind_command(name: str) -> None {
     if not commands {
         return;
     }
-    commands.sort(key=lambda  c: Any: c.priority.value, reverse=True);
+    commands.sort(key=lambda c: Any : c.priority.value, reverse=True);
     winner = commands[0];
     if ((len(commands) > 1) and os.getenv('JAC_CLI_VERBOSE')) {
         conflicts = [f"{c.source} (priority={c.priority})" for c in commands[1:]];
@@ -294,7 +294,7 @@ impl extract_param_descriptions(docstring: str) -> dict[str, str] {
 }
 
 """Call the associated function with the specified arguments and keyword arguments."""
-impl Command.call( *args: list , **kwargs: dict)  -> str {
+impl Command.call(*args: list, **kwargs: dict) -> str {
     return self.func(*args, **kwargs);
 }
 
