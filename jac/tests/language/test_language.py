@@ -1908,13 +1908,12 @@ def test_by_operator(fixture_path: Callable[[str], str]) -> None:
     captured_output = io.StringIO()
     sys.stdout = captured_output
     sys.stderr = captured_output
-
-    with pytest.raises(SystemExit):
-        execution.run(fixture_path("by_operator.jac"))
-
-    sys.stdout = sys.__stdout__
-    sys.stderr = sys.__stderr__
-
+    try:
+        result = execution.run(fixture_path("by_operator.jac"))
+    finally:
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+    assert result == 1
     stdout_value = captured_output.getvalue()
     assert "by" in stdout_value.lower()
     assert "not" in stdout_value.lower()
