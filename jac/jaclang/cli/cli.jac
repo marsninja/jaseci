@@ -19,6 +19,21 @@ import from jaclang.cli {
 """Create JacRuntime and return the base path, module name, and runtime state."""
 def proc_file_sess(filename: str, session: str, <>root: (str | None) = None) -> tuple;
 
+"""Get an object by ID from a Jac program (utility for debugging/testing)."""
+def get_object(filename: str, id: str, session: str = '', main: bool = True) -> dict;
+
+"""Start REST API server (kept for backward compatibility with tests)."""
+def serve(
+    filename: str,
+    session: str = '',
+    port: int = 8000,
+    main: bool = True,
+    faux: bool = False
+) -> None;
+
+# Internal helper
+def _ensure_jac_runtime -> None;
+
 #===============================================================================
 # ENTRY POINT
 #===============================================================================
