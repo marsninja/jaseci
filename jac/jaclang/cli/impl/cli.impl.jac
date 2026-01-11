@@ -1,12 +1,22 @@
-"""Start the command line interface."""
+"""Start the command line interface.
+
+Uses the new registry infrastructure for command registration,
+help formatting, and execution with plugin hook support.
+"""
 
 impl start_cli -> None {
     import from jaclang.pycore.runtime { JacRuntime as Jac }
+    import from jaclang.cli.registry { get_registry }
+    import from jaclang.cli.executor { get_executor }
+    import from jaclang.cli.help { get_help_formatter }
     # Auto-discover and load jac.toml project configuration
     _load_project_config();
+    # Load plugins which may register additional commands
     Jac.create_cmd();
-    cmd_registry.finalize();
-    parser = cmd_registry.parser;
+    # Get the registry and finalize it (builds argparse parser)
+    registry = get_registry();
+    parser = registry.finalize();
+    # Handle implicit 'run' command for .jac files
     raw_argv = sys.argv[1:];
     if (
         raw_argv
@@ -15,37 +25,46 @@ impl start_cli -> None {
     ) {
         sys.argv = [sys.argv[0], 'run'] + raw_argv;
     }
+    # Parse arguments
     args = parser.parse_args();
-    cmd_registry.args = args;
+    # Handle --version flag
     if args.version {
         print(f"Jac version {pkg_version('jaclang')}");
         print('Jac path:', __file__);
         return;
     }
+    # Handle no command specified
     if (args.command is None) {
-        parser.print_help();
+        # Display custom help with grouped commands
+        formatter = get_help_formatter();
+        help_text = formatter.format_main_help(
+            registry.get_all(), prog="jac", version=pkg_version('jaclang')
+        );
+        print(help_text);
         return;
     }
-    command = cmd_registry.get(args.command);
-    if not command {
+    # Get the command specification
+    command_spec = registry.get(args.command);
+    if not command_spec {
         print(f"Unknown command: {args.command}", file=sys.stderr);
         parser.print_help();
         return;
     }
+    # Prepare arguments for execution
     args_dict = vars(args);
     args_dict.pop('command');
     args_dict.pop('version', None);
     # Apply environment profile if specified
     _apply_env_profile(args_dict);
-    allowed_params = <>set(command.sig.parameters.keys());
-    filtered_args = {
-        k: v
-        for (k, v) in args_dict.items()
-        if (k in allowed_params)
-    };
-    ret = command.call(**filtered_args);
-    if ret {
-        print(ret);
+    # Execute using the new executor with hook support
+    executor = get_executor();
+    result = executor.execute(command_spec, args_dict);
+    # Exit with the command's return code
+    if result.error {
+        print(f"Error: {result.error}", file=sys.stderr);
+    }
+    if result.return_code != 0 {
+        sys.exit(result.return_code);
     }
 }
 
@@ -141,7 +160,6 @@ impl serve(
 ) -> None {
     _ensure_jac_runtime();
     import from jaclang.pycore.runtime { JacRuntime as Jac }
-    import from jaclang.runtimelib.server { JacAPIServer }
     # Compute session_path BEFORE proc_file_sess so context has proper persistence
     (base, mod) = os.path.split(filename);
     base = base or os.getcwd();
@@ -179,7 +197,9 @@ impl serve(
         mach.close();
         <>exit(1);
     }
-    server = JacAPIServer(
+    # Get server class from plugin hook (allows jac-scale to provide enhanced server)
+    ServerClass = Jac.get_api_server_class();
+    server = ServerClass(
         module_name=mod, session_path=session_path, port=port, base_path=base
     );
     if faux {
@@ -835,9 +855,7 @@ impl run(
 impl proc_file_sess(filename: str, session: str, <>root: (str | None) = None) -> tuple {
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     import from jaclang.pycore.runtime { JacUtils }
-    if (session == '') {
-        session = cmd_registry?.args?.session or '';
-    }
+    # Session is now passed directly by the caller, no need to check registry
     (base, mod) = os.path.split(filename);
     base = base or './';
     if (filename.endswith('.jac') or filename.endswith('.jir')) {
@@ -1462,7 +1480,7 @@ Examples:
 """
 impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> None {
     import from jaclang.pycore.runtime { plugin_manager }
-    import from jaclang.cli.cmdreg { cmd_registry }
+    import from jaclang.cli.registry { get_registry }
     import from jaclang.project.config { get_config, JacConfig, find_project_root }
     import from pathlib { Path }
     # Build a mapping from plugin object to its distribution info using pluggy's tracking
@@ -1753,13 +1771,14 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> N
     }
     # Build mapping of package -> commands for display
     commands_by_package: dict[str, list[str]] = {};
-    for (cmd_name, command) in cmd_registry.registry.items() {
-        if command?.source and command?.source != 'core' {
+    registry = get_registry();
+    for command in registry.get_all() {
+        if command.source and command.source != 'jaclang' {
             pkg = command.source;
             if pkg not in commands_by_package {
                 commands_by_package[pkg] = [];
             }
-            commands_by_package[pkg].append(cmd_name);
+            commands_by_package[pkg].append(command.name);
         }
     }
     print(

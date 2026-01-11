@@ -15,8 +15,39 @@ from contextlib import AbstractContextManager
 import pytest
 
 from jaclang.cli import cli
-from jaclang.cli.cmdreg import cmd_registry, extract_param_descriptions
+from jaclang.cli.registry import get_registry
 from jaclang.runtimelib.builtin import printgraph
+
+
+def extract_param_descriptions(docstring: str) -> dict[str, str]:
+    """Extract parameter descriptions from a docstring's Args: section.
+
+    This is a helper function for tests that validate CLI docstrings.
+    """
+    param_descriptions: dict[str, str] = {}
+    args_match = re.search(r"Args:(.*?)(?:\n\n|\Z)", docstring, re.DOTALL)
+    if not args_match:
+        return param_descriptions
+    args_section = args_match.group(1)
+    current_param = None
+    current_desc: list[str] = []
+    for line in args_section.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        param_match = re.match(r"\s*([a-zA-Z0-9_]+)(?:\s*\([^)]*\))?:\s*(.*)", line)
+        if param_match:
+            if current_param and current_desc:
+                param_descriptions[current_param] = " ".join(current_desc)
+                current_desc = []
+            current_param = param_match.group(1)
+            if param_match.group(2):
+                current_desc.append(param_match.group(2))
+        elif current_param:
+            current_desc.append(line)
+    if current_param and current_desc:
+        param_descriptions[current_param] = " ".join(current_desc)
+    return param_descriptions
 
 
 def test_jac_cli_run(
@@ -502,7 +533,9 @@ def test_caching_issue(fixture_path: Callable[[str], str]) -> None:
 def test_cli_docstring_parameters() -> None:
     """Test that all CLI command parameters are documented in their docstrings."""
     commands = {}
-    for name, _ in cmd_registry.registry.items():
+    registry = get_registry()
+    for cmd_spec in registry.get_all():
+        name = cmd_spec.name
         if hasattr(cli, name):
             commands[name] = getattr(cli, name)
 
