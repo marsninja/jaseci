@@ -999,7 +999,7 @@ verbose = true
     def test_config_get(self, project_dir: str) -> None:
         """Test jac config get retrieves a specific setting."""
         process = subprocess.Popen(
-            ["jac", "config", "get", "-k", "project.name"],
+            ["jac", "config", "get", "project.name"],
             cwd=project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -1013,7 +1013,7 @@ verbose = true
         """Test jac config set and unset modify settings."""
         # Set a new value
         process = subprocess.Popen(
-            ["jac", "config", "set", "-k", "project.description", "-v", "Updated desc"],
+            ["jac", "config", "set", "project.description", "Updated desc"],
             cwd=project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -1024,7 +1024,7 @@ verbose = true
 
         # Verify the value was set
         process = subprocess.Popen(
-            ["jac", "config", "get", "-k", "project.description"],
+            ["jac", "config", "get", "project.description"],
             cwd=project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -1035,7 +1035,7 @@ verbose = true
 
         # Unset the value
         process = subprocess.Popen(
-            ["jac", "config", "unset", "-k", "project.description"],
+            ["jac", "config", "unset", "project.description"],
             cwd=project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

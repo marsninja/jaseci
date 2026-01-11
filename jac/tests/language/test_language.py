@@ -1559,11 +1559,12 @@ def test_here_visitor_error(fixture_path: Callable[[str], str]) -> None:
     captured_output = io.StringIO()
     sys.stdout = captured_output
     sys.stderr = captured_output
-    with pytest.raises(SystemExit) as cm:
-        execution.run(fixture_path("here_usage_error.jac"))
-    sys.stdout = sys.__stdout__
-    sys.stderr = sys.__stderr__
-    assert cm.value.code == 1
+    try:
+        result = execution.run(fixture_path("here_usage_error.jac"))
+    finally:
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+    assert result == 1
     stdout_value = captured_output.getvalue()
     assert "'here' is not defined" in stdout_value
 
