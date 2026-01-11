@@ -7,7 +7,7 @@ import sys;
 
 """Run the specified AST tool with optional arguments."""
 impl tool(tool: str, args: list = []) -> int {
-    import from jaclang.cli.cli { tool as cli_tool }
+    import from jaclang.cli.impl.cli { tool as cli_tool }
     try {
         cli_tool(tool=tool, args=args or None);
         return 0;
@@ -34,7 +34,7 @@ impl dot(
     to_screen: bool = False,
     format: str = "dot"
 ) -> int {
-    import from jaclang.cli.cli { dot as cli_dot }
+    import from jaclang.cli.impl.cli { dot as cli_dot }
     try {
         cli_dot(
             filename=filename,
@@ -61,7 +61,7 @@ impl dot(
 
 """Run Jac Language Server Protocol."""
 impl lsp -> int {
-    import from jaclang.cli.cli { lsp as cli_lsp }
+    import from jaclang.cli.impl.cli { lsp as cli_lsp }
     try {
         cli_lsp();
         return 0;

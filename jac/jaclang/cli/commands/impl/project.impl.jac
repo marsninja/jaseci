@@ -1,13 +1,13 @@
 """Implementation of project commands.
 
-These implementations delegate to the existing CLI implementation functions.
+Direct imports from cli.impl - no indirection through cli.jac.
 """
 
 import sys;
 
 """Initialize a new Jac project."""
 impl create(name: str = "", force: bool = False) -> int {
-    import from jaclang.cli.cli { create as cli_create }
+    import from jaclang.cli.impl.cli { create as cli_create }
     try {
         cli_create(name=name, force=force);
         return 0;
@@ -21,7 +21,7 @@ impl create(name: str = "", force: bool = False) -> int {
 
 """Install all dependencies from jac.toml."""
 impl install(dev: bool = False, verbose: bool = False) -> int {
-    import from jaclang.cli.cli { install as cli_install }
+    import from jaclang.cli.impl.cli { install as cli_install }
     try {
         cli_install(dev=dev, verbose=verbose);
         return 0;
@@ -41,7 +41,7 @@ impl add(
     cl: bool = False,
     verbose: bool = False
 ) -> int {
-    import from jaclang.cli.cli { add as cli_add }
+    import from jaclang.cli.impl.cli { add as cli_add }
     try {
         cli_add(packages=packages, dev=dev, git=git, cl=cl, verbose=verbose);
         return 0;
@@ -55,7 +55,7 @@ impl add(
 
 """Remove dependencies from the project."""
 impl remove(packages: list = [], dev: bool = False, cl: bool = False) -> int {
-    import from jaclang.cli.cli { remove as cli_remove }
+    import from jaclang.cli.impl.cli { remove as cli_remove }
     try {
         cli_remove(packages=packages, dev=dev, cl=cl);
         return 0;
@@ -69,7 +69,7 @@ impl remove(packages: list = [], dev: bool = False, cl: bool = False) -> int {
 
 """Run custom scripts defined in jac.toml."""
 impl script(name: str = "", list_scripts: bool = False) -> int {
-    import from jaclang.cli.cli { script as cli_script }
+    import from jaclang.cli.impl.cli { script as cli_script }
     try {
         cli_script(name=name, list_scripts=list_scripts);
         return 0;

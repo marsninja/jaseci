@@ -4,6 +4,17 @@ Uses the new registry infrastructure for command registration,
 help formatting, and execution with plugin hook support.
 """
 
+import ast as ast3;
+import marshal;
+import os;
+import pickle;
+import sys;
+import types;
+import from importlib.metadata { version as pkg_version }
+import from pathlib { Path }
+
+glob _runtime_initialized = False;
+
 impl start_cli -> None {
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     import from jaclang.cli.registry { get_registry }

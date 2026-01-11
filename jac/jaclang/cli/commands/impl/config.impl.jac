@@ -13,7 +13,7 @@ impl config(
     group: str = "",
     output: str = "table"
 ) -> int {
-    import from jaclang.cli.cli { config as cli_config }
+    import from jaclang.cli.impl.cli { config as cli_config }
     try {
         cli_config(action=action, key=key, value=value, group=group, output=output);
         return 0;
@@ -27,7 +27,7 @@ impl config(
 
 """Manage Jac plugins."""
 impl plugins(action: str = "list", names: list = [], verbose: bool = False) -> int {
-    import from jaclang.cli.cli { plugins as cli_plugins }
+    import from jaclang.cli.impl.cli { plugins as cli_plugins }
     try {
         cli_plugins(action=action, names=names, verbose=verbose);
         return 0;
