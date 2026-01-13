@@ -1,6 +1,0 @@
-Jac Language Change Log
-
-## [Unreleased]
-
-### Changed
-- Refactored LSP worker thread to use Jac's native `flow`/`wait` concurrency primitives instead of direct `threading.Thread` usage
