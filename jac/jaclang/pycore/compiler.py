@@ -1,14 +1,10 @@
-"""Jac Compiler module.
-
-This module provides the JacCompiler class, a singleton that handles all
-compilation operations. The compiler is separate from the JacProgram which
-holds the compiled user program state.
-"""
+"""Jac Compiler - handles all compilation operations separate from program state."""
 
 from __future__ import annotations
 
 import ast as py_ast
 import marshal
+import os
 import types
 from threading import Event
 from typing import TYPE_CHECKING
@@ -36,14 +32,13 @@ if TYPE_CHECKING:
     from jaclang.pycore.program import JacProgram
 
 
-# Lazy schedule getters - enables converting analysis passes to Jac
 def get_symtab_ir_sched() -> list[type[Transform[uni.Module, uni.Module]]]:
-    """Return symbol table build schedule with lazy imports."""
+    """Symbol table build schedule."""
     return [SymTabBuildPass, DeclImplMatchPass]
 
 
 def get_ir_gen_sched() -> list[type[Transform[uni.Module, uni.Module]]]:
-    """Return full IR generation schedule with lazy imports."""
+    """Full IR generation schedule."""
     from jaclang.compiler.passes.main import CFGBuildPass, SemDefMatchPass
 
     return [
@@ -56,14 +51,14 @@ def get_ir_gen_sched() -> list[type[Transform[uni.Module, uni.Module]]]:
 
 
 def get_type_check_sched() -> list[type[Transform[uni.Module, uni.Module]]]:
-    """Return type checking schedule with lazy imports."""
+    """Type checking schedule."""
     from jaclang.compiler.passes.main import TypeCheckPass
 
     return [TypeCheckPass]
 
 
 def get_py_code_gen() -> list[type[Transform[uni.Module, uni.Module]]]:
-    """Return Python code generation schedule with lazy imports."""
+    """Full Python code generation schedule."""
     from jaclang.compiler.passes.ecmascript import EsastGenPass
     from jaclang.compiler.passes.main import PyJacAstLinkPass
 
@@ -71,31 +66,19 @@ def get_py_code_gen() -> list[type[Transform[uni.Module, uni.Module]]]:
 
 
 def get_minimal_ir_gen_sched() -> list[type[Transform[uni.Module, uni.Module]]]:
-    """Return minimal IR generation schedule (no CFG for faster bootstrap).
-
-    This schedule is used for bootstrap-critical modules that need basic
-    semantic analysis but don't need full control flow analysis.
-    """
+    """Minimal IR schedule (no CFG) for bootstrap modules."""
     return [SymTabBuildPass, DeclImplMatchPass, SemanticAnalysisPass]
 
 
 def get_minimal_py_code_gen() -> list[type[Transform[uni.Module, uni.Module]]]:
-    """Return minimal Python code generation schedule (bytecode only, no JS/type analysis).
-
-    This schedule is used for bootstrap-critical modules (like runtimelib) that must
-    be compiled without triggering imports that could cause circular dependencies.
-    """
+    """Minimal codegen (bytecode only, no JS) for bootstrap modules."""
     return [PyastGenPass, PyBytecodeGenPass]
 
 
 def get_format_sched(
     auto_lint: bool = False,
 ) -> list[type[Transform[uni.Module, uni.Module]]]:
-    """Return format schedule with lazy imports to allow doc_ir.jac conversion.
-
-    Args:
-        auto_lint: If True, include auto-linting pass before formatting. Defaults to False.
-    """
+    """Format schedule. If auto_lint=True, includes auto-linting pass."""
     from jaclang.compiler.passes.tool.comment_injection_pass import (
         CommentInjectionPass,
     )
@@ -106,7 +89,7 @@ def get_format_sched(
 
     if auto_lint:
         return [
-            JacAnnexPass,  # Load impl modules before auto-linting
+            JacAnnexPass,
             JacAutoLintPass,
             DocIRGenPass,
             CommentInjectionPass,
@@ -121,59 +104,68 @@ def get_format_sched(
 
 
 class JacCompiler:
-    """Jac Compiler - singleton that handles all compilation operations.
+    """Jac Compiler singleton.
 
-    The compiler is responsible for:
-    - Parsing source files into AST
-    - Running compilation passes
-    - Managing bytecode caching
-    - Coordinating compilation for a target JacProgram
-
-    The compiler itself is stateless with respect to any particular program.
-    All program-specific state (modules, errors, warnings) lives in JacProgram.
+    Maintains separate module hub for jaclang.* modules (internal_program)
+    vs user modules (target_program passed to methods).
     """
 
-    def __init__(self, bytecode_cache: BytecodeCache | None = None) -> None:
-        """Initialize the JacCompiler.
+    _jaclang_root: str | None = None
 
-        Args:
-            bytecode_cache: Optional custom bytecode cache. If None, uses default.
-        """
+    def __init__(self, bytecode_cache: BytecodeCache | None = None) -> None:
+        """Initialize with optional custom bytecode cache."""
         self._bytecode_cache: BytecodeCache = bytecode_cache or get_bytecode_cache()
+        self._internal_program: JacProgram | None = None
+
+    @property
+    def internal_program(self) -> JacProgram:
+        """Module hub for jaclang.* modules (lazily initialized)."""
+        if self._internal_program is None:
+            from jaclang.pycore.program import JacProgram
+
+            self._internal_program = JacProgram()
+        return self._internal_program
+
+    @classmethod
+    def _get_jaclang_root(cls) -> str:
+        """Get the jaclang package root path."""
+        if cls._jaclang_root is None:
+            cls._jaclang_root = os.path.dirname(os.path.dirname(__file__))
+        return cls._jaclang_root
+
+    def _resolve_program(
+        self, file_path: str, target_program: JacProgram
+    ) -> JacProgram:
+        """Route jaclang.* files to internal_program, others to target_program."""
+        normalized_path = os.path.normpath(file_path)
+        jaclang_root = self._get_jaclang_root()
+        if normalized_path.startswith(jaclang_root + os.sep):
+            return self.internal_program
+        return target_program
 
     def get_bytecode(
         self, full_target: str, target_program: JacProgram, minimal: bool = False
     ) -> types.CodeType | None:
-        """Get the bytecode for a specific module.
+        """Get bytecode using 3-tier cache: in-memory -> disk -> compile."""
+        actual_program = self._resolve_program(full_target, target_program)
 
-        This method implements a three-tier caching strategy:
-        1. In-memory cache (target_program.mod.hub) - fastest, within current process
-        2. Disk cache (.jac/cache/) - persists across restarts
-        3. Full compilation - slowest, only when cache misses
-
-        Args:
-            full_target: The full path to the module file.
-            target_program: The JacProgram to compile into.
-            minimal: If True, use minimal compilation (no JS/type analysis).
-                     This avoids circular imports for bootstrap-critical modules.
-        """
-        # Tier 1: Check in-memory cache (mod.hub)
+        # Tier 1: In-memory cache
         if (
-            full_target in target_program.mod.hub
-            and target_program.mod.hub[full_target].gen.py_bytecode
+            full_target in actual_program.mod.hub
+            and actual_program.mod.hub[full_target].gen.py_bytecode
         ):
-            codeobj = target_program.mod.hub[full_target].gen.py_bytecode
+            codeobj = actual_program.mod.hub[full_target].gen.py_bytecode
             return marshal.loads(codeobj) if isinstance(codeobj, bytes) else None
 
-        # Tier 2: Check disk cache (.jac/cache/)
+        # Tier 2: Disk cache
         cache_key = CacheKey.for_source(full_target, minimal)
         cached_code = self._bytecode_cache.get(cache_key)
         if cached_code is not None:
             return cached_code
 
-        # Tier 3: Compile and cache bytecode
+        # Tier 3: Compile
         result = self.compile(
-            file_path=full_target, target_program=target_program, minimal=minimal
+            file_path=full_target, target_program=actual_program, minimal=minimal
         )
         if result.gen.py_bytecode:
             self._bytecode_cache.put(cache_key, result.gen.py_bytecode)
@@ -187,14 +179,7 @@ class JacCompiler:
         target_program: JacProgram,
         cancel_token: Event | None = None,
     ) -> uni.Module:
-        """Parse source string into an AST module.
-
-        Args:
-            source_str: The source code string to parse.
-            file_path: Path to the source file (for error messages).
-            target_program: The JacProgram to store the parsed module in.
-            cancel_token: Optional event to cancel parsing.
-        """
+        """Parse source string into AST module."""
         had_error = False
         if file_path.endswith(".py") or file_path.endswith(".pyi"):
             from jaclang.compiler.passes.main import PyastBuildPass
@@ -211,7 +196,6 @@ class JacCompiler:
             had_error = len(py_ast_ret.errors_had) > 0
             mod = py_ast_ret.ir_out
         elif file_path.endswith((".js", ".ts", ".jsx", ".tsx")):
-            # Parse TypeScript/JavaScript files
             source = uni.Source(source_str, mod_path=file_path)
             ts_ast_ret = TypeScriptParser(
                 root_ir=source, prog=target_program, cancel_token=cancel_token
@@ -244,60 +228,46 @@ class JacCompiler:
         minimal: bool = False,
         cancel_token: Event | None = None,
     ) -> uni.Module:
-        """Compile a Jac file into a module AST.
+        """Compile a Jac file into module AST."""
+        actual_program = self._resolve_program(file_path, target_program)
 
-        Args:
-            file_path: Path to the Jac file to compile.
-            target_program: The JacProgram to compile into.
-            use_str: Optional source string to use instead of reading from file.
-            no_cgen: If True, skip code generation entirely.
-            type_check: If True, run type checking pass.
-            symtab_ir_only: If True, only build symbol table (skip semantic analysis).
-            minimal: If True, use minimal compilation mode (bytecode only, no JS).
-                     This avoids circular imports for bootstrap-critical modules.
-            cancel_token: Optional event to cancel compilation.
-        """
         keep_str = use_str or read_file_with_encoding(file_path)
         mod_targ = self.parse_str(
-            keep_str, file_path, target_program, cancel_token=cancel_token
+            keep_str, file_path, actual_program, cancel_token=cancel_token
         )
         if symtab_ir_only:
-            # only build symbol table and match decl/impl (skip semantic analysis and CFG)
             self.run_schedule(
                 mod=mod_targ,
-                target_program=target_program,
+                target_program=actual_program,
                 passes=get_symtab_ir_sched(),
                 cancel_token=cancel_token,
             )
         elif minimal:
-            # Minimal IR generation (skip CFG for faster bootstrap)
             self.run_schedule(
                 mod=mod_targ,
-                target_program=target_program,
+                target_program=actual_program,
                 passes=get_minimal_ir_gen_sched(),
                 cancel_token=cancel_token,
             )
         else:
-            # Full IR generation
             self.run_schedule(
                 mod=mod_targ,
-                target_program=target_program,
+                target_program=actual_program,
                 passes=get_ir_gen_sched(),
                 cancel_token=cancel_token,
             )
         if type_check and not minimal:
             self.run_schedule(
                 mod=mod_targ,
-                target_program=target_program,
+                target_program=actual_program,
                 passes=get_type_check_sched(),
                 cancel_token=cancel_token,
             )
-        # If the module has syntax errors, we skip code generation.
         if (not mod_targ.has_syntax_errors) and (not no_cgen):
             codegen_sched = get_minimal_py_code_gen() if minimal else get_py_code_gen()
             self.run_schedule(
                 mod=mod_targ,
-                target_program=target_program,
+                target_program=actual_program,
                 passes=codegen_sched,
                 cancel_token=cancel_token,
             )
@@ -310,21 +280,16 @@ class JacCompiler:
         use_str: str | None = None,
         type_check: bool = False,
     ) -> uni.Module:
-        """Build a Jac file with import dependency resolution.
-
-        Args:
-            file_path: Path to the Jac file to build.
-            target_program: The JacProgram to build into.
-            use_str: Optional source string to use instead of reading from file.
-            type_check: If True, run type checking pass.
-        """
+        """Build a Jac file with import dependency resolution."""
         from jaclang.compiler.passes.main import JacImportDepsPass
 
+        actual_program = self._resolve_program(file_path, target_program)
+
         mod_targ = self.compile(
-            file_path, target_program, use_str, type_check=type_check
+            file_path, actual_program, use_str, type_check=type_check
         )
-        JacImportDepsPass(ir_in=mod_targ, prog=target_program)
-        SemanticAnalysisPass(ir_in=mod_targ, prog=target_program)
+        JacImportDepsPass(ir_in=mod_targ, prog=actual_program)
+        SemanticAnalysisPass(ir_in=mod_targ, prog=actual_program)
         return mod_targ
 
     def run_schedule(
@@ -334,25 +299,13 @@ class JacCompiler:
         passes: list[type[Transform[uni.Module, uni.Module]]],
         cancel_token: Event | None = None,
     ) -> None:
-        """Run a schedule of passes on a module.
-
-        Args:
-            mod: The module to run passes on.
-            target_program: The JacProgram for error/warning tracking.
-            passes: List of pass classes to run in order.
-            cancel_token: Optional event to cancel the schedule.
-        """
+        """Run a list of passes on a module."""
         for current_pass in passes:
             current_pass(ir_in=mod, prog=target_program, cancel_token=cancel_token)  # type: ignore
 
     @staticmethod
     def jac_file_formatter(file_path: str, auto_lint: bool = False) -> JacProgram:
-        """Format a Jac file and return the JacProgram.
-
-        Args:
-            file_path: Path to the Jac file to format.
-            auto_lint: If True, apply auto-linting corrections before formatting.
-        """
+        """Format a Jac file."""
         from jaclang.pycore.program import JacProgram
 
         prog = JacProgram()
@@ -369,13 +322,7 @@ class JacCompiler:
     def jac_str_formatter(
         source_str: str, file_path: str, auto_lint: bool = False
     ) -> JacProgram:
-        """Format a Jac string and return the JacProgram.
-
-        Args:
-            source_str: The Jac source code string to format.
-            file_path: Path to use for error messages.
-            auto_lint: If True, apply auto-linting corrections before formatting.
-        """
+        """Format a Jac source string."""
         from jaclang.pycore.program import JacProgram
 
         prog = JacProgram()
