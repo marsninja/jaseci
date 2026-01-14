@@ -140,7 +140,6 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         <>node: uni.UniScopeNode, statements: list[es.Statement]
     ) -> list[es.Statement];
 
-    def _is_in_client_scope -> bool;
     def _strip_spawn_await(
         node_expr: uni.Expr, es_expr: es.Expression
     ) -> tuple[uni.Expr, es.Expression];
