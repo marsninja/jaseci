@@ -1634,6 +1634,20 @@ impl EsastGenPass._get_setter_name(var_name: str) -> str {
     return f"set{var_name[0].upper()}{var_name[1:]}";
 }
 
+"""Check if useState is already imported (either by user or auto-injection)."""
+impl EsastGenPass._has_usestate_import -> bool {
+    for import_decl in self.imports {
+        for spec in import_decl.specifiers {
+            if isinstance(spec, es.ImportSpecifier) {
+                if spec.local and spec.local.name == 'useState' {
+                    return True;
+                }
+            }
+        }
+    }
+    return False;
+}
+
 """Auto-inject useState import from @jac-client/utils when reactive has variables are used."""
 impl EsastGenPass._inject_usestate_import(<>node: uni.UniNode) -> None {
     # Create: import { useState } from "@jac-client/utils";
@@ -1662,8 +1676,8 @@ impl EsastGenPass.exit_arch_has(<>node: uni.ArchHas) -> None {
         <>node.gen.es_ast = None;
         return;
     }
-    # Auto-inject useState import if not already done
-    if not self.has_injected_usestate {
+    # Auto-inject useState import if not already done and user hasn't imported it
+    if not self.has_injected_usestate and not self._has_usestate_import() {
         self._inject_usestate_import(<>node);
         self.has_injected_usestate = True;
     }
