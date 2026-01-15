@@ -88,9 +88,12 @@ impl create(
             print(f"Created {full_path}");
         }
     }
-    # Create .gitignore with entries from template
+    # Create .gitignore files from template
     if tmpl.gitignore_entries {
-        _create_gitignore(project_path, tmpl.gitignore_entries);
+        _create_jac_gitignore(project_path, tmpl.gitignore_entries);
+    }
+    if tmpl.root_gitignore_entries {
+        _create_root_gitignore(project_path, tmpl.root_gitignore_entries);
     }
     # Pre-generate compiler cache if main.jac exists
     main_jac = project_path / "main.jac";
@@ -115,7 +118,7 @@ impl create(
             print(f"Warning: post-create hook failed: {e}", file=sys.stderr);
         }
     }
-    print(f"\nProject '{project_name}' initialized successfully!");
+    print(f"\nProject '{project_name}' created successfully!");
     print("\nNext steps:");
     if name {
         print(f"  cd {name}");
@@ -124,6 +127,16 @@ impl create(
     print("  jac add <package>   # Add dependencies");
     print("  jac install         # Install all dependencies");
     return 0;
+}
+
+"""Quote TOML key if it contains special characters."""
+def _quote_toml_key(k: str) -> str {
+    # TOML bare keys can only contain A-Za-z0-9_-
+    stripped: str = k.replace('_', '').replace('-', '');
+    if stripped.isalnum() and len(k) > 0 {
+        return k;
+    }
+    return f'"{k}"';
 }
 
 """Render a config dict to TOML format."""
@@ -167,7 +180,7 @@ def _render_config_to_toml(config: dict, project_name: str) -> str {
 
         # Write simple values
         for (k, v) in simple_values.items() {
-            lines.append(f"{k} = {render_value(v)}");
+            lines.append(f"{_quote_toml_key(k)} = {render_value(v)}");
         }
 
         if simple_values and nested_sections {
@@ -201,9 +214,8 @@ def _render_config_to_toml(config: dict, project_name: str) -> str {
     return "\n".join(lines);
 }
 
-"""Create or update .gitignore with entries."""
-def _create_gitignore(project_path: Path, entries: list[str]) -> None {
-    # For .jac directory, create a separate .gitignore inside it
+"""Create .jac/.gitignore with entries."""
+def _create_jac_gitignore(project_path: Path, entries: list[str]) -> None {
     jac_dir = project_path / ".jac";
     if jac_dir.exists() {
         jac_gitignore = jac_dir / ".gitignore";
@@ -212,6 +224,15 @@ def _create_gitignore(project_path: Path, entries: list[str]) -> None {
         }
         print(f"Created {jac_gitignore}");
     }
+}
+
+"""Create project-root .gitignore with entries."""
+def _create_root_gitignore(project_path: Path, entries: list[str]) -> None {
+    gitignore_path = project_path / ".gitignore";
+    with open(gitignore_path, "w") as f {
+        f.write("\n".join(entries) + "\n");
+    }
+    print(f"Created {gitignore_path}");
 }
 
 """Install all dependencies from jac.toml."""

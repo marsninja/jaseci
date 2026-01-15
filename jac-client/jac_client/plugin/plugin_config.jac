@@ -7,6 +7,7 @@ configuration system, registering:
 - npm dependency type for [dependencies.npm] section
 """
 
+import os;
 import subprocess;
 import sys;
 import from pathlib { Path }
@@ -116,6 +117,31 @@ class JacClientPluginConfig {
             "gitignore_entries": [
                 "# Ignore all build artifacts in .jac directory",
                 "*"
+            ],
+            "root_gitignore_entries": [
+                "# Jac project",
+                "packages/",
+                "*.jbc",
+                "*.jir",
+                "",
+                "# Python",
+                "__pycache__/",
+                "*.py[cod]",
+                ".venv/",
+                "venv/",
+                "",
+                "# IDE",
+                ".idea/",
+                ".vscode/",
+                "*.swp",
+                "",
+                "# Node.js",
+                "node_modules/",
+                "",
+                "# Build artifacts",
+                ".jac/",
+                "*.session",
+                "*.session.*"
             ],
             "post_create": _post_create_client
         };
@@ -242,6 +268,11 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
     import from jac_client.plugin.src.vite_bundler { ViteBundler }
     import shutil;
 
+    # Check if npm installation should be skipped
+    if os.environ.get("JAC_CLIENT_SKIP_NPM_INSTALL") {
+        return;
+    }
+
     print("\nInstalling default npm packages...");
 
     try {
@@ -337,15 +368,13 @@ def _npm_install_handler(
         raise RuntimeError("No project root found") ;
     }
 
-    project_dir = config.project_root;
-
     # Add to config (core JacConfig handles this)
-    package_version = version or "latest";
+    package_version: str = version or "latest";
     config.add_dependency(package_name, package_version, dev=is_dev, dep_type="npm");
     config.save();
 
     # Generate package.json and run npm install
-    _regenerate_and_install(project_dir);
+    _regenerate_and_install(Path(str(config.project_root)));
 }
 
 """Install all npm packages from jac.toml."""
@@ -354,7 +383,7 @@ def _npm_install_all_handler(config: JacConfig) -> None {
         raise RuntimeError("No project root found") ;
     }
 
-    _regenerate_and_install(config.project_root);
+    _regenerate_and_install(Path(str(config.project_root)));
 }
 
 """Remove an npm package."""
@@ -365,7 +394,7 @@ def _npm_remove_handler(
         raise RuntimeError("No project root found") ;
     }
 
-    project_dir = config.project_root;
+    project_dir: Path = Path(str(config.project_root));
 
     # Remove from config (core JacConfig handles this)
     result = config.remove_dependency(package_name, dev=is_dev, dep_type="npm");

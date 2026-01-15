@@ -26,6 +26,7 @@ impl TemplateRegistry.register(template_info: dict[str, Any]) -> None {
         files=template_info.get("files", {}),
         directories=template_info.get("directories", []),
         gitignore_entries=template_info.get("gitignore_entries", []),
+        root_gitignore_entries=template_info.get("root_gitignore_entries", []),
         post_create=template_info.get("post_create")
     );
     # Register the template
