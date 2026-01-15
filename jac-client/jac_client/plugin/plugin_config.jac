@@ -114,31 +114,8 @@ class JacClientPluginConfig {
             },
             "directories": ["components", "assets", ".jac/client"],
             "gitignore_entries": [
-                "# Jac project",
-                "packages/",
-                ".jac_cache/",
-                "*.jbc",
-                "*.jir",
-                "__jaccache__/",
-                "",
-                "# Python",
-                "__pycache__/",
-                "*.py[cod]",
-                ".venv/",
-                "venv/",
-                "",
-                "# IDE",
-                ".idea/",
-                ".vscode/",
-                "*.swp",
-                "",
-                "# Node.js",
-                "node_modules/",
-                "",
-                "# Jac build artifacts",
-                ".jac/",
-                "*.session",
-                "*.session.*"
+                "# Ignore all build artifacts in .jac directory",
+                "*"
             ],
             "post_create": _post_create_client
         };
