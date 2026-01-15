@@ -2211,6 +2211,25 @@ class JacPluginConfig:
         """
         return None
 
+    @staticmethod
+    def register_project_template() -> dict[str, Any] | None:
+        """Register a project template for jac create.
+
+        Allows plugins to provide custom project templates that can be
+        selected via `jac create --template <name>`.
+
+        Returns:
+            dict with keys:
+                - name: Template name (e.g., 'client')
+                - description: Human-readable description
+                - config: dict for jac.toml content (with {{name}} placeholders)
+                - files: dict[path, content] with {{name}} placeholders
+                - directories: list of directories to create
+                - gitignore_entries: list of .gitignore entries
+                - post_create: optional callable(project_path, project_name)
+        """
+        return None
+
 
 class JacRuntimeInterface(
     JacClassReferences,
