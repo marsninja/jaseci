@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import ClassVar, TypeVar, cast
 
 import jaclang.pycore.unitree as uni
+from jaclang.pycore.constant import CodeContext
 from jaclang.pycore.constant import Constants as Con
 from jaclang.pycore.constant import EdgeDir
 from jaclang.pycore.constant import Tokens as Tok
@@ -132,12 +133,18 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
 
     def enter_node(self, node: uni.UniNode) -> None:
         """Enter node."""
-        if isinstance(node, uni.ClientBlock):
+        # Don't prune ServerBlocks - they should generate Python AST
+        if isinstance(node, uni.ServerBlock):
+            # Process children normally, don't prune
+            pass
+        # Prune ClientBlocks from Python generation
+        elif isinstance(node, uni.ClientBlock):
             self.prune()
             return
-        if (
+        # Prune CLIENT context nodes from Python (but keep SERVER)
+        elif (
             isinstance(node, uni.ClientFacingNode)
-            and node.is_client_decl
+            and node.code_context == CodeContext.CLIENT
             and (node.parent is None or isinstance(node.parent, uni.Module))
         ):
             self.prune()
@@ -149,12 +156,13 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
 
     def exit_node(self, node: uni.UniNode) -> None:
         """Exit node."""
-        # ClientBlock already handled in enter_node
+        # ClientBlock handled in enter_node (pruned)
+        # ServerBlock has its own exit handler (exit_server_block)
         if isinstance(node, uni.ClientBlock):
             return
         if (
             isinstance(node, uni.ClientFacingNode)
-            and node.is_client_decl
+            and node.code_context == CodeContext.CLIENT
             and (node.parent is None or isinstance(node.parent, uni.Module))
         ):
             return
@@ -708,6 +716,11 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
         # py_ast already set to [] in enter_node, nothing to do here
         pass
 
+    def exit_server_block(self, node: uni.ServerBlock) -> None:
+        """Handle ServerBlock - unwrap its children to module level."""
+        # Collect all py_ast from children to expose at module level
+        node.gen.py_ast = self.resolve_stmt_block(node.body)
+
     def exit_py_inline_code(self, node: uni.PyInlineCode) -> None:
         if node.doc:
             doc = self.sync(
@@ -735,6 +748,17 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
             if module_parts == ["__future__"]:
                 node.gen.py_ast = []
                 return
+
+        # Skip SERVER imports in CLIENT context files (.cl.jac)
+        # These are for type checking only and don't execute in Python
+        if (
+            node.code_context == CodeContext.SERVER
+            and node.parent
+            and isinstance(node.parent, uni.Module)
+            and node.parent.loc.mod_path.endswith(".cl.jac")
+        ):
+            node.gen.py_ast = []
+            return
 
         py_nodes: list[ast3.AST] = []
         if node.doc:
@@ -804,7 +828,7 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
         if node.path and len(node.path) == 1 and isinstance(node.path[0], uni.String):
             # String literal imports are only supported in client (cl) imports
             import_node = node.parent_of_type(uni.Import)
-            if import_node and not import_node.is_client_decl:
+            if import_node and import_node.code_context != CodeContext.CLIENT:
                 self.log_error(
                     f'String literal imports (e.g., from "{node.path[0].lit_value}") are only supported '
                     f"in client (cl) imports, not Python imports. "
@@ -825,7 +849,7 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
         # Validate that default and namespace imports are only used in cl imports
         if isinstance(node.name, uni.Token) and node.name.value in ["default", "*"]:
             import_node = node.from_parent
-            if not import_node.is_client_decl:
+            if import_node.code_context != CodeContext.CLIENT:
                 import_type = "Default" if node.name.value == "default" else "Namespace"
                 self.log_error(
                     f"{import_type} imports (using '{node.name.value}') are only supported "
