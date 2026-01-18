@@ -132,8 +132,11 @@ impl NodeInstaller.install_node_via_nvm(version: str = "20") -> tuple[bool, str]
     }
 }
 
-"""Ensure Node.js is installed, installing automatically if needed."""
-impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool, str] {
+"""Ensure Node.js is installed, installing automatically if needed.
+
+Returns tuple of (success: bool, message: str, was_just_installed: bool)
+"""
+impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool, str, bool] {
     # Common fallback message for manual installation
     manual_install_msg = (
         'Please install Node.js manually:\n' + '  • Download from: https://nodejs.org/\n' + '  • Or install NVM: https://github.com/nvm-sh/nvm\n' + '  After installation, run "jac add --cl" again.'
@@ -141,7 +144,7 @@ impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool
     # Check if Node.js is already available
     if NodeInstaller.is_node_installed() and NodeInstaller.is_npm_installed() {
         version = NodeInstaller.get_node_version();
-        return (True, f'Node.js {version} is already installed');
+        return (True, f'Node.js {version} is already installed', False);
     }
     print('\nNode.js is not installed or not found in PATH.');
     # Check for interactive mode
@@ -154,7 +157,7 @@ impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool
         );
         response = input('Install Node.js? [Y/n]: ').strip().lower();
         if response and response not in ('y', 'yes') {
-            return (False, f'Node.js installation cancelled. {manual_install_msg}');
+            return (False, f'Node.js installation cancelled. {manual_install_msg}', False);
         }
     }
     # Wrap entire installation process in error handling
@@ -165,9 +168,8 @@ impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool
             if not success_nvm[0] {
                 return (
                     False,
-                    f'Unable to automatically install Node.js.\n\nError: {success_nvm[
-                        1
-                    ]}\n\n{manual_install_msg}'
+                    f'Unable to automatically install Node.js.\n\nError: {success_nvm[1]}\n\n{manual_install_msg}',
+                    False
                 );
             }
         }
@@ -177,7 +179,8 @@ impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool
         if not success_node[0] {
             return (
                 False,
-                f'Unable to automatically install Node.js.\n\nError: {success_node[1]}\n\n{manual_install_msg}'
+                f'Unable to automatically install Node.js.\n\nError: {success_node[1]}\n\n{manual_install_msg}',
+                False
             );
         }
 
@@ -189,13 +192,15 @@ impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool
 
         return (
             True,
-            f'Node.js {NodeInstaller.DEFAULT_NODE_VERSION} installed successfully'
+            f'Node.js {NodeInstaller.DEFAULT_NODE_VERSION} installed successfully',
+            True
         );
     } except Exception as e {
         # Catch any unexpected errors during installation
         return (
             False,
-            f'Unable to automatically install Node.js.\n\nUnexpected error: {str(e)}\n\n{manual_install_msg}'
+            f'Unable to automatically install Node.js.\n\nUnexpected error: {str(e)}\n\n{manual_install_msg}',
+            False
         );
     }
 }

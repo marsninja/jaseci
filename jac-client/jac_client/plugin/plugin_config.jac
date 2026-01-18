@@ -274,6 +274,7 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
     node_result = NodeInstaller.ensure_node_installed(interactive=True);
     node_installed = node_result[0];
     message = node_result[1];
+    was_just_installed = node_result[2];
 
     if not node_installed {
         print(f"\n{message}", file=sys.stderr);
@@ -366,6 +367,20 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
         print(f"Warning: Could not install default packages: {e}", file=sys.stderr);
         print("You can install packages later with: jac add --cl", file=sys.stderr);
     }
+
+    # If Node.js was just installed, offer to restart terminal for full integration
+    if was_just_installed {
+        print("\n" + "=" * 70);
+        print("IMPORTANT: Node.js was just installed via NVM");
+        print("=" * 70);
+        print("\nFor Node.js to be available in your current shell, you need to:");
+        print("  1. Run: source ~/.nvm/nvm.sh");
+        print("  2. Or restart your terminal");
+        print("\nNote: npm commands from jac will work immediately, but if you want");
+        print("to use 'node' or 'npm' directly in this terminal, please reload your");
+        print("shell configuration.");
+        print("=" * 70 + "\n");
+    }
 }
 
 # ===============================================================================
@@ -435,11 +450,17 @@ def _regenerate_and_install(project_dir: Path) -> None {
     node_result = NodeInstaller.ensure_node_installed(interactive=True);
     node_installed = node_result[0];
     message = node_result[1];
+    was_just_installed = node_result[2];
 
     if not node_installed {
         raise RuntimeError(
             f"Node.js installation required:\n{message}\n" + "Please install Node.js and try again."
         ) ;
+    }
+
+    # Inform user if Node.js was just installed
+    if was_just_installed {
+        print("\nNote: Node.js was just installed. npm commands will work via NVM sourcing.");
     }
 
     bundler = ViteBundler(project_dir);

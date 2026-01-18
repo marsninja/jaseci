@@ -28,8 +28,11 @@ obj NodeInstaller {
     """Install Node.js using NVM."""
     static def install_node_via_nvm(version: str = "20") -> tuple[bool, str];
 
-    """Ensure Node.js is installed, installing automatically if needed."""
-    static def ensure_node_installed(interactive: bool = True) -> tuple[bool, str];
+    """Ensure Node.js is installed, installing automatically if needed.
+
+    Returns tuple of (success: bool, message: str, was_just_installed: bool)
+    """
+    static def ensure_node_installed(interactive: bool = True) -> tuple[bool, str, bool];
 
     """Run npm command with NVM environment properly sourced."""
     static def run_npm_with_nvm(args: list, cwd: Path, timeout: int = 300) -> object;
