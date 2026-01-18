@@ -742,17 +742,6 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
                 node.gen.py_ast = []
                 return
 
-        # Skip SERVER imports in CLIENT context files (.cl.jac)
-        # These are for type checking only and don't execute in Python
-        if (
-            node.code_context == CodeContext.SERVER
-            and node.parent
-            and isinstance(node.parent, uni.Module)
-            and node.parent.loc.mod_path.endswith(".cl.jac")
-        ):
-            node.gen.py_ast = []
-            return
-
         py_nodes: list[ast3.AST] = []
         if node.doc:
             py_nodes.append(
