@@ -263,13 +263,31 @@ jac add --cl react-router-dom
 # ===============================================================================
 # Post-create Hook for Client Template
 # ===============================================================================
-"""Post-create hook to install npm packages after project creation."""
+"""Post-create hook to ensure Node.js is installed and optionally install npm packages."""
 def _post_create_client(project_path: Path, project_name: str) -> None {
     import from jac_client.plugin.src.vite_bundler { ViteBundler }
+    import from jac_client.plugin.utils.node_installer { NodeInstaller }
     import shutil;
 
-    # Check if npm installation should be skipped
+    # First, ensure Node.js is installed
+    print("\nChecking Node.js installation...");
+    node_result = NodeInstaller.ensure_node_installed(interactive=True);
+    node_installed = node_result[0];
+    message = node_result[1];
+
+    if not node_installed {
+        print(f"\n{message}", file=sys.stderr);
+        print("\nProject created successfully, but Node.js is required for client development.");
+        print("After installing Node.js, run: jac add --cl", file=sys.stderr);
+        return;
+    }
+
+    print(f"{message}");
+
+    # Check if npm package installation should be skipped
     if os.environ.get("JAC_CLIENT_SKIP_NPM_INSTALL") {
+        print("\nSkipping npm package installation (JAC_CLIENT_SKIP_NPM_INSTALL is set).");
+        print("Run 'jac add --cl' when you're ready to install packages.");
         return;
     }
 
@@ -310,14 +328,12 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
 
         shutil.copy2(configs_package_json, build_package_json);
 
-        # Run npm install
+        # Run npm install using NodeInstaller to handle NVM environment
         try {
-            subprocess.run(
-                ['npm', 'install'],
+            NodeInstaller.run_npm_with_nvm(
+                ['install'],
                 cwd=client_dir,
-                check=True,
-                capture_output=True,
-                text=True
+                timeout=300
             );
 
             # Move package-lock.json to configs/ if it was created
@@ -336,7 +352,7 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
             print("You can install packages later with: jac add --cl", file=sys.stderr);
         } except FileNotFoundError {
             print(
-                "Warning: npm command not found. Install Node.js and npm to install packages.",
+                "Warning: npm command not found. This may require reloading your shell.",
                 file=sys.stderr
             );
             print("You can install packages later with: jac add --cl", file=sys.stderr);
@@ -412,7 +428,20 @@ def _npm_remove_handler(
 """Regenerate package.json from jac.toml and run npm install."""
 def _regenerate_and_install(project_dir: Path) -> None {
     import from jac_client.plugin.src.vite_bundler { ViteBundler }
+    import from jac_client.plugin.utils.node_installer { NodeInstaller }
     import shutil;
+
+    # Ensure Node.js is installed before proceeding
+    node_result = NodeInstaller.ensure_node_installed(interactive=True);
+    node_installed = node_result[0];
+    message = node_result[1];
+
+    if not node_installed {
+        raise RuntimeError(
+            f"Node.js installation required:\n{message}\n"
+            + "Please install Node.js and try again."
+        ) ;
+    }
 
     bundler = ViteBundler(project_dir);
     bundler.create_package_json();
@@ -429,18 +458,17 @@ def _regenerate_and_install(project_dir: Path) -> None {
     }
 
     try {
-        subprocess.run(
-            ["npm", "install"],
+        # Use NodeInstaller.run_npm_with_nvm to handle NVM environment
+        NodeInstaller.run_npm_with_nvm(
+            ["install"],
             cwd=client_dir,
-            check=True,
-            capture_output=True,
-            text=True
+            timeout=300
         );
     } except subprocess.CalledProcessError as e {
         raise RuntimeError(f"Failed to install npm packages: {e.stderr}") from e ;
     } except FileNotFoundError {
         raise RuntimeError(
-            "npm command not found. Ensure Node.js and npm are installed."
+            "npm command not found. This may require reloading your shell after Node.js installation."
         ) from None ;
     } finally {
         # Clean up temporary package.json
