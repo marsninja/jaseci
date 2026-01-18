@@ -132,12 +132,8 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
 
     def enter_node(self, node: uni.UniNode) -> None:
         """Enter node."""
-        # Don't prune ServerBlocks - they should generate Python AST
-        if isinstance(node, uni.ServerBlock):
-            # Process children normally, don't prune
-            pass
         # Prune ClientBlocks from Python generation
-        elif isinstance(node, uni.ClientBlock) or (
+        if isinstance(node, uni.ClientBlock) or (
             isinstance(node, uni.ClientFacingNode)
             and node.code_context == CodeContext.CLIENT
             and (node.parent is None or isinstance(node.parent, uni.Module))
