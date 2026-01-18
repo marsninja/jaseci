@@ -277,7 +277,9 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
 
     if not node_installed {
         print(f"\n{message}", file=sys.stderr);
-        print("\nProject created successfully, but Node.js is required for client development.");
+        print(
+            "\nProject created successfully, but Node.js is required for client development."
+        );
         print("After installing Node.js, run: jac add --cl", file=sys.stderr);
         return;
     }
@@ -286,7 +288,9 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
 
     # Check if npm package installation should be skipped
     if os.environ.get("JAC_CLIENT_SKIP_NPM_INSTALL") {
-        print("\nSkipping npm package installation (JAC_CLIENT_SKIP_NPM_INSTALL is set).");
+        print(
+            "\nSkipping npm package installation (JAC_CLIENT_SKIP_NPM_INSTALL is set)."
+        );
         print("Run 'jac add --cl' when you're ready to install packages.");
         return;
     }
@@ -330,11 +334,7 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
 
         # Run npm install using NodeInstaller to handle NVM environment
         try {
-            NodeInstaller.run_npm_with_nvm(
-                ['install'],
-                cwd=client_dir,
-                timeout=300
-            );
+            NodeInstaller.run_npm_with_nvm(['install'], cwd=client_dir, timeout=300);
 
             # Move package-lock.json to configs/ if it was created
             build_package_lock = client_dir / 'package-lock.json';
@@ -438,8 +438,7 @@ def _regenerate_and_install(project_dir: Path) -> None {
 
     if not node_installed {
         raise RuntimeError(
-            f"Node.js installation required:\n{message}\n"
-            + "Please install Node.js and try again."
+            f"Node.js installation required:\n{message}\n" + "Please install Node.js and try again."
         ) ;
     }
 
@@ -459,11 +458,7 @@ def _regenerate_and_install(project_dir: Path) -> None {
 
     try {
         # Use NodeInstaller.run_npm_with_nvm to handle NVM environment
-        NodeInstaller.run_npm_with_nvm(
-            ["install"],
-            cwd=client_dir,
-            timeout=300
-        );
+        NodeInstaller.run_npm_with_nvm(["install"], cwd=client_dir, timeout=300);
     } except subprocess.CalledProcessError as e {
         raise RuntimeError(f"Failed to install npm packages: {e.stderr}") from e ;
     } except FileNotFoundError {
