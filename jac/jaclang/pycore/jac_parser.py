@@ -157,10 +157,8 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 continue  # Keep as SERVER
             if isinstance(elem, uni.ClientFacingNode):
                 # Skip elements that have explicit sv token (not just default SERVER context)
-                if (
-                    elem._source_context_token()
-                    and elem._source_context_token().name == Tok.KW_SERVER
-                ):
+                context_token = elem._source_context_token()
+                if context_token is not None and context_token.name == Tok.KW_SERVER:
                     continue  # Keep explicit sv as SERVER
                 elem.code_context = CodeContext.CLIENT
                 if isinstance(elem, uni.ModuleCode) and elem.body:
@@ -617,7 +615,8 @@ class JacParser(Transform[uni.Source, uni.Module]):
             if client_tok or server_tok:
                 # Determine context
                 context = CodeContext.CLIENT if client_tok else CodeContext.SERVER
-                context_tok = client_tok or server_tok
+                context_tok = client_tok if client_tok else server_tok
+                assert context_tok is not None  # One must be set due to if condition
 
                 lbrace = self.match_token(Tok.LBRACE)
                 if lbrace:

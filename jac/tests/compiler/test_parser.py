@@ -447,7 +447,8 @@ cl {
     assert isinstance(body[1], uni.GlobalVars)
     assert isinstance(body[2], uni.ClientBlock)
     assert not (
-        isinstance(body[1], uni.ClientFacingNode) and body[1].is_client_decl
+        isinstance(body[1], uni.ClientFacingNode)
+        and body[1].code_context == CodeContext.CLIENT
     )  # glob b is not client
 
     # Test 4: Empty client block
@@ -463,7 +464,10 @@ glob x = 1;
     assert isinstance(body[0], uni.ClientBlock)
     assert len(body[0].body) == 0  # Empty
     assert isinstance(body[1], uni.GlobalVars)
-    assert not (isinstance(body[1], uni.ClientFacingNode) and body[1].is_client_decl)
+    assert not (
+        isinstance(body[1], uni.ClientFacingNode)
+        and body[1].code_context == CodeContext.CLIENT
+    )
 
     # Test 5: Various statement types with single cl marker
     source = """

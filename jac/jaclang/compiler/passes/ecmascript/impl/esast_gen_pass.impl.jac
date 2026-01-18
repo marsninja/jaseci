@@ -727,7 +727,7 @@ impl EsastGenPass.exit_func_call(<>node: uni.FuncCall) -> None {
         target_sym = getattr(<>node.target, 'sym', None);
         if (target_sym and target_sym.defn) {
             defn_node = target_sym.defn[0];
-            if instanceof(defn_node.parent, uni.Ability) {
+            if isinstance(defn_node.parent, uni.Ability) {
                 ability_node = defn_node.parent;
                 is_server_func = ability_node.code_context != CodeContext.CLIENT;
                 if is_server_func {

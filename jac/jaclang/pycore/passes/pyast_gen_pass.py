@@ -714,7 +714,9 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
     def exit_server_block(self, node: uni.ServerBlock) -> None:
         """Handle ServerBlock - unwrap its children to module level."""
         # Collect all py_ast from children to expose at module level
-        node.gen.py_ast = self.resolve_stmt_block(node.body)
+        node.gen.py_ast = self._flatten_ast_list(
+            [item.gen.py_ast for item in node.body]
+        )
 
     def exit_py_inline_code(self, node: uni.PyInlineCode) -> None:
         if node.doc:

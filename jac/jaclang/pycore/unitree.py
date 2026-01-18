@@ -1146,8 +1146,8 @@ class GlobalVars(ClientFacingNode, ElementStmt, AstAccessNode):
         new_kid: list[UniNode] = []
         if self.doc:
             new_kid.append(self.doc)
-        client_tok = self._source_client_token()
-        if self.is_client_decl and (
+        client_tok = self._source_context_token()
+        if self.code_context == CodeContext.CLIENT and (
             client_tok is not None or not self.in_client_context()
         ):
             new_kid.append(client_tok if client_tok else self.gen_token(Tok.KW_CLIENT))
@@ -1220,8 +1220,8 @@ class Test(ClientFacingNode, AstSymbolNode, ElementStmt, UniScopeNode):
         new_kid: list[UniNode] = []
         if self.doc:
             new_kid.append(self.doc)
-        client_tok = self._source_client_token()
-        if self.is_client_decl and (
+        client_tok = self._source_context_token()
+        if self.code_context == CodeContext.CLIENT and (
             client_tok is not None or not self.in_client_context()
         ):
             new_kid.append(client_tok if client_tok else self.gen_token(Tok.KW_CLIENT))
@@ -1263,8 +1263,8 @@ class ModuleCode(ClientFacingNode, ElementStmt, ArchBlockStmt, EnumBlockStmt):
         new_kid: list[UniNode] = []
         if self.doc:
             new_kid.append(self.doc)
-        client_tok = self._source_client_token()
-        if self.is_client_decl and (
+        client_tok = self._source_context_token()
+        if self.code_context == CodeContext.CLIENT and (
             client_tok is not None or not self.in_client_context()
         ):
             new_kid.append(client_tok if client_tok else self.gen_token(Tok.KW_CLIENT))
@@ -1471,8 +1471,8 @@ class Import(ClientFacingNode, ElementStmt, CodeBlockStmt):
         new_kid: list[UniNode] = []
         if self.doc:
             new_kid.append(self.doc)
-        client_tok = self._source_client_token()
-        if self.is_client_decl and (
+        client_tok = self._source_context_token()
+        if self.code_context == CodeContext.CLIENT and (
             client_tok is not None or not self.in_client_context()
         ):
             new_kid.append(client_tok if client_tok else self.gen_token(Tok.KW_CLIENT))
@@ -1748,8 +1748,8 @@ class Archetype(
             # make the docstring a standalone statement so it doesn't merge with code.
             if not isinstance(self.parent, (Module, Archetype, Enum)):
                 new_kid.append(self.gen_token(Tok.SEMI))
-        client_tok = self._source_client_token()
-        if self.is_client_decl and (
+        client_tok = self._source_context_token()
+        if self.code_context == CodeContext.CLIENT and (
             client_tok is not None or not self.in_client_context()
         ):
             new_kid.append(client_tok if client_tok else self.gen_token(Tok.KW_CLIENT))
@@ -2014,8 +2014,8 @@ class Enum(
                     new_kid.append(self.gen_token(Tok.DECOR_OP))
         if self.doc:
             new_kid.append(self.doc)
-        client_tok = self._source_client_token()
-        if self.is_client_decl and (
+        client_tok = self._source_context_token()
+        if self.code_context == CodeContext.CLIENT and (
             client_tok is not None or not self.in_client_context()
         ):
             new_kid.append(client_tok if client_tok else self.gen_token(Tok.KW_CLIENT))
@@ -2226,8 +2226,8 @@ class Ability(
             # make the docstring a standalone statement so it doesn't merge with code.
             if not isinstance(self.parent, (Module, Archetype, Enum)):
                 new_kid.append(self.gen_token(Tok.SEMI))
-        client_tok = self._source_client_token()
-        if self.is_client_decl and (
+        client_tok = self._source_context_token()
+        if self.code_context == CodeContext.CLIENT and (
             client_tok is not None or not self.in_client_context()
         ):
             new_kid.append(client_tok if client_tok else self.gen_token(Tok.KW_CLIENT))
