@@ -2135,7 +2135,6 @@ impl EsastGenPass.exit_import(<>node: uni.Import) -> None {
         # Server-side import (sv keyword or default) - skip JS generation
         return;
     }
-
     if (<>node.from_loc and <>node.items) {
         resolved_path = <>node.from_loc.resolve_relative_path();
         import_key = <>node.from_loc.dot_path_str;
@@ -2431,7 +2430,6 @@ impl EsastGenPass._resolve_spawn_walker(
         return None;
     }
     target_symbol = self._resolve_expr_symbol(stripped_node.target);
-
     # If symbol is found and is a walker, use it
     if target_symbol and (target_symbol.sym_type == SymbolType.WALKER_ARCH) {
         walker_name = target_symbol.sym_name;
@@ -2440,7 +2438,6 @@ impl EsastGenPass._resolve_spawn_walker(
             call_node=stripped_node, walker_name=walker_name, fields_object=fields_obj
         );
     }
-
     # Allow function calls that look like walker constructors (server walkers from sv imports)
     # These are validated at runtime via API calls
     if isinstance(stripped_node.target, uni.Name) {
@@ -2450,7 +2447,6 @@ impl EsastGenPass._resolve_spawn_walker(
             call_node=stripped_node, walker_name=walker_name, fields_object=fields_obj
         );
     }
-
     return None;
 }
 

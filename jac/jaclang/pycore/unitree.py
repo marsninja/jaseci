@@ -22,8 +22,8 @@ from typing import (
 from jaclang.pycore.bccache import discover_base_file
 from jaclang.pycore.codeinfo import CodeGenTarget, CodeLocInfo
 from jaclang.pycore.constant import (
-    CodeContext,
     DELIM_MAP,
+    CodeContext,
     EdgeDir,
     SymbolAccess,
     SymbolType,

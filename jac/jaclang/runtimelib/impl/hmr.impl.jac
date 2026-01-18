@@ -206,7 +206,7 @@ impl HotReloader._classify_declarations(file_path: str) -> tuple[bool, bool] {
 
         # Check top-level declarations in module body for code_context
         for node in mod.body {
-            if hasattr(node, 'code_context') {
+            if node?.code_context {
                 if node.code_context == CodeContext.CLIENT {
                     has_client = True;
                 } else {

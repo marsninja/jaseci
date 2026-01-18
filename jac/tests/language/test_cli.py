@@ -1173,7 +1173,9 @@ def test_error_traceback_shows_source_code(fixture_path: Callable[[str], str]) -
     stdout, stderr = process.communicate()
 
     # Should exit with error
-    assert process.returncode == 1, "run command should exit with code 1 on import error"
+    assert process.returncode == 1, (
+        "run command should exit with code 1 on import error"
+    )
 
     # Should show the error message
     assert "Error" in stderr, "stderr should contain 'Error'"

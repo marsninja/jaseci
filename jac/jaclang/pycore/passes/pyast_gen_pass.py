@@ -26,9 +26,8 @@ from dataclasses import dataclass
 from typing import ClassVar, TypeVar, cast
 
 import jaclang.pycore.unitree as uni
-from jaclang.pycore.constant import CodeContext
+from jaclang.pycore.constant import CodeContext, EdgeDir
 from jaclang.pycore.constant import Constants as Con
-from jaclang.pycore.constant import EdgeDir
 from jaclang.pycore.constant import Tokens as Tok
 from jaclang.pycore.passes.ast_gen import BaseAstGenPass
 from jaclang.pycore.passes.ast_gen.jsx_processor import PyJsxProcessor
@@ -138,11 +137,7 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
             # Process children normally, don't prune
             pass
         # Prune ClientBlocks from Python generation
-        elif isinstance(node, uni.ClientBlock):
-            self.prune()
-            return
-        # Prune CLIENT context nodes from Python (but keep SERVER)
-        elif (
+        elif isinstance(node, uni.ClientBlock) or (
             isinstance(node, uni.ClientFacingNode)
             and node.code_context == CodeContext.CLIENT
             and (node.parent is None or isinstance(node.parent, uni.Module))

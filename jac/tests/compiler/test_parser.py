@@ -376,7 +376,9 @@ cl {
         "ClientBlock",
     ]
     assert [
-        isinstance(stmt, uni.ClientFacingNode) and stmt.code_context == CodeContext.CLIENT for stmt in body
+        isinstance(stmt, uni.ClientFacingNode)
+        and stmt.code_context == CodeContext.CLIENT
+        for stmt in body
     ] == [
         True,
         False,
@@ -464,7 +466,9 @@ cl test my_test {}
 
     assert len(body) == 3
     assert all(
-        stmt.code_context == CodeContext.CLIENT for stmt in body if isinstance(stmt, uni.ClientFacingNode)
+        stmt.code_context == CodeContext.CLIENT
+        for stmt in body
+        if isinstance(stmt, uni.ClientFacingNode)
     )
 
 
@@ -604,7 +608,9 @@ cl import from jac:client_runtime {
     assert isinstance(import_stmt, uni.Import)
 
     # Check that it's a client import
-    assert import_stmt.code_context == CodeContext.CLIENT, "Import should be marked as client-side"
+    assert import_stmt.code_context == CodeContext.CLIENT, (
+        "Import should be marked as client-side"
+    )
 
     # Check the from_loc has the prefix
     assert import_stmt.from_loc is not None, "Import should have from_loc"

@@ -157,7 +157,10 @@ class JacParser(Transform[uni.Source, uni.Module]):
                 continue  # Keep as SERVER
             if isinstance(elem, uni.ClientFacingNode):
                 # Skip elements that have explicit sv token (not just default SERVER context)
-                if elem._source_context_token() and elem._source_context_token().name == Tok.KW_SERVER:
+                if (
+                    elem._source_context_token()
+                    and elem._source_context_token().name == Tok.KW_SERVER
+                ):
                     continue  # Keep explicit sv as SERVER
                 elem.code_context = CodeContext.CLIENT
                 if isinstance(elem, uni.ModuleCode) and elem.body:
@@ -623,12 +626,14 @@ class JacParser(Transform[uni.Source, uni.Module]):
                     while elem := self.match(uni.ElementStmt):
                         # VALIDATION: Prevent nested context blocks
                         if isinstance(elem, (uni.ClientBlock, uni.ServerBlock)):
-                            opposite = "sv" if isinstance(elem, uni.ClientBlock) else "cl"
+                            opposite = (
+                                "sv" if isinstance(elem, uni.ClientBlock) else "cl"
+                            )
                             current = "cl" if client_tok else "sv"
                             self.error(
                                 elem,
                                 f"Cannot nest {opposite} blocks inside {current} blocks. "
-                                f"Code context keywords are mutually exclusive."
+                                f"Code context keywords are mutually exclusive.",
                             )
 
                         if isinstance(elem, uni.ClientFacingNode):
