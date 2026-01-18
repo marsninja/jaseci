@@ -136,7 +136,9 @@ impl NodeInstaller.install_node_via_nvm(version: str = "20") -> tuple[bool, str]
 
 Returns tuple of (success: bool, message: str, was_just_installed: bool)
 """
-impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool, str, bool] {
+impl NodeInstaller.ensure_node_installed(
+    interactive: bool = True
+) -> tuple[bool, str, bool] {
     # Common fallback message for manual installation
     manual_install_msg = (
         'Please install Node.js manually:\n' + '  • Download from: https://nodejs.org/\n' + '  • Or install NVM: https://github.com/nvm-sh/nvm\n' + '  After installation, run "jac add --cl" again.'
@@ -157,7 +159,11 @@ impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool
         );
         response = input('Install Node.js? [Y/n]: ').strip().lower();
         if response and response not in ('y', 'yes') {
-            return (False, f'Node.js installation cancelled. {manual_install_msg}', False);
+            return (
+                False,
+                f'Node.js installation cancelled. {manual_install_msg}',
+                False
+            );
         }
     }
     # Wrap entire installation process in error handling
@@ -168,7 +174,9 @@ impl NodeInstaller.ensure_node_installed(interactive: bool = True) -> tuple[bool
             if not success_nvm[0] {
                 return (
                     False,
-                    f'Unable to automatically install Node.js.\n\nError: {success_nvm[1]}\n\n{manual_install_msg}',
+                    f'Unable to automatically install Node.js.\n\nError: {success_nvm[
+                        1
+                    ]}\n\n{manual_install_msg}',
                     False
                 );
             }

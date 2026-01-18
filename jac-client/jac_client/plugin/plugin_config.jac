@@ -460,7 +460,9 @@ def _regenerate_and_install(project_dir: Path) -> None {
 
     # Inform user if Node.js was just installed
     if was_just_installed {
-        print("\nNote: Node.js was just installed. npm commands will work via NVM sourcing.");
+        print(
+            "\nNote: Node.js was just installed. npm commands will work via NVM sourcing."
+        );
     }
 
     bundler = ViteBundler(project_dir);
