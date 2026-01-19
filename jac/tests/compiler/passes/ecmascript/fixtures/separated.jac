@@ -13,3 +13,12 @@ walker create_todo {
         report new_todo ;
     }
 }
+
+# Explicit client block importing from the standalone client module
+cl {
+    import from .separated_client { app }
+
+    def:pub app -> any {
+        return app();
+    }
+}
