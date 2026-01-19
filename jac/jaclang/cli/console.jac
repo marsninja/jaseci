@@ -1,46 +1,30 @@
-"""Console utilities for beautiful terminal output.
+"""Console utilities for terminal output.
 
-This module provides utilities for creating professional, colorful terminal
-output using the rich library. It includes:
-- Themed console instance
+This module provides utilities for terminal output using pure Python.
+It includes:
+- Basic console instance with simple print methods
 - Helper functions for common output patterns
-- Spinner and progress utilities
-- Support for NO_COLOR environment variable
+- Support for NO_COLOR and NO_EMOJI environment variables
+
+Plugins (like jac-super) can override this to provide Rich-enhanced output.
 """
 import os;
 import sys;
 import from contextlib { contextmanager }
-import from rich.console { Console as RichConsole }
-import from rich.panel { Panel }
-import from rich.table { Table }
-import from rich.theme { Theme }
-"""Console utility class for beautiful terminal output in Jac CLI.
 
-    This class wraps Rich's Console with custom theming and convenience methods
-    for common output patterns used throughout the Jac CLI.
+"""Console utility class for terminal output in Jac CLI.
+
+    This is the base implementation using pure Python print().
+    Plugins can inherit from this and override methods to provide
+    enhanced output (e.g., Rich-based formatting).
     """
 class JacConsole {
-    with entry {
-        JAC_THEME = Theme(
-            {
-                'success': 'bold green',
-                'error': 'bold red',
-                'warning': 'bold yellow',
-                'info': 'bold cyan',
-                'url': 'underline green',
-                'muted': 'dim white',
-                'highlight': 'bold cyan',
-                'time': 'yellow'
-            }
-        );
-    }
-
-    """Initialize the console with Jac theme."""
+    """Initialize the console."""
     def init(self: JacConsole) -> None {
-        self._console = RichConsole(theme=self.JAC_THEME);
-        self._console_stderr = RichConsole(theme=self.JAC_THEME, file=sys.stderr);
         self.use_emoji = self._should_use_emoji();
+        self.use_color = self._should_use_color();
     }
+    
     """Check if emoji should be used based on environment.
 
         Returns:
@@ -55,50 +39,79 @@ class JacConsole {
         }
         return True;
     }
+    
+    """Check if color should be used based on environment.
 
-    """Delegate to rich console print method."""
+        Returns:
+            True if color should be used, False otherwise
+        """
+    static def _should_use_color -> bool {
+        if os.environ.get('NO_COLOR') {
+            return False;
+        }
+        if (os.environ.get('TERM') == 'dumb') {
+            return False;
+        }
+        return True;
+    }
+
+    """Print to stdout."""
     def print(self: JacConsole, *args: Any, **kwargs: Any) -> None {
-        self._console.print(*args, **kwargs);
+        # Remove style and other Rich-specific kwargs
+        filtered_kwargs = {k: v for (k, v) in kwargs.items() if k not in ['style', 'file']};
+        print(*args, **filtered_kwargs);
     }
-    """Delegate to rich console status method."""
+    
+    """Context manager for status during long operations (basic implementation)."""
     def status(self: JacConsole, *args: Any, **kwargs: Any) -> object {
-        return self._console.status(*args, **kwargs);
+        # Basic implementation - just print the message
+        if args {
+            print(args[0] if isinstance(args[0], str) else str(args[0]));
+        }
+        # Return a no-op context manager
+        @contextmanager
+        def _noop_status() -> object {
+            yield None;
+        }
+        return _noop_status();
     }
+    
     """Print a success message with checkmark."""
     def success(self: JacConsole, message: str, emoji: bool = True) -> None {
         prefix = '✔' if (emoji and self.use_emoji) else '[SUCCESS]';
-        self._console.print(f"{prefix} {message}", style='success');
+        print(f"{prefix} {message}");
     }
+    
     """Print an error message with optional hint.
 
         Args:
             message: The error message
             hint: Optional hint or suggestion
-            emoji: Whether to use emoji (â) or text ([ERROR])
+            emoji: Whether to use emoji (✖) or text ([ERROR])
         """
     def error(
         self: JacConsole, message: str, hint: (str | None) = None, emoji: bool = True
     ) -> None {
         prefix = '✖' if (emoji and self.use_emoji) else '[ERROR]';
-        self._console_stderr.print(
-            f"{prefix} Error: {message}", style='error'
-        );
+        print(f"{prefix} Error: {message}", file=sys.stderr);
         if hint {
             hint_prefix = '💡' if self.use_emoji else 'HINT:';
-            self._console_stderr.print(f"{hint_prefix} {hint}", style='info');
+            print(f"{hint_prefix} {hint}", file=sys.stderr);
         }
     }
 
     """Print a warning message."""
     def warning(self: JacConsole, message: str, emoji: bool = True) -> None {
         prefix = '⚠' if (emoji and self.use_emoji) else '[WARNING]';
-        self._console.print(f"{prefix} {message}", style='warning');
+        print(f"{prefix} {message}");
     }
+    
     """Print an info message."""
     def info(self: JacConsole, message: str, emoji: bool = True) -> None {
         prefix = 'ℹ' if (emoji and self.use_emoji) else '[INFO]';
-        self._console.print(f"{prefix} {message}", style='info');
+        print(f"{prefix} {message}");
     }
+    
     """Print a header with optional version.
 
         Args:
@@ -109,9 +122,9 @@ class JacConsole {
         self: JacConsole, title: str, version: (str | None) = None
     ) -> None {
         if version {
-            self._console.print(f"{title} v{version}", style='bold cyan');
+            print(f"{title} v{version}");
         } else {
-            self._console.print(f"{title}", style='bold cyan');
+            print(title);
         }
     }
 
@@ -120,13 +133,13 @@ class JacConsole {
         Args:
             urls: Dict or list of tuples mapping labels to URLs
                   (e.g., {"Local": "http://localhost:3000"} or [("Local", "http://..."), ("Network", "http://...")])
-            symbol: Symbol to use before each line (default: â)
+            symbol: Symbol to use before each line (default: ➜)
         """
     def print_urls(self: JacConsole, urls: Any, symbol: str = '➜') -> None {
         items = urls.items() if isinstance(urls, <>dict) else urls;
         for (label, url) in items {
             padded_label = f"{label}:".ljust(10);
-            self._console.print(f"  {symbol}  {padded_label} [url]{url}[/url]");
+            print(f"  {symbol}  {padded_label} {url}");
         }
     }
 
@@ -139,23 +152,25 @@ class JacConsole {
     def print_next_steps(
         self: JacConsole, steps: list[str], title: str = 'Next Steps'
     ) -> None {
-        content = '\n'.join(f"  {i}  {step}" for (i, step) in enumerate(steps, 1));
-        panel = Panel(content, title=title, border_style='cyan', padding=(0, 1));
-        self._console.print(panel);
+        print(f"\n{title}:");
+        for (i, step) in enumerate(steps, 1) {
+            print(f"  {i}. {step}");
+        }
+        print();
     }
 
     """Print a list of items with symbols.
 
         Args:
             items: List of items to print
-            style: Rich style to apply
+            style: Style name (ignored in base implementation, used by Rich plugins)
             symbol: Symbol to prefix each item
         """
     def print_list(
         self: JacConsole, items: list[str], style: str = 'success', symbol: str = '✔'
     ) -> None {
         for item in items {
-            self._console.print(f"  {symbol} {item}", style=style);
+            print(f"  {symbol} {item}");
         }
     }
 
@@ -172,14 +187,32 @@ class JacConsole {
         rows: list[list[str]],
         title: (str | None) = None
     ) -> None {
-        table = Table(title=title, show_header=True, header_style='bold cyan');
-        for header in headers {
-            table.add_column(header);
+        if title {
+            print(f"\n{title}:");
         }
+        # Calculate column widths
+        col_widths: list[int] = [len(h) for h in headers];
         for row in rows {
-            table.add_row(*row);
+            for (i, cell) in enumerate(row) {
+                if i < len(col_widths) {
+                    col_widths[i] = max(col_widths[i], len(str(cell)));
+                }
+            }
         }
-        self._console.print(table);
+        # Print header
+        header_row = ' | '.join(h.ljust(w) for (h, w) in zip(headers, col_widths));
+        print(header_row);
+        print('-' * len(header_row));
+        # Print rows
+        for row in rows {
+            row_str = ' | '.join(
+                str(cell).ljust(w) if i < len(col_widths) else str(cell)
+                for (i, cell) in enumerate(row)
+                for w in [col_widths[i] if i < len(col_widths) else len(str(cell))]
+            );
+            print(row_str);
+        }
+        print();
     }
 
     """Context manager for spinner during long operations.
@@ -191,9 +224,12 @@ class JacConsole {
         """
     @contextmanager
     def spinner(self: JacConsole, text: str) -> object {
-        with self._console.status(f"[cyan]{text}[/cyan]", spinner='dots') as status {
-            yield status;
-            ;
+        # Basic implementation - just print the message
+        print(f"{text}...", end='', flush=True);
+        try {
+            yield None;
+        } finally {
+            print(" done");
         }
     }
 
@@ -205,9 +241,9 @@ class JacConsole {
     def print_elapsed_time(self: JacConsole, seconds: float) -> None {
         if (seconds < 1) {
             ms = seconds * 1000;
-            self._console.print(f"  Done in {ms:f'.0f'}ms", style='muted');
+            print(f"  Done in {ms:.0f}ms");
         } else {
-            self._console.print(f"  Done in {seconds:f'.1f'}s", style='muted');
+            print(f"  Done in {seconds:.1f}s");
         }
     }
 
@@ -223,10 +259,8 @@ class JacConsole {
         import from datetime { datetime }
         timestamp = datetime.now().strftime('%H:%M:%S');
         emoji_map = {'changed': '⚡', 'created': '✨', 'deleted': '🗑️'};
-        emoji = emoji_map.get(action, '📝');
-        self._console.print(
-            f"[{timestamp}] {emoji} {action.capitalize()}: {filepath}", style='info'
-        );
+        emoji = emoji_map.get(action, '📝') if self.use_emoji else action.upper();
+        print(f"[{timestamp}] {emoji} {action.capitalize()}: {filepath}");
     }
 
     """Print file watching status.
@@ -237,8 +271,8 @@ class JacConsole {
         """
     def print_watching(self: JacConsole, pattern: str, count: int) -> None {
         watch_emoji = '👀' if self.use_emoji else '[WATCHING]';
-        self._console.print(f"{watch_emoji} Watching for changes...", style='info');
-        self._console.print(f"   Monitoring: {pattern} ({count} files)", style='muted');
+        print(f"{watch_emoji} Watching for changes...");
+        print(f"   Monitoring: {pattern} ({count} files)");
     }
 }
 
