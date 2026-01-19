@@ -38,6 +38,7 @@ class JacConsole {
     """Initialize the console with Jac theme."""
     def init(self: JacConsole) -> None {
         self._console = RichConsole(theme=self.JAC_THEME);
+        self._console_stderr = RichConsole(theme=self.JAC_THEME, file=sys.stderr);
         self.use_emoji = self._should_use_emoji();
     }
     """Check if emoji should be used based on environment.
@@ -79,12 +80,12 @@ class JacConsole {
         self: JacConsole, message: str, hint: (str | None) = None, emoji: bool = True
     ) -> None {
         prefix = '✖' if (emoji and self.use_emoji) else '[ERROR]';
-        self._console.print(
-            f"{prefix} Error: {message}", style='error', file=sys.stderr
+        self._console_stderr.print(
+            f"{prefix} Error: {message}", style='error'
         );
         if hint {
             hint_prefix = '💡' if self.use_emoji else 'HINT:';
-            self._console.print(f"{hint_prefix} {hint}", style='info', file=sys.stderr);
+            self._console_stderr.print(f"{hint_prefix} {hint}", style='info');
         }
     }
 
@@ -241,4 +242,27 @@ class JacConsole {
     }
 }
 
-glob console = JacConsole();
+# Lazy initialization to avoid circular imports
+glob _console_instance: (JacConsole | None) = None;
+
+"""Get the console instance using the hook system, allowing plugins to override."""
+def _get_console() -> JacConsole {
+    global _console_instance;
+    if _console_instance is None {
+        import from jaclang.pycore.runtime { JacRuntime as Jac }
+        _console_instance = Jac.get_console();
+        _console_instance.init();
+    }
+    return _console_instance;
+}
+
+# Basic proxy class that lazily initializes the console on first access
+# This allows plugins to override via the hook system while avoiding circular imports
+class _ConsoleProxy {
+    def __getattr__(self: _ConsoleProxy, name: str) -> Any {
+        return getattr(_get_console(), name);
+    }
+}
+
+# Export the proxy as console - provides clean attribute access with lazy initialization
+glob console = _ConsoleProxy();
