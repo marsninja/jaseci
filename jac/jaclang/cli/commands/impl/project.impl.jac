@@ -36,7 +36,9 @@ impl create(
     tmpl = registry.get(template);
     if tmpl is None {
         console.error(f"Unknown template: {template}");
-        console.print("Use --list-templates to see available templates.", style="muted");
+        console.print(
+            "Use --list-templates to see available templates.", style="muted"
+        );
         return 1;
     }
     cwd = Path.cwd();
@@ -71,18 +73,15 @@ impl create(
         (project_path / dir_path).mkdir(parents=True, exist_ok=True);
     }
     import time;
-
     start_time = time.time();
     console.print("\n✨ Creating new Jac project...\n", style="bold cyan");
     console.print("  📁 Setting up project structure", style="muted");
-
     # Generate jac.toml from config dict
     toml_content = _render_config_to_toml(tmpl.config, project_name);
     with open(toml_path, "w") as f {
         f.write(toml_content);
     }
     console.print(f"  ✔ jac.toml", style="success");
-
     # Generate files from template
     for (file_path, content) in tmpl.files.items() {
         rendered = content.replace("{{name}}", project_name);
@@ -128,14 +127,14 @@ impl create(
     }
     # Calculate elapsed time
     elapsed_time = time.time() - start_time;
-
     console.print();
     if elapsed_time < 1 {
-        console.success(f"Project '{project_name}' created in {elapsed_time * 1000:.0f}ms");
+        console.success(
+            f"Project '{project_name}' created in {elapsed_time * 1000:.0f}ms"
+        );
     } else {
         console.success(f"Project '{project_name}' created in {elapsed_time:.1f}s");
     }
-
     # Print next steps in a nice box
     steps = [];
     if name {
@@ -143,9 +142,7 @@ impl create(
     }
     steps.append("jac install         Install dependencies");
     steps.append("jac run main.jac    Start development");
-
     console.print_next_steps(steps);
-
     console.print("\n🚀 Happy coding!\n", style="bold green");
     return 0;
 }
@@ -270,7 +267,10 @@ impl install(dev: bool = False, verbose: bool = False) -> int {
         );
         return 1;
     }
-    console.print(f"\n📦 Installing dependencies for [cyan]{config.project.name}[/cyan]", style="bold");
+    console.print(
+        f"\n📦 Installing dependencies for [cyan]{config.project.name}[/cyan]",
+        style="bold"
+    );
     console.print(f"  Packages directory: {config.get_packages_dir()}", style="muted");
     console.print();
     installer = DependencyInstaller(config=config, verbose=verbose);
@@ -314,7 +314,10 @@ impl add(
         registry = get_dependency_registry();
         dep_type = registry.get_by_flag("--cl");
         if dep_type is None {
-            console.error("--cl flag requires jac-client plugin", hint="Install with: pip install jac-client");
+            console.error(
+                "--cl flag requires jac-client plugin",
+                hint="Install with: pip install jac-client"
+            );
             return 1;
         }
         if not packages {
@@ -323,8 +326,14 @@ impl add(
                 return 1;
             }
             try {
-                console.print(f"\n📦 Installing all {dep_type.name} packages from jac.toml", style="bold");
-                with console.status(f"[cyan]Installing {dep_type.name} packages...[/cyan]", spinner="dots") as status {
+                console.print(
+                    f"\n📦 Installing all {dep_type.name} packages from jac.toml",
+                    style="bold"
+                );
+                with console.status(
+                    f"[cyan]Installing {dep_type.name} packages...[/cyan]",
+                    spinner="dots"
+                ) as status {
                     dep_type.install_all_handler(config);
                 }
                 console.success(f"Installed all {dep_type.name} packages");
@@ -336,10 +345,14 @@ impl add(
         }
         try {
             resolver = DependencyResolver(config=config);
-            console.print(f"\n📦 Adding {len(packages)} {dep_type.name} package(s)", style="bold");
+            console.print(
+                f"\n📦 Adding {len(packages)} {dep_type.name} package(s)", style="bold"
+            );
             for pkg_spec in packages {
                 (name, version) = resolver.parse_spec(pkg_spec);
-                with console.status(f"[cyan]Installing {name}...[/cyan]", spinner="dots") as status {
+                with console.status(
+                    f"[cyan]Installing {name}...[/cyan]", spinner="dots"
+                ) as status {
                     dep_type.install_handler(config, name, version, dev);
                 }
                 console.print(f"  ✔ {name}", style="success");
@@ -355,8 +368,12 @@ impl add(
     # If no packages specified and not git, install all Python dependencies
     if not packages and not git {
         installer = DependencyInstaller(config=config, verbose=verbose);
-        console.print("\n📦 Installing all Python dependencies from jac.toml", style="bold");
-        with console.status("[cyan]Installing Python packages...[/cyan]", spinner="dots") as status {
+        console.print(
+            "\n📦 Installing all Python dependencies from jac.toml", style="bold"
+        );
+        with console.status(
+            "[cyan]Installing Python packages...[/cyan]", spinner="dots"
+        ) as status {
             install_success = installer.install_all(include_dev=dev);
         }
         if install_success {
@@ -426,9 +443,7 @@ impl remove(packages: list = [], dev: bool = False, cl: bool = False) -> int {
     import from jaclang.cli.console { console }
     config = get_config();
     if config is None {
-        console.error(
-            "No jac.toml found. Run 'jac init' to create a project."
-        );
+        console.error("No jac.toml found. Run 'jac init' to create a project.");
         return 1;
     }
     if not packages {
@@ -440,9 +455,7 @@ impl remove(packages: list = [], dev: bool = False, cl: bool = False) -> int {
         registry = get_dependency_registry();
         dep_type = registry.get_by_flag("--cl");
         if dep_type is None {
-            console.error(
-                "--cl flag requires jac-client plugin to be installed."
-            );
+            console.error("--cl flag requires jac-client plugin to be installed.");
             console.print("Install with: pip install jac-client", style="muted");
             return 1;
         }
@@ -486,15 +499,16 @@ impl script(name: str = '', list_scripts: bool = False) -> int {
     import from jaclang.cli.console { console }
     config = get_config();
     if config is None {
-        console.error(
-            "No jac.toml found. Run 'jac init' to create a project."
-        );
+        console.error("No jac.toml found. Run 'jac init' to create a project.");
         return 1;
     }
     if list_scripts or not name {
         if not config.scripts {
             console.info("No scripts defined in jac.toml.");
-            console.print("\nTo add scripts, add a [scripts] section to your jac.toml:", style="muted");
+            console.print(
+                "\nTo add scripts, add a [scripts] section to your jac.toml:",
+                style="muted"
+            );
             console.print('  [scripts]', style="muted");
             console.print('  dev = "jac run main.jac"', style="muted");
             console.print('  test = "jac test"', style="muted");
@@ -543,9 +557,7 @@ impl clean(
     import from jaclang.cli.console { console }
     config = get_config();
     if config is None {
-        console.error(
-            "No jac.toml found. Run 'jac init' to create a project."
-        );
+        console.error("No jac.toml found. Run 'jac init' to create a project.");
         return 1;
     }
     # Determine which directories to clean

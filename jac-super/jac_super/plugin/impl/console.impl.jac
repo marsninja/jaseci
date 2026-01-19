@@ -66,12 +66,13 @@ class JacSuperConsole(BaseJacConsole) {
 
     """Override error to use Rich styling with stderr."""
     def error(
-        self: JacSuperConsole, message: str, hint: (str | None) = None, emoji: bool = True
+        self: JacSuperConsole,
+        message: str,
+        hint: (str | None) = None,
+        emoji: bool = True
     ) -> None {
         prefix = '✖' if (emoji and self.use_emoji) else '[ERROR]';
-        self._console_stderr.print(
-            f"{prefix} Error: {message}", style='error'
-        );
+        self._console_stderr.print(f"{prefix} Error: {message}", style='error');
         if hint {
             hint_prefix = '💡' if self.use_emoji else 'HINT:';
             self._console_stderr.print(f"{hint_prefix} {hint}", style='info');
@@ -121,7 +122,10 @@ class JacSuperConsole(BaseJacConsole) {
 
     """Override print_list to use Rich styling."""
     def print_list(
-        self: JacSuperConsole, items: list[str], style: str = 'success', symbol: str = '✔'
+        self: JacSuperConsole,
+        items: list[str],
+        style: str = 'success',
+        symbol: str = '✔'
     ) -> None {
         for item in items {
             self._console.print(f"  {symbol} {item}", style=style);

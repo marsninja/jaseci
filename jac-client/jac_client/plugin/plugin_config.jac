@@ -161,7 +161,9 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
 
     # First, ensure Node.js is installed
     console.print();
-    with console.status("[cyan]Checking Node.js installation...[/cyan]", spinner="dots") as status {
+    with console.status(
+        "[cyan]Checking Node.js installation...[/cyan]", spinner="dots"
+    ) as status {
         node_result = NodeInstaller.ensure_node_installed(interactive=True);
         node_installed = node_result[0];
         message = node_result[1];
@@ -171,7 +173,11 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
     if not node_installed {
         console.warning(f"Node.js is required for client development");
         console.print(f"\n  {message}", file=sys.stderr);
-        console.print("  After installing Node.js, run: jac add --cl\n", style="muted", file=sys.stderr);
+        console.print(
+            "  After installing Node.js, run: jac add --cl\n",
+            style="muted",
+            file=sys.stderr
+        );
         return;
     }
 
@@ -183,7 +189,9 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
             "\n  ⏭ Skipping npm package installation (JAC_CLIENT_SKIP_NPM_INSTALL is set)",
             style="muted"
         );
-        console.print("  Run 'jac add --cl' when ready to install packages.\n", style="muted");
+        console.print(
+            "  Run 'jac add --cl' when ready to install packages.\n", style="muted"
+        );
         return;
     }
 
@@ -226,8 +234,12 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
 
         # Run npm install using NodeInstaller to handle NVM environment
         try {
-            with console.status("[cyan]Installing npm packages...[/cyan]", spinner="dots") as status {
-                NodeInstaller.run_npm_with_nvm(['install'], cwd=client_dir, timeout=300);
+            with console.status(
+                "[cyan]Installing npm packages...[/cyan]", spinner="dots"
+            ) as status {
+                NodeInstaller.run_npm_with_nvm(
+                    ['install'], cwd=client_dir, timeout=300
+                );
             }
 
             # Move package-lock.json to configs/ if it was created
@@ -243,10 +255,18 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
             console.print("  ✔ npm packages installed", style="success");
         } except subprocess.CalledProcessError as e {
             console.warning(f"Failed to install packages: {e.stderr}");
-            console.print("  💡 You can install packages later with: jac add --cl\n", style="muted");
+            console.print(
+                "  💡 You can install packages later with: jac add --cl\n",
+                style="muted"
+            );
         } except FileNotFoundError {
-            console.warning("npm command not found. This may require reloading your shell.");
-            console.print("  💡 You can install packages later with: jac add --cl\n", style="muted");
+            console.warning(
+                "npm command not found. This may require reloading your shell."
+            );
+            console.print(
+                "  💡 You can install packages later with: jac add --cl\n",
+                style="muted"
+            );
         } finally {
             # Clean up temporary package.json
             if build_package_json.exists() {
@@ -255,14 +275,18 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
         }
     } except Exception as e {
         console.warning(f"Could not install default packages: {e}");
-        console.print("  💡 You can install packages later with: jac add --cl\n", style="muted");
+        console.print(
+            "  💡 You can install packages later with: jac add --cl\n", style="muted"
+        );
     }
 
     # If Node.js was just installed, offer to restart terminal for full integration
     if was_just_installed {
         console.print();
         console.info("Node.js was just installed via NVM");
-        console.print("\n  For Node.js to be available in your current shell:", style="muted");
+        console.print(
+            "\n  For Node.js to be available in your current shell:", style="muted"
+        );
         console.print("    1. Run: source ~/.nvm/nvm.sh", style="muted");
         console.print("    2. Or restart your terminal", style="muted");
         console.print("\n  💡 npm commands from jac work immediately", style="info");
