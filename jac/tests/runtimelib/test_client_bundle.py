@@ -138,9 +138,7 @@ def test_no_relative_import_statements_in_bundle():
 
     # Filter out external package imports (those are OK to keep)
     relative_import_lines = [
-        line
-        for line in import_lines
-        if 'from "./' in line or "from './" in line
+        line for line in import_lines if 'from "./' in line or "from './" in line
     ]
 
     # Should be exactly 0 relative import statements (bundled inline)
