@@ -184,7 +184,9 @@ def _resolve_template(use: str, registry: any) -> any {
                     print(f"Using template '{tmpl.name}' from {use_path}");
                     return tmpl;
                 } else {
-                    print(f"Error: File must be a .jacpac file: {use}", file=sys.stderr);
+                    print(
+                        f"Error: File must be a .jacpac file: {use}", file=sys.stderr
+                    );
                     return None;
                 }
             } elif use_path.is_dir() {
@@ -210,7 +212,9 @@ def _resolve_template(use: str, registry: any) -> any {
     if tmpl is None {
         print(f"Unknown jacpac template: {use}", file=sys.stderr);
         print("Use --list-jacpacs to see available templates.", file=sys.stderr);
-        print("You can also specify a path to a .jacpac file or a URL.", file=sys.stderr);
+        print(
+            "You can also specify a path to a .jacpac file or a URL.", file=sys.stderr
+        );
         return None;
     }
     return tmpl;
