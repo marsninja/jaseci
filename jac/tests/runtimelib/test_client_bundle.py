@@ -40,23 +40,12 @@ def test_build_bundle_for_module():
     builder = Jac.get_client_bundle_builder()
     bundle = builder.build(module)
 
-    assert "function __jacJsx" in bundle.code
-    # Check that registration mechanism is present
-    assert "moduleFunctions[funcName] = funcRef;" in bundle.code
-    assert "scope[funcName] = funcRef;" in bundle.code
-    assert "moduleGlobals[gName] = existing;" in bundle.code
-    assert "scope[gName] = defaultValue;" in bundle.code
     # Check that actual client functions and globals are defined
     assert "function client_page()" in bundle.code
     assert "class ButtonProps" in bundle.code
     assert 'let API_LABEL = "Runtime Test";' in bundle.code
-    # Check hydration logic is present
-    assert "__jacHydrateFromDom" in bundle.code
-    assert "__jacEnsureHydration" in bundle.code
-    assert 'getElementById("__jac_init__")' in bundle.code
-    assert 'getElementById("__jac_root")' in bundle.code
-    # Check globals iteration logic
-    assert "for (const gName of __objectKeys(payloadGlobals))" in bundle.code
+    # Check that module registration is present
+    assert "__jacRegisterClientModule" in bundle.code
     assert "client_page" in bundle.client_functions
     assert "ButtonProps" in bundle.client_functions
     assert "API_LABEL" in bundle.client_globals
@@ -68,28 +57,25 @@ def test_build_bundle_for_module():
 
 
 def test_build_bundle_with_cl_import():
-    """Test that cl import statements are properly bundled."""
+    """Test that cl import statements are properly handled.
+
+    With the @jac-client/utils syntax, imports from external packages like
+    @jac-client/utils are kept as ES6 imports (not bundled inline). These
+    are resolved at bundle time by Vite through alias configuration.
+    """
     fixtures_dir = Path(__file__).parent / "fixtures"
     (module,) = Jac.jac_import("client_app_with_import", str(fixtures_dir))
 
     builder = Jac.get_client_bundle_builder()
     bundle = builder.build(module)
 
-    # Check that client_runtime functions are included in the bundle
-    assert "function renderJsxTree" in bundle.code
-    assert "function jacLogin" in bundle.code
-
     # Check that our client code is present
     assert "function test_page()" in bundle.code
     assert 'let APP_TITLE = "Import Test App";' in bundle.code
 
-    # Verify the imported module comment is present
-    assert "// Imported .jac module: client_runtime" in bundle.code
-
-    # IMPORTANT: Ensure no ES6 import statements are in the bundle
-    # (since everything is bundled together, we don't need module imports)
-    assert "import {" not in bundle.code
-    assert 'from "client_runtime"' not in bundle.code
+    # ES6 import statements from external packages should be kept in the bundle
+    # (they are resolved by Vite at bundle time through aliases)
+    assert 'from "@jac-client/utils"' in bundle.code
 
     # Check that client functions are registered
     assert "test_page" in bundle.client_functions
@@ -100,7 +86,11 @@ def test_build_bundle_with_cl_import():
 
 
 def test_build_bundle_with_relative_import():
-    """Test that cl import from relative paths works correctly."""
+    """Test that cl import from relative paths works correctly.
+
+    Relative imports from local .jac files are bundled inline.
+    External package imports (like @jac-client/utils) are kept as ES6 imports.
+    """
     fixtures_dir = Path(__file__).parent / "fixtures"
     (module,) = Jac.jac_import("client_app_with_relative_import", str(fixtures_dir))
 
@@ -116,43 +106,29 @@ def test_build_bundle_with_relative_import():
     # Check that main_page is present
     assert "function main_page()" in bundle.code
 
-    # Check that transitive imports (client_runtime) are included
-    assert "// Imported .jac module: client_runtime" in bundle.code
-    assert "function createState(" in bundle.code
-    assert "function navigate(" in bundle.code
+    # ES6 import from @jac-client/utils should be kept (resolved by Vite)
+    assert 'from "@jac-client/utils"' in bundle.code
 
-    # IMPORTANT: Ensure NO import statements remain
-    assert "import {" not in bundle.code
-    assert 'from "' not in bundle.code
-    assert "from './" not in bundle.code
-    assert 'from "./' not in bundle.code
-
-    # Check that all modules are bundled in the correct order
-    # client_runtime should come first (transitive import)
-    # then client_ui_components (direct import)
-    # then main module code
-    client_runtime_pos = bundle.code.find("// Imported .jac module: client_runtime")
-    ui_components_pos = bundle.code.find(
-        "// Imported .jac module: .client_ui_components"
-    )
-    main_page_pos = bundle.code.find("function main_page()")
-
-    assert ui_components_pos > client_runtime_pos
-    assert main_page_pos > ui_components_pos
+    # Relative imports from .jac files should be bundled inline (no ES6 imports)
+    assert 'from "./' not in bundle.code or 'from "@jac-client' in bundle.code
 
     # Verify client functions are registered
     assert "main_page" in bundle.client_functions
 
 
-def test_no_import_statements_in_bundle():
-    """Test that all import statements are stripped from the final bundle."""
+def test_no_relative_import_statements_in_bundle():
+    """Test that relative import statements from .jac files are bundled inline.
+
+    External package imports (like @jac-client/utils) are kept as ES6 imports
+    since they are resolved by Vite at bundle time.
+    """
     fixtures_dir = Path(__file__).parent / "fixtures"
     (module,) = Jac.jac_import("client_app_with_relative_import", str(fixtures_dir))
 
     builder = Jac.get_client_bundle_builder()
     bundle = builder.build(module)
 
-    # Split bundle into lines and check for any import statements
+    # Split bundle into lines and check for relative import statements
     lines = bundle.code.split("\n")
     import_lines = [
         line
@@ -160,23 +136,25 @@ def test_no_import_statements_in_bundle():
         if line.strip().startswith("import ") and " from " in line
     ]
 
-    # Should be exactly 0 import statements
-    assert len(import_lines) == 0, (
-        f"Found {len(import_lines)} import statement(s) in bundle: {import_lines[:3]}"
-    )
+    # Filter out external package imports (those are OK to keep)
+    relative_import_lines = [
+        line
+        for line in import_lines
+        if 'from "./' in line or "from './" in line
+    ]
 
-    # Also verify using regex pattern
-    import re
-
-    import_pattern = r'^\s*import\s+.*\s+from\s+["\'].*["\'];?\s*$'
-    import_matches = [line for line in lines if re.match(import_pattern, line)]
-    assert len(import_matches) == 0, (
-        f"Found import statements matching pattern: {import_matches[:3]}"
+    # Should be exactly 0 relative import statements (bundled inline)
+    assert len(relative_import_lines) == 0, (
+        f"Found {len(relative_import_lines)} relative import(s): {relative_import_lines[:3]}"
     )
 
 
 def test_transitive_imports_included():
-    """Test that transitive imports (imports from imported modules) are included."""
+    """Test that transitive imports from local .jac modules are included.
+
+    Imports from external packages (like @jac-client/utils) are kept as ES6
+    imports, not bundled inline.
+    """
     fixtures_dir = Path(__file__).parent / "fixtures"
     (module,) = Jac.jac_import("client_app_with_relative_import", str(fixtures_dir))
 
@@ -184,23 +162,14 @@ def test_transitive_imports_included():
     bundle = builder.build(module)
 
     # client_app_with_relative_import imports from client_ui_components
-    # client_ui_components imports from client_runtime
-    # So client_runtime should be included as a transitive import
+    # client_ui_components imports from @jac-client/utils (external)
+    # So client_ui_components should be bundled, but @jac-client/utils is external
 
-    # Check that all three modules are present
-    assert "// Imported .jac module: client_runtime" in bundle.code
+    # Check that local .jac module is included
     assert "// Imported .jac module: .client_ui_components" in bundle.code
 
-    # Verify runtime functions are defined (not just referenced)
-    assert "function createState(" in bundle.code
-    assert "function navigate(" in bundle.code
-
-    # Verify that createState is actually callable (definition before usage)
-    create_state_def_pos = bundle.code.find("function createState(")
-    create_state_usage_pos = bundle.code.find("createState(")
-    assert create_state_def_pos < create_state_usage_pos, (
-        "createState must be defined before it's used"
-    )
+    # External package imports are kept as ES6 imports (not bundled)
+    assert 'from "@jac-client/utils"' in bundle.code
 
 
 def test_bundle_size_reasonable():

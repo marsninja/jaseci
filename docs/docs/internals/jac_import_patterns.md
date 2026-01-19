@@ -15,8 +15,8 @@ This document provides a comprehensive reference of all JavaScript/ECMAScript im
 | Single dot (current) | `import { helper } from './utils'` | `cl import from .utils { helper }` |  Working | `import { helper } from "./utils";` | |
 | Double dot (parent) | `import { format } from '../lib'` | `cl import from ..lib { format }` |  Working | `import { format } from "../lib";` | |
 | Triple dot (grandparent) | `import { settings } from '../../config'` | `cl import from ...config { settings }` |  Working | `import { settings } from "../../config";` | Supports any number of dots |
-| **Category 1: Module Prefix** |
-| With jac: prefix | `import { renderJsxTree } from 'jac:client_runtime'` | `cl import from jac:client_runtime { renderJsxTree }` |  Working | `import { renderJsxTree } from "client_runtime";` | Prefix stripped for resolution |
+| **Category 1: Client Runtime** |
+| Client runtime import | `import { renderJsxTree } from '@jac-client/utils'` | `cl import from "@jac-client/utils" { renderJsxTree }` |  Working | `import { renderJsxTree } from "@jac-client/utils";` | Vite alias resolved at bundle time |
 | **Category 1: String Literal Imports** |
 | Hyphenated packages | `import { render } from 'react-dom'` | `cl import from "react-dom" { render }` |  Working | `import { render } from "react-dom";` | Use string literals for package names with hyphens |
 | Multiple hyphens | `import { BrowserRouter } from 'react-router-dom'` | `cl import from "react-router-dom" { BrowserRouter }` |  Working | `import { BrowserRouter } from "react-router-dom";` | Works with any special characters |

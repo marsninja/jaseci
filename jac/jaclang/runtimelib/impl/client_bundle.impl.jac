@@ -54,12 +54,14 @@ impl ClientBundleBuilder._process_imports(
     bundled_module_names: set[str] = <>set();
     if (manifest and manifest.imports) {
         for (import_name, import_path) in manifest.imports.items() {
-            bundled_module_names.add(import_name);
             import_path_obj = Path(import_path);
+            # Only bundle .jac and .js files - external package imports (like @jac-client/utils)
+            # are kept as ES6 imports and resolved at bundle time by Vite
             if (import_path_obj.suffix == '.js') {
                 try {
                     with open(import_path_obj, encoding='utf-8') as f {
                         js_code = f.read();
+                        bundled_module_names.add(import_name);
                         import_pieces.append(f"// Imported .js module: {import_name}");
                         import_pieces.append(js_code);
                         import_pieces.append('');
@@ -70,16 +72,18 @@ impl ClientBundleBuilder._process_imports(
             } elif (import_path_obj.suffix == '.jac') {
                 try {
                     (compiled_js, imported_mod) = self._compile_to_js(import_path_obj);
+                    bundled_module_names.add(import_name);
                     transitive_imports: set[str] = <>set();
                     if (imported_mod and imported_mod.gen.client_manifest) {
                         for (sub_import_name, sub_import_path) in imported_mod.gen.client_manifest.imports.items() {
-                            bundled_module_names.add(sub_import_name);
-                            transitive_imports.add(sub_import_name);
                             sub_import_path_obj = Path(sub_import_path);
+                            # Only add to bundled if it's a .jac file that exists
                             if (
                                 (sub_import_path_obj.suffix == '.jac')
                                 and sub_import_path_obj.exists()
                             ) {
+                                bundled_module_names.add(sub_import_name);
+                                transitive_imports.add(sub_import_name);
                                 try {
                                     (sub_compiled_js, _) = self._compile_to_js(
                                         sub_import_path_obj
@@ -107,6 +111,8 @@ impl ClientBundleBuilder._process_imports(
                     );
                 }
             }
+            # External package imports (no .jac or .js suffix) are NOT added to bundled_module_names
+            # so they will be kept as ES6 imports in the final bundle
         }
     }
     return ProcessedImports(import_pieces, bundled_module_names);

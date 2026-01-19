@@ -1,4 +1,4 @@
-cl import from jac:client_runtime {
+cl import from "@jac-client/utils" {
     jacLogin,
     jacLogout,
     jacSignup,

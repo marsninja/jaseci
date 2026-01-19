@@ -122,12 +122,12 @@ The `cl` keyword can prefix individual statements or wrap multiple statements in
 
 ### 2. Client Imports
 
-Client code can import functions and utilities from the built-in `jac:client_runtime` module using the `cl import` syntax. This allows client-side code to access the runtime's JSX rendering, authentication helpers, and server interaction functions.
+Client code can import functions and utilities from `@jac-client/utils` using the `cl import` syntax. This allows client-side code to access the runtime's JSX rendering, authentication helpers, and server interaction functions.
 
 #### Syntax
 
 ```jac
-cl import from jac:client_runtime {
+cl import from "@jac-client/utils" {
     renderJsxTree,
     jacLogin,
     jacLogout,
@@ -136,7 +136,7 @@ cl import from jac:client_runtime {
 }
 ```
 
-#### Available Exports from `jac:client_runtime`
+#### Available Exports from `@jac-client/utils`
 
 The client runtime ([client_runtime.cl.jac](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/client_runtime.cl.jac)) exports these public functions for use in client code:
 
@@ -164,28 +164,26 @@ The client runtime ([client_runtime.cl.jac](https://github.com/Jaseci-Labs/jasec
 
 #### How Client Imports Work
 
-When processing client imports ([esast_gen_pass.py:317-325](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/ecmascript/esast_gen_pass.py#L317-L325)):
+When processing client imports:
 
-1. **Parser detects** `cl import from jac:client_runtime` syntax
-   - The `jac:` prefix indicates a special runtime import
+1. **Parser detects** `cl import from "@jac-client/utils"` syntax
+   - String literal imports require the `cl` prefix
    - The import is marked with `is_client_decl = True`
 
 2. **ESTree generation** creates JavaScript import declaration:
 
    ```javascript
-   import { renderJsxTree, jacLogin } from "jac:client_runtime";
+   import { renderJsxTree, jacLogin } from "@jac-client/utils";
    ```
 
-3. **Manifest tracking** records the import in `ClientManifest.imports`:
-   - Key: `"client_runtime"` (from `dot_path_str`)
-   - Value: Resolved path to `client_runtime.cl.jac`
+3. **Vite bundling** resolves `@jac-client/utils` via alias to the compiled client runtime
 
 4. **Bundle generation** compiles `client_runtime.cl.jac` into the bundle, making these functions available globally
 
 #### Example Usage
 
 ```jac
-cl import from jac:client_runtime {
+cl import from "@jac-client/utils" {
     jacLogin,
     jacLogout,
     jacIsLoggedIn,
@@ -288,7 +286,7 @@ Creates a reactive signal for primitive values. Returns a `[getter, setter]` tup
 **Syntax** ([client_runtime.cl.jac:92-110](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/client_runtime.cl.jac#L92-L110)):
 
 ```jac
-cl import from jac:client_runtime { createSignal }
+cl import from "@jac-client/utils" { createSignal }
 
 cl def Counter() {
     [count, setCount] = createSignal(0);
@@ -319,7 +317,7 @@ Creates a reactive state object with shallow merge semantics. Ideal for managing
 **Syntax** ([client_runtime.cl.jac:114-139](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/client_runtime.cl.jac#L114-L139)):
 
 ```jac
-cl import from jac:client_runtime { createState }
+cl import from "@jac-client/utils" { createState }
 
 cl def TodoList() {
     [state, setState] = createState({
@@ -354,7 +352,7 @@ Runs a function whenever its reactive dependencies change. Automatically re-exec
 **Syntax** ([client_runtime.cl.jac:143-174](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/client_runtime.cl.jac#L143-L174)):
 
 ```jac
-cl import from jac:client_runtime { createSignal, createEffect }
+cl import from "@jac-client/utils" { createSignal, createEffect }
 
 cl def DataFetcher() {
     [userId, setUserId] = createSignal(1);
@@ -403,7 +401,7 @@ Creates a router instance with reactive path tracking using URL hash.
 **Syntax** ([client_runtime.cl.jac:283-345](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/client_runtime.cl.jac#L283-L345)):
 
 ```jac
-cl import from jac:client_runtime { createRouter, Route }
+cl import from "@jac-client/utils" { createRouter, Route }
 
 cl def App() {
     routes = [
@@ -466,7 +464,7 @@ Renders navigation links that update the router without full page reload ([clien
 Use `navigate()` to change routes from code ([client_runtime.cl.jac:368-378](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/runtimelib/client_runtime.cl.jac#L368-L378)):
 
 ```jac
-cl import from jac:client_runtime { navigate }
+cl import from "@jac-client/utils" { navigate }
 
 cl def LoginForm() {
     def handleSubmit() {
@@ -483,7 +481,7 @@ cl def LoginForm() {
 Protect routes with guard functions:
 
 ```jac
-cl import from jac:client_runtime { Route, jacIsLoggedIn, navigate }
+cl import from "@jac-client/utils" { Route, jacIsLoggedIn, navigate }
 
 cl def AccessDenied() {
     return <div>
@@ -751,7 +749,7 @@ The `__jacSpawn` function is async and retrieves the auth token from localStorag
 Here's a complete example using signals, state, and routing:
 
 ```jac
-cl import from jac:client_runtime {
+cl import from "@jac-client/utils" {
     createSignal,
     createState,
     createRouter,

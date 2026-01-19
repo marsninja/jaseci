@@ -1534,29 +1534,6 @@ class ModulePath(UniNode):
     def resolve_relative_path(self, target_item: str | None = None) -> str:
         """Convert an import target string into a relative file path."""
         target = self.dot_path_str + (f".{target_item}" if target_item else "")
-
-        # Handle 'jac:' prefix for runtime imports
-        if self.prefix and self.prefix.value == "jac":
-            # For jac: imports, resolve relative to the jac runtime directory
-            import jaclang.runtimelib
-
-            runtime_dir = os.path.dirname(jaclang.runtimelib.__file__)
-            # Handle both .jac and .js file extensions
-            if not (target.endswith(".jac") or target.endswith(".js")):
-                # Try .jac first, then .cl.jac, then .js
-                jac_path = os.path.join(runtime_dir, target + ".jac")
-                if os.path.exists(jac_path):
-                    return jac_path
-                cl_jac_path = os.path.join(runtime_dir, target + ".cl.jac")
-                if os.path.exists(cl_jac_path):
-                    return cl_jac_path
-                js_path = os.path.join(runtime_dir, target + ".js")
-                if os.path.exists(js_path):
-                    return js_path
-                # Default to .jac
-                return jac_path
-            return os.path.join(runtime_dir, target)
-
         return resolve_relative_path(target, self.loc.mod_path)
 
     def resolve_relative_path_list(self) -> list[str]:

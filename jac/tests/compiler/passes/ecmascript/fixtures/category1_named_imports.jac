@@ -24,8 +24,8 @@ cl {
     import from ..lib { formatter as format }
     import from ...config { settings }
 
-    # Module prefix notation (jac:client_runtime)
-    import from jac:client_runtime { renderJsxTree, jacLogin, jacLogout }
+    # String literal import for @jac-client/utils
+    import from "@jac-client/utils" { renderJsxTree, jacLogin, jacLogout }
 
     # Using imported functions in a simple client function
     def example_usage()  -> int {
