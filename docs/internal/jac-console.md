@@ -8,7 +8,7 @@ A simple guide for using the Jac CLI console wrapper in your code.
 > pip install jac-super
 > ```
 >
-> Once installed, all console methods automatically use Rich-enhanced output with themes, panels, tables, and spinners. The plugin is completely optional—the base console works great without it!
+> Once installed, all console methods automatically use Rich-enhanced output with themes, panels, tables, and spinners. The plugin is completely optional--the base console works great without it!
 
 ## Quick Start
 

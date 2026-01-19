@@ -67,7 +67,7 @@ Once installed, all Jac CLI commands will automatically use Rich-enhanced output
 - Animated spinners for long operations
 - Clickable URLs in terminal output
 
-The plugin is completely optional—Jac works perfectly fine without it, using simple text output.
+The plugin is completely optional--Jac works perfectly fine without it, using simple text output.
 
 <br />
 
