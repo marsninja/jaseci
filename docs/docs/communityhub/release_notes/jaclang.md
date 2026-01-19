@@ -4,6 +4,8 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.9.9 (Unreleased)
 
+- **Enhanced Console Experience**: Introduced `JacConsole` for consistent, colorful terminal output powered by the `rich` library. Plain prints have been replaced with clear success, error, warning, and info messages, along with formatted helpers for URLs, next steps, and lists. Long operations now feature spinners and status indicators for improved UX, and project creation and command execution have better visibility. Added structured logging for hot reloaders and file watchers that is debug-friendly and clutter-free.
+
 - **Report Yield Support**: The `report` statement now supports yield expressions (e.g., `report yield "Hello, World!";`), laying the groundwork for streaming response support in walkers.
 
 - **User Management Endpoints**:  Added new user management endpoints to the `jac start` API server:
