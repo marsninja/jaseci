@@ -423,6 +423,7 @@ jac plugins uninstall byllm
 ```
 
 > **💡 Popular Plugins**:
+>
 > - **jac-super**: Enhanced console output with Rich formatting, colors, and spinners (`pip install jac-super`)
 > - **jac-client**: Full-stack web development with client-side rendering (`pip install jac-client`)
 > - **jac-scale**: Kubernetes deployment and scaling (`pip install jac-scale`)

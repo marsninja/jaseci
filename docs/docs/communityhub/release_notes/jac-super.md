@@ -31,13 +31,13 @@ Once installed, the plugin automatically registers and enhances all Jac CLI comm
 No configuration required! Once installed, jac-super automatically enhances console output for all Jac commands:
 
 - `jac create` - Enhanced project creation messages
-- `jac start` - Beautiful server startup and status messages  
+- `jac start` - Beautiful server startup and status messages
 - `jac run` - Formatted execution output
 - `jac config` - Styled configuration display
 - All other CLI commands with improved readability
 
 The plugin respects environment variables:
+
 - `NO_COLOR` - Disables colors (fallback to base console)
 - `NO_EMOJI` - Disables emojis (uses text labels)
 - `TERM=dumb` - Disables both colors and emojis
-

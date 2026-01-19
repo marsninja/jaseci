@@ -61,6 +61,7 @@ $ pip install jac-super
 ```
 
 Once installed, all Jac CLI commands will automatically use Rich-enhanced output with:
+
 - Colorful, themed messages (success in green, errors in red, etc.)
 - Beautiful panels and tables
 - Animated spinners for long operations

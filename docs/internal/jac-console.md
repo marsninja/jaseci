@@ -3,9 +3,11 @@
 A simple guide for using the Jac CLI console wrapper in your code.
 
 > **💡 Enhanced Console Output**: For beautiful, colorful terminal output with Rich formatting, install the optional `jac-super` plugin:
+>
 > ```bash
 > pip install jac-super
 > ```
+>
 > Once installed, all console methods automatically use Rich-enhanced output with themes, panels, tables, and spinners. The plugin is completely optional—the base console works great without it!
 
 ## Quick Start
