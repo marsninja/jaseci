@@ -153,9 +153,7 @@ def run_plugin_tests(runner: IntegrationTestRunner) -> None:
     )
 
     # Test: jac-scale plugin is loaded with qualified names (optional - only if installed)
-    result = subprocess.run(
-        ["jac", "plugins", "list"], capture_output=True, text=True
-    )
+    result = subprocess.run(["jac", "plugins", "list"], capture_output=True, text=True)
     if "jac-scale" in result.stdout:
         runner.run(
             ["jac", "plugins", "list"],
