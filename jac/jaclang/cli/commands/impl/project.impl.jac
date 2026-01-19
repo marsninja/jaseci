@@ -12,30 +12,30 @@ import from pathlib { Path }
 impl create(
     name: str = '',
     force: bool = False,
-    template: str = "default",
-    list_templates: bool = False
+    use: str = "default",
+    list_jacpacs: bool = False
 ) -> int {
     import from jaclang.project.config { find_project_root }
     import from jaclang.project.template_registry { get_template_registry }
     registry = get_template_registry();
-    # Handle --list-templates
-    if list_templates {
+    # Handle --list-jacpacs
+    if list_jacpacs {
         templates = registry.list_templates();
         if not templates {
-            print("No templates available.");
+            print("No jacpac templates available.");
             return 0;
         }
-        print("Available templates:");
+        print("Available jacpac templates:");
         for (tname, desc) in templates {
             print(f"  {tname}: {desc}");
         }
         return 0;
     }
     # Get template
-    tmpl = registry.get(template);
+    tmpl = registry.get(use);
     if tmpl is None {
-        print(f"Unknown template: {template}", file=sys.stderr);
-        print("Use --list-templates to see available templates.", file=sys.stderr);
+        print(f"Unknown jacpac template: {use}", file=sys.stderr);
+        print("Use --list-jacpacs to see available templates.", file=sys.stderr);
         return 1;
     }
     cwd = Path.cwd();
