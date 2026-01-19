@@ -127,7 +127,7 @@ walker process_complex_data {
 
 # Re-export client components from the standalone client module
 cl {
-    import from .budget_planner_ui { BudgetPlanner }
+    import from .budget_planner_ui { BudgetPlanner as BudgetPlannerUI }
 
-    def:pub BudgetPlanner -> any { return BudgetPlanner(); }
+    def:pub BudgetPlanner -> any { return <BudgetPlannerUI />; }
 }

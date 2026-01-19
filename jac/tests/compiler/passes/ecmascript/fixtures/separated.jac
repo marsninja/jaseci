@@ -16,9 +16,9 @@ walker create_todo {
 
 # Explicit client block importing from the standalone client module
 cl {
-    import from .separated_client { app }
+    import from .separated_client { app as ClientApp }
 
     def:pub app -> any {
-        return app();
+        return <ClientApp />;
     }
 }
