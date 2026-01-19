@@ -2,6 +2,12 @@
 
 A simple guide for using the Jac CLI console wrapper in your code.
 
+> **💡 Enhanced Console Output**: For beautiful, colorful terminal output with Rich formatting, install the optional `jac-super` plugin:
+> ```bash
+> pip install jac-super
+> ```
+> Once installed, all console methods automatically use Rich-enhanced output with themes, panels, tables, and spinners. The plugin is completely optional—the base console works great without it!
+
 ## Quick Start
 
 ```jac
@@ -113,7 +119,9 @@ When using `console.print(style="...")`, you can use:
 - `url` - Underlined green
 - `muted` - Dim white (for hints/secondary info)
 - `highlight` - Bold cyan
-- `bold cyan`, `bold green`, etc. - Rich library styles
+- `bold cyan`, `bold green`, etc. - Rich library styles (requires `jac-super` for full Rich support)
+
+> **Note**: With the base console (no `jac-super`), styles are ignored and plain text is printed. Install `jac-super` to enable full Rich styling support.
 
 ## What NOT to Do
 

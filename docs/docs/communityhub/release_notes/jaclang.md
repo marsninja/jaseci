@@ -4,7 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.9.9 (Unreleased)
 
-- **Enhanced Console Experience**: Introduced `JacConsole` for consistent, colorful terminal output powered by the `rich` library. Plain prints have been replaced with clear success, error, warning, and info messages, along with formatted helpers for URLs, next steps, and lists. Long operations now feature spinners and status indicators for improved UX, and project creation and command execution have better visibility. Added structured logging for hot reloaders and file watchers that is debug-friendly and clutter-free.
+- **Console Plugin Architecture**: Refactored console system to use a plugin-based architecture, removing the `rich` dependency from core jaclang. The base `JacConsole` now uses pure Python `print()` for all output, keeping jaclang dependency-free. Plugins (like `jac-super`) can override the console implementation via the `get_console()` hook to provide Rich-enhanced output with themes, panels, tables, and spinners. This maintains backward compatibility while allowing optional aesthetic enhancements through plugins.
 
 - **Report Yield Support**: The `report` statement now supports yield expressions (e.g., `report yield "Hello, World!";`), laying the groundwork for streaming response support in walkers.
 
