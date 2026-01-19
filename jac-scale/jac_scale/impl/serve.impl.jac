@@ -66,14 +66,17 @@ impl JacAPIServer.start(self: JacAPIServer, watch: bool = False) -> None {
             import time;
             import sys;
             import from jaclang.cli.console { console }
-
             start_time = time.time();
             try {
-                with console.status("[cyan]Building client bundle...[/cyan]", spinner="dots") as status {
+                with console.status(
+                    "[cyan]Building client bundle...[/cyan]", spinner="dots"
+                ) as status {
                     self.introspector.ensure_bundle();
                 }
                 elapsed = time.time() - start_time;
-                console.print(f"  ✔ Client bundle ready ({elapsed:.1f}s)", style="success");
+                console.print(
+                    f"  ✔ Client bundle ready ({elapsed:.1f}s)", style="success"
+                );
             } except Exception as e {
                 console.warning(f"Failed to build client bundle: {e}");
                 console.print(

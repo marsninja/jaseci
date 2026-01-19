@@ -100,7 +100,10 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
         import from jaclang.cli.console { console }
         if not names {
             console.error("Plugin or package name required for disable action.");
-            console.print("Usage: jac plugins disable <package> | <package:plugin> | *", style="muted");
+            console.print(
+                "Usage: jac plugins disable <package> | <package:plugin> | *",
+                style="muted"
+            );
             return 1;
         }
         # Get or create config - auto-create jac.toml if needed
@@ -124,7 +127,9 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
                     config.plugins_config.disabled = ['*'];  # Replace with just wildcard
                     console.success("Disabled: * (all external plugins)", emoji=False);
                 } else {
-                    console.warning("Already disabled: * (all external plugins)", emoji=False);
+                    console.warning(
+                        "Already disabled: * (all external plugins)", emoji=False
+                    );
                 }
                 continue;
             }
@@ -192,7 +197,10 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
         import from jaclang.cli.console { console }
         if not names {
             console.error("Plugin or package name required for enable action.");
-            console.print("Usage: jac plugins enable <package> | <package:plugin> | *", style="muted");
+            console.print(
+                "Usage: jac plugins enable <package> | <package:plugin> | *",
+                style="muted"
+            );
             return 1;
         }
         if not config {
@@ -205,10 +213,14 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
             if target == '*' {
                 if '*' in config.plugins_config.disabled {
                     config.plugins_config.disabled.remove('*');
-                    console.success("Enabled: * (all external plugins will now load)", emoji=False);
+                    console.success(
+                        "Enabled: * (all external plugins will now load)", emoji=False
+                    );
                     enabled_any = True;
                 } else {
-                    console.warning("Wildcard '*' is not currently disabled.", emoji=False);
+                    console.warning(
+                        "Wildcard '*' is not currently disabled.", emoji=False
+                    );
                 }
                 continue;
             }
@@ -258,16 +270,19 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
     # Handle disabled action - show currently disabled plugins
     if action == 'disabled' {
         import from jaclang.cli.console { console }
-
         if not disabled_plugins {
             console.info("No plugins are currently disabled");
         } elif '*' in disabled_plugins {
-            console.print("\n⚠ [yellow]All external plugins are disabled (wildcard *)[/yellow]");
+            console.print(
+                "\n⚠ [yellow]All external plugins are disabled (wildcard *)[/yellow]"
+            );
             if config and config.toml_path {
                 console.print(f"   Configured in: {config.toml_path}", style="muted");
             }
         } else {
-            console.print(f"\n⚠ [yellow]Currently disabled ({len(disabled_plugins)})[/yellow]");
+            console.print(
+                f"\n⚠ [yellow]Currently disabled ({len(disabled_plugins)})[/yellow]"
+            );
             for name in sorted(disabled_plugins) {
                 console.print(f"  ✖ [dim]{name}[/dim]");
             }
@@ -332,7 +347,6 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
         }
     }
     import from jaclang.cli.console { console }
-
     console.print(
         f"\n🔌 [bold cyan]Installed Jac Plugins[/bold cyan] ({named_plugin_count} plugins from {len(
             plugins_by_dist
@@ -358,7 +372,9 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
         for (short_name, qualified_name, plugin, plugin_class_name) in plugins_in_dist {
             # Check disabled status using qualified name
             if qualified_name in disabled_plugins {
-                console.print(f"     ✖ [dim]{qualified_name}[/dim] [red][DISABLED][/red]");
+                console.print(
+                    f"     ✖ [dim]{qualified_name}[/dim] [red][DISABLED][/red]"
+                );
             } else {
                 console.print(f"     ✔ [green]{qualified_name}[/green]");
             }
@@ -392,7 +408,9 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
                     }
                 }
                 if hooks {
-                    console.print(f"       Hooks: {', '.join(sorted(hooks))}", style="muted");
+                    console.print(
+                        f"       Hooks: {', '.join(sorted(hooks))}", style="muted"
+                    );
                 }
                 console.print();
             }
@@ -401,7 +419,9 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
         # Show commands provided by this package
         pkg_commands = commands_by_package.get(pkg_name, []);
         if pkg_commands {
-            console.print(f"     💻 Commands: [yellow]{', '.join(sorted(pkg_commands))}[/yellow]");
+            console.print(
+                f"     💻 Commands: [yellow]{', '.join(sorted(pkg_commands))}[/yellow]"
+            );
         }
 
         console.print();
@@ -409,9 +429,13 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
     # Show disabled plugins summary if any
     if disabled_plugins {
         if '*' in disabled_plugins {
-            console.print("⚠ [yellow]All external plugins are disabled (wildcard *)[/yellow]");
+            console.print(
+                "⚠ [yellow]All external plugins are disabled (wildcard *)[/yellow]"
+            );
         } else {
-            console.print(f"\n⚠ [yellow]Disabled plugins ({len(disabled_plugins)})[/yellow]");
+            console.print(
+                f"\n⚠ [yellow]Disabled plugins ({len(disabled_plugins)})[/yellow]"
+            );
             for name in sorted(disabled_plugins) {
                 console.print(f"  ✖ [dim]{name}[/dim]");
             }
@@ -463,7 +487,10 @@ impl config(
     } else {
         import from jaclang.cli.console { console }
         console.error(f"Unknown action '{action}'.");
-        console.print("Available actions: list, show, get, set, unset, path, groups", style="muted");
+        console.print(
+            "Available actions: list, show, get, set, unset, path, groups",
+            style="muted"
+        );
         return 1;
     }
     return 0;
@@ -669,7 +696,10 @@ def _output_table(settings: dict, show_all: bool) -> None {
             console.info("No configuration settings found.");
         } else {
             console.info("No settings have been explicitly set.");
-            console.print("Use 'jac config list' to see all settings with defaults.", style="muted");
+            console.print(
+                "Use 'jac config list' to see all settings with defaults.",
+                style="muted"
+            );
         }
         return;
     }
@@ -882,10 +912,11 @@ def _config_get(config: object, key: str) -> int {
     default_values = _get_group_defaults(group_name);
 
     if setting_name not in default_values {
-        console.error(
-            f"Unknown setting '{setting_name}' in group '{group_name}'."
+        console.error(f"Unknown setting '{setting_name}' in group '{group_name}'.");
+        console.print(
+            f"Available settings: {', '.join(sorted(default_values.keys()))}",
+            style="muted"
         );
-        console.print(f"Available settings: {', '.join(sorted(default_values.keys()))}", style="muted");
         return 1;
     }
 
@@ -945,7 +976,9 @@ def _config_set(config: object, key: str, value: str) -> int {
             (proj_root, cfg_path) = result;
             config = JacConfig.load(cfg_path);
         } else {
-            console.error("No jac.toml found. Run 'jac create' to initialize a project.");
+            console.error(
+                "No jac.toml found. Run 'jac create' to initialize a project."
+            );
             return 1;
         }
     }
@@ -953,10 +986,11 @@ def _config_set(config: object, key: str, value: str) -> int {
     # Validate setting exists
     default_values = _get_group_defaults(group_name);
     if setting_name not in default_values {
-        console.error(
-            f"Unknown setting '{setting_name}' in group '{group_name}'."
+        console.error(f"Unknown setting '{setting_name}' in group '{group_name}'.");
+        console.print(
+            f"Available settings: {', '.join(sorted(default_values.keys()))}",
+            style="muted"
         );
-        console.print(f"Available settings: {', '.join(sorted(default_values.keys()))}", style="muted");
         return 1;
     }
 
@@ -1071,9 +1105,7 @@ def _parse_value(value: str, target_type: type) -> object {
         } elif lower in ('false', '0', 'no', 'off') {
             return False;
         } else {
-            console.error(
-                f"Invalid boolean value '{value}'. Use true/false."
-            );
+            console.error(f"Invalid boolean value '{value}'. Use true/false.");
             return False;
         }
     }

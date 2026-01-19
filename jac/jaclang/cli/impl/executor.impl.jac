@@ -90,9 +90,7 @@ impl CommandExecutor.run_handler(spec: CommandSpec, args: dict[str, Any]) -> int
     import inspect;
     import from jaclang.cli.command { CommandSpec }
     if spec.handler is None {
-        console.error(
-            f"No handler registered for command '{spec.name}'"
-        );
+        console.error(f"No handler registered for command '{spec.name}'");
         return 1;
     }
     # Filter args to only include those the handler accepts

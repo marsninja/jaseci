@@ -348,7 +348,7 @@ def _check_watchdog_available -> bool {
 }
 
 """Get local network IP addresses."""
-def _get_network_ips() -> list[str] {
+def _get_network_ips -> list[str] {
     import socket;
     ips = [];
     try {
@@ -419,7 +419,6 @@ def _print_startup_message(
         console.print(f"    Vite:  http://localhost:{port}/", style="muted");
         console.print(f"    API:   http://localhost:{api_port}/", style="muted");
         console.print();
-
         # Count and show watching files
         file_count = _count_jac_files(base_path);
         if file_count > 0 {
@@ -430,7 +429,6 @@ def _print_startup_message(
     } elif watch and no_client {
         console.print("  🚀 Server ready (API only)", style="bold green");
         console.print();
-
         file_count = _count_jac_files(base_path);
         if file_count > 0 {
             console.print_watching("**/*.jac", file_count);

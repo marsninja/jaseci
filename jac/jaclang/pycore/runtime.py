@@ -1678,7 +1678,7 @@ class JacConsole:
     """Jac Console Operations - Generic interface for console output."""
 
     @staticmethod
-    def get_console() -> "ConsoleImpl":
+    def get_console() -> ConsoleImpl:
         """Get the console instance to use for CLI output.
 
         Plugins can override this hook to provide their own console implementation.

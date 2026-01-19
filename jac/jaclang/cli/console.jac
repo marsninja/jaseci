@@ -24,7 +24,7 @@ class JacConsole {
         self.use_emoji = self._should_use_emoji();
         self.use_color = self._should_use_color();
     }
-    
+
     """Check if emoji should be used based on environment.
 
         Returns:
@@ -39,7 +39,7 @@ class JacConsole {
         }
         return True;
     }
-    
+
     """Check if color should be used based on environment.
 
         Returns:
@@ -58,10 +58,14 @@ class JacConsole {
     """Print to stdout."""
     def print(self: JacConsole, *args: Any, **kwargs: Any) -> None {
         # Remove style and other Rich-specific kwargs
-        filtered_kwargs = {k: v for (k, v) in kwargs.items() if k not in ['style', 'file']};
+        filtered_kwargs = {
+            k: v
+            for (k, v) in kwargs.items()
+            if k not in ['style', 'file']
+        };
         print(*args, **filtered_kwargs);
     }
-    
+
     """Context manager for status during long operations (basic implementation)."""
     def status(self: JacConsole, *args: Any, **kwargs: Any) -> object {
         # Basic implementation - just print the message
@@ -70,18 +74,18 @@ class JacConsole {
         }
         # Return a no-op context manager
         @contextmanager
-        def _noop_status() -> object {
+        def _noop_status -> object {
             yield None;
         }
         return _noop_status();
     }
-    
+
     """Print a success message with checkmark."""
     def success(self: JacConsole, message: str, emoji: bool = True) -> None {
         prefix = '✔' if (emoji and self.use_emoji) else '[SUCCESS]';
         print(f"{prefix} {message}");
     }
-    
+
     """Print an error message with optional hint.
 
         Args:
@@ -105,13 +109,13 @@ class JacConsole {
         prefix = '⚠' if (emoji and self.use_emoji) else '[WARNING]';
         print(f"{prefix} {message}");
     }
-    
+
     """Print an info message."""
     def info(self: JacConsole, message: str, emoji: bool = True) -> None {
         prefix = 'ℹ' if (emoji and self.use_emoji) else '[INFO]';
         print(f"{prefix} {message}");
     }
-    
+
     """Print a header with optional version.
 
         Args:
@@ -277,10 +281,11 @@ class JacConsole {
 }
 
 # Lazy initialization to avoid circular imports
-glob _console_instance: (JacConsole | None) = None;
+glob _console_instance:
+         (JacConsole | None) = None;
 
 """Get the console instance using the hook system, allowing plugins to override."""
-def _get_console() -> JacConsole {
+def _get_console -> JacConsole {
     global _console_instance;
     if _console_instance is None {
         import from jaclang.pycore.runtime { JacRuntime as Jac }
