@@ -24,6 +24,8 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 - **Renamed Template Flags for `jac create`**: The `--template`/`-t` flag has been renamed to `--use`/`-u`, and `--list-templates`/`-l` has been renamed to `--list-jacpacs`/`-l`. This aligns the CLI with jacpac terminology for clearer naming (e.g., `jac create myapp --use client`, `jac create --list-jacpacs`).
 
+- **Flexible Template Sources for `jac create`**: The `--use` flag now supports local file paths to `.jacpac` files, template directories, and URLs for downloading remote templates (e.g., `jac create --use ./my.jacpac` or `jac create --use https://example.com/template.jacpac`).
+
 ## jaclang 0.9.8 (Latest Release)
 
 - **Recursive DFS Walker Traversal with Deferred Exits**: Walker traversal semantics have been fundamentally changed to use recursive post-order exit execution. Entry abilities now execute when entering a node, while exit abilities are deferred until all descendants are visited. This means exits execute in LIFO order (last visited node exits first), similar to function call stack unwinding. The `walker.path` field is now actively populated during traversal, tracking visited nodes in order.

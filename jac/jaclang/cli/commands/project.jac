@@ -29,7 +29,7 @@ glob registry = get_registry();
         Arg.create(
             "use",
             default="default",
-            help="Jacpac template to use (default, client, etc.)",
+            help="Jacpac template: name, file path, or URL",
             short="u"
         ),
         Arg.create(
@@ -46,6 +46,8 @@ glob registry = get_registry();
         ("jac create myapp", "Create new myapp/ directory"),
         ("jac create --force", "Reinitialize existing project"),
         ("jac create myapp --use client", "Create with client jacpac template"),
+        ("jac create --use ./my.jacpac", "Create from local .jacpac file"),
+        ("jac create --use https://example.com/t.jacpac", "Create from URL"),
         ("jac create --list-jacpacs", "List available jacpac templates"),
 
     ],
