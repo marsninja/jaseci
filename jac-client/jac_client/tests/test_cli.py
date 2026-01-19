@@ -354,7 +354,11 @@ def test_create_jac_app_installs_default_packages() -> None:
             assert os.path.exists(project_path)
 
             # Verify that installation was attempted (message should be in output)
-            assert "Installing default npm packages" in stdout
+            # Handles both old and new console formats
+            assert (
+                "Installing default npm packages" in stdout
+                or "Installing npm packages" in stdout
+            )
 
             # Verify package.json was generated (even if npm install failed)
             package_json_path = os.path.join(
