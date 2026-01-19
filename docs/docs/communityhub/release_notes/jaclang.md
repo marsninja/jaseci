@@ -22,6 +22,8 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 - **Default `main.jac` for `jac start`**: The `jac start` command now defaults to `main.jac` when no filename is provided, making it easier to start applications in standard project structures. You can still specify a different file explicitly (e.g., `jac start app.jac`), and the command provides helpful error messages if `main.jac` is not found.
 
+- **Renamed Template Flags for `jac create`**: The `--template`/`-t` flag has been renamed to `--use`/`-u`, and `--list-templates`/`-l` has been renamed to `--list-jacpacs`/`-l`. This aligns the CLI with jacpac terminology for clearer naming (e.g., `jac create myapp --use client`, `jac create --list-jacpacs`).
+
 ## jaclang 0.9.8 (Latest Release)
 
 - **Recursive DFS Walker Traversal with Deferred Exits**: Walker traversal semantics have been fundamentally changed to use recursive post-order exit execution. Entry abilities now execute when entering a node, while exit abilities are deferred until all descendants are visited. This means exits execute in LIFO order (last visited node exits first), similar to function call stack unwinding. The `walker.path` field is now actively populated during traversal, tracking visited nodes in order.
