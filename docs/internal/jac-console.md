@@ -118,6 +118,7 @@ When using `console.print(style="...")`, you can use:
 ## What NOT to Do
 
 ❌ **Don't create new console instances**
+
 ```python
 # Wrong
 from jaclang.cli.console import JacConsole
@@ -125,12 +126,14 @@ console = JacConsole()
 ```
 
 ❌ **Don't use plain print() for user-facing messages**
+
 ```jac
 # Wrong
 print("Error: something failed", file=sys.stderr);
 ```
 
 ❌ **Don't use console for code/data output**
+
 ```jac
 # Wrong - this is machine-readable output
 console.print(json_data);
@@ -165,6 +168,7 @@ with console.status("Working...") { /* ... */ }
 ## Environment Variables
 
 The console automatically respects:
+
 - `NO_COLOR` - Disables all colors
 - `NO_EMOJI` - Disables all emojis
 - `TERM=dumb` - Disables colors and emojis

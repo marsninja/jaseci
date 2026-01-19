@@ -45,12 +45,16 @@ def print_version_banner(version: str) -> None:
     console.print(logo_lines[2], style="bold cyan")
     console.print(logo_lines[3] + f"     Version:  {version}", style="cyan")
     console.print(logo_lines[4] + f"    {python_version}", style="cyan")
-    console.print(logo_lines[5] + f"                Platform: {platform_short}", style="cyan")
+    console.print(
+        logo_lines[5] + f"                Platform: {platform_short}", style="cyan"
+    )
 
     # Print helpful links
     console.print("\n📚 Documentation: [url]https://docs.jaseci.org[/url]")
     console.print("💬 Community:     [url]https://discord.gg/jaseci[/url]")
-    console.print("🐛 Issues:        [url]https://github.com/Jaseci-Labs/jaseci/issues[/url]")
+    console.print(
+        "🐛 Issues:        [url]https://github.com/Jaseci-Labs/jaseci/issues[/url]"
+    )
     console.print()
 
 
@@ -60,7 +64,7 @@ def print_startup_header(mode: str = "development") -> None:
     Args:
         mode: Server mode (development, production, etc.)
     """
-    console.print(f"\n  JAC DEV SERVER", style="bold cyan")
+    console.print("\n  JAC DEV SERVER", style="bold cyan")
     console.print()
 
 

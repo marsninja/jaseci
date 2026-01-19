@@ -11,7 +11,6 @@ output using the rich library. It includes:
 import os
 import sys
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
 
 from rich.console import Console as RichConsole
 from rich.panel import Panel
@@ -77,7 +76,7 @@ class JacConsole:
         prefix = "✔" if (emoji and self.use_emoji) else "[SUCCESS]"
         self._console.print(f"{prefix} {message}", style="success")
 
-    def error(self, message: str, hint: Optional[str] = None, emoji: bool = True) -> None:
+    def error(self, message: str, hint: str | None = None, emoji: bool = True) -> None:
         """Print an error message with optional hint.
 
         Args:
@@ -86,10 +85,14 @@ class JacConsole:
             emoji: Whether to use emoji (✖) or text ([ERROR])
         """
         prefix = "✖" if (emoji and self.use_emoji) else "[ERROR]"
-        self._console.print(f"{prefix} Error: {message}", style="error", file=sys.stderr)
+        self._console.print(
+            f"{prefix} Error: {message}", style="error", file=sys.stderr
+        )
         if hint:
             hint_prefix = "💡" if self.use_emoji else "HINT:"
-            self._console.print(f"\n  {hint_prefix} {hint}", style="info", file=sys.stderr)
+            self._console.print(
+                f"\n  {hint_prefix} {hint}", style="info", file=sys.stderr
+            )
 
     def warning(self, message: str, emoji: bool = True) -> None:
         """Print a warning message."""
@@ -101,7 +104,7 @@ class JacConsole:
         prefix = "ℹ" if (emoji and self.use_emoji) else "[INFO]"
         self._console.print(f"{prefix} {message}", style="info")
 
-    def print_header(self, title: str, version: Optional[str] = None) -> None:
+    def print_header(self, title: str, version: str | None = None) -> None:
         """Print a header with optional version.
 
         Args:
@@ -129,7 +132,7 @@ class JacConsole:
             padded_label = f"{label}:".ljust(10)
             self._console.print(f"  {symbol}  {padded_label} [url]{url}[/url]")
 
-    def print_next_steps(self, steps: List[str], title: str = "Next Steps") -> None:
+    def print_next_steps(self, steps: list[str], title: str = "Next Steps") -> None:
         """Print a bordered box with next steps.
 
         Args:
@@ -147,7 +150,9 @@ class JacConsole:
         )
         self._console.print(panel)
 
-    def print_list(self, items: List[str], style: str = "success", symbol: str = "✔") -> None:
+    def print_list(
+        self, items: list[str], style: str = "success", symbol: str = "✔"
+    ) -> None:
         """Print a list of items with symbols.
 
         Args:
@@ -160,9 +165,9 @@ class JacConsole:
 
     def print_table(
         self,
-        headers: List[str],
-        rows: List[List[str]],
-        title: Optional[str] = None,
+        headers: list[str],
+        rows: list[list[str]],
+        title: str | None = None,
     ) -> None:
         """Print a formatted table.
 
@@ -223,7 +228,9 @@ class JacConsole:
         }
 
         emoji = emoji_map.get(action, "📝")
-        self._console.print(f"[{timestamp}] {emoji} {action.capitalize()}: {filepath}", style="info")
+        self._console.print(
+            f"[{timestamp}] {emoji} {action.capitalize()}: {filepath}", style="info"
+        )
 
     def print_watching(self, pattern: str, count: int) -> None:
         """Print file watching status.
