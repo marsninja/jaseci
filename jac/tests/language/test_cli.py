@@ -293,7 +293,7 @@ def test_run_test(
     sys.stderr = captured_stderr
 
     try:
-        with capture_stdout() as output:
+        with capture_stdout():
             analysis.test(fixture_path("run_test.jac"), maxfail=2)
         stderr = captured_stderr.getvalue()
     finally:
@@ -654,7 +654,7 @@ def test_positional_args_with_defaults(
 
     # Verify explicit 'list' action produces the same result
     with capture_stdout() as output_explicit:
-        result_explicit = config_cmd.plugins(action="list")
+        config_cmd.plugins(action="list")
     stdout_explicit = output_explicit.getvalue()
     assert stdout == stdout_explicit, (
         "'jac plugins' and 'jac plugins list' should produce identical output"
@@ -805,11 +805,11 @@ verbose = true
             os.chdir(original_cwd)
 
     @pytest.fixture
-    def capture(self):
+    def capture(self) -> Callable[[], AbstractContextManager[io.StringIO]]:
         """Fixture to capture stdout."""
 
         @contextlib.contextmanager
-        def _capture():
+        def _capture() -> typing.Generator[io.StringIO, None, None]:
             captured = io.StringIO()
             old_stdout = sys.stdout
             sys.stdout = captured
@@ -922,7 +922,7 @@ verbose = true
         os.chdir(tmp_path)
         try:
             with capture() as output:
-                result = config_cmd.config(action="path")
+                config_cmd.config(action="path")
             stdout = output.getvalue()
             # The config path command shows the expected path even if file doesn't exist
             # Just verify it shows a path ending in jac.toml
