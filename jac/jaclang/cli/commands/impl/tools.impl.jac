@@ -28,10 +28,7 @@ def _proc_file(filename: str) -> tuple {
     } elif filename.endswith('.py') {
         mod = mod[:-3];
     } else {
-        print(
-            'Not a valid file!\nOnly supports `.jac` and `.py`',
-            file=sys.stderr
-        );
+        print('Not a valid file!\nOnly supports `.jac` and `.py`', file=sys.stderr);
         <>exit(1);
     }
     # Only set base path if not already set (allows tests to override)

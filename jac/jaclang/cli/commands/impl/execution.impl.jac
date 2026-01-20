@@ -36,10 +36,7 @@ def _proc_file(filename: str) -> tuple {
     } elif filename.endswith('.py') {
         mod = mod[:-3];
     } else {
-        print(
-            'Not a valid file!\nOnly supports `.jac` and `.py`',
-            file=sys.stderr
-        );
+        print('Not a valid file!\nOnly supports `.jac` and `.py`', file=sys.stderr);
         <>exit(1);
     }
     # Only set base path if not already set (allows tests to override)
@@ -56,8 +53,13 @@ def _proc_file(filename: str) -> tuple {
 impl run(filename: str, main: bool = True, cache: bool = True) -> int {
     # Check for deprecated .jir files
     if filename.endswith('.jir') {
-        console.error(".jir files are no longer supported. Please use .jac files directly.");
-        console.print("  The bytecode cache (.jbc) provides compilation caching automatically.", style="muted");
+        console.error(
+            ".jir files are no longer supported. Please use .jac files directly."
+        );
+        console.print(
+            "  The bytecode cache (.jbc) provides compilation caching automatically.",
+            style="muted"
+        );
         return 1;
     }
     _ensure_jac_runtime();
@@ -92,8 +94,13 @@ impl enter(
 ) -> int {
     # Check for deprecated .jir files
     if filename.endswith('.jir') {
-        console.error(".jir files are no longer supported. Please use .jac files directly.");
-        console.print("  The bytecode cache (.jbc) provides compilation caching automatically.", style="muted");
+        console.error(
+            ".jir files are no longer supported. Please use .jac files directly."
+        );
+        console.print(
+            "  The bytecode cache (.jbc) provides compilation caching automatically.",
+            style="muted"
+        );
         return 1;
     }
     _ensure_jac_runtime();
@@ -146,8 +153,13 @@ impl start(
 ) -> int {
     # Check for deprecated .jir files
     if filename.endswith('.jir') {
-        console.error(".jir files are no longer supported. Please use .jac files directly.");
-        console.print("  The bytecode cache (.jbc) provides compilation caching automatically.", style="muted");
+        console.error(
+            ".jir files are no longer supported. Please use .jac files directly."
+        );
+        console.print(
+            "  The bytecode cache (.jbc) provides compilation caching automatically.",
+            style="muted"
+        );
         return 1;
     }
     _ensure_jac_runtime();

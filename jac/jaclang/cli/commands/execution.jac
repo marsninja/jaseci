@@ -38,9 +38,7 @@ def run(filename: str, main: bool = True, cache: bool = True) -> int;
     name="enter",
     help="Run a specific entrypoint in a Jac program",
     args=[
-        Arg.create(
-            "filename", kind=ArgKind.POSITIONAL, help="Path to .jac file"
-        ),
+        Arg.create("filename", kind=ArgKind.POSITIONAL, help="Path to .jac file"),
         Arg.create(
             "entrypoint", kind=ArgKind.POSITIONAL, help="Function/walker to invoke"
         ),
