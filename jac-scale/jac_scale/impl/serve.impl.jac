@@ -653,7 +653,9 @@ impl JacAPIServer.create_walker_callback(
 ) -> Callable[..., TransportResponse] {
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
     requires_auth = self.introspector.is_auth_required_for_walker(walker_name);
-    def callback(node: (str | None) = None, **kwargs: JsonValue) -> TransportResponse {
+    async def callback(
+        node: (str | None) = None, **kwargs: JsonValue
+    ) -> TransportResponse {
         username: (str | None) = None;
         if requires_auth {
             authorization = kwargs.pop('Authorization', None);
@@ -677,7 +679,7 @@ impl JacAPIServer.create_walker_callback(
         if node {
             kwargs['_jac_spawn_node'] = node;
         }
-        result = self.execution_manager.spawn_walker(
+        result = await self.execution_manager.spawn_walker(
             self.get_walkers()[walker_name], kwargs, (username or '__guest__')
         );
         if 'error' in result {
@@ -1267,7 +1269,7 @@ impl JacAPIServer.register_dynamic_walker_endpoint(self: JacAPIServer) -> None {
             kwargs['_jac_spawn_node'] = node;
         }
 
-        result = self.execution_manager.spawn_walker(
+        result = await self.execution_manager.spawn_walker(
             walkers[walker_name], kwargs, (username or '__guest__')
         );
         if 'error' in result {

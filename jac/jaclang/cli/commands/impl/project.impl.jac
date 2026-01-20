@@ -12,15 +12,19 @@ import from pathlib { Path }
 impl create(
     name: str = '',
     force: bool = False,
-    template: str = "default",
-    list_templates: bool = False
+    use: str = "default",
+    list_jacpacs: bool = False
 ) -> int {
     import from jaclang.project.config { find_project_root }
     import from jaclang.project.template_registry { get_template_registry }
     import from jaclang.cli.console { console }
+    import from jaclang.project.template_loader {
+        load_template_from_json,
+        load_template_from_directory
+    }
     registry = get_template_registry();
-    # Handle --list-templates
-    if list_templates {
+    # Handle --list-jacpacs
+    if list_jacpacs {
         templates = registry.list_templates();
         if not templates {
             console.info("No templates available.");
@@ -32,8 +36,27 @@ impl create(
         }
         return 0;
     }
-    # Get template
-    tmpl = registry.get(template);
+    # If no name specified and not listing templates, show usage error
+    if not name {
+        print("Error: Project name is required.", file=sys.stderr);
+        print("\nUsage: jac create <name> [--use <template>]", file=sys.stderr);
+        print("\nExamples:", file=sys.stderr);
+        print(
+            "  jac create myproject              # Create with default template",
+            file=sys.stderr
+        );
+        print(
+            "  jac create myapp --use client     # Create with 'client' template",
+            file=sys.stderr
+        );
+        print(
+            "  jac create --list-jacpacs         # List available templates",
+            file=sys.stderr
+        );
+        return 1;
+    }
+    # Resolve template from --use (supports: registered names, file paths, URLs)
+    tmpl = _resolve_template(use, registry);
     if tmpl is None {
         console.error(f"Unknown template: {template}");
         console.print(
@@ -42,7 +65,7 @@ impl create(
         return 1;
     }
     cwd = Path.cwd();
-    project_name = name or cwd.name;
+    project_name = name;
     # Validate/create project directory
     if name {
         project_path = cwd / name;
@@ -63,6 +86,7 @@ impl create(
             return 1;
         }
     }
+    project_path.mkdir(parents=True, exist_ok=True);
     toml_path = project_path / "jac.toml";
     if toml_path.exists() and not force {
         console.error("jac.toml already exists. Use --force to overwrite.");
@@ -145,6 +169,95 @@ impl create(
     console.print_next_steps(steps);
     console.print("\n🚀 Happy coding!\n", style="bold green");
     return 0;
+}
+
+"""Resolve a template from a name, file path, or URL.
+
+Supports:
+- Registered template names (e.g., "default", "client")
+- Local file paths to .jacpac files (e.g., "./my-template.jacpac")
+- Local directory paths with jacpac.toml (e.g., "./my-template/")
+- URLs to .jacpac files (e.g., "https://example.com/template.jacpac")
+
+Returns the ProjectTemplate or None if resolution fails.
+"""
+def _resolve_template(use: str, registry: any) -> any {
+    import from jaclang.project.template_loader {
+        load_template_from_json,
+        load_template_from_directory
+    }
+    import tempfile;
+    import urllib.request;
+    import urllib.error;
+
+    # Check if it's a URL
+    if use.startswith("http://") or use.startswith("https://") {
+        print(f"Downloading template from {use}...");
+        try {
+            # Download to a temporary file
+            with tempfile.NamedTemporaryFile(suffix=".jacpac", delete=False) as tmp {
+                tmp_path = Path(tmp.name);
+            }
+            urllib.request.urlretrieve(use, tmp_path);
+            tmpl = load_template_from_json(tmp_path);
+            # Clean up temp file
+            tmp_path.unlink();
+            print(f"Using template '{tmpl.name}' from URL");
+            return tmpl;
+        } except urllib.error.URLError as e {
+            print(f"Error downloading template from URL: {e}", file=sys.stderr);
+            return None;
+        } except Exception as e {
+            print(f"Error loading template from URL: {e}", file=sys.stderr);
+            return None;
+        }
+    }
+
+    # Check if it's a local file path
+    use_path = Path(use);
+    if use_path.exists() {
+        try {
+            if use_path.is_file() {
+                # Load from .jacpac file
+                if use_path.suffix == ".jacpac" or use.endswith(".jacpac") {
+                    tmpl = load_template_from_json(use_path);
+                    print(f"Using template '{tmpl.name}' from {use_path}");
+                    return tmpl;
+                } else {
+                    print(
+                        f"Error: File must be a .jacpac file: {use}", file=sys.stderr
+                    );
+                    return None;
+                }
+            } elif use_path.is_dir() {
+                # Load from directory with jacpac.toml
+                tmpl = load_template_from_directory(use_path);
+                print(f"Using template '{tmpl.name}' from {use_path}");
+                return tmpl;
+            }
+        } except Exception as e {
+            print(f"Error loading template from {use}: {e}", file=sys.stderr);
+            return None;
+        }
+    }
+
+    # Check if path looks like a file path but doesn't exist
+    if "/" in use or use.endswith(".jacpac") {
+        print(f"Error: Template file or directory not found: {use}", file=sys.stderr);
+        return None;
+    }
+
+    # Fall back to registry lookup
+    tmpl = registry.get(use);
+    if tmpl is None {
+        print(f"Unknown jacpac template: {use}", file=sys.stderr);
+        print("Use --list-jacpacs to see available templates.", file=sys.stderr);
+        print(
+            "You can also specify a path to a .jacpac file or a URL.", file=sys.stderr
+        );
+        return None;
+    }
+    return tmpl;
 }
 
 """Quote TOML key if it contains special characters."""
@@ -670,13 +783,13 @@ impl jacpac(action: str = "", path: str = "", output: str = "") -> int {
             output_path = Path(output);
         } else {
             # Default to <template-name>.jacpac in current directory
-            manifest_path = template_dir / "jacpac.toml";
-            if manifest_path.exists() {
+            jac_toml_path = template_dir / "jac.toml";
+            if jac_toml_path.exists() {
                 import tomllib;
-                with open(manifest_path, "rb") as f {
-                    manifest = tomllib.load(f);
+                with open(jac_toml_path, "rb") as f {
+                    jac_config = tomllib.load(f);
                 }
-                name = manifest.get("template", {}).get("name", template_dir.name);
+                name = jac_config.get("jacpac", {}).get("name", template_dir.name);
             } else {
                 name = template_dir.name;
             }
