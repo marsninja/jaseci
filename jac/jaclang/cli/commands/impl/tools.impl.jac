@@ -23,13 +23,13 @@ def _proc_file(filename: str) -> tuple {
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     (base, mod) = os.path.split(filename);
     base = base or './';
-    if (filename.endswith('.jac') or filename.endswith('.jir')) {
+    if filename.endswith('.jac') {
         mod = mod[:-4];
     } elif filename.endswith('.py') {
         mod = mod[:-3];
     } else {
         print(
-            'Not a valid file!\nOnly supports `.jac`, `.jir`, and `.py`',
+            'Not a valid file!\nOnly supports `.jac` and `.py`',
             file=sys.stderr
         );
         <>exit(1);

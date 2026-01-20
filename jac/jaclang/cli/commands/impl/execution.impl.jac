@@ -5,10 +5,10 @@ Direct implementations - no delegation to cli.jac.
 
 import marshal;
 import os;
-import pickle;
 import sys;
 import types;
 import from typing { Any }
+import from jaclang.cli.console { console }
 
 glob _runtime_initialized = False;
 
@@ -31,13 +31,13 @@ def _proc_file(filename: str) -> tuple {
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     (base, mod) = os.path.split(filename);
     base = base or './';
-    if (filename.endswith('.jac') or filename.endswith('.jir')) {
+    if filename.endswith('.jac') {
         mod = mod[:-4];
     } elif filename.endswith('.py') {
         mod = mod[:-3];
     } else {
         print(
-            'Not a valid file!\nOnly supports `.jac`, `.jir`, and `.py`',
+            'Not a valid file!\nOnly supports `.jac` and `.py`',
             file=sys.stderr
         );
         <>exit(1);
@@ -54,29 +54,23 @@ def _proc_file(filename: str) -> tuple {
 
 """Run the specified .jac file."""
 impl run(filename: str, main: bool = True, cache: bool = True) -> int {
+    # Check for deprecated .jir files
+    if filename.endswith('.jir') {
+        console.error(".jir files are no longer supported. Please use .jac files directly.");
+        console.print("  The bytecode cache (.jbc) provides compilation caching automatically.", style="muted");
+        return 1;
+    }
     _ensure_jac_runtime();
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
     try {
-        if filename.endswith(('.jac', '.py')) {
-            Jac.jac_import(
-                target=mod,
-                base_path=base,
-                override_name='__main__' if main else None,
-                lng=lng
-            );
-        } elif filename.endswith('.jir') {
-            with open(filename, 'rb') as f {
-                Jac.attach_program(pickle.load(f));
-                Jac.jac_import(
-                    target=mod,
-                    base_path=base,
-                    override_name='__main__' if main else None,
-                    lng=lng
-                );
-            }
-        }
+        Jac.jac_import(
+            target=mod,
+            base_path=base,
+            override_name='__main__' if main else None,
+            lng=lng
+        );
     } except Exception as e {
         import from jaclang.pycore.helpers { dump_traceback }
         print(dump_traceback(e), file=sys.stderr);
@@ -96,6 +90,12 @@ impl enter(
     <>root: str = '',
     <>node: str = ''
 ) -> int {
+    # Check for deprecated .jir files
+    if filename.endswith('.jir') {
+        console.error(".jir files are no longer supported. Please use .jac files directly.");
+        console.print("  The bytecode cache (.jbc) provides compilation caching automatically.", style="muted");
+        return 1;
+    }
     _ensure_jac_runtime();
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     import from jaclang.pycore.constructs { WalkerArchetype }
@@ -108,16 +108,9 @@ impl enter(
         ret_module = Jac.jac_import(
             target=mod, base_path=base, override_name='__main__' if main else None
         );
-    } elif filename.endswith('.jir') {
-        with open(filename, 'rb') as f {
-            Jac.attach_program(pickle.load(f));
-            ret_module = Jac.jac_import(
-                target=mod, base_path=base, override_name='__main__' if main else None
-            );
-        }
     } else {
         mach.close();
-        print('Not a valid file!\nOnly supports `.jac` and `.jir`', file=sys.stderr);
+        print('Not a valid file!\nOnly supports `.jac`', file=sys.stderr);
         return 1;
     }
     if ret_module {
@@ -151,6 +144,12 @@ impl start(
     api_port: int = 0,
     no_client: bool = False
 ) -> int {
+    # Check for deprecated .jir files
+    if filename.endswith('.jir') {
+        console.error(".jir files are no longer supported. Please use .jac files directly.");
+        console.print("  The bytecode cache (.jbc) provides compilation caching automatically.", style="muted");
+        return 1;
+    }
     _ensure_jac_runtime();
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     import from pathlib { Path }
@@ -175,14 +174,7 @@ impl start(
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
     try {
-        if filename.endswith(('.jac', '.py')) {
-            Jac.jac_import(target=mod, base_path=base, lng=lng);
-        } elif filename.endswith('.jir') {
-            with open(filename, 'rb') as f {
-                Jac.attach_program(pickle.load(f));
-                Jac.jac_import(target=mod, base_path=base, lng=lng);
-            }
-        }
+        Jac.jac_import(target=mod, base_path=base, lng=lng);
         if Jac.program.errors_had {
             for error in Jac.program.errors_had {
                 print(f"Error: {error}", file=sys.stderr);
