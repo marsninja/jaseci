@@ -184,7 +184,9 @@ def _resolve_template(use: str, registry: any) -> any {
                     print(f"Using template '{tmpl.name}' from {use_path}");
                     return tmpl;
                 } else {
-                    print(f"Error: File must be a .jacpac file: {use}", file=sys.stderr);
+                    print(
+                        f"Error: File must be a .jacpac file: {use}", file=sys.stderr
+                    );
                     return None;
                 }
             } elif use_path.is_dir() {
@@ -210,7 +212,9 @@ def _resolve_template(use: str, registry: any) -> any {
     if tmpl is None {
         print(f"Unknown jacpac template: {use}", file=sys.stderr);
         print("Use --list-jacpacs to see available templates.", file=sys.stderr);
-        print("You can also specify a path to a .jacpac file or a URL.", file=sys.stderr);
+        print(
+            "You can also specify a path to a .jacpac file or a URL.", file=sys.stderr
+        );
         return None;
     }
     return tmpl;
@@ -711,13 +715,13 @@ impl jacpac(action: str = "", path: str = "", output: str = "") -> int {
             output_path = Path(output);
         } else {
             # Default to <template-name>.jacpac in current directory
-            manifest_path = template_dir / "jacpac.toml";
-            if manifest_path.exists() {
+            jac_toml_path = template_dir / "jac.toml";
+            if jac_toml_path.exists() {
                 import tomllib;
-                with open(manifest_path, "rb") as f {
-                    manifest = tomllib.load(f);
+                with open(jac_toml_path, "rb") as f {
+                    jac_config = tomllib.load(f);
                 }
-                name = manifest.get("template", {}).get("name", template_dir.name);
+                name = jac_config.get("jacpac", {}).get("name", template_dir.name);
             } else {
                 name = template_dir.name;
             }
