@@ -12,6 +12,7 @@ import typing
 from collections.abc import Callable
 from pathlib import Path
 from contextlib import AbstractContextManager
+from pathlib import Path
 
 import pytest
 
@@ -741,6 +742,21 @@ def test_jac_create_and_run_no_root_files(
         f"jac run created unexpected files in project root: {new_files}. "
         "All runtime files should be in .jac/ directory."
     )
+
+
+def test_jac_create_default_name_jactastic(cli_test_dir: Path) -> None:
+    """Test that jac create without a name defaults to 'jactastic' with incrementing numbers."""
+    # First create should use 'jactastic'
+    assert project.create() == 0
+    assert (cli_test_dir / "jactastic").is_dir()
+
+    # Second create should use 'jactastic1'
+    assert project.create() == 0
+    assert (cli_test_dir / "jactastic1").is_dir()
+
+    # Third create should use 'jactastic2'
+    assert project.create() == 0
+    assert (cli_test_dir / "jactastic2").is_dir()
 
 
 def test_jac_create_default_name_jactastic(cli_test_dir: Path) -> None:
