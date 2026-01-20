@@ -8,7 +8,6 @@ import os;
 import sys;
 import types;
 import from typing { Any }
-import from jaclang.cli.console { console }
 
 glob _runtime_initialized = False;
 
@@ -51,17 +50,6 @@ def _proc_file(filename: str) -> tuple {
 
 """Run the specified .jac file."""
 impl run(filename: str, main: bool = True, cache: bool = True) -> int {
-    # Check for deprecated .jir files
-    if filename.endswith('.jir') {
-        console.error(
-            ".jir files are no longer supported. Please use .jac files directly."
-        );
-        console.print(
-            "  The bytecode cache (.jbc) provides compilation caching automatically.",
-            style="muted"
-        );
-        return 1;
-    }
     _ensure_jac_runtime();
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     (base, mod, mach) = _proc_file(filename);
@@ -92,17 +80,6 @@ impl enter(
     <>root: str = '',
     <>node: str = ''
 ) -> int {
-    # Check for deprecated .jir files
-    if filename.endswith('.jir') {
-        console.error(
-            ".jir files are no longer supported. Please use .jac files directly."
-        );
-        console.print(
-            "  The bytecode cache (.jbc) provides compilation caching automatically.",
-            style="muted"
-        );
-        return 1;
-    }
     _ensure_jac_runtime();
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     import from jaclang.pycore.constructs { WalkerArchetype }
@@ -151,17 +128,6 @@ impl start(
     api_port: int = 0,
     no_client: bool = False
 ) -> int {
-    # Check for deprecated .jir files
-    if filename.endswith('.jir') {
-        console.error(
-            ".jir files are no longer supported. Please use .jac files directly."
-        );
-        console.print(
-            "  The bytecode cache (.jbc) provides compilation caching automatically.",
-            style="muted"
-        );
-        return 1;
-    }
     _ensure_jac_runtime();
     import from jaclang.pycore.runtime { JacRuntime as Jac }
     import from pathlib { Path }
