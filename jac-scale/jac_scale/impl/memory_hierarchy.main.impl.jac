@@ -26,7 +26,7 @@ impl ScaleTieredMemory.init(use_cache: bool = True) -> None {
     mongo_backend = MongoBackend();
     if mongo_backend.is_available() {
         self.l3 = mongo_backend;
-        self._persistence_type = 'mongodb';
+        self._persistence_type = PersistenceType.MONGODB;
         logger.debug("MongoDB persistence backend initialized");
         # Show subtle message (optional - uncomment to enable)
         try {
