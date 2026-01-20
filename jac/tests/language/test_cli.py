@@ -10,7 +10,6 @@ import tempfile
 import traceback
 import typing
 from collections.abc import Callable
-from pathlib import Path
 from contextlib import AbstractContextManager
 from pathlib import Path
 
@@ -18,11 +17,13 @@ import pytest
 
 from jaclang.cli.commands import (  # type: ignore[attr-defined]
     analysis,  # type: ignore[attr-defined]
-    config as config_cmd,  # type: ignore[attr-defined]
     execution,  # type: ignore[attr-defined]
     project,  # type: ignore[attr-defined]
     tools,  # type: ignore[attr-defined]
     transform,  # type: ignore[attr-defined]
+)
+from jaclang.cli.commands import (
+    config as config_cmd,  # type: ignore[attr-defined]
 )
 from jaclang.runtimelib.builtin import printgraph
 
@@ -645,7 +646,7 @@ def test_positional_args_with_defaults(
     with capture_stdout() as output:
         result = config_cmd.plugins()
     stdout = output.getvalue()
-    assert result == 0, f"'jac plugins' should work without action argument"
+    assert result == 0, "'jac plugins' should work without action argument"
     # Check for plugins list output (case-insensitive, handles Rich formatting)
     assert "installed jac plugin" in stdout.lower(), (
         "Output should show installed plugins list"
@@ -707,7 +708,7 @@ def test_jac_create_and_run_no_root_files(
     # Run jac create to create the project
     with capture_stdout() as output:
         result = project.create(project_name)
-    assert result == 0, f"jac create failed"
+    assert result == 0, "jac create failed"
 
     # Record files after create (before run)
     def get_root_files(path: Path) -> set[str]:
@@ -730,7 +731,7 @@ def test_jac_create_and_run_no_root_files(
     finally:
         os.chdir(original_cwd)
 
-    assert result == 0, f"jac run failed"
+    assert result == 0, "jac run failed"
     assert f"Hello from {project_name}!" in stdout
 
     # Record files after run
@@ -983,9 +984,9 @@ version = "0.1.0"
         return project_path
 
     @staticmethod
-    def _capture_output() -> (
-        tuple[io.StringIO, io.StringIO, "typing.TextIO", "typing.TextIO"]
-    ):
+    def _capture_output() -> tuple[
+        io.StringIO, io.StringIO, "typing.TextIO", "typing.TextIO"
+    ]:
         """Set up output capture and return (stdout_capture, stderr_capture, old_stdout, old_stderr)."""
         captured_stdout = io.StringIO()
         captured_stderr = io.StringIO()
