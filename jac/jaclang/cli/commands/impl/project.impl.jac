@@ -35,9 +35,24 @@ impl create(
         }
         return 0;
     }
-    # If no name specified and not listing templates, do nothing
+    # If no name specified and not listing templates, show usage error
     if not name {
-        return 0;
+        print("Error: Project name is required.", file=sys.stderr);
+        print("\nUsage: jac create <name> [--use <template>]", file=sys.stderr);
+        print("\nExamples:", file=sys.stderr);
+        print(
+            "  jac create myproject              # Create with default template",
+            file=sys.stderr
+        );
+        print(
+            "  jac create myapp --use client     # Create with 'client' template",
+            file=sys.stderr
+        );
+        print(
+            "  jac create --list-jacpacs         # List available templates",
+            file=sys.stderr
+        );
+        return 1;
     }
     # Resolve template from --use (supports: registered names, file paths, URLs)
     tmpl = _resolve_template(use, registry);
