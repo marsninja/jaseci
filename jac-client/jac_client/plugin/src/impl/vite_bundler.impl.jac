@@ -320,7 +320,9 @@ impl ViteBundler.create_vite_config(self: ViteBundler, entry_file: Path) -> Path
             f'        "{alias_key}": path.resolve(projectRoot, "{target_clean}"),'
         );
     }
-    user_aliases_str = '\n' + '\n'.join(user_aliases_lines) if user_aliases_lines else '';
+    user_aliases_str = '\n' + '\n'.join(user_aliases_lines)
+    if user_aliases_lines
+    else '';
     imports_section = f"{imports_str}\n" if imports_str else '';
     newline = '\n';
     server_section = f"  server: {{{newline}{server_config_str}{newline}  }},{newline}"
@@ -562,7 +564,9 @@ impl ViteBundler.create_dev_vite_config(
             f'      "{alias_key}": path.resolve(projectRoot, "{target_clean}"),'
         );
     }
-    user_aliases_str = '\n' + '\n'.join(user_aliases_lines) if user_aliases_lines else '';
+    user_aliases_str = '\n' + '\n'.join(user_aliases_lines)
+    if user_aliases_lines
+    else '';
     # Generate dev config with proxy for API routes
     config_content = f'''import {{ defineConfig }} from "vite";
 import path from "path";
