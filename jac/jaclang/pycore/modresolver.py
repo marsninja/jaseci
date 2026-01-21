@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fnmatch
 import importlib.util
 import os
 import site
@@ -140,13 +139,21 @@ def resolve_module(target: str, base_path: str) -> tuple[str, str]:
     alias_resolved = _resolve_path_alias(target, base_path)
     if alias_resolved:
         # Try to find the actual file with various extensions
-        res = _candidate_from(os.path.dirname(alias_resolved), [os.path.basename(alias_resolved)])
+        res = _candidate_from(
+            os.path.dirname(alias_resolved), [os.path.basename(alias_resolved)]
+        )
         if res:
             return res
         # Also try the path directly if it has an extension
         if os.path.isfile(alias_resolved):
             ext = os.path.splitext(alias_resolved)[1].lower()
-            lang = {".jac": "jac", ".py": "py", ".js": "js", ".ts": "js", ".tsx": "js"}.get(ext, "other")
+            lang = {
+                ".jac": "jac",
+                ".py": "py",
+                ".js": "js",
+                ".ts": "js",
+                ".tsx": "js",
+            }.get(ext, "other")
             return alias_resolved, lang
 
     if target.startswith("."):
