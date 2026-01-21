@@ -117,6 +117,18 @@ impl ViteBundler.create_tsconfig(self: ViteBundler) -> Path {
     user_exclude = user_ts_config.get('exclude', []);
     # Merge compiler options (user overrides defaults)
     merged_compiler_options = {** default_compiler_options, ** user_compiler_options};
+    # Add user-defined path aliases to compiler options
+    paths_config = self.config_loader.get_paths_config();
+    if paths_config {
+        ts_paths: dict[str, list[str]] = {};
+        for (alias_pattern, target_path) in paths_config.items() {
+            # Convert ./components/* to components/*
+            ts_target = target_path.lstrip('./');
+            ts_paths[alias_pattern] = [ts_target];
+        }
+        merged_compiler_options['baseUrl'] = '.';
+        merged_compiler_options['paths'] = ts_paths;
+    }
     # For include/exclude, use user values if provided, otherwise defaults
     merged_include = user_include or default_include;
     merged_exclude = user_exclude or default_exclude;
@@ -296,6 +308,19 @@ impl ViteBundler.create_vite_config(self: ViteBundler, entry_file: Path) -> Path
     resolve_overrides_str = self._format_config_object(resolve_config, indent=6)
     if (isinstance(resolve_config, <>dict) and resolve_config)
     else '';
+    # Get user-defined path aliases for Vite resolve.alias
+    paths_config = self.config_loader.get_paths_config();
+    user_aliases_lines: list[str] = [];
+    for (alias_pattern, target_path) in paths_config.items() {
+        # Strip trailing /* for Vite (it handles directory mapping differently)
+        alias_key = alias_pattern.rstrip('/*');
+        # Strip leading ./ and trailing /* from target
+        target_clean = target_path.lstrip('./').rstrip('/*');
+        user_aliases_lines.append(
+            f'        "{alias_key}": path.resolve(projectRoot, "{target_clean}"),'
+        );
+    }
+    user_aliases_str = '\n' + '\n'.join(user_aliases_lines) if user_aliases_lines else '';
     imports_section = f"{imports_str}\n" if imports_str else '';
     newline = '\n';
     server_section = f"  server: {{{newline}{server_config_str}{newline}  }},{newline}"
@@ -333,7 +358,7 @@ export default defineConfig({{
 {server_section}  resolve: {{
       alias: {{
         "@jac-client/utils": path.resolve(buildDir, "{compiled_utils_relative}"),
-        "@jac-client/assets": path.resolve(buildDir, "{compiled_assets_relative}"),
+        "@jac-client/assets": path.resolve(buildDir, "{compiled_assets_relative}"),{user_aliases_str}
       }},
       extensions: [{extensions_str}],
 {resolve_overrides_str}
@@ -525,6 +550,19 @@ impl ViteBundler.create_dev_vite_config(
     # Extensions for TypeScript
     extensions = ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'];
     extensions_str = ', '.join(f'"{ext}"' for ext in extensions);
+    # Get user-defined path aliases for Vite resolve.alias
+    paths_config = self.config_loader.get_paths_config();
+    user_aliases_lines: list[str] = [];
+    for (alias_pattern, target_path) in paths_config.items() {
+        # Strip trailing /* for Vite (it handles directory mapping differently)
+        alias_key = alias_pattern.rstrip('/*');
+        # Strip leading ./ and trailing /* from target
+        target_clean = target_path.lstrip('./').rstrip('/*');
+        user_aliases_lines.append(
+            f'      "{alias_key}": path.resolve(projectRoot, "{target_clean}"),'
+        );
+    }
+    user_aliases_str = '\n' + '\n'.join(user_aliases_lines) if user_aliases_lines else '';
     # Generate dev config with proxy for API routes
     config_content = f'''import {{ defineConfig }} from "vite";
 import path from "path";
@@ -570,7 +608,7 @@ export default defineConfig({{
   resolve: {{
     alias: {{
       "@jac-client/utils": path.resolve(buildDir, "{compiled_utils_relative}"),
-      "@jac-client/assets": path.resolve(buildDir, "{compiled_assets_relative}"),
+      "@jac-client/assets": path.resolve(buildDir, "{compiled_assets_relative}"),{user_aliases_str}
     }},
     extensions: [{extensions_str}],
   }},

@@ -30,4 +30,6 @@ class JacClientConfig(PluginConfigBase) {
     def remove_dependency(
         self: JacClientConfig, name: str, is_dev: bool = False
     ) -> bool;
+
+    def get_paths_config(self: JacClientConfig) -> dict[str, str];
 }
