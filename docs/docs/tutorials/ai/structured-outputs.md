@@ -37,7 +37,7 @@ enum Priority {
 }
 
 """Determine the priority level of this support ticket."""
-can classify_priority(ticket: str) -> Priority by llm();
+def classify_priority(ticket: str) -> Priority by llm();
 
 with entry {
     tickets = [
@@ -73,7 +73,7 @@ enum HttpStatus {
 }
 
 """Determine the appropriate HTTP status for this API response."""
-can get_status(response_description: str) -> HttpStatus by llm();
+def get_status(response_description: str) -> HttpStatus by llm();
 ```
 
 ---
@@ -94,7 +94,7 @@ obj Person {
 }
 
 """Extract person details from this text."""
-can extract_person(text: str) -> Person by llm();
+def extract_person(text: str) -> Person by llm();
 
 with entry {
     text = "Alice is a 30-year-old software engineer from Seattle.";
@@ -136,7 +136,7 @@ obj Company {
 }
 
 """Extract company information from this text."""
-can extract_company(text: str) -> Company by llm();
+def extract_company(text: str) -> Company by llm();
 
 with entry {
     text = """
@@ -169,7 +169,7 @@ obj Task {
 }
 
 """Extract all tasks mentioned in this text."""
-can extract_tasks(text: str) -> list[Task] by llm();
+def extract_tasks(text: str) -> list[Task] by llm();
 
 with entry {
     text = """
@@ -216,7 +216,7 @@ obj Contact {
 }
 
 """Extract contact information from this text."""
-can extract_contact(text: str) -> Contact by llm();
+def extract_contact(text: str) -> Contact by llm();
 
 with entry {
     text1 = "Contact John at john@example.com or call 555-1234";
@@ -263,7 +263,7 @@ obj Resume {
 }
 
 """Parse this resume text into structured data."""
-can parse_resume(text: str) -> Resume by llm();
+def parse_resume(text: str) -> Resume by llm();
 
 with entry {
     resume_text = """
@@ -323,7 +323,7 @@ sem Product.price = "Price in USD";
 sem Product.category = "One of: Electronics, Clothing, Home, Food";
 
 """Extract product information from this listing."""
-can extract_product(listing: str) -> Product by llm();
+def extract_product(listing: str) -> Product by llm();
 ```
 
 ---
@@ -346,7 +346,7 @@ node Ticket {
 }
 
 """Analyze this support ticket and determine its priority."""
-can analyze_priority(title: str, description: str) -> Priority by llm();
+def analyze_priority(title: str, description: str) -> Priority by llm();
 
 walker PrioritizeTickets {
     can prioritize with Ticket entry {
@@ -383,7 +383,7 @@ obj StrictData {
 }
 
 """Extract numerical data from this text."""
-can extract_data(text: str) -> StrictData by llm();
+def extract_data(text: str) -> StrictData by llm();
 ```
 
 If the LLM returns invalid types, byLLM will:

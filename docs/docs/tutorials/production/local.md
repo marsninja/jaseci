@@ -82,37 +82,29 @@ curl -X POST http://localhost:8000/add_task \
 
 ## Server Configuration
 
-### Port and Host
+### Port
 
 ```bash
 # Custom port
 jac start app.jac --port 3000
-
-# Bind to specific interface
-jac start app.jac --host 127.0.0.1
-
-# Both
-jac start app.jac --host 0.0.0.0 --port 8080
 ```
 
-### Development Mode
+### Development Mode (HMR)
 
-Hot-reloading for development:
+Hot Module Replacement for development:
 
 ```bash
-jac start app.jac --reload
+jac start app.jac --dev
 ```
 
-Changes to your `.jac` files will automatically restart the server.
+Changes to your `.jac` files will automatically reload.
 
-### Production Mode
+### API-Only Mode
+
+Skip client bundling and only serve the API:
 
 ```bash
-# Multiple workers for production
-jac start app.jac --workers 4
-
-# With custom settings
-jac start app.jac --host 0.0.0.0 --port 8000 --workers 4
+jac start app.jac --dev --no-client
 ```
 
 ---
@@ -193,35 +185,11 @@ Response:
 
 ---
 
-## CORS Configuration
-
-Enable cross-origin requests for frontend apps:
-
-```bash
-# Allow all origins (development)
-jac start app.jac --cors-origins "*"
-
-# Specific origins (production)
-jac start app.jac --cors-origins "https://myapp.com,https://admin.myapp.com"
-```
-
----
-
 ## Database Persistence
 
-### Built-in Graph Storage
+By default, Jac uses SQLite for persistence (you'll see "Using SQLite for persistence" when starting).
 
-By default, the graph is stored in memory. For persistence:
-
-```bash
-# Use file-based storage
-jac start app.jac --database sqlite:///app.db
-
-# PostgreSQL (requires connection string)
-jac start app.jac --database postgresql://user:pass@localhost/dbname
-```
-
-### Manual Persistence
+### Custom Persistence
 
 ```jac
 import json;
@@ -263,19 +231,6 @@ walker load_state {
 ---
 
 ## Environment Variables
-
-### Configuration via Environment
-
-```bash
-# Set environment variables
-export JAC_PORT=8000
-export JAC_HOST=0.0.0.0
-export JAC_WORKERS=4
-export JAC_RELOAD=true
-
-# Start server (uses env vars)
-jac start app.jac
-```
 
 ### Accessing Environment in Code
 
@@ -372,12 +327,11 @@ walker ready {
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--port` | Server port | 8000 |
-| `--host` | Bind address | 0.0.0.0 |
-| `--workers` | Number of workers | 1 |
-| `--reload` | Hot reload on changes | false |
-| `--cors-origins` | Allowed CORS origins | none |
-| `--database` | Database connection | memory |
+| `--port`, `-p` | Server port | 8000 |
+| `--dev`, `-d` | Enable Hot Module Replacement | false |
+| `--no-client`, `-n` | Skip client bundling (API only) | false |
+| `--faux`, `-f` | Print API docs only (no server) | false |
+| `--scale` | Deploy to Kubernetes (requires jac-scale) | false |
 
 ---
 

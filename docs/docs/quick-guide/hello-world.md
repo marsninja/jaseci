@@ -120,7 +120,7 @@ import from byllm.lib { Model }
 glob llm = Model(model_name="gpt-4o-mini");
 
 """Translate the given text to French."""
-can translate(text: str) -> str by llm();
+def translate(text: str) -> str by llm();
 
 with entry {
     result = translate("Hello, World!");

@@ -575,12 +575,18 @@ class JacWalker:
         walker.path = []
         current_loc = node.archetype
 
+        # Capture reports starting index to track reports from this spawn
+        ctx = JacRuntimeInterface.get_context()
+        reports_start_idx = len(ctx.reports)
+
         # Walker ability on any entry (runs once at spawn, before traversal)
         for i in warch._jac_entry_funcs_:
             if not i.trigger:
                 i.func(warch, current_loc)
             if walker.disengaged:
                 walker.ignores = []
+                # Capture reports generated during this spawn
+                warch.reports = ctx.reports[reports_start_idx:]
                 return warch
 
         # Traverse recursively (walker.next is already set by spawn())
@@ -602,6 +608,8 @@ class JacWalker:
                 break
 
         walker.ignores = []
+        # Capture reports generated during this spawn
+        warch.reports = ctx.reports[reports_start_idx:]
         return warch
 
     @staticmethod
@@ -761,6 +769,10 @@ class JacWalker:
         walker.path = []
         current_loc = node.archetype
 
+        # Capture reports starting index to track reports from this spawn
+        ctx = JacRuntimeInterface.get_context()
+        reports_start_idx = len(ctx.reports)
+
         # Walker ability on any entry (runs once at spawn, before traversal)
         for i in warch._jac_entry_funcs_:
             if not i.trigger:
@@ -769,6 +781,8 @@ class JacWalker:
                     await result
             if walker.disengaged:
                 walker.ignores = []
+                # Capture reports generated during this spawn
+                warch.reports = ctx.reports[reports_start_idx:]
                 return warch
 
         # Traverse recursively (walker.next is already set by spawn())
@@ -794,6 +808,8 @@ class JacWalker:
                 break
 
         walker.ignores = []
+        # Capture reports generated during this spawn
+        warch.reports = ctx.reports[reports_start_idx:]
         return warch
 
     @staticmethod

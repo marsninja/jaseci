@@ -49,7 +49,7 @@ import from byllm.lib { Model }
 glob llm = Model(model_name="gpt-4o-mini");
 
 """Translate the given text to French."""
-can translate(text: str) -> str by llm();
+def translate(text: str) -> str by llm();
 
 with entry {
     result = translate("Hello, how are you?");
@@ -77,7 +77,7 @@ The magic is in the `by llm()` syntax:
 
 ```jac
 """Translate the given text to French."""
-can translate(text: str) -> str by llm();
+def translate(text: str) -> str by llm();
 ```
 
 | Part | Purpose |
@@ -132,10 +132,10 @@ Control creativity (0.0 = deterministic, 2.0 = very creative):
 
 ```jac
 """Write a creative story about a robot."""
-can write_story(topic: str) -> str by llm(temperature=1.5);
+def write_story(topic: str) -> str by llm(temperature=1.5);
 
 """Extract the main facts from this text."""
-can extract_facts(text: str) -> str by llm(temperature=0.0);
+def extract_facts(text: str) -> str by llm(temperature=0.0);
 ```
 
 ### Max Tokens
@@ -144,7 +144,7 @@ Limit response length:
 
 ```jac
 """Summarize in one sentence."""
-can summarize(text: str) -> str by llm(max_tokens=100);
+def summarize(text: str) -> str by llm(max_tokens=100);
 ```
 
 ---
@@ -165,7 +165,7 @@ enum Sentiment {
 }
 
 """Analyze the sentiment of this text."""
-can analyze_sentiment(text: str) -> Sentiment by llm();
+def analyze_sentiment(text: str) -> Sentiment by llm();
 
 with entry {
     texts = [
@@ -189,7 +189,7 @@ import from byllm.lib { Model }
 glob llm = Model(model_name="gpt-4o-mini");
 
 """Summarize this article in 2-3 bullet points."""
-can summarize(article: str) -> str by llm();
+def summarize(article: str) -> str by llm();
 
 with entry {
     article = """
@@ -212,7 +212,7 @@ import from byllm.lib { Model }
 glob llm = Model(model_name="gpt-4o-mini");
 
 """Generate a Python function based on the description."""
-can generate_code(description: str) -> str by llm();
+def generate_code(description: str) -> str by llm();
 
 with entry {
     desc = "A function that checks if a string is a palindrome";
@@ -249,7 +249,7 @@ import from byllm.lib { Model }
 glob llm = Model(model_name="gpt-4o-mini");
 
 """Translate text to Spanish."""
-can translate(text: str) -> str by llm();
+def translate(text: str) -> str by llm();
 
 with entry {
     try {
@@ -278,7 +278,7 @@ glob llm = MockLLM(
 );
 
 """Translate text."""
-can translate(text: str) -> str by llm();
+def translate(text: str) -> str by llm();
 
 test test_translate {
     result = translate("Hello");
@@ -293,7 +293,7 @@ test test_translate {
 | Concept | Syntax |
 |---------|--------|
 | Configure LLM | `glob llm = Model(model_name="...")` |
-| AI function | `can func() -> Type by llm()` |
+| AI function | `def func() -> Type by llm()` |
 | Prompt | Function docstring |
 | Type safety | Return type annotation |
 | Temperature | `by llm(temperature=0.5)` |

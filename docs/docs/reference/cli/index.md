@@ -41,24 +41,20 @@ The Jac CLI provides commands for running, building, testing, and deploying Jac 
 Execute a Jac file.
 
 ```bash
-jac run [-h] [-s SESSION] [-m] [-nm] [-c] [-nc] filename
+jac run [-h] [-m] [--no-main] [-c] [--no-cache] [filename]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `filename` | Jac file to run | Required |
-| `-s, --session` | Session name for persistence | None |
-| `-m, --main` | Run main entry point | `True` |
-| `-c, --cache` | Use cached bytecode | `True` |
+| `-m, --main` | Treat module as `__main__` | `True` |
+| `-c, --cache` | Enable compilation cache | `True` |
 
 **Examples:**
 
 ```bash
 # Run a file
 jac run main.jac
-
-# Run with persistent session
-jac run main.jac -s my_session
 
 # Run without cache
 jac run main.jac --no-cache
@@ -71,21 +67,20 @@ jac run main.jac --no-cache
 Start a Jac application as an HTTP API server. With the jac-scale plugin installed, use `--scale` to deploy to Kubernetes. Use `--dev` for Hot Module Replacement (HMR) during development.
 
 ```bash
-jac start [-h] [-s SESSION] [-p PORT] [-m] [-nm] [-f] [-nf] [-d] [--api-port PORT] [--no-client] [--scale] [--build] [filename]
+jac start [-h] [-p PORT] [-m] [--no-main] [-f] [--no-faux] [-d] [--no-dev] [-a API_PORT] [-n] [--no-no_client] [--scale] [--no-scale] [-b] [--no-build] [filename]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `filename` | Jac file to serve | `main.jac` |
-| `-s, --session` | Session name | None |
 | `-p, --port` | Port number | `8000` |
-| `-m, --main` | Run main entry point | `True` |
-| `-f, --faux` | Faux mode (mock) | `False` |
+| `-m, --main` | Treat as `__main__` | `True` |
+| `-f, --faux` | Print docs only (no server) | `False` |
 | `-d, --dev` | Enable HMR (Hot Module Replacement) mode | `False` |
-| `--api-port` | Separate API port for HMR mode (0=same as port) | `0` |
-| `--no-client` | Skip client bundling/serving (API only) | `False` |
+| `-a, --api_port` | Separate API port for HMR mode (0=same as port) | `0` |
+| `-n, --no_client` | Skip client bundling/serving (API only) | `False` |
 | `--scale` | Deploy to Kubernetes (requires jac-scale) | `False` |
-| `--build, -b` | Build Docker image before deploy (with `--scale`) | `False` |
+| `-b, --build` | Build Docker image before deploy (with `--scale`) | `False` |
 
 **Examples:**
 
@@ -95,9 +90,6 @@ jac start
 
 # Start on custom port
 jac start -p 3000
-
-# Start with session
-jac start -s prod_session
 
 # Start with Hot Module Replacement (development)
 jac start --dev

@@ -25,10 +25,14 @@ This creates:
 
 ```
 myapp/
-├── jac.toml          # Configuration
-├── main.jac          # Entry point (frontend + backend)
-├── .styles.css       # Stylesheet
-└── .jac/             # Build artifacts (gitignored)
+├── jac.toml              # Configuration
+├── main.jac              # Entry point (frontend + backend)
+├── README.md             # Project readme
+├── components/           # Reusable UI components
+│   └── Button.cl.jac     # Example button component
+├── assets/               # Static assets (images, fonts)
+├── .jac/                 # Build artifacts (gitignored)
+└── .gitignore            # Git ignore rules
 ```
 
 ---
@@ -69,15 +73,25 @@ cl {
 ```toml
 [project]
 name = "myapp"
-version = "0.1.0"
+version = "1.0.0"
+description = "Jac client application"
 entry-point = "main.jac"
-
-[plugins.client]
 
 [dependencies]
 
+[dependencies.npm]
+jac-client-node = "1.0.4"
+
+[dependencies.npm.dev]
+"@jac-client/dev-deps" = "1.0.0"
+
 [dev-dependencies]
 watchdog = ">=3.0.0"
+
+[serve]
+base_route_app = "app"
+
+[plugins.client]
 ```
 
 ---

@@ -42,7 +42,7 @@ def get_current_time() -> str {
 
 # LLM function that can use the tool
 """Answer questions, using available tools when needed."""
-can answer(question: str) -> str by llm(
+def answer(question: str) -> str by llm(
     tools=[get_current_time]
 );
 
@@ -89,7 +89,7 @@ def get_pi() -> float {
 }
 
 """Solve math problems using the available tools."""
-can solve_math(problem: str) -> str by llm(
+def solve_math(problem: str) -> str by llm(
     tools=[add, multiply, get_pi]
 );
 
@@ -128,7 +128,7 @@ def get_user_info(user_id: str) -> dict {
 }
 
 """Answer questions about users and data."""
-can query(question: str) -> str by llm(
+def query(question: str) -> str by llm(
     tools=[search_database, get_user_info]
 );
 
@@ -167,7 +167,7 @@ def get_date() -> str {
 }
 
 """Answer complex questions using reasoning and tools."""
-can research(question: str) -> str by llm(
+def research(question: str) -> str by llm(
     method="ReAct",
     tools=[search_web, calculate, get_date]
 );
@@ -260,7 +260,7 @@ node Document {
 }
 
 """Summarize this document in 2-3 sentences."""
-can summarize(content: str) -> str by llm();
+def summarize(content: str) -> str by llm();
 
 def search_documents(query: str, docs: list) -> list[str] {
     """Search documents for matching content."""
@@ -335,7 +335,7 @@ Support Email: support@techcorp.com
 """;
 
 """Answer customer questions about our products and services."""
-can support_agent(question: str) -> str by llm(
+def support_agent(question: str) -> str by llm(
     incl_info={"company_context": company_info}
 );
 
@@ -401,7 +401,7 @@ def place_order(product: str, quantity: int) -> str {
 
 """You are a helpful sales assistant. Help customers browse products,
 check prices and availability, and place orders."""
-can sales_agent(request: str) -> str by llm(
+def sales_agent(request: str) -> str by llm(
     method="ReAct",
     tools=[list_products, get_price, check_inventory, place_order]
 );

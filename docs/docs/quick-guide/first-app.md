@@ -141,11 +141,21 @@ Open http://localhost:8000/docs to see the Swagger UI.
 | `/walker/list_todos` | POST | List all todos |
 | `/walker/complete_todo` | POST | Mark complete |
 
+> **Note:** By default, all walkers require authentication. To make a walker publicly accessible without authentication, use the `pub` modifier: `walker:pub add_todo { ... }`. See [Authentication](../tutorials/fullstack/auth.md) for details.
+
 ---
 
 ## Step 5: Test the API
 
-Using curl:
+For quick testing, make your walkers public by adding `:pub`:
+
+```jac
+walker:pub add_todo { ... }
+walker:pub list_todos { ... }
+walker:pub complete_todo { ... }
+```
+
+Then test with curl:
 
 ```bash
 # Add a todo
