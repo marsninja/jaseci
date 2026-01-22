@@ -53,8 +53,7 @@ with entry {
     p4 = Person(name="Alice");
     root ++> p1;
     p1 +>: Friend :+> p2;
-    p2 +>: Family :+> p1;
-    p2 +>: Family :+> p3;
+    p2 +>: Family :+> [p1, p3];
     p2 +>: Friend :+> p3;
 }
 
@@ -244,8 +243,7 @@ Abilities define event handlers that execute when a walker interacts with nodes 
 ```jac
 root ++> p1;                      # Connect root to p1
 p1 +>: Friend :+> p2;             # Connect p1 to p2 with Friend edge
-p2 +>: Family :+> p1;             # Connect p2 to p1 with Family edge
-p2 +>: Family :+> p3;             # Connect p2 to p3 with Family edge
+p2 +>: Family :+> [p1, p3];       # Connect p2 to multiple nodes
 ```
 
 **In Library Mode:**
@@ -255,10 +253,10 @@ from jaclang.lib import connect, root
 
 connect(left=root(), right=p1)
 connect(left=p1, right=p2, edge=Friend)
-connect(left=p2, right=[p1, p3], edge=Family)  # Library mode supports arrays
+connect(left=p2, right=[p1, p3], edge=Family)
 ```
 
-The `connect()` function creates directed edges between nodes. The `edge` parameter specifies the edge type class, defaulting to a generic edge if omitted. Library mode's `connect()` function supports connecting a single source node to either a single target node or a list of target nodes (a convenience not available in Jac syntax).
+The `connect()` function creates directed edges between nodes. The `edge` parameter specifies the edge type class, defaulting to a generic edge if omitted. The function supports connecting a single source node to either a single target node or a list of target nodes.
 
 ### **5. Spawning Walkers**
 
