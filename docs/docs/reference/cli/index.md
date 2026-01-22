@@ -896,6 +896,6 @@ jac destroy main.jac
 
 ## See Also
 
-- [Project Configuration](../configuration/index.md)
-- [jac-scale Documentation](../production/index.md)
-- [Testing Guide](../testing-debugging/index.md)
+- [Project Configuration](../config/index.md)
+- [jac-scale Documentation](../plugins/jac-scale.md)
+- [Testing Guide](../testing.md)

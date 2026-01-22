@@ -292,8 +292,8 @@ Each run produces different layouts as the AI creates unique levels.
 
 ## Full Source Code
 
-- [Detailed Tutorial](../../learn/examples/mtp_examples/rpg_game.md)
-- [Fantasy Trading Game](../../learn/examples/mtp_examples/fantasy_trading_game.md) - Similar patterns
+- [RPG Game Source](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-byllm/examples/mtp_examples/rpg_game)
+- [Fantasy Trading Game](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-byllm/examples/mtp_examples/fantasy_trading_game) - Similar patterns
 
 ---
 

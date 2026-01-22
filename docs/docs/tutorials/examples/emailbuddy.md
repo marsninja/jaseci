@@ -343,8 +343,7 @@ $.ajax({
 
 ## Full Source Code
 
-- [GitHub Repository](https://github.com/Jaseci-Labs/emailbuddy)
-- [Detailed Tutorial](../../learn/examples/EmailBuddy/tutorial.md)
+- [GitHub Repository](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-byllm/examples/agentic_ai/email-buddy)
 
 ---
 

@@ -55,6 +55,8 @@ nav:
           - "Part VIII: Ecosystem": "reference/language/ecosystem.md"
           - "Part IX: Deployment": "reference/language/deployment.md"
           - Appendices: "reference/language/appendices.md"
+          - Python Integration: "reference/language/python-integration.md"
+          - Library Mode: "reference/language/library-mode.md"
       - CLI Reference: "reference/cli/index.md"
       - Configuration: "reference/config/index.md"
       - Testing: "reference/testing.md"
@@ -245,6 +247,10 @@ plugins:
 
         # Examples redirects
         learn/examples/index.md: tutorials/examples/index.md
+
+        # Legacy content redirects
+        learn/library_mode.md: reference/language/library-mode.md
+        learn/superset_python.md: reference/language/python-integration.md
 
 hooks:
   - scripts/handle_jac_compile_data.py

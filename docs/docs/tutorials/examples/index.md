@@ -68,15 +68,15 @@ AI-powered procedural game level generation.
 
 | Example | Description |
 |---------|-------------|
-| [Friendzone Lite](../../learn/examples/agentic_ai/friendzone-lite/friendzone-lite.md) | Social AI agent with ReAct pattern |
-| [Aider Genius Lite](../../learn/examples/agentic_ai/aider-genius-lite/aider-genius-lite.md) | AI coding assistant |
-| [Task Manager Lite](../../learn/examples/agentic_ai/task-manager-lite/task-manager-lite.md) | AI task management |
+| [Friendzone Lite](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-byllm/examples/agentic_ai/friendzone-lite) | Social AI agent with ReAct pattern |
+| [Aider Genius Lite](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-byllm/examples/agentic_ai/aider-genius-lite) | AI coding assistant |
+| [Task Manager Lite](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-byllm/examples/agentic_ai/task-manager-lite) | AI task management |
 
 ### Game Examples
 
 | Example | Description |
 |---------|-------------|
-| [Fantasy Trading Game](../../learn/examples/mtp_examples/fantasy_trading_game.md) | AI-driven trading simulation |
+| [Fantasy Trading Game](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-byllm/examples/mtp_examples/fantasy_trading_game) | AI-driven trading simulation |
 
 ---
 

@@ -274,7 +274,6 @@ jac test littleX.jac
 The complete source code is available at:
 
 - [GitHub: Jaseci-Labs/littleX](https://github.com/Jaseci-Labs/littleX)
-- [Detailed Tutorial](../../learn/examples/littleX/tutorial.md)
 
 ---
 

@@ -300,7 +300,6 @@ Full API docs at `http://localhost:8000/docs`
 ## Full Source Code
 
 - [GitHub Repository](https://github.com/jaseci-labs/Agentic-AI/tree/main/jac-mcp-chatbot)
-- [Detailed Tutorial](../../learn/examples/rag_chatbot/Overview.md)
 
 ---
 

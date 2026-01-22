@@ -60,7 +60,7 @@ obj Person {
     has name: str;
     has age: int;
 
-    can greet -> str {
+    def greet() -> str {
         return f"Hi, I'm {self.name}";
     }
 }
@@ -73,7 +73,8 @@ obj Person {
 | Blocks | Indentation | Braces `{}` |
 | Statements | Newline-terminated | Semicolons required |
 | Fields | `self.x = x` | `has x: Type;` |
-| Methods | `def` | `can` (for abilities) |
+| Methods | `def method():` | `def method() { }` |
+| Abilities | N/A | `can` (walker entry/exit only) |
 | Types | Optional | Mandatory |
 
 ---
