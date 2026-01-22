@@ -165,7 +165,7 @@ with entry {
 
     # Enumerate
     names = ["Alice", "Bob", "Carol"];
-    for i, name in enumerate(names) {
+    for (i, name) in enumerate(names) {
         print(f"{i}: {name}");
     }
 }
@@ -185,20 +185,23 @@ with entry {
 
 ### Match (Pattern Matching)
 
+Match case bodies use Python-style indentation, not braces:
+
 ```jac
-def describe(value: any) -> str {
+def describe(value: int) -> str {
     match value {
-        case 0 { return "zero"; }
-        case 1 | 2 | 3 { return "small"; }
-        case n if n > 100 { return "large"; }
-        case _ { return "medium"; }
+        case 0:
+            return "zero";
+        case 1 | 2 | 3:
+            return "small";
+        case _:
+            return "medium";
     }
 }
 
 with entry {
     print(describe(0));    # zero
     print(describe(2));    # small
-    print(describe(500));  # large
     print(describe(50));   # medium
 }
 ```

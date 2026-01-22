@@ -186,6 +186,10 @@ node Person {
 }
 
 walker Greeter {
+    can start with `root entry {
+        visit [-->];  # Visit nodes connected to root
+    }
+
     can greet with Person entry {
         print(f"Hello, {here.name}!");
         here.visited = True;
@@ -199,7 +203,7 @@ with entry {
     root ++> alice;
     alice ++> bob;
 
-    # Spawn walker at root, it visits connected nodes
+    # Spawn walker at root
     root spawn Greeter();
 }
 ```
@@ -210,7 +214,7 @@ with entry {
 Hello, Alice!
 ```
 
-Wait, why only Alice? Because the walker needs to be told to continue traversing.
+Wait, why only Alice? Because the walker visits root first (via `start`), then visits Alice (via `greet`), but doesn't continue to Bob. The walker needs to be told to continue traversing.
 
 ---
 
@@ -224,6 +228,10 @@ node Person {
 }
 
 walker Greeter {
+    can start with `root entry {
+        visit [-->];  # Start by visiting nodes connected to root
+    }
+
     can greet with Person entry {
         print(f"Hello, {here.name}!");
         visit [-->];  # Continue to all connected nodes
@@ -292,6 +300,10 @@ node Person {
 }
 
 walker FindAdults {
+    can start with `root entry {
+        visit [-->];
+    }
+
     can check with Person entry {
         if here.age >= 18 {
             report here;  # Add to results

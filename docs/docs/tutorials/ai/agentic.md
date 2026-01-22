@@ -73,18 +73,18 @@ import from byllm.lib { Model }
 
 glob llm = Model(model_name="gpt-4o-mini");
 
+"""Add two numbers together."""
 def add(a: int, b: int) -> int {
-    """Add two numbers together."""
     return a + b;
 }
 
+"""Multiply two numbers."""
 def multiply(a: int, b: int) -> int {
-    """Multiply two numbers."""
     return a * b;
 }
 
+"""Get the value of pi."""
 def get_pi() -> float {
-    """Get the value of pi."""
     return 3.14159;
 }
 
@@ -111,14 +111,14 @@ import from byllm.lib { Model }
 
 glob llm = Model(model_name="gpt-4o-mini");
 
+"""Search the database for matching records."""
 def search_database(query: str, limit: int = 10) -> list[str] {
-    """Search the database for matching records."""
     # Simulated database search
     return [f"Result {i} for '{query}'" for i in range(min(limit, 3))];
 }
 
+"""Get information about a specific user."""
 def get_user_info(user_id: str) -> dict {
-    """Get information about a specific user."""
     # Simulated user lookup
     return {
         "id": user_id,
@@ -149,19 +149,19 @@ import from byllm.lib { Model }
 
 glob llm = Model(model_name="gpt-4o");
 
+"""Search the web for information."""
 def search_web(query: str) -> str {
-    """Search the web for information."""
     # Simulated web search
     return f"Web results for '{query}': Found relevant information about the topic.";
 }
 
+"""Evaluate a mathematical expression."""
 def calculate(expression: str) -> float {
-    """Evaluate a mathematical expression."""
     return eval(expression);
 }
 
+"""Get today's date."""
 def get_date() -> str {
-    """Get today's date."""
     import datetime;
     return datetime.date.today().isoformat();
 }
@@ -205,26 +205,26 @@ glob llm = Model(model_name="gpt-4o-mini");
 obj Calculator {
     has memory: float = 0;
 
+    """Add to memory."""
     def add(x: float) -> float {
-        """Add to memory."""
         self.memory += x;
         return self.memory;
     }
 
+    """Subtract from memory."""
     def subtract(x: float) -> float {
-        """Subtract from memory."""
         self.memory -= x;
         return self.memory;
     }
 
+    """Clear memory."""
     def clear() -> float {
-        """Clear memory."""
         self.memory = 0;
         return self.memory;
     }
 
+    """Get current memory value."""
     def get_memory() -> float {
-        """Get current memory value."""
         return self.memory;
     }
 
@@ -262,8 +262,8 @@ node Document {
 """Summarize this document in 2-3 sentences."""
 def summarize(content: str) -> str by llm();
 
+"""Search documents for matching content."""
 def search_documents(query: str, docs: list) -> list[str] {
-    """Search documents for matching content."""
     results = [];
     for doc in docs {
         if query.lower() in doc.content.lower() {
@@ -362,21 +362,21 @@ glob kb: dict = {
     "inventory": {"Widget A": 50, "Widget B": 0, "Service X": 999}
 };
 
+"""List all available products."""
 def list_products() -> list[str] {
-    """List all available products."""
     return kb["products"];
 }
 
+"""Get the price of a product."""
 def get_price(product: str) -> str {
-    """Get the price of a product."""
     if product in kb["prices"] {
         return f"${kb['prices'][product]}";
     }
     return "Product not found";
 }
 
+"""Check if a product is in stock."""
 def check_inventory(product: str) -> str {
-    """Check if a product is in stock."""
     if product in kb["inventory"] {
         qty = kb["inventory"][product];
         if qty > 0 {
@@ -387,8 +387,8 @@ def check_inventory(product: str) -> str {
     return "Product not found";
 }
 
+"""Place an order for a product."""
 def place_order(product: str, quantity: int) -> str {
-    """Place an order for a product."""
     if product not in kb["inventory"] {
         return "Product not found";
     }
