@@ -661,6 +661,8 @@ jac clean --data --cache
 jac clean --all --force
 ```
 
+> **💡 Troubleshooting Tip:** If you encounter unexpected syntax errors, "NodeAnchor is not a valid reference" errors, or other strange behavior after modifying your code, try clearing the cache with `jac clean --cache` or `rm -rf .jac`. Stale bytecode can cause issues when source files change.
+
 ---
 
 ## Template Management

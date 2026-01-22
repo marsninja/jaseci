@@ -188,7 +188,7 @@ edge Follows { }  # Edge with no data
 edge Weighted {
     has weight: float;
 
-    can get_normalized(max_weight: float) -> float {
+    def get_normalized(max_weight: float) -> float {
         return self.weight / max_weight;
     }
 }
@@ -249,21 +249,33 @@ walker Collector {
 Walkers maintain state throughout their traversal:
 
 ```jac
+node DataNode {
+    has value: int;
+}
+
 walker Counter {
     has count: int = 0;
 
-    can count_nodes with entry {
+    can start with `root entry {
+        self.count += 1;
+        visit [-->];
+    }
+
+    can count_nodes with DataNode entry {
         self.count += 1;
         visit [-->];
     }
 }
 
 with entry {
+    root ++> DataNode(value=1) ++> DataNode(value=2);
     walker_instance = Counter();
     root spawn walker_instance;
-    print(f"Counted {walker_instance.count} nodes");
+    print(f"Counted {walker_instance.count} nodes");  # Output: 3
 }
 ```
+
+> **Note:** Walker abilities must specify which node types they handle. Use `` `root `` for the root node and specific node types for others. A generic `with entry` only triggers at the spawn location.
 
 ### 3 The `visit` Statement
 
@@ -524,8 +536,13 @@ Walker traversal is queue-based (BFS-like by default):
 
 ```jac
 walker BFSWalker {
-    can traverse with entry {
-        print(f"Visiting: {here}");
+    can start with `root entry {
+        print(f"Starting at: {here}");
+        visit [-->];
+    }
+
+    can traverse with Person entry {
+        print(f"Visiting: {here.name}");
         visit [-->];  # Queue all outgoing for later visits
     }
 }
@@ -535,17 +552,21 @@ walker BFSWalker {
 
 ```jac
 walker FilteredWalker {
-    can traverse with entry {
+    can start with `root entry {
+        visit [-->];  # Start traversal from root
+    }
+
+    can traverse with Person entry {
         # By node type
         visit [-->(`?Person)];
 
-        # By attribute condition
-        visit [--> (age > 25)];
+        # By attribute condition (filter nodes where age > 25)
+        visit [-->(`?Person) ?(_.age > 25)];
 
         # By edge type
         visit [->:Friend:->];
 
-        # Combined
+        # Combined: Friend edges to Person nodes since 2020
         visit [->:Friend:since > 2020:->(`?Person)];
     }
 }

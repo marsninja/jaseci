@@ -334,7 +334,7 @@ cl {
 
 ```bash
 # Development with hot reload
-jac start main.jac --port 8000 --watch
+jac start main.jac --port 8000 --dev
 
 # Production
 jac start main.jac --port 8000
@@ -466,8 +466,8 @@ Anchors provide persistent object references across sessions.
 ### 1 Hot Module Replacement (HMR)
 
 ```bash
-# Enable with --watch flag
-jac start main.jac --watch
+# Enable with --dev flag
+jac start main.jac --dev
 ```
 
 Changes to `.jac` files automatically reload without restart.

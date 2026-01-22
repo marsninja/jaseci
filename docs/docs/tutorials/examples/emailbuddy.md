@@ -179,7 +179,7 @@ sem Response = "Structured response for agentic traversal.";
 sem Response.option = "Control token: @selected@, @query@, or @end@.";
 
 """Decide which option is best: explore an email, search for more, or answer."""
-can choose_next_email_node(
+def choose_next_email_node(
     person: str,
     sent: list[str],
     received: list[str],
@@ -246,7 +246,7 @@ Keep the LLM context efficient by summarizing discoveries:
 
 ```jac
 """Summarize relevant information from emails for the conversation."""
-can summarize(
+def summarize(
     presented_options: list[str],
     convo_history: list[dict]
 ) -> str by llm();

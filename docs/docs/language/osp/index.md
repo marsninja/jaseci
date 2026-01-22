@@ -229,10 +229,10 @@ walker Finder {
         visit [-->(`?Person)];
 
         # Visit via specific edge type
-        visit [-->:Knows:];
+        visit [->:Knows:->];
 
         # Combined filtering
-        visit [-->:Knows:(`?Person)];
+        visit [->:Knows:->(`?Person)];
     }
 }
 ```
@@ -287,7 +287,7 @@ walker Messenger {
 
     can deliver with Person entry {
         self.delivered_to.append(here.name);
-        visit [-->:Knows:];  # Only traverse Knows edges
+        visit [->:Knows:->];  # Only traverse Knows edges
     }
 }
 
@@ -377,10 +377,7 @@ walker AgeFilter {
 
 | Topic | Resource |
 |-------|----------|
-| OSP Introduction | [Chapter 8: OSP Paradigm](../../jac_book/chapter_8.md) |
-| Nodes & Edges Detail | [Chapter 9: Nodes and Edges](../../jac_book/chapter_9.md) |
-| Walkers & Abilities | [Chapter 10: Walkers](../../jac_book/chapter_10.md) |
-| Advanced Traversal | [Chapter 11: Advanced OSP](../../jac_book/chapter_11.md) |
+| OSP Reference | [OSP Language Reference](../../reference/language/osp.md) |
 | Formal Specification | [Data-Spatial Programming](../../learn/dspfoundation.md) |
 | Nodes Reference | [Nodes & Edges Guide](../../learn/data_spatial/nodes_and_edges.md) |
 | Walkers Reference | [Walkers Guide](../../learn/data_spatial/walkers.md) |

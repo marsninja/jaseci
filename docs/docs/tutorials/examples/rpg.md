@@ -103,7 +103,7 @@ obj LevelManager {
     has prev_level_maps: list[Map] = [];
 
     """Generate a new level configuration based on difficulty and history."""
-    can create_next_level(
+    def create_next_level(
         last_levels: list[Level],
         difficulty: int,
         level_width: int,
@@ -111,7 +111,7 @@ obj LevelManager {
     ) -> Level by llm();
 
     """Generate a detailed map for a given level."""
-    can create_next_map(level: Level) -> Map by llm();
+    def create_next_map(level: Level) -> Map by llm();
 }
 ```
 
@@ -127,7 +127,7 @@ obj LevelManager {
 ## Level Flow Management
 
 ```jac
-can get_next_level() -> tuple[Level, Map] {
+def get_next_level() -> tuple[Level, Map] {
     self.current_level += 1;
 
     # Keep only last 3 levels for context
@@ -164,7 +164,7 @@ can get_next_level() -> tuple[Level, Map] {
 Convert AI-generated maps to ASCII:
 
 ```jac
-can get_map(map: Map) -> list[str] {
+def get_map(map: Map) -> list[str] {
     # Initialize empty grid
     tiles = [['.' for _ in range(map.level.width)]
              for _ in range(map.level.height)];

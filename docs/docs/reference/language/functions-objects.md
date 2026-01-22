@@ -151,41 +151,38 @@ result = add(**params);  # add(a=1, b=2, c=3)
 result = add(*[1, 2], **{"c": 3});  # add(1, 2, c=3)
 ```
 
-### 4 Abilities (Methods)
+### 4 Methods
 
-The `can` keyword declares abilities (methods) on archetypes:
+The `def` keyword declares methods on archetypes:
 
 ```jac
 obj Calculator {
     has total: float = 0.0;
 
-    can add(value: float) -> float {
+    def add(value: float) -> float {
         self.total += value;
         return self.total;
     }
 
-    can reset -> None {
+    def reset() -> None {
         self.total = 0.0;
     }
-
-    # Abstract ability (no body)
-    can compute -> float abs;
 }
 ```
 
-### 5 Static and Class Methods
+### 5 Static Methods
 
 ```jac
 obj Counter {
     static has count: int = 0;
 
     # Static method
-    static can get_count -> int {
+    static def get_count() -> int {
         return Counter.count;
     }
 
     # Instance method
-    can increment -> None {
+    def increment() -> None {
         Counter.count += 1;
     }
 }
@@ -276,12 +273,12 @@ obj Person {
         self.age = age;
     }
 
-    def postinit {
+    def postinit() -> None {
         # Called after init completes
         print(f"Created {self.name}");
     }
 
-    can greet -> str {
+    def greet() -> str {
         return f"Hi, I'm {self.name}";
     }
 }
@@ -297,19 +294,21 @@ print(person.greet());
 obj Animal {
     has name: str;
 
-    can speak -> str abs;  # Abstract
+    def speak() -> str {
+        return "";  # Base implementation
+    }
 }
 
 obj Dog(Animal) {
     has breed: str = "Unknown";
 
-    override can speak -> str {
+    override def speak() -> str {
         return "Woof!";
     }
 }
 
 obj Cat(Animal) {
-    override can speak -> str {
+    override def speak() -> str {
         return "Meow!";
     }
 }
@@ -342,7 +341,7 @@ enum HttpStatus {
     NOT_FOUND = 404,
     SERVER_ERROR = 500
 
-    can is_success -> bool {
+    def is_success() -> bool {
         return self.value < 400;
     }
 }
@@ -378,11 +377,11 @@ enum HttpStatus {
 obj Account {
     has:priv _balance: float = 0.0;
 
-    can get_balance -> float {
+    def get_balance() -> float {
         return self._balance;
     }
 
-    can deposit(amount: float) -> None {
+    def deposit(amount: float) -> None {
         if amount > 0 {
             self._balance += amount;
         }
@@ -426,17 +425,17 @@ The `impl` keyword attaches method bodies to declared abilities. This pattern ke
 obj Calculator {
     has value: float = 0.0;
 
-    can add(x: float) -> float;
-    can multiply(x: float) -> float;
+    def add(x: float) -> float;
+    def multiply(x: float) -> float;
 }
 
 # Implementation
-impl Calculator.add(x: float) -> float {
+impl Calculator.add {
     self.value += x;
     return self.value;
 }
 
-impl Calculator.multiply(x: float) -> float {
+impl Calculator.multiply {
     self.value *= x;
     return self.value;
 }
@@ -451,20 +450,20 @@ Convention: Use `.impl.jac` files for implementations.
 ```jac
 obj Calculator {
     has value: float = 0.0;
-    can add(x: float) -> float;
-    can multiply(x: float) -> float;
+    def add(x: float) -> float;
+    def multiply(x: float) -> float;
 }
 ```
 
 **calculator.impl.jac:**
 
 ```jac
-impl Calculator.add(x: float) -> float {
+impl Calculator.add {
     self.value += x;
     return self.value;
 }
 
-impl Calculator.multiply(x: float) -> float {
+impl Calculator.multiply {
     self.value *= x;
     return self.value;
 }

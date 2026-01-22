@@ -112,7 +112,7 @@ enum QueryType {
 }
 
 """Classify the user's query to determine the best handler."""
-can classify_query(query: str, has_documents: bool) -> QueryType by llm();
+def classify_query(query: str, has_documents: bool) -> QueryType by llm();
 ```
 
 ### 3. Walker-Based Interaction

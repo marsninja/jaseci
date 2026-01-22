@@ -32,14 +32,14 @@ node Task {
     has done: bool = False;
 }
 
-walker get_tasks {
+walker:pub get_tasks {
     can fetch with `root entry {
         tasks = [-->](`?Task);
         report [{"id": t.id, "title": t.title, "done": t.done} for t in tasks];
     }
 }
 
-walker add_task {
+walker:pub add_task {
     has title: str;
 
     can create with `root entry {
@@ -50,6 +50,8 @@ walker add_task {
     }
 }
 ```
+
+> **Note:** The `:pub` modifier makes walkers publicly accessible without authentication. Without it, API endpoints require authentication tokens.
 
 ### 2. Start the Server
 
@@ -113,20 +115,20 @@ jac start app.jac --dev --no-client
 
 ### Automatic Endpoint Generation
 
-Each walker becomes an endpoint:
+Each public walker becomes an endpoint:
 
 | Walker | HTTP Method | Endpoint |
 |--------|-------------|----------|
-| `walker get_users { }` | POST | `/get_users` |
-| `walker create_user { }` | POST | `/create_user` |
-| `walker delete_user { }` | POST | `/delete_user` |
+| `walker:pub get_users { }` | POST | `/get_users` |
+| `walker:pub create_user { }` | POST | `/create_user` |
+| `walker:pub delete_user { }` | POST | `/delete_user` |
 
 ### Request Format
 
 Walker parameters become request body:
 
 ```jac
-walker search_users {
+walker:pub search_users {
     has query: str;
     has limit: int = 10;
     has page: int = 1;
@@ -144,7 +146,7 @@ curl -X POST http://localhost:8000/search_users \
 Walker `report` values become the response:
 
 ```jac
-walker get_user {
+walker:pub get_user {
     has user_id: str;
 
     can fetch with `root entry {
@@ -291,7 +293,7 @@ walker _authenticate {
 ### Liveness Probe
 
 ```jac
-walker health {
+walker:pub health {
     can check with `root entry {
         report {"status": "healthy"};
     }
@@ -306,7 +308,7 @@ curl http://localhost:8000/health
 ### Readiness Probe
 
 ```jac
-walker ready {
+walker:pub ready {
     can check with `root entry {
         # Check dependencies
         db_ok = check_database();
@@ -350,7 +352,7 @@ node User {
 }
 
 # List all users
-walker list_users {
+walker:pub list_users {
     can fetch with `root entry {
         users = [-->](`?User);
         report [{
@@ -362,7 +364,7 @@ walker list_users {
 }
 
 # Get single user
-walker get_user {
+walker:pub get_user {
     has user_id: str;
 
     can fetch with `root entry {
@@ -382,7 +384,7 @@ walker get_user {
 }
 
 # Create user
-walker create_user {
+walker:pub create_user {
     has name: str;
     has email: str;
 
@@ -399,7 +401,7 @@ walker create_user {
 }
 
 # Update user
-walker update_user {
+walker:pub update_user {
     has user_id: str;
     has name: str = "";
     has email: str = "";
@@ -418,7 +420,7 @@ walker update_user {
 }
 
 # Delete user
-walker delete_user {
+walker:pub delete_user {
     has user_id: str;
 
     can remove with `root entry {
@@ -434,7 +436,7 @@ walker delete_user {
 }
 
 # Health check
-walker health {
+walker:pub health {
     can check with `root entry {
         report {"status": "ok", "timestamp": datetime.now().isoformat()};
     }
@@ -444,7 +446,7 @@ walker health {
 Run it:
 
 ```bash
-jac start api.jac --port 8000 --reload
+jac start api.jac --port 8000 --dev
 ```
 
 Test it:

@@ -64,4 +64,4 @@ Everything in Mini plus detailed examples and verbose explanations.
 
 - Explore [AI Integration with byLLM](../jac-byllm/quickstart.md) for building AI-powered applications
 - Learn about [Production deployment with jac-scale](../../production/index.md)
-- Read the [Jac Book](../../jac_book/index.md) for comprehensive tutorials
+- Check the [Language Reference](../../reference/language/index.md) for comprehensive documentation

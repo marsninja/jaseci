@@ -205,31 +205,31 @@ glob llm = Model(model_name="gpt-4o-mini");
 obj Calculator {
     has memory: float = 0;
 
-    can add(x: float) -> float {
+    def add(x: float) -> float {
         """Add to memory."""
         self.memory += x;
         return self.memory;
     }
 
-    can subtract(x: float) -> float {
+    def subtract(x: float) -> float {
         """Subtract from memory."""
         self.memory -= x;
         return self.memory;
     }
 
-    can clear() -> float {
+    def clear() -> float {
         """Clear memory."""
         self.memory = 0;
         return self.memory;
     }
 
-    can get_memory() -> float {
+    def get_memory() -> float {
         """Get current memory value."""
         return self.memory;
     }
 
     """Perform calculations step by step."""
-    can calculate(instructions: str) -> str by llm(
+    def calculate(instructions: str) -> str by llm(
         tools=[self.add, self.subtract, self.clear, self.get_memory]
     );
 }

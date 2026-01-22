@@ -177,8 +177,8 @@ Only accessible within the object itself:
 ```jac
 obj BankAccount {
     has :pub owner: str;
-    has :priv balance: float = 0.0;
     has :priv pin: str;
+    has :priv balance: float = 0.0;
 
     def :pub deposit(amount: float) -> None {
         self.balance += amount;
@@ -299,7 +299,7 @@ impl Calculator.divide {
 ### Usage
 
 ```jac
-import from calculator { Calculator };
+import from calculator { Calculator }
 
 with entry {
     calc = Calculator(precision=3);
@@ -386,7 +386,5 @@ with entry {
 
 | Topic | Resource |
 |-------|----------|
-| OOP Fundamentals | [Chapter 7: Enhanced OOP](../../jac_book/chapter_7.md) |
-| Implementation Separation | [Chapter 6: Code Organization](../../jac_book/chapter_6.md) |
 | Spatial Objects | [Nodes & Edges (OSP)](../osp/index.md) |
-| Type System | [Chapter 2: Variables & Types](../../jac_book/chapter_2.md) |
+| Language Reference | [Functions & Objects](../../reference/language/functions-objects.md) |

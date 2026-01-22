@@ -99,20 +99,20 @@ with entry {
 }
 ```
 
-### The `can` Keyword
+### Methods with `def`
 
-Jac uses `can` for methods (abilities) inside objects:
+Use `def` for methods inside objects:
 
 ```jac
 obj Calculator {
     has value: int = 0;
 
-    can add(n: int) -> int {
+    def add(n: int) -> int {
         self.value += n;
         return self.value;
     }
 
-    can reset() {
+    def reset() -> None {
         self.value = 0;
     }
 }
@@ -215,11 +215,11 @@ obj Person {
     has age: int;
     has email: str = "";  # default value
 
-    can introduce() -> str {
+    def introduce() -> str {
         return f"I'm {self.name}, {self.age} years old.";
     }
 
-    can have_birthday() {
+    def have_birthday() -> None {
         self.age += 1;
     }
 }
@@ -239,7 +239,7 @@ with entry {
 obj Animal {
     has name: str;
 
-    can speak() -> str {
+    def speak() -> str {
         return "...";
     }
 }
@@ -247,13 +247,13 @@ obj Animal {
 obj Dog(Animal) {
     has breed: str = "Unknown";
 
-    can speak() -> str {
+    def speak() -> str {
         return "Woof!";
     }
 }
 
 obj Cat(Animal) {
-    can speak() -> str {
+    def speak() -> str {
         return "Meow!";
     }
 }
@@ -394,7 +394,7 @@ with entry {
 | Blocks | Indentation | `{ }` braces |
 | Statements | No semicolons | `;` required |
 | Classes | `class` | `obj` |
-| Methods | `def` inside class | `can` inside obj |
+| Methods | `def` inside class | `def` inside obj |
 | Attributes | In `__init__` | `has` declarations |
 | Entry point | `if __name__ == "__main__"` | `with entry { }` |
 | Module variables | Global vars | `glob` keyword |

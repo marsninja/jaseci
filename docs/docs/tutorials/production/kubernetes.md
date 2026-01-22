@@ -47,7 +47,7 @@ node Counter {
     has value: int = 0;
 }
 
-walker increment {
+walker:pub increment {
     can inc with `root entry {
         counters = [-->](`?Counter);
         if len(counters) == 0 {
@@ -60,7 +60,7 @@ walker increment {
     }
 }
 
-walker get_count {
+walker:pub get_count {
     can fetch with `root entry {
         counters = [-->](`?Counter);
         if len(counters) > 0 {
@@ -71,7 +71,7 @@ walker get_count {
     }
 }
 
-walker health {
+walker:pub health {
     can check with `root entry {
         report {"status": "healthy"};
     }
@@ -438,7 +438,7 @@ kubectl rollout undo deployment/jac-app --to-revision=2
 
 ```jac
 # Add metrics endpoint
-walker metrics {
+walker:pub metrics {
     can export with `root entry {
         import psutil;
 

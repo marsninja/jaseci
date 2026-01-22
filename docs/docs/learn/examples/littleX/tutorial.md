@@ -122,13 +122,13 @@ You'll need:
 Install the required libraries:
 
 ```bash
-pip install jac_cloud
+pip install jac_cloud numpy scikit-learn
 ```
 
 If the install is successful, you'll see:
 
 ```
-Successfully installed jac_cloud
+Successfully installed jac_cloud numpy scikit-learn
 ```
 
 You're ready to start building!

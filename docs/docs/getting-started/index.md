@@ -135,7 +135,7 @@ Build LLM-powered applications with native AI syntax - no prompt engineering req
 ```jac
 import from jac_cloud.core.llm { llm }
 
-can summarize(text: str) -> str by llm();
+def summarize(text: str) -> str by llm();
 
 with entry {
     summary = summarize("Long article text here...");
@@ -170,7 +170,7 @@ jac destroy myapp.jac
 | [Installation Guide](../learn/installation.md) | Detailed setup with IDE configuration |
 | [Introduction to Jac](../learn/tour.md) | Core concepts and philosophy |
 | [Quickstart Tutorial](../learn/quickstart.md) | Build a complete application |
-| [The Jac Book](../jac_book/index.md) | Comprehensive learning resource |
+| [Language Reference](../reference/language/index.md) | Comprehensive language reference |
 
 ## Who is Jac For?
 

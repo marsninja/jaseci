@@ -129,7 +129,7 @@ walker create_tweet {
         );
 
         # Connect to profile
-        here +:Post:+> tweet;
+        here +>: Post() :+> tweet;
 
         report {"id": tweet.id, "content": tweet.content};
     }
@@ -147,7 +147,7 @@ walker follow_user {
         for profile in [root -->](`?Profile) {
             if profile.username == self.target_username {
                 # Create follow edge
-                here +:Follow:+> profile;
+                here +>: Follow() :+> profile;
                 report {"following": profile.username};
                 return;
             }

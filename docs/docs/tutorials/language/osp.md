@@ -36,7 +36,7 @@ node Person {
     has name: str;
     has age: int;
 
-    can greet() -> str {
+    def greet() -> str {
         return f"Hi, I'm {self.name}!";
     }
 }
@@ -110,7 +110,7 @@ with entry {
     bob = Person(name="Bob");
 
     # Connect with a typed edge
-    alice +:Knows(since=2020, strength="close"):+> bob;
+    alice +>: Knows(since=2020, strength="close") :+> bob;
 }
 ```
 
@@ -119,7 +119,7 @@ with entry {
 | Operator | Meaning |
 |----------|---------|
 | `++>` | Connect with generic edge |
-| `+:EdgeType:+>` | Connect with typed edge |
+| `+>: EdgeType() :+>` | Connect with typed edge |
 | `-->` | Query forward connections |
 | `<--` | Query backward connections |
 | `<-->` | Query both directions |
@@ -369,7 +369,7 @@ edge Follows {
 walker FindFollowers {
     can find with User entry {
         # Find all users who follow this user
-        followers = [<-:Follows:-];
+        followers = [<-:Follows:<-];
         for follower in followers {
             report follower;
         }
@@ -379,7 +379,7 @@ walker FindFollowers {
 walker FindMutualFollows {
     can find with User entry {
         following = [here ->:Follows:->];
-        followers = [here <-:Follows:-];
+        followers = [here <-:Follows:<-];
 
         for user in following {
             if user in followers {
@@ -399,11 +399,11 @@ with entry {
     root ++> carol;
 
     # Alice follows Bob, Bob follows Alice (mutual)
-    alice +:Follows(since="2024"):+> bob;
-    bob +:Follows(since="2024"):+> alice;
+    alice +>: Follows(since="2024") :+> bob;
+    bob +>: Follows(since="2024") :+> alice;
 
     # Carol follows Alice
-    carol +:Follows(since="2024"):+> alice;
+    carol +>: Follows(since="2024") :+> alice;
 
     # Find Alice's followers
     result = alice spawn FindFollowers();

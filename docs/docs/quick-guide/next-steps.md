@@ -18,7 +18,7 @@ Choose a learning path based on your goals and background.
 
 ```jac
 """Summarize the article in 2-3 sentences."""
-can summarize(text: str) -> str by llm();
+def summarize(text: str) -> str by llm();
 ```
 
 ---

@@ -31,11 +31,11 @@ node User {
     has created_at: str;
     has token: str = "";
 
-    can verify_password(password: str) -> bool {
+    def verify_password(password: str) -> bool {
         return self.password_hash == sha256(password.encode()).hexdigest();
     }
 
-    can generate_token() -> str {
+    def generate_token() -> str {
         self.token = str(uuid.uuid4());
         return self.token;
     }
@@ -49,7 +49,7 @@ node User {
 ### Signup Walker
 
 ```jac
-walker signup {
+walker:pub signup {
     has email: str;
     has password: str;
     has name: str;
@@ -91,7 +91,7 @@ walker signup {
 ### Login Walker
 
 ```jac
-walker login {
+walker:pub login {
     has email: str;
     has password: str;
 
@@ -124,7 +124,7 @@ walker login {
 ### Validate Token Walker
 
 ```jac
-walker validate_token {
+walker:pub validate_token {
     has token: str;
 
     can validate with `root entry {
@@ -149,7 +149,7 @@ walker validate_token {
 ### Logout Walker
 
 ```jac
-walker logout {
+walker:pub logout {
     has token: str;
 
     can invalidate with `root entry {
@@ -616,14 +616,14 @@ node User {
     has token: str = "";
     has token_expires: str = "";
 
-    can generate_token() -> str {
+    def generate_token() -> str {
         import from datetime { datetime, timedelta }
         self.token = str(uuid.uuid4());
         self.token_expires = (datetime.now() + timedelta(days=7)).isoformat();
         return self.token;
     }
 
-    can is_token_valid() -> bool {
+    def is_token_valid() -> bool {
         if self.token == "" {
             return False;
         }

@@ -24,7 +24,7 @@ OpenAI API key configuration:
 export OPENAI_API_KEY="your-api-key-here"
 ```
 
-- Basic knowledge of [Jaclang syntax](/jac_book/)
+- Basic knowledge of [Jaclang syntax](/tutorials/language/syntax/)
 - Familiarity with game development concepts (optional)
 
 ## <span style="color: orange">Implementation Steps

@@ -114,12 +114,12 @@ build-backend = "setuptools.build_meta"
 
    glob llm = Model(model_name="gpt-3.5-turbo");
 
-   can test_plugin {
+   def test_plugin() {
        result = get_answer("What is 2+2?") by llm();
        print(result);
    }
 
-   can get_answer(question: str) -> str by llm();
+   def get_answer(question: str) -> str by llm();
 
    with entry {
        test_plugin();

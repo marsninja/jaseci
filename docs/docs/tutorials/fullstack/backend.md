@@ -42,7 +42,7 @@ node Task {
 import from datetime { datetime }
 import uuid;
 
-walker get_tasks {
+walker:pub get_tasks {
     can fetch with `root entry {
         tasks = [-->](`?Task);
         report [
@@ -57,7 +57,7 @@ walker get_tasks {
     }
 }
 
-walker add_task {
+walker:pub add_task {
     has title: str;
 
     can create with `root entry {
@@ -76,7 +76,7 @@ walker add_task {
     }
 }
 
-walker toggle_task {
+walker:pub toggle_task {
     has task_id: str;
 
     can toggle with `root entry {
@@ -91,7 +91,7 @@ walker toggle_task {
     }
 }
 
-walker delete_task {
+walker:pub delete_task {
     has task_id: str;
 
     can remove with `root entry {
@@ -404,13 +404,13 @@ node Task {
     has completed: bool = False;
 }
 
-walker get_tasks {
+walker:pub get_tasks {
     can fetch with `root entry {
         report [[-->](`?Task)];
     }
 }
 
-walker add_task {
+walker:pub add_task {
     has title: str;
 
     can create with `root entry {
@@ -421,7 +421,7 @@ walker add_task {
     }
 }
 
-walker toggle_task {
+walker:pub toggle_task {
     has task_id: str;
 
     can toggle with `root entry {

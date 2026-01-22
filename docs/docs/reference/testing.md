@@ -186,12 +186,12 @@ FAILED (failures=1)
 obj Calculator {
     has value: int = 0;
 
-    can add(n: int) -> int {
+    def add(n: int) -> int {
         self.value += n;
         return self.value;
     }
 
-    can reset() {
+    def reset() -> None {
         self.value = 0;
     }
 }
@@ -220,6 +220,10 @@ node Counter {
 
 walker Incrementer {
     has amount: int = 1;
+
+    can start with `root entry {
+        visit [-->];
+    }
 
     can increment with Counter entry {
         here.count += self.amount;
@@ -287,8 +291,8 @@ test test_graph_connections {
     bedroom = Room(name="Bedroom");
 
     root ++> kitchen;
-    kitchen +:Door:+> living;
-    living +:Door:+> bedroom;
+    kitchen +>: Door() :+> living;
+    living +>: Door() :+> bedroom;
 
     # Test connections
     assert len([root -->]) == 1;
@@ -356,7 +360,7 @@ obj User {
     has name: str;
     has email: str;
 
-    can is_valid() -> bool {
+    def is_valid() -> bool {
         return len(self.name) > 0 and "@" in self.email;
     }
 }

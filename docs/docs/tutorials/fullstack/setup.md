@@ -48,7 +48,7 @@ node Todo {
     has done: bool = False;
 }
 
-walker get_todos {
+walker:pub get_todos {
     can fetch with `root entry {
         for todo in [-->](`?Todo) {
             report todo;

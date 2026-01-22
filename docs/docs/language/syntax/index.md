@@ -114,14 +114,16 @@ async def fetch_data(url: str) -> str {
 Jac supports lambda expressions with explicit type annotations.
 
 ```jac
-# Without parameters
-callback = lambda -> None { print("Hello"); };
+with entry {
+    # Without parameters
+    callback = lambda -> None { print("Hello"); };
 
-# With single parameter
-double = lambda x: int -> int { return x * 2; };
+    # With single parameter
+    double = lambda x: int -> int { return x * 2; };
 
-# With multiple parameters
-add = lambda x: int, y: int -> int { return x + y; };
+    # With multiple parameters
+    add = lambda x: int, y: int -> int { return x + y; };
+}
 ```
 
 **Common Use Cases:**
@@ -314,10 +316,10 @@ import json;
 import datetime as dt;
 
 # From-import (specific items)
-import from math { sqrt, pi };
+import from math { sqrt, pi }
 
 # From-import with alias
-import from collections { defaultdict as dd };
+import from collections { defaultdict as dd }
 
 # Include all (wildcard) - use sparingly
 include utils;
@@ -514,8 +516,5 @@ with entry {
 | Topic | Resource |
 |-------|----------|
 | Python Superset Details | [Jac as Python Superset](../../learn/superset_python.md) |
-| Variables & Types | [Chapter 2: Variables & Types](../../jac_book/chapter_2.md) |
-| Functions & Control Flow | [Chapter 3: Functions & Control](../../jac_book/chapter_3.md) |
-| Import System | [Import Basics](../../learn/imports/basics.md) |
 | Complete Reference | [Syntax Quick Reference](../../learn/syntax_quick_reference.md) |
-| Full Specification | [Jac Language Reference](../../learn/jac-ref/index.md) |
+| Full Specification | [Jac Language Reference](../../reference/language/index.md) |

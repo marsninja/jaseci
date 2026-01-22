@@ -232,12 +232,6 @@ with entry {
 with entry:__main__ {
     print("Only when this file is main");
 }
-
-# Named entry - invoke with: jac enter file.jac setup
-# Useful for CLI tools with multiple commands
-with entry:setup {
-    print("Named entry point");
-}
 ```
 
 ---

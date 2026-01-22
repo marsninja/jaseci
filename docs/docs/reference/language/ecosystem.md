@@ -138,7 +138,7 @@ default_model = "gpt-4"
 port = 5173
 
 [scripts]
-dev = "jac start main.jac --watch"
+dev = "jac start main.jac --dev"
 test = "jac test"
 build = "jac build"
 

@@ -540,7 +540,7 @@ jac run ../main.jac  # jac.toml is found automatically
 You can access project configuration programmatically in Jac code:
 
 ```jac
-import from jaclang.project { JacConfig, get_config };
+import from jaclang.project { JacConfig, get_config }
 
 with entry {
     config = get_config();
