@@ -80,11 +80,33 @@ pip install jaclang[all]
 
 ### VS Code (Recommended)
 
-1. Open Extensions (`Ctrl+Shift+X` / `Cmd+Shift+X`)
-2. Search for "Jac"
-3. Install **Jac Language Support** by Jaseci Labs
+Install the official Jac extension for the best development experience:
 
-Features: Syntax highlighting, autocomplete, error detection, graph visualization.
+**Option 1: From Marketplace**
+
+1. Open VS Code
+2. Click Extensions in the sidebar (or press `Ctrl+Shift+X` / `Cmd+Shift+X`)
+3. Search for **"Jac"**
+4. Click **Install** on "Jac Language Support" by Jaseci Labs
+
+Or install directly: [Open in VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=jaseci-labs.jaclang-extension)
+
+**Option 2: Quick Install**
+
+Press `Ctrl+P` / `Cmd+P` and paste:
+
+```
+ext install jaseci-labs.jaclang-extension
+```
+
+**Features:**
+
+- Syntax highlighting for `.jac` files
+- Intelligent autocomplete
+- Real-time error detection
+- Hover documentation
+- Go to definition
+- Graph visualization
 
 ### Cursor
 
