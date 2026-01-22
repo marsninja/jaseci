@@ -177,7 +177,7 @@ cl {
     import from jac_client { callWalker }
 
     # Create context
-    AuthContext = createContext(None);
+    glob AuthContext = createContext(None);
 
     # Auth Provider component
     def:pub AuthProvider(props: dict) -> any {

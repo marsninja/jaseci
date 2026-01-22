@@ -199,7 +199,7 @@ cl {
     import from react { createContext, useContext }
 
     # Create context
-    AppContext = createContext(None);
+    glob AppContext = createContext(None);
 
     # Provider component
     def:pub AppProvider(props: dict) -> any {

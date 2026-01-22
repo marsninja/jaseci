@@ -31,8 +31,8 @@ In Jac full-stack apps:
 node Task {
     has id: str;
     has title: str;
-    has completed: bool = False;
     has created_at: str;
+    has completed: bool = False;
 }
 ```
 
