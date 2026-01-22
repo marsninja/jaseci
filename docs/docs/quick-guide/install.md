@@ -6,8 +6,7 @@ Get Jac installed and ready to use in under 2 minutes.
 
 ## Requirements
 
-- **Python 3.10+** (check with `python --version`)
-- **pip** (comes with Python)
+- **Python 3.12+** (check with `python --version`)
 
 ---
 
@@ -23,12 +22,15 @@ This installs:
 - `byllm` - AI/LLM integration
 - `jac-client` - Full-stack web development
 - `jac-scale` - Production deployment
+- `jac-super` - Enhanced console output
 
 Verify the installation:
 
 ```bash
 jac --version
 ```
+
+This also warms the cache, making subsequent commands faster.
 
 ---
 
@@ -130,7 +132,7 @@ with entry {
 Run it:
 
 ```bash
-jac run test.jac
+jac test.jac
 ```
 
 Expected output:

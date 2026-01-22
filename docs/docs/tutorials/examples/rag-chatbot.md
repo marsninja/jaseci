@@ -243,7 +243,7 @@ export SERPER_API_KEY=your-key  # Free at serper.dev
 Terminal 1 - Tool server:
 
 ```bash
-jac run mcp_server.jac
+jac mcp_server.jac
 ```
 
 Terminal 2 - Main application:

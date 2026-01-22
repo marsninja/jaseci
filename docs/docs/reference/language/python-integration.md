@@ -1,6 +1,6 @@
-## **Jac's Native Superset of Python**
+## **Jac's Native Superset of Python and TypeScript/JavaScript**
 
-Jac is designed as a superset of Python, extending the language with additional features for modern software architecture while maintaining full compatibility with the Python ecosystem. Python developers can leverage their existing knowledge while accessing new capabilities for graph-based and object-spatial programming.
+Jac is designed as a superset of both Python and TypeScript/JavaScript, providing full compatibility with both the PyPI and npm ecosystems. Developers can leverage their existing knowledge while accessing new capabilities for graph-based and object-spatial programming.
 
 ### **How it Works: Transpilation to Native Python**
 

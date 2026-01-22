@@ -90,7 +90,7 @@ git clone https://github.com/Jaseci-Labs/jaseci.git
 cd jaseci/examples
 
 # Run an example
-jac run example_name/main.jac
+jac example_name/main.jac
 ```
 
 ### As API Server

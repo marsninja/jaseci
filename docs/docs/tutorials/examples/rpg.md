@@ -240,7 +240,7 @@ with entry {
 Run it:
 
 ```bash
-jac run test_generator.jac
+jac test_generator.jac
 ```
 
 ---

@@ -59,7 +59,7 @@ cl {
 2. [Object-Spatial Programming](../tutorials/language/osp.md) - Nodes, edges, walkers
 3. [Testing](../tutorials/language/testing.md) - Write and run tests
 
-**Key concept:** Jac extends Python with graphs as first-class citizens and walkers for graph traversal.
+**Key concept:** Jac is a superset of Python and TypeScript/JavaScript, adding graphs as first-class citizens and walkers for graph traversal.
 
 ```jac
 node Person { has name: str; }

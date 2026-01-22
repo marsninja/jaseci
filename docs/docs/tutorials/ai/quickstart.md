@@ -60,7 +60,7 @@ with entry {
 Run it:
 
 ```bash
-jac run hello_ai.jac
+jac hello_ai.jac
 ```
 
 **Output:**

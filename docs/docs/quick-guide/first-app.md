@@ -109,7 +109,7 @@ with entry {
 Run it:
 
 ```bash
-jac run todo.jac
+jac todo.jac
 ```
 
 Output:
