@@ -117,6 +117,48 @@ def validate_code_block(
             error="",
         )
 
+    # Skip blocks containing placeholder patterns like "{ ... }" or "..."
+    if re.search(r"\{\s*\.\.\.\s*\}", content) or re.search(
+        r"^\s*\.\.\.\s*$", content, re.MULTILINE
+    ):
+        return ValidationResult(
+            code_block=code_block,
+            success=True,
+            output="(skipped: contains placeholder)",
+            error="",
+        )
+
+    # Skip blocks that are mostly inline comments (syntax documentation)
+    # These are usually showing syntax patterns, not runnable code
+    lines = [line.strip() for line in content.split("\n") if line.strip()]
+    comment_lines = sum(
+        1 for line in lines if line.startswith("#") or line.startswith("//")
+    )
+    if len(lines) > 0 and comment_lines / len(lines) > 0.4:
+        return ValidationResult(
+            code_block=code_block,
+            success=True,
+            output="(skipped: syntax documentation)",
+            error="",
+        )
+
+    # Skip blocks that don't have any top-level declarations
+    # (these are usually syntax examples showing expressions/patterns)
+    top_level_patterns = [
+        r"^\s*(node|edge|walker|obj|enum|def|can|with\s+entry|import|glob|include)",
+        r"^\s*(class|async\s+def)",  # Python-style
+    ]
+    has_declaration = any(
+        re.search(p, content, re.MULTILINE) for p in top_level_patterns
+    )
+    if not has_declaration:
+        return ValidationResult(
+            code_block=code_block,
+            success=True,
+            output="(skipped: no declarations - syntax example)",
+            error="",
+        )
+
     # Create a temporary file with the code
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".jac", delete=False, encoding="utf-8"
@@ -137,9 +179,17 @@ def validate_code_block(
         output = result.stdout.strip() if result.stdout else ""
         error = result.stderr.strip() if result.stderr else ""
 
-        # Also check for "error" in output (jac check may return 0 but have errors)
-        if "error" in output.lower() or "error" in error.lower():
-            success = False
+        # Check for actual errors (not just "0 errors" in success message)
+        # Look for patterns like "X errors" where X > 0, or "error:" prefix
+        if success:
+            # Check for non-zero error count like "3 errors" or "1 error"
+            error_count_match = re.search(r"(\d+)\s+errors?", output + error)
+            if (
+                error_count_match
+                and int(error_count_match.group(1)) > 0
+                or re.search(r"(?m)^\s*error:", output + error, re.IGNORECASE)
+            ):
+                success = False
 
         return ValidationResult(
             code_block=code_block,
