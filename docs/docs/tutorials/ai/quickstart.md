@@ -8,7 +8,7 @@ Build your first AI-integrated function in Jac.
 
 ## Prerequisites
 
-- Jac installed with `pip install jaclang[all]`
+- Jac installed with `pip install jaseci`
 - An API key from OpenAI, Anthropic, or Google
 
 ---
@@ -60,7 +60,7 @@ with entry {
 Run it:
 
 ```bash
-jac run hello_ai.jac
+jac hello_ai.jac
 ```
 
 **Output:**

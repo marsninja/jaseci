@@ -2,7 +2,7 @@
 
 **One Language for AI-Native Full-Stack Development**
 
-Jac is a programming language that extends Python with powerful capabilities for building modern AI-powered applications. Write backend logic, frontend interfaces, and AI integrations in a single unified language.
+Jac is a programming language and superset of both Python and TypeScript/JavaScript, with novel constructs for AI-integrated programming. Access the entire PyPI and npm ecosystems while using features like `by llm()` to seamlessly weave AI into your code. Write backend logic, frontend interfaces, and AI integrations in a single unified language.
 
 ---
 
@@ -28,7 +28,9 @@ Jac is a programming language that extends Python with powerful capabilities for
 ## Quick Install
 
 ```bash
-pip install jaclang[all]
+pip install jaseci
 ```
+
+This meta-package bundles the Jac language with all plugins (`byllm`, `jac-client`, `jac-scale`, `jac-super`).
 
 [Get started now](quick-guide/index.md){ .md-button .md-button--primary }

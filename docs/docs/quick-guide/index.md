@@ -2,7 +2,7 @@
 
 **One Language for AI-Native Full-Stack Development**
 
-Jac is a programming language that extends Python with powerful capabilities for building modern AI-powered applications. Write backend logic, frontend interfaces, and AI integrations in a single unified language.
+Jac is a programming language and superset of both Python and TypeScript/JavaScript, with novel constructs for AI-integrated programming. Access the entire PyPI and npm ecosystems while using features like `by llm()` to seamlessly weave AI into your code. Write backend logic, frontend interfaces, and AI integrations in a single unified language.
 
 ---
 
@@ -15,6 +15,7 @@ Jac is a programming language that extends Python with powerful capabilities for
 | **Use existing libraries** | Full access to PyPI and npm ecosystems |
 | **Deploy without DevOps** | `jac start --scale` deploys to Kubernetes automatically |
 | **Model complex domains** | Graph-based Object-Spatial Programming for connected data |
+| **Code with AI assistance** | Clean syntax designed for both humans and AI models to read and write |
 
 ---
 
@@ -23,8 +24,18 @@ Jac is a programming language that extends Python with powerful capabilities for
 ### Step 1: Install
 
 ```bash
-pip install jaclang[all]
+pip install jaseci
 ```
+
+This installs the complete Jac ecosystem: `jaclang` (compiler), `byllm` (AI integration), `jac-client` (frontend), `jac-scale` (deployment), and `jac-super` (enhanced console).
+
+Verify your installation:
+
+```bash
+jac --version
+```
+
+This also warms the cache, making subsequent commands faster.
 
 ### Step 2: Create Your First Program
 
@@ -39,8 +50,10 @@ with entry {
 ### Step 3: Run It
 
 ```bash
-jac run hello.jac
+jac hello.jac
 ```
+
+Note: `jac` is shorthand for `jac run` - both work identically.
 
 **That's it!** You just ran your first Jac program.
 

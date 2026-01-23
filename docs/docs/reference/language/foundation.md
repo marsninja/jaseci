@@ -16,7 +16,7 @@
 
 ### 1 What is Jac?
 
-Jac is an AI-native full-stack programming language that extends Python with Object-Spatial Programming (OSP). It provides a unified language for backend, frontend, and AI development.
+Jac is an AI-native full-stack programming language and superset of both Python and TypeScript/JavaScript. It introduces Object-Spatial Programming (OSP) and novel constructs for AI-integrated programming (such as `by llm()`), providing a unified language for backend, frontend, and AI development with full access to the PyPI and npm ecosystems.
 
 ```jac
 with entry {
@@ -85,7 +85,7 @@ obj Person {
 
 ```bash
 # Full installation with all plugins
-pip install jaclang[all]
+pip install jaseci
 
 # Minimal installation
 pip install jaclang
@@ -113,8 +113,10 @@ with entry {
 Run it:
 
 ```bash
-jac run hello.jac
+jac hello.jac
 ```
+
+Note: `jac` is shorthand for `jac run`.
 
 ### 3 Project Structure
 

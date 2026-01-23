@@ -40,6 +40,8 @@ The Jac CLI provides commands for running, building, testing, and deploying Jac 
 
 Execute a Jac file.
 
+**Note:** `jac <file>` is shorthand for `jac run <file>` - both work identically.
+
 ```bash
 jac run [-h] [-m] [--no-main] [-c] [--no-cache] [filename]
 ```

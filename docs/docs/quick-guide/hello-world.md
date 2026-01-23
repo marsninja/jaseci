@@ -17,7 +17,7 @@ with entry {
 Run it:
 
 ```bash
-jac run hello.jac
+jac hello.jac
 ```
 
 Output:
