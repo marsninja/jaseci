@@ -2,11 +2,12 @@
 """
 Validate Jac code blocks in documentation markdown files.
 
-Extracts ```jac code blocks from markdown files and runs `jac check` on them.
-Reports errors with file:line information for easy debugging.
+Extracts ```jac code blocks from markdown files and runs `jac check --parse-only`
+to verify they have valid syntax. This catches syntax errors without requiring
+imports or types to be resolvable.
 
 Usage:
-    python validate_docs_code.py [--docs-dir PATH] [--verbose] [--fix]
+    python validate_docs_code.py [--docs-dir PATH] [--verbose]
 
 Exit codes:
     0 - All code blocks pass validation
@@ -15,9 +16,9 @@ Exit codes:
 """
 
 import argparse
-import contextlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,7 +33,6 @@ class CodeBlock:
     content: str
     file_path: str
     line_number: int
-    language: str
 
 
 @dataclass
@@ -41,7 +41,6 @@ class ValidationResult:
 
     code_block: CodeBlock
     success: bool
-    output: str
     error: str
 
 
@@ -50,34 +49,30 @@ def extract_code_blocks(file_path: Path) -> list[CodeBlock]:
     code_blocks = []
 
     with open(file_path, encoding="utf-8") as f:
-        content = f.read()
-        lines = content.split("\n")
+        lines = f.read().split("\n")
 
     # Pattern to match code blocks: ```jac or ```jac:something
-    # Also matches ```jac linenums="1" or similar attributes
     pattern = re.compile(r"^```(jac(?::\w+)?(?:\s+[^\n]*)?)\s*$")
 
     i = 0
     while i < len(lines):
         match = pattern.match(lines[i])
         if match:
-            language = match.group(1).split()[0]  # Get just 'jac' or 'jac:something'
             start_line = i + 1
             block_lines = []
             i += 1
 
-            # Collect lines until closing ```
             while i < len(lines) and not lines[i].startswith("```"):
                 block_lines.append(lines[i])
                 i += 1
 
-            if block_lines:
+            content = "\n".join(block_lines).strip()
+            if content:
                 code_blocks.append(
                     CodeBlock(
-                        content="\n".join(block_lines),
+                        content=content,
                         file_path=str(file_path),
                         line_number=start_line,
-                        language=language,
                     )
                 )
         i += 1
@@ -85,153 +80,80 @@ def extract_code_blocks(file_path: Path) -> list[CodeBlock]:
     return code_blocks
 
 
-def validate_code_block(
-    code_block: CodeBlock, verbose: bool = False
-) -> ValidationResult:
-    """Validate a single code block using jac check."""
-    # Skip empty code blocks
-    if not code_block.content.strip():
-        return ValidationResult(
-            code_block=code_block,
-            success=True,
-            output="(empty block)",
-            error="",
-        )
+def validate_code_blocks(code_blocks: list[CodeBlock]) -> list[ValidationResult]:
+    """Validate code blocks using jac check --parse-only."""
+    if not code_blocks:
+        return []
 
-    # Skip code blocks that are clearly incomplete/snippets
-    # These often have "..." or comments indicating they're partial
-    content = code_block.content.strip()
-
-    # Skip blocks that are just comments or have placeholder patterns
-    skip_patterns = [
-        r"^\s*#.*$",  # Just a comment
-        r"^\s*\.\.\.\s*$",  # Just ellipsis
-        r"^\s*//.*$",  # Just a C-style comment
-    ]
-
-    if any(re.match(p, content) for p in skip_patterns):
-        return ValidationResult(
-            code_block=code_block,
-            success=True,
-            output="(skipped: incomplete snippet)",
-            error="",
-        )
-
-    # Skip blocks containing placeholder patterns like "{ ... }" or "..."
-    if re.search(r"\{\s*\.\.\.\s*\}", content) or re.search(
-        r"^\s*\.\.\.\s*$", content, re.MULTILINE
-    ):
-        return ValidationResult(
-            code_block=code_block,
-            success=True,
-            output="(skipped: contains placeholder)",
-            error="",
-        )
-
-    # Skip blocks that are mostly inline comments (syntax documentation)
-    # These are usually showing syntax patterns, not runnable code
-    lines = [line.strip() for line in content.split("\n") if line.strip()]
-    comment_lines = sum(
-        1 for line in lines if line.startswith("#") or line.startswith("//")
-    )
-    if len(lines) > 0 and comment_lines / len(lines) > 0.4:
-        return ValidationResult(
-            code_block=code_block,
-            success=True,
-            output="(skipped: syntax documentation)",
-            error="",
-        )
-
-    # Skip blocks that don't have any top-level declarations
-    # (these are usually syntax examples showing expressions/patterns)
-    top_level_patterns = [
-        r"^\s*(node|edge|walker|obj|enum|def|can|with\s+entry|import|glob|include)",
-        r"^\s*(class|async\s+def)",  # Python-style
-    ]
-    has_declaration = any(
-        re.search(p, content, re.MULTILINE) for p in top_level_patterns
-    )
-    if not has_declaration:
-        return ValidationResult(
-            code_block=code_block,
-            success=True,
-            output="(skipped: no declarations - syntax example)",
-            error="",
-        )
-
-    # Create a temporary file with the code
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".jac", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(code_block.content)
-        temp_path = f.name
+    results = []
+    temp_dir = tempfile.mkdtemp(prefix="jac_parse_check_")
+    temp_files = {}
 
     try:
-        # Run jac check on the temp file
-        result = subprocess.run(
-            ["jac", "check", temp_path],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        # Write all code blocks to temp files
+        for i, block in enumerate(code_blocks):
+            temp_path = os.path.join(temp_dir, f"block_{i}.jac")
+            with open(temp_path, "w", encoding="utf-8") as f:
+                f.write(block.content)
+            temp_files[temp_path] = block
 
-        success = result.returncode == 0
-        output = result.stdout.strip() if result.stdout else ""
-        error = result.stderr.strip() if result.stderr else ""
+        # Run jac check --parse-only on all files
+        all_paths = list(temp_files.keys())
+        try:
+            result = subprocess.run(
+                ["jac", "check", "--parse_only"] + all_paths,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
 
-        # Check for actual errors (not just "0 errors" in success message)
-        # Look for patterns like "X errors" where X > 0, or "error:" prefix
-        if success:
-            # Check for non-zero error count like "3 errors" or "1 error"
-            error_count_match = re.search(r"(\d+)\s+errors?", output + error)
-            if (
-                error_count_match
-                and int(error_count_match.group(1)) > 0
-                or re.search(r"(?m)^\s*error:", output + error, re.IGNORECASE)
-            ):
-                success = False
+            output = (result.stdout or "") + (result.stderr or "")
 
-        return ValidationResult(
-            code_block=code_block,
-            success=success,
-            output=output,
-            error=error,
-        )
+            # Parse output to find which files had errors
+            for temp_path, block in temp_files.items():
+                filename = os.path.basename(temp_path)
+                # Extract lines mentioning this file
+                file_errors = [
+                    line
+                    for line in output.split("\n")
+                    if filename in line or temp_path in line
+                ]
+                # Check if any error line contains "Error:"
+                has_error = any("error" in line.lower() for line in file_errors)
 
-    except subprocess.TimeoutExpired:
-        return ValidationResult(
-            code_block=code_block,
-            success=False,
-            output="",
-            error="Validation timed out after 30 seconds",
-        )
-    except FileNotFoundError:
-        return ValidationResult(
-            code_block=code_block,
-            success=False,
-            output="",
-            error="jac command not found. Is jaclang installed?",
-        )
+                results.append(
+                    ValidationResult(
+                        code_block=block,
+                        success=not has_error,
+                        error="\n".join(file_errors) if has_error else "",
+                    )
+                )
+
+        except subprocess.TimeoutExpired:
+            for block in code_blocks:
+                results.append(
+                    ValidationResult(
+                        code_block=block,
+                        success=False,
+                        error="Validation timed out",
+                    )
+                )
+        except FileNotFoundError:
+            print(
+                "Error: jac command not found. Is jaclang installed?", file=sys.stderr
+            )
+            sys.exit(2)
+
     finally:
-        # Clean up temp file
-        with contextlib.suppress(OSError):
-            os.unlink(temp_path)
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
-
-def find_markdown_files(docs_dir: Path) -> list[Path]:
-    """Find all markdown files in the docs directory."""
-    return sorted(docs_dir.rglob("*.md"))
-
-
-def format_error_location(result: ValidationResult) -> str:
-    """Format the error location for display."""
-    return f"{result.code_block.file_path}:{result.code_block.line_number}"
+    return results
 
 
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Validate Jac code blocks in documentation",
+        description="Validate Jac code blocks in documentation (syntax only)",
     )
     parser.add_argument(
         "--docs-dir",
@@ -243,19 +165,13 @@ def main() -> int:
         "--verbose",
         "-v",
         action="store_true",
-        help="Show verbose output including successful validations",
+        help="Show verbose output",
     )
     parser.add_argument(
         "--file",
         "-f",
         type=Path,
         help="Validate a specific file instead of all docs",
-    )
-    parser.add_argument(
-        "--summary",
-        "-s",
-        action="store_true",
-        help="Show only summary, not individual errors",
     )
 
     args = parser.parse_args()
@@ -270,86 +186,52 @@ def main() -> int:
         if not args.docs_dir.exists():
             print(f"Error: Docs directory not found: {args.docs_dir}", file=sys.stderr)
             return 2
-        markdown_files = find_markdown_files(args.docs_dir)
+        markdown_files = sorted(args.docs_dir.rglob("*.md"))
 
-    print(f"Validating Jac code blocks in {len(markdown_files)} markdown files...")
-    print()
+    print(f"Checking syntax of Jac code blocks in {len(markdown_files)} files...")
 
-    total_blocks = 0
-    passed_blocks = 0
-    failed_blocks = 0
-    skipped_blocks = 0
-    failed_results: list[ValidationResult] = []
-
+    # Collect all code blocks
+    all_blocks: list[CodeBlock] = []
     for md_file in markdown_files:
-        code_blocks = extract_code_blocks(md_file)
+        blocks = extract_code_blocks(md_file)
+        if blocks and args.verbose:
+            print(f"  {md_file}: {len(blocks)} code block(s)")
+        all_blocks.extend(blocks)
 
-        if not code_blocks:
-            continue
-
-        if args.verbose:
-            print(f"  {md_file}: {len(code_blocks)} code block(s)")
-
-        for block in code_blocks:
-            total_blocks += 1
-            result = validate_code_block(block, args.verbose)
-
-            if result.success:
-                if "(skipped" in result.output:
-                    skipped_blocks += 1
-                else:
-                    passed_blocks += 1
-                if args.verbose:
-                    print(f"    ✓ Line {block.line_number}")
-            else:
-                failed_blocks += 1
-                failed_results.append(result)
-                if not args.summary:
-                    print(f"    ✗ Line {block.line_number}")
-
-    # Print summary
-    print()
-    print("=" * 60)
-    print("VALIDATION SUMMARY")
-    print("=" * 60)
-    print(f"Total code blocks: {total_blocks}")
-    print(f"  Passed:  {passed_blocks}")
-    print(f"  Failed:  {failed_blocks}")
-    print(f"  Skipped: {skipped_blocks}")
-    print()
-
-    # Print failed blocks details
-    if failed_results and not args.summary:
-        print("FAILED CODE BLOCKS:")
-        print("-" * 60)
-        for result in failed_results:
-            print()
-            print(f"Location: {format_error_location(result)}")
-            print(f"Language: {result.code_block.language}")
-            print()
-            print("Code:")
-            for i, line in enumerate(
-                result.code_block.content.split("\n")[:10], start=1
-            ):
-                print(f"  {i:3d} | {line}")
-            if len(result.code_block.content.split("\n")) > 10:
-                print("  ... (truncated)")
-            print()
-            if result.error:
-                print("Error:")
-                print(f"  {result.error}")
-            if result.output:
-                print("Output:")
-                for line in result.output.split("\n")[:5]:
-                    print(f"  {line}")
-            print("-" * 60)
-
-    if failed_blocks > 0:
-        print(f"\n❌ {failed_blocks} code block(s) failed validation")
-        return 1
-    else:
-        print("\n✓ All code blocks passed validation")
+    if not all_blocks:
+        print("No Jac code blocks found.")
         return 0
+
+    print(f"Found {len(all_blocks)} code blocks, validating syntax...")
+
+    # Validate
+    results = validate_code_blocks(all_blocks)
+
+    # Summarize
+    passed = sum(1 for r in results if r.success)
+    failed = len(results) - passed
+
+    if failed > 0:
+        print("\nFailed code blocks:")
+        print("-" * 60)
+        for r in results:
+            if not r.success:
+                print(f"\n{r.code_block.file_path}:{r.code_block.line_number}")
+                print(f"  {r.error[:200]}..." if len(r.error) > 200 else f"  {r.error}")
+
+    # Print summary at the end
+    print()
+    print("=" * 60)
+    print(
+        f"Results: {passed} passed, {failed} failed out of {len(results)} code blocks"
+    )
+    print("=" * 60)
+
+    if failed > 0:
+        return 1
+
+    print("\n✓ All code blocks have valid syntax")
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-name: Validate Documentation Code Blocks
+name: Documentation Validation
 
 on:
   pull_request:
@@ -18,8 +18,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  validate-jac-code-blocks:
-    name: Validate Jac Code Blocks
+  validate-syntax:
+    name: Validate Code Block Syntax
     runs-on: ubuntu-latest
 
     steps:
@@ -46,29 +46,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e jac
 
-      - name: Run Jac code block validation
-        run: |
-          python docs/scripts/validate_docs_code.py --docs-dir docs/docs --summary
-        continue-on-error: true
-        id: validate
-
-      - name: Run validation (detailed on failure)
-        if: steps.validate.outcome == 'failure'
-        run: |
-          echo "## ❌ Jac Code Block Validation Failed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Some code blocks in the documentation failed validation." >> $GITHUB_STEP_SUMMARY
-          echo "Run \`python docs/scripts/validate_docs_code.py\` locally for details." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          python docs/scripts/validate_docs_code.py --docs-dir docs/docs 2>&1 | head -200 >> $GITHUB_STEP_SUMMARY
-          exit 1
-
-      - name: Report success
-        if: steps.validate.outcome == 'success'
-        run: |
-          echo "## ✅ Jac Code Block Validation Passed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All code blocks in the documentation passed validation." >> $GITHUB_STEP_SUMMARY
+      - name: Validate Jac code block syntax
+        run: python docs/scripts/validate_docs_code.py --docs-dir docs/docs
 
   check-internal-links:
     name: Check Internal Links
