@@ -108,7 +108,7 @@ Cannot assign to variable without 'glob' keyword in client context
 
 **Wrong:**
 
-```jac
+```
 cl {
     AuthContext = createContext(None);  # Error!
 }
@@ -134,7 +134,7 @@ Unexpected token 'i'
 
 **Wrong:**
 
-```jac
+```
 for i, name in enumerate(names) {
     print(f"{i}: {name}");
 }
@@ -143,8 +143,11 @@ for i, name in enumerate(names) {
 **Fix:**
 
 ```jac
-for (i, name) in enumerate(names) {
-    print(f"{i}: {name}");
+def example() {
+    names = ["Alice", "Bob", "Charlie"];
+    for (i, name) in enumerate(names) {
+        print(f"{i}: {name}");
+    }
 }
 ```
 
@@ -160,7 +163,7 @@ Non-default argument 'created_at' follows default argument 'completed'
 
 **Wrong:**
 
-```jac
+```
 node Task {
     has title: str;
     has completed: bool = False;
@@ -191,8 +194,10 @@ node Task {
 **Fix:** Use a different variable name or explicit type:
 
 ```jac
-# Instead of: has value: any;
-has value: object;  # Or a specific type
+obj Example {
+    # Instead of: has value: any;
+    has value: object;  # Or a specific type
+}
 ```
 
 ---
@@ -246,13 +251,15 @@ can find with Person entry {
 **Debug:**
 
 ```jac
-# Check all connections (no filter)
-all_nodes = [-->];
-print(f"All connected: {len(all_nodes)}");
+with entry {
+    # Check all connections (no filter)
+    all_nodes = [-->];
+    print(f"All connected: {len(all_nodes)}");
 
-# Check with filter
-people = [-->](`?Person);
-print(f"People: {len(people)}");
+    # Check with filter
+    people = [-->](`?Person);
+    print(f"People: {len(people)}");
+}
 ```
 
 **Common issues:**

@@ -178,18 +178,28 @@ with entry {
 ### Query Syntax
 
 ```jac
-# Basic queries
-[node -->]           # All forward connections
-[node <--]           # All backward connections
-[node <-->]          # Both directions
+node Person {
+    has name: str;
+}
 
-# Type filtering
-[node -->](`?Person)           # Only Person nodes
-[node ->:Knows:->]             # Only via Knows edges
-[node ->:Knows:->](`?Person)   # Knows edges to Person nodes
+edge Knows {
+    has since: int;
+}
 
-# Chained traversal
-[alice ->:Knows:-> ->:Knows:->]  # Friends of friends
+def query_examples(node: Person, alice: Person) {
+    # Basic queries
+    [node -->];           # All forward connections
+    [node <--];           # All backward connections
+    [node <-->];          # Both directions
+
+    # Type filtering
+    [node -->](`?Person);           # Only Person nodes
+    [node ->:Knows:->];             # Only via Knows edges
+    [node ->:Knows:->](`?Person);   # Knows edges to Person nodes
+
+    # Chained traversal
+    [alice ->:Knows:-> ->:Knows:->];  # Friends of friends
+}
 ```
 
 ---

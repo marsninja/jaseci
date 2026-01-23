@@ -83,7 +83,7 @@ Use `{ }` to embed any Jac expression.
 cl {
     def:pub Status(props: dict) -> any {
         return <span>
-            {props.active ? "Active" : "Inactive"}
+            {("Active" if props.active else "Inactive")}
         </span>;
     }
 }
@@ -354,7 +354,7 @@ cl {
 
 ```jac
 cl {
-    import ".styles.css"
+    import ".styles.css";
 
     def:pub app() -> any {
         return <div className="container">

@@ -361,7 +361,7 @@ spec:
 
 ### Using External Database
 
-```jac
+```toml
 # Configure in jac.toml
 [database]
 url = "${DATABASE_URL}"

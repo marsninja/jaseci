@@ -22,9 +22,11 @@ walker:priv MyWalker {
     }
 }
 
-# Spawning the walker
-response = root spawn MyWalker();
-print(response.reports);  # ["first", "second"]
+with entry {
+    # Spawning the walker
+    response = root spawn MyWalker();
+    print(response.reports);  # ["first", "second"]
+}
 ```
 
 ## Common Patterns
@@ -34,6 +36,10 @@ print(response.reports);  # ["first", "second"]
 The cleanest pattern accumulates data internally and reports once at the end:
 
 ```jac
+node Item {
+    has data: str;
+}
+
 walker:priv ListItems {
     has items: list = [];
 
@@ -50,9 +56,11 @@ walker:priv ListItems {
     }
 }
 
-# Usage
-result = root spawn ListItems();
-items = result.reports[0];  # The complete list
+with entry {
+    # Usage
+    result = root spawn ListItems();
+    items = result.reports[0];  # The complete list
+}
 ```
 
 **When to use:** Most read operations, listing data, aggregations.
@@ -62,6 +70,10 @@ items = result.reports[0];  # The complete list
 Reports each item as it's found during traversal:
 
 ```jac
+node Item {
+    has name: str;
+}
+
 walker:priv FindMatches {
     has search_term: str;
 
@@ -76,9 +88,11 @@ walker:priv FindMatches {
     }
 }
 
-# Usage
-result = root spawn FindMatches(search_term="test");
-matches = result.reports;  # Array of all matching nodes
+with entry {
+    # Usage
+    result = root spawn FindMatches(search_term="test");
+    matches = result.reports;  # Array of all matching nodes
+}
 ```
 
 **When to use:** Search operations, filtering, finding specific nodes.
@@ -88,6 +102,10 @@ matches = result.reports;  # Array of all matching nodes
 Performs an operation and reports a summary:
 
 ```jac
+node Item {
+    has name: str;
+}
+
 walker:priv CreateItem {
     has name: str;
 
@@ -97,9 +115,11 @@ walker:priv CreateItem {
     }
 }
 
-# Usage
-result = root spawn CreateItem(name="New Item");
-created = result.reports[0];  # The new item
+with entry {
+    # Usage
+    result = root spawn CreateItem(name="New Item");
+    created = result.reports[0];  # The new item
+}
 ```
 
 **When to use:** Create, update, delete operations.
@@ -128,9 +148,11 @@ walker:priv OuterWalker {
     }
 }
 
-# Usage
-result = root spawn OuterWalker();
-# result.reports[0] = {"outer": "data", "inner": "inner data"}
+with entry {
+    # Usage
+    result = root spawn OuterWalker();
+    # result.reports[0] = {"outer": "data", "inner": "inner data"}
+}
 ```
 
 **Important:** Nested walker spawns return their own response object. Their reports don't automatically merge with the parent walker's reports.
@@ -140,6 +162,10 @@ result = root spawn OuterWalker();
 Some operations naturally produce multiple reports:
 
 ```jac
+def do_processing(input: str) -> list {
+    return [input, input + "_processed"];
+}
+
 walker:priv ProcessAndSummarize {
     has input: str;
 
@@ -150,16 +176,18 @@ walker:priv ProcessAndSummarize {
 
         # Second report: summary
         report {
-            "count": results.length,
+            "count": len(results),
             "status": "complete"
         };
     }
 }
 
-# Usage
-result = root spawn ProcessAndSummarize(input="data");
-raw_results = result.reports[0];  # First report
-summary = result.reports[1];       # Second report
+with entry {
+    # Usage
+    result = root spawn ProcessAndSummarize(input="data");
+    raw_results = result.reports[0];  # First report
+    summary = result.reports[1];       # Second report
+}
 ```
 
 **When to use:** Operations that produce both detailed results and summaries.
@@ -169,22 +197,34 @@ summary = result.reports[1];       # Second report
 Always handle the possibility of empty reports:
 
 ```jac
-# Safe single report access
-result = root spawn MyWalker();
-data = result.reports[0] if result.reports else None;
-
-# Safe with default value
-data = result.reports[0] if result.reports else [];
-
-# Check length for multiple reports
-if result.reports and result.reports.length > 1 {
-    first = result.reports[0];
-    second = result.reports[1];
+walker:priv MyWalker {
+    can work with `root entry {
+        report "data";
+    }
 }
 
-# Iterate all reports
-for item in (result.reports if result.reports else []) {
-    process(item);
+def process(item: any) {
+    print(item);
+}
+
+with entry {
+    # Safe single report access
+    result = root spawn MyWalker();
+    data = result.reports[0] if result.reports else None;
+
+    # Safe with default value
+    data = result.reports[0] if result.reports else [];
+
+    # Check length for multiple reports
+    if result.reports and len(result.reports) > 1 {
+        first = result.reports[0];
+        second = result.reports[1];
+    }
+
+    # Iterate all reports
+    for item in (result.reports if result.reports else []) {
+        process(item);
+    }
 }
 ```
 
@@ -193,12 +233,18 @@ for item in (result.reports if result.reports else []) {
 The full response object from `root spawn Walker()`:
 
 ```jac
-response = root spawn MyWalker();
+walker:priv MyWalker {
+    can work with `root entry {
+        report "result";
+    }
+}
 
-# Available properties
-response.reports    # Array of all reported values
-response._jac_id    # Walker instance ID
-response._jac_type  # Walker type name
+with entry {
+    response = root spawn MyWalker();
+
+    # Available properties
+    print(response.reports);    # Array of all reported values
+}
 ```
 
 ## Best Practices
@@ -214,31 +260,56 @@ response._jac_type  # Walker type name
 ### Don't: Report in a loop without accumulation
 
 ```jac
+node Item {
+    has data: str;
+}
+
 # Bad: Creates many small reports
-can process with Item entry {
-    report here.data;  # N reports for N items
+walker:priv BadPattern {
+    can process with Item entry {
+        report here.data;  # N reports for N items
+    }
 }
 
 # Good: Accumulate and report once
-has items: list = [];
-can process with Item entry {
-    self.items.append(here.data);
-}
-can finish with `root exit {
-    report self.items;  # One report with all items
+walker:priv GoodPattern {
+    has items: list = [];
+
+    can start with `root entry {
+        visit [-->];
+    }
+
+    can process with Item entry {
+        self.items.append(here.data);
+    }
+
+    can finish with `root exit {
+        report self.items;  # One report with all items
+    }
 }
 ```
 
 ### Don't: Assume report order without documentation
 
 ```jac
-# Bad: Magic indices
-data = result.reports[0];
-meta = result.reports[1];
+walker:priv MyWalker {
+    can work with `root entry {
+        report ["item1", "item2"];
+        report {"count": 2};
+    }
+}
 
-# Good: Document or structure clearly
-# reports[0]: List of items
-# reports[1]: Metadata object
-data = result.reports[0] if result.reports else [];
-meta = result.reports[1] if result.reports.length > 1 else {};
+with entry {
+    result = root spawn MyWalker();
+
+    # Bad: Magic indices
+    data = result.reports[0];
+    meta = result.reports[1];
+
+    # Good: Document or structure clearly
+    # reports[0]: List of items
+    # reports[1]: Metadata object
+    data = result.reports[0] if result.reports else [];
+    meta = result.reports[1] if len(result.reports) > 1 else {};
+}
 ```

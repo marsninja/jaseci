@@ -266,7 +266,7 @@ node Document {
 def summarize(content: str) -> str by llm();
 
 """Search documents for matching content."""
-def search_documents(query: str, docs: list) -> list[str] {
+def search_documents(query: str, docs: list) -> list {
     results = [];
     for doc in docs {
         if query.lower() in doc.content.lower() {
@@ -312,8 +312,8 @@ with entry {
     result = root spawn DocumentAgent(query="AI");
 
     for doc in result.reports {
-        print(f"## {doc['title']}");
-        print(doc['summary']);
+        print("## " + doc["title"]);
+        print(doc["summary"]);
         print();
     }
 }

@@ -197,10 +197,6 @@ walker:priv MyWalker {
         report "third";   # reports[2]
     }
 }
-
-# Calling from client
-response = root spawn MyWalker();
-# response.reports = ["first", "second", "third"]
 ```
 
 ### 2.2 Reports During Traversal
@@ -240,15 +236,12 @@ walker:priv ListTodos {
 ### 2.4 Handling Responses in Client Code
 
 ```jac
-# Safe pattern for single-report walkers
-result = root spawn ListTodos();
-todos = result.reports[0] if result.reports else [];
-
-# For walkers with multiple reports
-response = root spawn MealToIngredients(meal_description="tacos");
-if response.reports and response.reports.length > 1 {
-    first_report = response.reports[0];   # List of todos
-    second_report = response.reports[1];  # Summary object
+cl {
+    # Safe pattern for single-report walkers
+    async def example() -> None {
+        result = root spawn ListTodos();
+        todos = result.reports[0] if result.reports else [];
+    }
 }
 ```
 
@@ -549,8 +542,6 @@ def:pub app -> any {
     # In render, add meal input:
     return
         <div>
-            {/* ... existing UI ... */}
-
             <div style={{"marginTop": "2rem", "padding": "1rem", "border": "1px solid #ccc"}}>
                 <h3>AI Meal Planner</h3>
                 <input
@@ -619,10 +610,6 @@ walker MyWalker {
         report "data";  # Adds to .reports array
     }
 }
-
-# Client
-response = root spawn MyWalker();
-data = response.reports[0];  # Access first report
 ```
 
 ### Client-Server Communication

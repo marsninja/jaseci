@@ -17,15 +17,26 @@ This reference covers the core graph operations in Jac for creating, connecting,
 The `++>` operator creates a new node and connects it to the source node:
 
 ```jac
-# Create a Todo node and connect it to the current node (here)
-new_node = here ++> Todo(
-    id="123",
-    title="Buy groceries",
-    completed=False
-);
+node Todo {
+    has id: str;
+    has title: str;
+    has completed: bool = False;
+}
 
-# The result is a list containing the new node
-created_todo = new_node[0];
+walker CreateTodo {
+    can create with `root entry {
+        # Create a Todo node and connect it to the current node (here)
+        new_node = here ++> Todo(
+            id="123",
+            title="Buy groceries",
+            completed=False
+        );
+
+        # The result is a list containing the new node
+        created_todo = new_node[0];
+        report created_todo;
+    }
+}
 ```
 
 **Key points:**
@@ -38,11 +49,22 @@ created_todo = new_node[0];
 ### Connect Existing Nodes
 
 ```jac
-# Connect two existing nodes
-node_a ++> node_b;
+node MyNode {
+    has name: str;
+}
 
-# Connect with edge type
-node_a +[EdgeType]+> node_b;
+edge EdgeType {}
+
+with entry {
+    node_a = MyNode(name="A");
+    node_b = MyNode(name="B");
+
+    # Connect two existing nodes
+    node_a ++> node_b;
+
+    # Connect with edge type
+    node_a +>: EdgeType() :+> node_b;
+}
 ```
 
 ## Node Traversal
@@ -74,11 +96,21 @@ can traverse with SomeNode entry {
 ### Visit with Edge Type Filter
 
 ```jac
-# Only visit nodes connected by a specific edge type
-visit [-->:MyEdgeType];
+edge MyEdgeType {
+    has weight: int = 0;
+}
 
-# Visit with edge condition
-visit [-->] where edge.weight > 10;
+walker FilteredTraversal {
+    can traverse with `root entry {
+        # Only visit nodes connected by a specific edge type
+        visit [->:MyEdgeType:->];
+    }
+
+    can traverse_weighted with `root entry {
+        # Visit with edge condition
+        visit [->:MyEdgeType:weight > 10:->];
+    }
+}
 ```
 
 ## Context Keywords
@@ -121,12 +153,30 @@ walker:priv MyWalker {
 `root` is the entry point for the user's graph:
 
 ```jac
-# Spawn a walker from root
-result = root spawn MyWalker();
+node SomeNode {}
 
-# In a walker, access root explicitly
-can process with SomeNode entry {
-    root_data = root spawn GetRootData();
+walker MyWalker {
+    can work with `root entry {
+        report "done";
+    }
+}
+
+walker GetRootData {
+    can get with `root entry {
+        report "root data";
+    }
+}
+
+walker ProcessNode {
+    # In a walker, access root explicitly
+    can process with SomeNode entry {
+        root_data = root spawn GetRootData();
+    }
+}
+
+with entry {
+    # Spawn a walker from root
+    result = root spawn MyWalker();
 }
 ```
 
@@ -260,6 +310,15 @@ walker:priv DeleteItem {
 ### Pattern 2: Search Walker
 
 ```jac
+node Item {
+    has id: str;
+    has name: str;
+}
+
+def calculate_relevance(item: Item, query: str) -> int {
+    return 1;
+}
+
 walker:priv SearchItems {
     has query: str;
     has matches: list = [];
@@ -280,7 +339,7 @@ walker:priv SearchItems {
 
     can finish with `root exit {
         # Sort by relevance
-        self.matches.sort(key=lambda x: x.score, reverse=True);
+        self.matches.sort(key=lambda x: any: x["score"], reverse=True);
         report self.matches;
     }
 }
@@ -288,7 +347,7 @@ walker:priv SearchItems {
 
 ### Pattern 3: Hierarchical Traversal
 
-```jac
+```
 walker:priv GetTree {
     can build_tree(node: any) -> dict {
         children = [];
@@ -355,12 +414,28 @@ edge ChildOf {
 ### Create Typed Edges
 
 ```jac
-# Connect with edge type and data
-parent +[ChildOf(order=1)]+> child;
+node Todo {
+    has id: str;
+    has title: str;
+}
 
-# Access edge data during traversal
-can process with Todo entry via ChildOf as edge {
-    print(f"Order: {edge.order}");
+edge ChildOf {
+    has order: int = 0;
+}
+
+walker ProcessWithEdge {
+    can setup with `root entry {
+        parent = here ++> Todo(id="1", title="Parent");
+        child = here ++> Todo(id="2", title="Child");
+        # Connect with edge type and data
+        parent[0] +>: ChildOf(order=1) :+> child[0];
+    }
+
+    # Access edge data during traversal
+    can process with Todo entry {
+        # Access via edges in traversal filter
+        print(f"Processing Todo: {here.title}");
+    }
 }
 ```
 

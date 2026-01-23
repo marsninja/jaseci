@@ -150,6 +150,13 @@ def validate_code_blocks(code_blocks: list[CodeBlock]) -> list[ValidationResult]
     return results
 
 
+# Files to skip validation (contain intentionally invalid syntax for demonstration)
+SKIP_FILES = [
+    "breaking-changes.md",  # Shows old/deprecated syntax examples
+    "jsx_client_serv_design.md",  # Internal doc with JSX/client syntax
+]
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -186,7 +193,11 @@ def main() -> int:
         if not args.docs_dir.exists():
             print(f"Error: Docs directory not found: {args.docs_dir}", file=sys.stderr)
             return 2
-        markdown_files = sorted(args.docs_dir.rglob("*.md"))
+        all_files = sorted(args.docs_dir.rglob("*.md"))
+        markdown_files = [f for f in all_files if f.name not in SKIP_FILES]
+        skipped = len(all_files) - len(markdown_files)
+        if skipped > 0:
+            print(f"Skipping {skipped} file(s) in exclusion list: {SKIP_FILES}")
 
     print(f"Checking syntax of Jac code blocks in {len(markdown_files)} files...")
 
