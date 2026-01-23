@@ -490,3 +490,16 @@ Provides:
 - Graph visualization
 
 ---
+
+## Learn More
+
+**Tutorials:**
+
+- [Full-Stack Project Setup](../../tutorials/fullstack/setup.md) - Create your first full-stack project
+- [React-Style Components](../../tutorials/fullstack/components.md) - Build UI components
+- [Backend Integration](../../tutorials/fullstack/backend.md) - Connect frontend to walkers
+- [Build a Todo App](../../tutorials/fullstack/todo-app.md) - Complete example
+
+**Related Reference:**
+
+- [jac-client Reference](../plugins/jac-client.md) - Complete API documentation

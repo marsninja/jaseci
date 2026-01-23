@@ -244,3 +244,14 @@ node spawn |> BreadthFirstWalker;
 ```
 
 ---
+
+## Learn More
+
+**Tutorials:**
+
+- [Testing](../../tutorials/language/testing.md) - Write and run tests
+
+**Related Reference:**
+
+- [Part I: Foundation](foundation.md) - Core language features
+- [Part III: OSP](osp.md) - Graph operations

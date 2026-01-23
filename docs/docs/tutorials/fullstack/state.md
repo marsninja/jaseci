@@ -2,7 +2,10 @@
 
 Manage reactive state with hooks and the `has` keyword.
 
-**Time:** 30 minutes
+> **Prerequisites**
+>
+> - Completed: [React-Style Components](components.md)
+> - Time: ~30 minutes
 
 ---
 

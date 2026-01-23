@@ -2,7 +2,10 @@
 
 Build reusable UI components with JSX syntax.
 
-**Time:** 30 minutes
+> **Prerequisites**
+>
+> - Completed: [Project Setup](setup.md)
+> - Time: ~30 minutes
 
 ---
 

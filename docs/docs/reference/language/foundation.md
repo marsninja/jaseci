@@ -1448,3 +1448,14 @@ squares_list = [x ** 2 for x in range(100)];
 ```
 
 ---
+
+## Learn More
+
+**Tutorials:**
+
+- [Jac Basics](../../tutorials/language/basics.md) - Step-by-step introduction to Jac syntax
+- [Hello World](../../quick-guide/hello-world.md) - Your first Jac program
+
+**Related Reference:**
+
+- [Part II: Functions & Objects](functions-objects.md) - Classes, methods, inheritance

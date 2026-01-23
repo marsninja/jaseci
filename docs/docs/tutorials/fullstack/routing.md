@@ -2,7 +2,10 @@
 
 Build multi-page applications with client-side routing.
 
-**Time:** 20 minutes
+> **Prerequisites**
+>
+> - Completed: [Authentication](auth.md)
+> - Time: ~20 minutes
 
 ---
 

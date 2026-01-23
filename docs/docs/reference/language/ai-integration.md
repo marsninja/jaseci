@@ -323,3 +323,20 @@ walker Coordinator {
 ```
 
 ---
+
+## Learn More
+
+**Tutorials:**
+
+- [byLLM Quickstart](../../tutorials/ai/quickstart.md) - Your first AI function
+- [Structured Outputs](../../tutorials/ai/structured-outputs.md) - Type-safe LLM responses
+- [Agentic AI](../../tutorials/ai/agentic.md) - Tool calling and ReAct pattern
+
+**Examples:**
+
+- [EmailBuddy](../../tutorials/examples/emailbuddy.md) - AI email assistant
+- [RAG Chatbot](../../tutorials/examples/rag-chatbot.md) - Document Q&A
+
+**Related Reference:**
+
+- [byLLM Reference](../plugins/byllm.md) - Complete API documentation

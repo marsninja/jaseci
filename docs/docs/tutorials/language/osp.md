@@ -2,7 +2,11 @@
 
 Learn Jac's unique graph-based programming paradigm with nodes, edges, and walkers.
 
-**Time:** 45 minutes
+> **Prerequisites**
+>
+> - Completed: [Hello World](../../quick-guide/hello-world.md)
+> - Recommended: [Your First Graph](../../quick-guide/first-graph.md) (gentler introduction)
+> - Time: ~45 minutes
 
 ---
 
@@ -24,6 +28,21 @@ Traditional OOP:           OSP:
                           │         │      to connected nodes
                           └─────────┘
 ```
+
+---
+
+> **Quick Reference: Graph Operators**
+>
+> | Operator | Meaning | Example |
+> |----------|---------|---------|
+> | `++>` | Create/connect node | `root ++> Person()` |
+> | `[-->]` | Query outgoing edges | `[node -->]` |
+> | `[<--]` | Query incoming edges | `[node <--]` |
+> | `spawn` | Start walker at node | `node spawn Walker()` |
+> | `visit` | Move walker to nodes | `visit [-->]` |
+> | `report` | Return data from walker | `report here` |
+>
+> See [Graph Operations](../../reference/language/graph-operations.md) for complete reference.
 
 ---
 
@@ -493,6 +512,14 @@ curl -X POST http://localhost:8000/walker/add_todo \
 
 ## Next Steps
 
+**Continue Learning:**
+
 - [Testing](testing.md) - Test your nodes and walkers
 - [AI Integration](../ai/quickstart.md) - Add LLM capabilities
 - [First App](../../quick-guide/first-app.md) - Review the todo app example
+
+**Reference:**
+
+- [Graph Operations](../../reference/language/graph-operations.md) - Complete edge/node operator reference
+- [Walker Responses](../../reference/language/walker-responses.md) - Understanding `.reports` patterns
+- [Part III: OSP](../../reference/language/osp.md) - Full language reference

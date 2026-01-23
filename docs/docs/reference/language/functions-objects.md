@@ -477,3 +477,15 @@ impl Calculator.multiply {
 - **Large codebases**: Separate concerns across files
 
 ---
+
+## Learn More
+
+**Tutorials:**
+
+- [Jac Basics](../../tutorials/language/basics.md) - Objects, functions, and syntax
+- [Testing](../../tutorials/language/testing.md) - Write tests for your code
+
+**Related Reference:**
+
+- [Part I: Foundation](foundation.md) - Variables, types, control flow
+- [Part III: OSP](osp.md) - Nodes, edges, walkers

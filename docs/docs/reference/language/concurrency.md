@@ -102,3 +102,10 @@ inventory = wait future3;
 | Blocking | Non-blocking | Can block threads |
 
 ---
+
+## Learn More
+
+**Related Reference:**
+
+- [Part I: Foundation](foundation.md) - Control flow basics
+- [Part V: AI Integration](ai-integration.md) - Async LLM calls

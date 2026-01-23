@@ -2,7 +2,10 @@
 
 Build AI agents that can use tools and reason through problems.
 
-**Time:** 45 minutes
+> **Prerequisites**
+>
+> - Completed: [Structured Outputs](structured-outputs.md)
+> - Time: ~45 minutes
 
 ---
 

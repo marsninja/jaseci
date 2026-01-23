@@ -2,7 +2,10 @@
 
 Get type-safe responses from LLMs with enums, objects, and lists.
 
-**Time:** 30 minutes
+> **Prerequisites**
+>
+> - Completed: [byLLM Quickstart](quickstart.md)
+> - Time: ~30 minutes
 
 ---
 

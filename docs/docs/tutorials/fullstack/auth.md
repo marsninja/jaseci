@@ -2,7 +2,10 @@
 
 Add user login, signup, and protected routes to your Jac application.
 
-**Time:** 30 minutes
+> **Prerequisites**
+>
+> - Completed: [Backend Integration](backend.md)
+> - Time: ~30 minutes
 
 ---
 

@@ -2,15 +2,12 @@
 
 Create a Jac project with frontend and backend in one codebase.
 
-**Time:** 15 minutes
-
----
-
-## Prerequisites
-
-```bash
-pip install jaseci  # Includes jac-client
-```
+> **Prerequisites**
+>
+> - Completed: [Hello World](../../quick-guide/hello-world.md)
+> - Familiar with: HTML/CSS basics, React concepts helpful
+> - Install: `pip install jaseci`
+> - Time: ~15 minutes
 
 ---
 
@@ -306,3 +303,4 @@ Click the button - the count should increase!
 - [Components](components.md) - Build reusable UI components
 - [State Management](state.md) - Reactive state with hooks
 - [Backend Integration](backend.md) - Connect to walkers
+- [Build a Todo App](todo-app.md) - Complete full-stack example with AI

@@ -723,3 +723,9 @@ walker ShoppingCart {
 ```
 
 ---
+
+## See Also
+
+- [Walker Responses](walker-responses.md) - Patterns for handling `.reports` array
+- [Graph Operations](graph-operations.md) - Quick reference for `++>`, `-->`, `del here`
+- [Build a Todo App](../../tutorials/fullstack/todo-app.md) - Full-stack tutorial using OSP concepts

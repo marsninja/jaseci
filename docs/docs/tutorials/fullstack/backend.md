@@ -2,7 +2,11 @@
 
 Connect your frontend components to Jac walkers for data fetching and mutations.
 
-**Time:** 30 minutes
+> **Prerequisites**
+>
+> - Completed: [State Management](state.md)
+> - Familiar with: [Your First Graph](../../quick-guide/first-graph.md) (walkers)
+> - Time: ~30 minutes
 
 ---
 
@@ -506,3 +510,9 @@ cl {
 
 - [Authentication](auth.md) - Add user login
 - [Routing](routing.md) - Multi-page applications
+- [Build a Todo App](todo-app.md) - Complete full-stack example with AI integration
+
+**Reference:**
+
+- [Walker Responses](../../reference/language/walker-responses.md) - Understanding `.reports` patterns
+- [Graph Operations](../../reference/language/graph-operations.md) - Node creation, traversal, deletion

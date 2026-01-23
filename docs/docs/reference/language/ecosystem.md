@@ -195,6 +195,8 @@ cl {
 
 ## Python Interoperability
 
+> **Deep Dive:** For comprehensive coverage of Python integration patterns, adoption strategies, and transpilation details, see [Python Integration](python-integration.md).
+
 ### 1 Using Python Libraries
 
 ```jac

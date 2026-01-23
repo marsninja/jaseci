@@ -1,4 +1,10 @@
-# **Jac Library Mode: Pure Python with Jac's Power**
+# Jac Library Mode
+
+> **Part of:** [Part IX: Deployment](deployment.md)
+>
+> **Related:** [Python Integration](python-integration.md) | [Part III: OSP](osp.md)
+
+---
 
 ## **Introduction**
 
