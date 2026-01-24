@@ -224,12 +224,7 @@ impl NodeInstaller.run_npm_with_nvm(
     # First, try running npm directly (in case it's already in PATH)
     try {
         return subprocess.run(
-            ['npm'] + args,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=True
+            ['npm'] + args, cwd=cwd, text=True, timeout=timeout, check=True
         );
     } except FileNotFoundError { }
     # If npm is not in PATH, source NVM and run npm in a subprocess
@@ -239,11 +234,6 @@ impl NodeInstaller.run_npm_with_nvm(
         'export NVM_DIR="$HOME/.nvm"\n' + '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"\n' + f'npm {args_str}\n'
     );
     return subprocess.run(
-        ['bash', '-c', command],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=True
+        ['bash', '-c', command], cwd=cwd, text=True, timeout=timeout, check=True
     );
 }

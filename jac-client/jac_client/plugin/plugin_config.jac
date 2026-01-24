@@ -239,14 +239,10 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
 
         # Run npm install using NodeInstaller to handle NVM environment
         try {
-            console.print("  Installing npm packages...", style="cyan");
-            with console.status(
-                "[cyan]Installing npm packages...[/cyan]", spinner="dots"
-            ) as status {
-                NodeInstaller.run_npm_with_nvm(
-                    ['install'], cwd=client_dir, timeout=300
-                );
-            }
+            console.print("\n  ⏳ Installing npm packages...\n", style="cyan");
+            NodeInstaller.run_npm_with_nvm(
+                ['install', '--progress'], cwd=client_dir, timeout=300
+            );
 
             # Move package-lock.json to configs/ if it was created
             build_package_lock = client_dir / 'package-lock.json';
