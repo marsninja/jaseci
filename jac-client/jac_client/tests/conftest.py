@@ -1,9 +1,9 @@
 """Pytest configuration and shared fixtures for jac-client tests.
 
 This module provides session-scoped fixtures to optimize test execution by:
-1. Running npm install once per session and caching node_modules
+1. Running package manager install (bun/npm) once per session and caching node_modules
 2. Providing shared Vite build infrastructure
-3. Mocking npm install for tests that only need jac.toml manipulation
+3. Mocking package install for tests that only need jac.toml manipulation
 """
 
 from __future__ import annotations
@@ -83,17 +83,31 @@ def _get_jac_command() -> list[str]:
     return [sys.executable, "-m", "jaclang"]
 
 
-def _get_env_with_npm() -> dict[str, str]:
-    """Get environment dict with npm in PATH."""
+def _get_env_with_package_manager() -> dict[str, str]:
+    """Get environment dict with bun/npm in PATH."""
     env = os.environ.copy()
-    # npm might be installed via nvm, ensure PATH includes common locations
+    current_path = env.get("PATH", "")
+
+    # Check for bun first (preferred)
+    bun_path = shutil.which("bun")
+    if bun_path:
+        bun_dir = str(Path(bun_path).parent)
+        if bun_dir not in current_path:
+            env["PATH"] = f"{bun_dir}:{current_path}"
+            current_path = env["PATH"]
+
+    # Also check npm (fallback or if bun not available)
     npm_path = shutil.which("npm")
     if npm_path:
         npm_dir = str(Path(npm_path).parent)
-        current_path = env.get("PATH", "")
         if npm_dir not in current_path:
             env["PATH"] = f"{npm_dir}:{current_path}"
+
     return env
+
+
+# Keep alias for backwards compatibility
+_get_env_with_npm = _get_env_with_package_manager
 
 
 @pytest.fixture(autouse=True)
@@ -127,12 +141,12 @@ def reset_jac_machine(tmp_path: Path) -> Generator[None, None, None]:
     Jac.loaded_modules.clear()
 
 
-# Session-scoped cache for npm installation
+# Session-scoped cache for package manager installation
 _npm_cache_dir: Path | None = None
 
 
 def _get_minimal_jac_toml() -> str:
-    """Get minimal jac.toml content for npm cache setup."""
+    """Get minimal jac.toml content for package cache setup."""
     return """[project]
 name = "npm-cache"
 version = "0.0.1"
@@ -146,10 +160,10 @@ minify = false
 
 @pytest.fixture(scope="session")
 def npm_cache_dir() -> Generator[Path, None, None]:
-    """Session-scoped fixture that provides a directory with npm packages installed.
+    """Session-scoped fixture that provides a directory with packages installed.
 
-    This runs npm install once per test session and provides the path to the
-    .jac/client/configs directory containing node_modules.
+    This runs package install (bun/npm) once per test session and provides
+    the path to the .jac/client/configs directory containing node_modules.
     """
     global _npm_cache_dir
 
@@ -166,7 +180,7 @@ def npm_cache_dir() -> Generator[Path, None, None]:
 
     # Run jac add --npm to install packages
     jac_cmd = _get_jac_command()
-    env = _get_env_with_npm()
+    env = _get_env_with_package_manager()
     result = subprocess.run(
         [*jac_cmd, "add", "--npm"],
         cwd=cache_dir,
@@ -244,7 +258,7 @@ antd = "^6.0.0"
         dest_configs.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source_configs, dest_configs, symlinks=True)
 
-    # Copy base node_modules for faster install (npm will add antd on top)
+    # Copy base node_modules for faster install (package manager will add antd on top)
     source_node_modules = npm_cache_dir / "node_modules"
     dest_node_modules = tmp_path / "node_modules"
     if source_node_modules.exists():
@@ -252,7 +266,7 @@ antd = "^6.0.0"
 
     # Install antd on top (uses cached node_modules as base)
     jac_cmd = _get_jac_command()
-    env = _get_env_with_npm()
+    env = _get_env_with_package_manager()
     result = subprocess.run(
         [*jac_cmd, "add", "--npm"],
         cwd=tmp_path,
@@ -273,9 +287,9 @@ antd = "^6.0.0"
 
 @pytest.fixture
 def mock_npm_install():
-    """Fixture that mocks npm install for tests that only test jac.toml manipulation.
+    """Fixture that mocks package install for tests that only test jac.toml manipulation.
 
-    Use this for CLI tests (add/remove commands) that don't need actual npm packages.
+    Use this for CLI tests (add/remove commands) that don't need actual packages.
     """
     with patch(
         "jac_client.plugin.src.package_installer.PackageInstaller._regenerate_and_install"

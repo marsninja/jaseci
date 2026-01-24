@@ -44,8 +44,10 @@ impl ViteBundler.create_package_json(
     }
     dependencies = package_config.get('dependencies', {});
     dev_dependencies = package_config.get('devDependencies', {});
+    # Use detected package manager for build script
+    pm = PackageManager.get_preferred();
     scripts = {
-        'build': 'npm run compile && vite build --config .jac/client/configs/vite.config.js',
+        'build': f'{pm} run compile && vite build --config .jac/client/configs/vite.config.js',
         'dev': 'vite dev --config .jac/client/configs/vite.config.js',
         'preview': 'vite preview --config .jac/client/configs/vite.config.js',
         'compile': 'babel compiled --out-dir build --extensions ".jsx,.js" --out-file-extension .js'
@@ -154,7 +156,7 @@ impl ViteBundler._cleanup_root_package_files(self: ViteBundler) -> None {
 }
 
 """
-Ensure root package.json exists temporarily for npm commands.
+Ensure root package.json exists temporarily for package manager commands.
 
         Create root package.json temporarily if it doesn't exist.
 """
@@ -391,7 +393,7 @@ impl ViteBundler.build(self: ViteBundler, entry_file: Optional[Path] = None) -> 
         build_dir = self._get_client_dir();
         node_modules = build_dir / 'node_modules';
         if not node_modules.exists() {
-            # Temporarily copy package.json to client build dir for npm install
+            # Temporarily copy package.json to client build dir for install
             build_package_json = build_dir / 'package.json';
             configs_package_json = build_dir / 'configs' / 'package.json';
             if configs_package_json.exists() and not build_package_json.exists() {
@@ -400,13 +402,19 @@ impl ViteBundler.build(self: ViteBundler, entry_file: Optional[Path] = None) -> 
             }
             try {
                 # Install to .jac/client/node_modules with progress feedback
+                pm = PackageManager.get_preferred();
                 print(
-                    "  ⏳ Installing npm dependencies (this may take a minute)...",
+                    f"  ⏳ Installing dependencies with {pm} (this may take a minute)...",
                     flush=True
                 );
                 start_time = time.time();
+                # bun doesn't need --progress flag
+                install_cmd = PackageManager.get_install_cmd();
+                if pm == 'npm' {
+                    install_cmd.append('--progress');
+                }
                 result = subprocess.run(
-                    ['npm', 'install', '--progress'],
+                    install_cmd,
                     cwd=build_dir,
                     check=False,
                     capture_output=True,
@@ -415,37 +423,45 @@ impl ViteBundler.build(self: ViteBundler, entry_file: Optional[Path] = None) -> 
                 elapsed = time.time() - start_time;
                 if result.returncode != 0 {
                     print(
-                        f"\n  ✖ npm install failed after {elapsed:.1f}s",
+                        f"\n  ✖ {pm} install failed after {elapsed:.1f}s",
                         file=sys.stderr
                     );
                     raise ClientBundleError(
-                        f"Failed to install npm dependencies: {result.stderr
+                        f"Failed to install dependencies: {result.stderr
                         or result.stdout}"
                     ) ;
                 }
                 print(f"  ✔ Dependencies installed ({elapsed:.1f}s)", flush=True);
             } except FileNotFoundError {
+                pm = PackageManager.get_preferred();
                 raise None from ClientBundleError(
-                    'npm command not found. Ensure Node.js and npm are installed.'
+                    f'{pm} command not found. Ensure Node.js and {pm} are installed.'
                 ) ;
             }
         }
+        exec_cmd = PackageManager.get_exec_cmd();
         if self.config_path {
             # Make config path relative to build_dir (where vite runs from)
             try {
                 config_rel = self.config_path.relative_to(build_dir);
-                command = ['npx', 'vite', 'build', '--config', str(config_rel)];
+                command = [exec_cmd, 'vite', 'build', '--config', str(config_rel)];
             } except ValueError {
                 # Config is outside client build dir, use absolute path
-                command = ['npx', 'vite', 'build', '--config', str(self.config_path)];
+                command = [
+                    exec_cmd,
+                    'vite',
+                    'build',
+                    '--config',
+                    str(self.config_path)
+                ];
             }
         } elif entry_file {
             generated_config = self.create_vite_config(entry_file);
             # Config is in configs/, make it relative to build_dir
             config_rel = generated_config.relative_to(build_dir);
-            command = ['npx', 'vite', 'build', '--config', str(config_rel)];
+            command = [exec_cmd, 'vite', 'build', '--config', str(config_rel)];
         } else {
-            command = ['npm', 'run', 'build'];
+            command = PackageManager.get_run_cmd('build');
         }
         # Run vite from client build directory so it can find node_modules
         print("  ⏳ Building client bundle...", flush=True);
@@ -652,33 +668,34 @@ impl ViteBundler.start_dev_server(self: ViteBundler, port: int = 3000) -> Any {
         if not generated_package_json.exists() {
             self.create_package_json();
         }
-        # Temporarily copy package.json for npm install
+        # Temporarily copy package.json for install
         build_package_json = build_dir / 'package.json';
         if not build_package_json.exists() {
             shutil.copy2(generated_package_json, build_package_json);
         }
         try {
+            pm = PackageManager.get_preferred();
             print(
-                "  ⏳ Installing npm dependencies (this may take a minute)...",
+                f"  ⏳ Installing dependencies with {pm} (this may take a minute)...",
                 flush=True
             );
             start_time = time.time();
+            # bun doesn't need --progress flag
+            install_cmd = PackageManager.get_install_cmd();
+            if pm == 'npm' {
+                install_cmd.append('--progress');
+            }
             result = subprocess.run(
-                ['npm', 'install', '--progress'],
-                cwd=build_dir,
-                check=False,
-                capture_output=True,
-                text=True
+                install_cmd, cwd=build_dir, check=False, capture_output=True, text=True
             );
             elapsed = time.time() - start_time;
             if result.returncode != 0 {
                 print(
-                    f"\n  ✖ npm install failed after {elapsed:.1f}s", file=sys.stderr
+                    f"\n  ✖ {pm} install failed after {elapsed:.1f}s", file=sys.stderr
                 );
                 print(f"  Error: {result.stderr or result.stdout}", file=sys.stderr);
                 raise ClientBundleError(
-                    f"Failed to install npm dependencies: {result.stderr
-                    or result.stdout}"
+                    f"Failed to install dependencies: {result.stderr or result.stdout}"
                 ) ;
             }
             print(f"  ✔ Dependencies installed ({elapsed:.1f}s)", flush=True);
@@ -699,8 +716,9 @@ impl ViteBundler.start_dev_server(self: ViteBundler, port: int = 3000) -> Any {
     config_rel = dev_config.relative_to(build_dir);
     logger.debug(f"Starting Vite dev server on port {port}");
     # Start Vite in dev mode (let output go to terminal for HMR visibility)
+    exec_cmd = PackageManager.get_exec_cmd();
     process = subprocess.Popen(
-        ['npx', 'vite', '--config', str(config_rel), '--port', str(port)],
+        [exec_cmd, 'vite', '--config', str(config_rel), '--port', str(port)],
         cwd=build_dir
     );
     return process;

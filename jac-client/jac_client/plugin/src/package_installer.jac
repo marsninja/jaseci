@@ -6,6 +6,7 @@ import from pathlib { Path }
 import from jaclang.runtimelib.client_bundle { ClientBundleError }
 import from .config_loader { JacClientConfig }
 import from .vite_bundler { ViteBundler }
+import from ..utils.package_manager { PackageManager }
 
 class PackageInstaller {
     def init(self: PackageInstaller, project_dir: Path);

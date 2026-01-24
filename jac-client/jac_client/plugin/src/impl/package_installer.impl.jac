@@ -33,39 +33,41 @@ impl PackageInstaller.uninstall_package(
     }
     # Save the updated config
     self.config_loader.save();
-    # Regenerate package.json and run npm install to actually remove the package
+    # Regenerate package.json and run install to actually remove the package
     self._regenerate_and_install();
 }
 
-"""Regenerate package.json from jac.toml and run npm install."""
+"""Regenerate package.json from jac.toml and run package install."""
 impl PackageInstaller._regenerate_and_install(self: PackageInstaller) -> None {
     # Regenerate package.json from updated jac.toml
     bundler = ViteBundler(self.project_dir);
     bundler.create_package_json();
-    # Ensure root package.json exists temporarily for npm commands
+    # Ensure root package.json exists temporarily for package manager commands
     bundler._ensure_root_package_json();
     try {
-        # Run npm install to actually install the packages
+        # Run install using preferred package manager (bun or npm)
+        pm = PackageManager.get_preferred();
         subprocess.run(
-            ['npm', 'install'],
+            PackageManager.get_install_cmd(),
             cwd=self.project_dir,
             check=True,
             capture_output=True,
             text=True
         );
     } except subprocess.CalledProcessError as e {
-        raise ClientBundleError(f'Failed to install npm packages: {e.stderr}') from e ;
+        raise ClientBundleError(f'Failed to install packages: {e.stderr}') from e ;
     } except FileNotFoundError {
+        pm = PackageManager.get_preferred();
         raise ClientBundleError(
-            'npm command not found. Ensure Node.js and npm are installed.'
+            f'{pm} command not found. Ensure Node.js and {pm} are installed.'
         ) from None ;
     } finally {
-        # Always clean up root package.json and move package-lock.json
+        # Always clean up root package.json and move lock file
         bundler._cleanup_root_package_files();
     }
 }
 
-"""Install all packages from jac.toml (regenerate package.json and run npm install)."""
+"""Install all packages from jac.toml (regenerate package.json and run install)."""
 impl PackageInstaller.install_all(self: PackageInstaller) -> None {
     if not self.config_file.exists() {
         raise ClientBundleError(
@@ -93,7 +95,7 @@ impl PackageInstaller.install_package(
     self.config_loader.add_dependency(package_name, package_version, is_dev);
     # Save the updated config
     self.config_loader.save();
-    # Regenerate package.json and install the package via npm
+    # Regenerate package.json and install the package
     self._regenerate_and_install();
 }
 

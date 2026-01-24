@@ -10,6 +10,26 @@ Jac Client integrates with the core Jac package management system:
 - Uses `[dependencies.npm]` and `[dependencies.npm.dev]` sections
 - Automatically generates `package.json` from your configuration
 - Integrates seamlessly with the build system
+- **Supports both bun and npm** - automatically detects and uses bun if available, falls back to npm
+
+## Package Manager Selection
+
+Jac Client automatically detects your preferred package manager:
+
+1. **bun** (recommended) - Used if installed, faster installs
+2. **npm** - Fallback if bun is not available
+
+### Override Package Manager
+
+Set the `JAC_CLIENT_PACKAGE_MANAGER` environment variable:
+
+```bash
+# Force npm even if bun is installed
+JAC_CLIENT_PACKAGE_MANAGER=npm jac add --npm lodash
+
+# Force bun (will error if not installed)
+JAC_CLIENT_PACKAGE_MANAGER=bun jac add --npm lodash
+```
 
 ## Quick Start
 
@@ -124,7 +144,7 @@ JacClientConfig reads from jac.toml
     ↓
 ViteBundler generates package.json
     ↓
-npm install installs packages
+bun/npm install installs packages
 ```
 
 ### Generated Files
@@ -325,15 +345,17 @@ sass = "^1.77.8"
 - Check npm registry is accessible
 - Ensure you have internet connection
 
-### npm Command Not Found
+### Package Manager Not Found
 
-**Problem**: `npm command not found` error.
+**Problem**: `bun command not found` or `npm command not found` error.
 
 **Solution**:
 
-- Ensure Node.js and npm are installed
-- Verify npm is in your PATH
+- Install bun: `curl -fsSL https://bun.sh/install | bash` (recommended)
+- Or ensure Node.js and npm are installed
+- Verify the package manager is in your PATH: `bun --version` or `npm --version`
 - Check Node.js version: `node --version`
+- Override with: `JAC_CLIENT_PACKAGE_MANAGER=npm jac add --npm`
 
 ### Config Not Applied
 

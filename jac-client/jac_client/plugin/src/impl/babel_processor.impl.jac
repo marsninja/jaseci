@@ -10,17 +10,18 @@ impl BabelProcessor.copy_assets_after_compile(
     asset_processor.copy_typescript_files(compiled_dir, build_dir);
 }
 
-"""Run Babel compilation (npm run compile)."""
+"""Run Babel compilation."""
 impl BabelProcessor.compile(self: BabelProcessor) -> None {
     bundler = ViteBundler(self.project_dir);
-    # Ensure root package.json exists temporarily for npm commands
+    # Ensure root package.json exists temporarily for package manager commands
     bundler._ensure_root_package_json();
     try {
         # Ensure dependencies are installed (check if node_modules exists)
         client_dir = bundler._get_client_dir();
         node_modules = client_dir / 'node_modules';
+        pm = PackageManager.get_preferred();
         if not node_modules.exists() {
-            # Temporarily copy package.json to .jac/client/ for npm install
+            # Temporarily copy package.json to .jac/client/ for install
             build_package_json = client_dir / 'package.json';
             configs_package_json = client_dir / 'configs' / 'package.json';
             if configs_package_json.exists() and not build_package_json.exists() {
@@ -30,36 +31,34 @@ impl BabelProcessor.compile(self: BabelProcessor) -> None {
             try {
                 # Install to .jac/client/node_modules
                 subprocess.run(
-                    ['npm', 'install'],
+                    PackageManager.get_install_cmd(),
                     cwd=client_dir,
                     check=True,
                     capture_output=True,
                     text=True
                 );
             } except subprocess.CalledProcessError as e {
-                raise ClientBundleError(
-                    f'Failed to install npm dependencies: {e.stderr}'
-                ) from e ;
+                raise ClientBundleError(f'Failed to install dependencies: {e.stderr}') from e ;
             } except FileNotFoundError {
                 raise ClientBundleError(
-                    'npm command not found. Ensure Node.js and npm are installed.'
+                    f'{pm} command not found. Ensure Node.js and {pm} are installed.'
                 ) from None ;
             }
         }
 
-        # Temporarily copy package.json to .jac/client/ for npm run compile
+        # Temporarily copy package.json to .jac/client/ for compile
         build_package_json = client_dir / 'package.json';
         configs_package_json = client_dir / 'configs' / 'package.json';
         if configs_package_json.exists() and not build_package_json.exists() {
             import shutil;
             shutil.copy2(configs_package_json, build_package_json);
         }
-        command = ['npm', 'run', 'compile'];
+        command = PackageManager.get_run_cmd('compile');
         result = subprocess.run(
             command, cwd=client_dir, capture_output=True, text=True
         );
         if result.returncode != 0 {
-            # Show the actual error from npm/babel
+            # Show the actual error from package manager/babel
             error_output = result.stderr or result.stdout or "Unknown error";
             raise RuntimeError(f"Client bundle compilation failed:\n{error_output}") ;
         }

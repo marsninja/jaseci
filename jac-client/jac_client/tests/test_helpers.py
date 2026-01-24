@@ -26,27 +26,48 @@ def get_jac_command() -> list[str]:
     return [sys.executable, "-m", "jaclang"]
 
 
-def get_env_with_npm() -> dict[str, str]:
-    """Get environment dict with npm in PATH."""
+def get_env_with_package_manager() -> dict[str, str]:
+    """Get environment dict with bun/npm in PATH."""
     env = os.environ.copy()
+    current_path = env.get("PATH", "")
+
+    # Check for bun first (preferred)
+    bun_path = shutil.which("bun")
+    if bun_path:
+        bun_dir = str(Path(bun_path).parent)
+        if bun_dir not in current_path:
+            env["PATH"] = f"{bun_dir}:{current_path}"
+            current_path = env["PATH"]
+
+    # Also check common bun install location
+    bun_home = Path.home() / ".bun" / "bin"
+    if bun_home.exists() and str(bun_home) not in current_path:
+        env["PATH"] = f"{bun_home}:{current_path}"
+        current_path = env["PATH"]
+
+    # Check for npm
     npm_path = shutil.which("npm")
     if npm_path:
         npm_dir = str(Path(npm_path).parent)
-        current_path = env.get("PATH", "")
         if npm_dir not in current_path:
             env["PATH"] = f"{npm_dir}:{current_path}"
-    # Also check common nvm locations
+            current_path = env["PATH"]
+
+    # Also check common nvm locations for npm
     nvm_dir = os.environ.get("NVM_DIR", os.path.expanduser("~/.nvm"))
     nvm_node_bin = Path(nvm_dir) / "versions" / "node"
     if nvm_node_bin.exists():
         for version_dir in nvm_node_bin.iterdir():
             bin_dir = version_dir / "bin"
             if bin_dir.exists() and (bin_dir / "npm").exists():
-                current_path = env.get("PATH", "")
                 if str(bin_dir) not in current_path:
                     env["PATH"] = f"{bin_dir}:{current_path}"
                 break
     return env
+
+
+# Backwards compatibility alias
+get_env_with_npm = get_env_with_package_manager
 
 
 def wait_for_port(host: str, port: int, timeout: float = 60.0) -> None:

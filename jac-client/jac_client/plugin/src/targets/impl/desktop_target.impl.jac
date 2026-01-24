@@ -1297,17 +1297,18 @@ def _check_and_install_tauri_cli -> None {
         }
     } except Exception { }
 
-    # Check if npm tauri CLI is available
-    npm_tauri_ok = False;
+    # Check if package manager (bun/npm) tauri CLI is available
+    pm = PackageManager.get_preferred();
+    pm_tauri_ok = False;
     try {
         result = subprocess.run(
-            ["npm", "list", "-g", "@tauri-apps/cli"],
+            PackageManager.get_global_list_cmd() + ["@tauri-apps/cli"],
             capture_output=True,
             text=True,
             timeout=5
         );
         if result.returncode == 0 {
-            console.print("  ✔ Tauri CLI found (npm)", style="success");
+            console.print(f"  ✔ Tauri CLI found ({pm})", style="success");
             return;
         }
     } except Exception { }
@@ -1327,23 +1328,17 @@ def _check_and_install_tauri_cli -> None {
         cargo_available = True;
     } except Exception { }
 
-    # Check if npm is available
-    npm_available = False;
-    try {
-        subprocess.run(
-            ["npm", "--version"], capture_output=True, check=True, timeout=5
-        );
-        npm_available = True;
-    } except Exception { }
+    # Check if package manager (bun/npm) is available
+    pm_available = PackageManager.is_bun_installed()
+    or PackageManager.is_npm_installed();
 
-    if not cargo_available and not npm_available {
+    if not cargo_available and not pm_available {
         console.print(
-            "  Neither cargo nor npm is available. Cannot install Tauri CLI automatically.",
+            "  Neither cargo nor bun/npm is available. Cannot install Tauri CLI automatically.",
             style="muted"
         );
         console.print(
-            "  Please install Rust (for cargo) or Node.js (for npm) first.",
-            style="muted"
+            "  Please install Rust (for cargo) or Node.js/bun first.", style="muted"
         );
         return;
     }
@@ -1365,17 +1360,17 @@ def _check_and_install_tauri_cli -> None {
                     console.print("  ✔ Tauri CLI installed", style="success");
                     return;
                 } else {
-                    console.warning("  Failed to install via cargo. Trying npm...");
+                    console.warning(f"  Failed to install via cargo. Trying {pm}...");
                 }
             } except Exception as e {
                 console.warning(f"  Error installing via cargo: {e}");
             }
         }
-        if npm_available {
-            console.print("  Installing Tauri CLI via npm...", style="muted");
+        if pm_available {
+            console.print(f"  Installing Tauri CLI via {pm}...", style="muted");
             try {
                 result = subprocess.run(
-                    ["npm", "install", "-g", "@tauri-apps/cli"],
+                    PackageManager.get_global_add_cmd("@tauri-apps/cli"),
                     check=False,
                     timeout=300,
                     capture_output=False  # Show output
@@ -1384,18 +1379,22 @@ def _check_and_install_tauri_cli -> None {
                     console.print("  ✔ Tauri CLI installed", style="success");
                     return;
                 } else {
-                    console.warning("  Failed to install via npm");
+                    console.warning(f"  Failed to install via {pm}");
                 }
             } except Exception as e {
-                console.warning(f"  Error installing via npm: {e}");
+                console.warning(f"  Error installing via {pm}: {e}");
             }
         }
         console.print("  Please install manually:", style="muted");
         if cargo_available {
             console.print("    cargo install tauri-cli", style="muted");
         }
-        if npm_available {
-            console.print("    npm install -g @tauri-apps/cli", style="muted");
+        if pm_available {
+            if pm == 'bun' {
+                console.print("    bun add -g @tauri-apps/cli", style="muted");
+            } else {
+                console.print("    npm install -g @tauri-apps/cli", style="muted");
+            }
         }
     } else {
         console.print("  Skipping Tauri CLI installation.", style="muted");
@@ -1405,8 +1404,12 @@ def _check_and_install_tauri_cli -> None {
         if cargo_available {
             console.print("    cargo install tauri-cli", style="muted");
         }
-        if npm_available {
-            console.print("    npm install -g @tauri-apps/cli", style="muted");
+        if pm_available {
+            if pm == 'bun' {
+                console.print("    bun add -g @tauri-apps/cli", style="muted");
+            } else {
+                console.print("    npm install -g @tauri-apps/cli", style="muted");
+            }
         }
     }
 }
@@ -1846,22 +1849,23 @@ def _run_tauri_build(tauri_dir: Path, platform: Optional[str] = None) -> Path {
         target = "x86_64-unknown-linux-gnu";
     }
 
-    # Build command
-    build_cmd = ["npm", "run", "tauri", "build"];
+    # Build command using preferred package manager
+    pm = PackageManager.get_preferred();
+    build_cmd = PackageManager.get_run_cmd("tauri") + ["build"];
     if target {
         build_cmd.extend(["--", "--client", target]);
     }
 
     # Check if package.json has tauri scripts, if not, use cargo directly
     package_json = tauri_dir.parent / "package.json";
-    use_npm = False;
+    use_pm = False;
     if package_json.exists() {
         try {
             with open(package_json, "r") as f {
                 package_data = json.load(f);
                 scripts = package_data.get("scripts", {});
                 if "tauri" in scripts or "tauri:build" in scripts {
-                    use_npm = True;
+                    use_pm = True;
                 }
             }
         } except Exception {
@@ -1869,7 +1873,7 @@ def _run_tauri_build(tauri_dir: Path, platform: Optional[str] = None) -> Path {
         }
     }
 
-    if not use_npm {
+    if not use_pm {
         # Use cargo tauri build directly
         build_cmd = ["cargo", "tauri", "build"];
         if target {
@@ -2199,6 +2203,7 @@ def _run_tauri_dev(tauri_dir: Path) -> subprocess.Popen {
     }
 
     # Check if tauri CLI is available via cargo
+    pm = PackageManager.get_preferred();
     try {
         subprocess.run(
             ["cargo", "tauri", "--version"], capture_output=True, check=True, timeout=5
@@ -2210,32 +2215,41 @@ def _run_tauri_dev(tauri_dir: Path) -> subprocess.Popen {
     ) {
         console.warning("Tauri CLI not found.");
         console.print("  Install manually: cargo install tauri-cli", style="muted");
-        console.print("  Or use npm: npm install -D @tauri-apps/cli", style="muted");
+        if pm == 'bun' {
+            console.print("  Or use bun: bun add -D @tauri-apps/cli", style="muted");
+        } else {
+            console.print(
+                "  Or use npm: npm install -D @tauri-apps/cli", style="muted"
+            );
+        }
+        install_hint = "bun add -D @tauri-apps/cli"
+        if pm == 'bun'
+        else "npm install -D @tauri-apps/cli";
         raise RuntimeError(
-            "Tauri CLI not installed. Install it first:\n"
-            "  cargo install tauri-cli\n"
-            "  Or: npm install -D @tauri-apps/cli"
+            f"Tauri CLI not installed. Install it first:\n"
+            f"  cargo install tauri-cli\n"
+            f"  Or: {install_hint}"
         ) ;
     }
 
     # Check if package.json has tauri scripts
     package_json = tauri_dir.parent / "package.json";
-    use_npm = False;
+    use_pm = False;
     if package_json.exists() {
         try {
             with open(package_json, "r") as f {
                 package_data = json.load(f);
                 scripts = package_data.get("scripts", {});
                 if "tauri" in scripts or "tauri:dev" in scripts {
-                    use_npm = True;
+                    use_pm = True;
                 }
             }
         } except Exception { }
     }
 
-    if use_npm {
-        # Use npm run tauri dev
-        dev_cmd = ["npm", "run", "tauri", "dev"];
+    if use_pm {
+        # Use package manager to run tauri dev
+        dev_cmd = PackageManager.get_run_cmd("tauri") + ["dev"];
     } else {
         # Use cargo tauri dev directly
         dev_cmd = ["cargo", "tauri", "dev"];

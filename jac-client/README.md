@@ -146,8 +146,10 @@ cl {
 ## Requirements
 
 - Python: 3.12+
-- Node.js: For npm and Vite
+- Node.js and package manager: bun (recommended) or npm for Vite bundling
 - Jac Language: `jaclang` (installed automatically)
+
+> **Note**: jac-client automatically detects and uses bun if available, otherwise falls back to npm. Set `JAC_CLIENT_PACKAGE_MANAGER=npm` or `JAC_CLIENT_PACKAGE_MANAGER=bun` to override.
 
 ---
 
