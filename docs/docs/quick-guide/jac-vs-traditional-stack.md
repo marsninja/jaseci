@@ -408,18 +408,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 ---
 
-## Summary
-
-| Metric | Jac | Traditional Stack |
-|--------|-----|-------------------|
-| **Files** | 1 | 10 |
-| **Lines of Code** | 37 | ~200 |
-| **Languages** | 1 | 4 (Python, TypeScript, JSON, HTML) |
-| **Configuration Files** | 0 | 5 |
-| **Package Managers** | 0 | 2 (pip, npm) |
-| **Servers to Run** | 1 | 2 |
-| **Data Model Definitions** | 1 | 3 (SQLAlchemy, Pydantic, TypeScript) |
-
 ### What Each Approach Requires
 
 | Component | Traditional Stack | Jac |
@@ -435,21 +423,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 | Data loading effect | `useEffect` hook | `can with entry` |
 | Build tooling config | Required (Vite, TS) | Automatic |
 | HTML entry point | Required | Automatic |
-
-### Trade-offs
-
-**Traditional Stack:**
-
-- Full control over every layer of the application
-- Freedom to choose any database, ORM, or frontend framework
-- Mature tooling with large ecosystems and community support
-- More explicit code can make debugging straightforward
-- Requires more files and configuration to set up
-
-**Jac:**
-
-- Less code for equivalent functionality
-- Single language across frontend and backend
-- Automatic API generation and state management
-- Uses a graph-based data model (different from relational databases)
-- Newer ecosystem with growing third-party integrations
