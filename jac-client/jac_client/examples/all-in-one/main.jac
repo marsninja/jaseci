@@ -286,7 +286,7 @@ cl {
                     </strong>
                     {" "}
                     <strong>
-                        static assets
+                        staticassets
                     </strong>
                     {" "}
                     and
