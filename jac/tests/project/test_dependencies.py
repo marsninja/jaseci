@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import sys
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -127,6 +129,56 @@ class TestDependencyInstaller:
             assert result is True
             call_args = mock_pip.call_args[0][0]
             assert "git+https://github.com/user/plugin.git@main" in call_args
+
+    def test_install_package_replaces_older_version(self, temp_project: Path) -> None:
+        """Test that reinstalling a package replaces the existing installation."""
+        config = JacConfig.load(temp_project / "jac.toml")
+        installer = DependencyInstaller(config=config, verbose=True)
+
+        # Create packages directory with multiple dist-info versions
+        packages_dir = temp_project / ".jac" / "packages"
+        packages_dir.mkdir(parents=True, exist_ok=True)
+
+        pkg_dir = packages_dir / "typing_extensions"
+        pkg_dir.mkdir()
+        old_dist = packages_dir / "typing_extensions-4.15.0.dist-info"
+        old_dist.mkdir()
+        deppkg_dir = packages_dir / "subpkg-2.3.1.dist-info"
+        deppkg_dir.mkdir()
+        egg_info = packages_dir / "typing_extensions-4.15.0.egg-info"
+        egg_info.mkdir()
+
+        other_dist = packages_dir / "numpy-1.24.0.dist-info"
+        other_dist.mkdir()
+        past = time.time() - 10
+        os.utime(old_dist, (past, past))
+        os.utime(deppkg_dir, (past, past))
+        os.utime(egg_info, (past, past))
+
+        assert pkg_dir.exists()
+        assert old_dist.exists()
+        assert deppkg_dir.exists()
+        assert egg_info.exists()
+        assert other_dist.exists()
+
+        with patch.object(installer, "_run_pip", return_value=(0, "", "")):
+            (packages_dir / "typing_extensions-4.11.0.dist-info").mkdir()
+            (packages_dir / "subpkg-2.5.0.dist-info").mkdir()
+            installer.install_package("typing-extensions", "==4.11.0")
+
+            assert pkg_dir.exists()
+            assert not old_dist.exists()
+            assert not egg_info.exists()
+
+            # Newly installed version should exist
+            assert (packages_dir / "typing_extensions-4.11.0.dist-info").exists()
+
+            # Dependency should be replaced
+            assert not deppkg_dir.exists()
+            assert (packages_dir / "subpkg-2.5.0.dist-info").exists()
+
+            # Other package should remain
+            assert other_dist.exists()
 
     def test_install_all(self, temp_project: Path) -> None:
         """Test installing all dependencies."""
