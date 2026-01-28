@@ -164,6 +164,7 @@ base_url = ""  # Empty = same origin (default)
 **Default behavior (empty or not specified):**
 
 API calls use relative URLs (`/walker/...`, `/function/...`, `/user/...`), which hit the same origin where the frontend is served. This works seamlessly with:
+
 - Same server serving both frontend and backend
 - Dev mode proxy (Vite proxies API routes to backend)
 - Production reverse proxy (nginx, etc.)
@@ -176,6 +177,7 @@ base_url = "http://localhost:8000"
 ```
 
 With this config, API calls are made to `http://localhost:8000/walker/...` instead of relative paths. Useful when:
+
 - Backend runs on a different port/host
 - Deploying frontend separately from backend (e.g., CDN + API server)
 
