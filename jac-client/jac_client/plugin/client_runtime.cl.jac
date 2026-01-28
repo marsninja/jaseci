@@ -15,6 +15,9 @@ import from 'react-router-dom' {
 }
 import from 'react-error-boundary' { ErrorBoundary }
 
+# API base URL injected by Vite at build time (empty string = same origin)
+glob __JAC_API_BASE_URL__: str = "";
+
 def:pub __jacJsx(tag: any, props: dict = {}, children: any = []) -> any;
 
 # React hooks re-exported for auto-injection by `has` variables and `can with entry/exit` effects
@@ -40,6 +43,7 @@ async def:pub jacSignup(username: str, password: str) -> dict;
 async def:pub jacLogin(username: str, password: str) -> bool;
 def:pub jacLogout -> None;
 def:pub jacIsLoggedIn -> bool;
+def:pub __getApiBaseUrl -> str;
 def:pub __getLocalStorage(key: str) -> str;
 def:pub __setLocalStorage(key: str, value: str) -> None;
 def:pub __removeLocalStorage(key: str) -> None;

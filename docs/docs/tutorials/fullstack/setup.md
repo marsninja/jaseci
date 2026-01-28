@@ -265,6 +265,9 @@ entry-point = "main.jac"
 [plugins.client]
 # Client-specific config
 
+[plugins.client.api]
+base_url = ""  # Empty = same origin (default), or "http://api.example.com"
+
 [plugins.client.configs.postcss]
 plugins = ["tailwindcss", "autoprefixer"]
 
@@ -277,6 +280,8 @@ plugins = ["tailwindcss", "autoprefixer"]
 [dev-dependencies]
 watchdog = ">=3.0.0"
 ```
+
+**API Base URL**: By default, API calls (`jacSpawn`, `jacLogin`, etc.) use relative URLs hitting the same origin. For cross-origin setups, set `base_url` to your backend URL.
 
 ---
 
