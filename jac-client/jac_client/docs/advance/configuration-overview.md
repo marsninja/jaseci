@@ -71,10 +71,6 @@ version = "1.0.0"
 description = "My Jac application"
 entry-point = "main.jac"
 
-# API configuration (optional)
-[plugins.client.api]
-base_url = ""  # Empty = same origin (default), or "http://localhost:8000"
-
 # Vite configuration
 [plugins.client.vite]
 plugins = []
@@ -109,7 +105,6 @@ sass = "^1.77.8"
 |---------|---------|--------------|
 | `[project]` | Project metadata | Core Jac config |
 | `[serve]` | Server and routing configuration | See below |
-| `[plugins.client.api]` | Backend API URL configuration | See below |
 | `[plugins.client.vite]` | Vite build configuration | [Custom Configuration](./custom-config.md) |
 | `[plugins.client.ts]` | tsconfig.json customization | [Custom Configuration](./custom-config.md) |
 | `[dependencies.npm]` | npm runtime dependencies | [Package Management](./package-management.md) |
@@ -147,37 +142,6 @@ base_route_app = "app"
 ```
 
 With this config, visiting `/` renders the `app` client function directly, making it the default landing page.
-
-### API Configuration (`[plugins.client.api]`)
-
-The `[plugins.client.api]` section configures the backend API URL for client-side requests:
-
-```toml
-[plugins.client.api]
-base_url = ""  # Empty = same origin (default)
-```
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `base_url` | string | `""` | The base URL for API requests. Empty string uses same origin (relative URLs). |
-
-**Default behavior (empty or not specified):**
-
-API calls use relative URLs (`/walker/...`, `/function/...`, `/user/...`), which hit the same origin where the frontend is served. This works seamlessly with:
-- Same server serving both frontend and backend
-- Dev mode proxy (Vite proxies API routes to backend)
-- Production reverse proxy (nginx, etc.)
-
-**Example: Cross-origin API**
-
-```toml
-[plugins.client.api]
-base_url = "http://localhost:8000"
-```
-
-With this config, API calls are made to `http://localhost:8000/walker/...` instead of relative paths. Useful when:
-- Backend runs on a different port/host
-- Deploying frontend separately from backend (e.g., CDN + API server)
 
 ## Configuration Loading
 
