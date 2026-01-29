@@ -6,6 +6,14 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 - **Streaming Response Support**: Streaming responses are supported with walker spawn calls and function calls.
 
+- **Storage Abstraction**: Introduced a pluggable storage abstraction layer for file operations.
+  - Abstract `Storage` interface with standard operations: `upload`, `download`, `delete`, `list`, `copy`, `move`, `get_metadata`
+  - Default `LocalStorage` implementation in `jaclang.runtimelib.storage`
+  - Hookable `store(base_path, create_dirs)` builtin that returns a configured `Storage` instance
+  - Configure via `jac.toml [storage]` section or `JAC_STORAGE_PATH` / `JAC_STORAGE_CREATE_DIRS` environment variables
+
+- **jac destroy** command wait till fully removal of resources
+
 - **Internal**: Explicitly declared all postinit fields across the codebase.
 
 ### PyPI Installation by Default

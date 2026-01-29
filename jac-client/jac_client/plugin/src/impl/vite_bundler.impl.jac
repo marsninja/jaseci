@@ -638,6 +638,10 @@ export default defineConfig({{
         target: "http://localhost:{api_port}",
         changeOrigin: true,
       }},
+      "/static": {{
+        target: "http://localhost:{api_port}",
+        changeOrigin: true,
+      }},
     }},
   }},
   resolve: {{
