@@ -2,7 +2,11 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.9.12 (Unreleased)
+## jaclang 0.9.13 (Unreleased)
+
+- **Hot fix: call state**: Normal spawn calls inside API spawn calls supported.
+
+## jaclang 0.9.12 (Latest Release)
 
 - **Native Binary Compilation via `na {}` Blocks and `.na.jac` Files**: Added a third compilation target to Jac using `na {}` context blocks and `.na.jac` file conventions. Code within the `na` context compiles to native LLVM IR via llvmlite and is JIT-compiled to machine code at runtime. Functions defined in `na {}` blocks are callable via ctypes function pointers. Supports integer, float, and boolean types, arithmetic and comparison operators, if/else and while control flow, recursive function calls, local variables with type inference, and `print()` mapped to native `printf`. Native code is fully isolated from Python (`sv`) and JavaScript (`cl`) codegen -- `na` functions are excluded from both `py_ast` and `es_ast` output, and vice versa. The `llvmlite` package is now a core dependency.
 - **Startup error handling improvements:** Aggregates initialization errors and displays concise, formatted Vite/Bun bundling failures after the API endpoint list.
@@ -21,7 +25,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Support Go to Definition for Nested Unpacking Assignments**: Fixed symbol table generation to support recursive nested unpacking (e.g., `[a, [b, c]] = val`) ensuring all inner variables are registered.
 - **Fix: Module Name Truncation in MTIR Scope Resolution**: Fixed a bug where module names ending with 'j', 'a', or 'c' were incorrectly truncated due to using `.rstrip(".jac")` instead of `.removesuffix(".jac")`. This caused MTIR lookup failures and degraded functionality when the runtime tried to fetch metadata with the correct module name but found truncated keys (e.g., `test_schema` → `test_schem`).
 
-## jaclang 0.9.11 (Latest Release)
+## jaclang 0.9.11
 
 - **MTIR Generation Pass**: Added `MTIRGenPass` compiler pass that extracts semantic type information from GenAI `by` call sites at compile time. The pass captures parameter types, return types, semstrings, tool schemas, and class structures into `Info` dataclasses (`FunctionInfo`, `MethodInfo`, `ClassInfo`, `ParamInfo`, `FieldInfo`). MTIR is stored in `JacProgram.mtir_map` keyed by scope path.
 
@@ -32,7 +36,9 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **`@jac/runtime` Import Syntax**: Client-side runtime imports now use the npm-style `@jac/runtime` scoped package syntax instead of the previous `jac:client_runtime` prefix notation. Write `cl import from "@jac/runtime" { useState, useEffect, createSignal, ... }` in place of the old `cl import from jac:client_runtime { ... }`. The grammar no longer supports the `NAME:` prefix on import paths. The core bundler inlines `@jac/runtime` into the client bundle automatically, so no external dependencies are needed for basic fullstack apps.
 - **JSX Comprehension Syntax**: List and set comprehensions containing JSX elements now compile to JavaScript `.map()` and `.filter().map()` chains. Instead of verbose `{items.map(lambda item: dict -> any { return <li>{item}</li>; })}`, you can now write `{[<li key={item.id}>{item.title}</li> for item in items]}` or use double-brace syntax `{{ <li>{item}</li> for item in items }}`. Filtered comprehensions like `{[<li>{item}</li> for item in items if item.active]}` generate `.filter(item => item.active).map(item => ...)`. This brings Python-style comprehension elegance to JSX rendering.
 
-- **Permissive Type Check for Node Collections in Connections**: The type checker now accepts collections (list, tuple, set, frozenset) on the right side of connection operators (`++>`, `<++>`, etc.). Previously, code like `root ++> [Node1(), Node2(), Node3()];` was incorrectly rejected. This is a temporary workaround until element type inference for list literals is fully implemented.
+- **Type Checking Improvements**:
+  - **Permissive Type Check for Node Collections in Connections**: The type checker now accepts collections (list, tuple, set, frozenset) on the right side of connection operators (`++>`, `<++>`, etc.). Previously, code like `root ++> [Node1(), Node2(), Node3()];` was incorrectly rejected. This is a temporary workaround until element type inference for list literals is fully implemented.
+  - **Exclude `by postinit` Fields from Required Constructor Parameters**: Fields declared with `by postinit` are now correctly excluded from required constructor parameters during type checking. Previously, instantiating an object like `SomeObj()` with `by postinit` fields would incorrectly report missing required arguments, even though these fields are initialized via the `postinit` method.
 
 ## jaclang 0.9.10
 
