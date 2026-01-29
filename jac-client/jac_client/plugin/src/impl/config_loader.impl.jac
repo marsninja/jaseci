@@ -19,9 +19,7 @@ impl JacClientConfig.get_plugin_name(self: JacClientConfig) -> str {
 """Get default configuration structure for client."""
 impl JacClientConfig.get_default_config(self: JacClientConfig) -> dict[str, Any] {
     return {
-        'api': {
-            'base_url': ''  # Empty string = same origin (relative URLs)
-        },
+        'api': {'base_url': ''},
         'vite': {
             'plugins': [],
             'lib_imports': [],
