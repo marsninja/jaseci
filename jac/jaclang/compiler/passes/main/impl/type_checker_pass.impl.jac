@@ -125,6 +125,13 @@ impl TypeCheckPass.enter_ability(self: TypeCheckPass, <>node: uni.Ability) -> No
 
 """Exit an ability node - ensure parameter type annotations are evaluated."""
 impl TypeCheckPass.exit_ability(self: TypeCheckPass, <>node: uni.Ability) -> None {
+    # Clean up any early-return narrowing contexts that were pushed.
+    while self.early_return_narrowing_depth > 0 {
+        if self.evaluator.narrowing_stack {
+            self.evaluator.narrowing_stack.pop();
+        }
+        self.early_return_narrowing_depth -= 1;
+    }
     # For abilities with ImplDef body (stubs linked to impl files), the original declaration's
     # type annotation Name nodes are orphaned (not in the traversal tree). We need to explicitly
     # process them to enable hover/go-to-definition on the declaration file.
@@ -281,4 +288,139 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
     self.evaluator = self.prog.get_type_evaluator();
     self.evaluator.diagnostic_callback = self._add_diagnostic;
     self._insert_builtin_symbols();
+    self.early_return_narrowing_depth: int = 0;
+}
+
+# -------------------------------------------------------------------------
+# Type narrowing: enter/exit handlers for if/elif/else
+# -------------------------------------------------------------------------
+"""Push TRUE-branch narrowing context when entering an if-statement."""
+impl TypeCheckPass.enter_if_stmt(self: TypeCheckPass, <>node: uni.IfStmt) -> None {
+    preds = self.evaluator.extract_narrowing_predicates(<>node.condition);
+    ctx: dict[str, Any] = {};
+    for pred in preds {
+        ctx[pred[0]] = pred[1];  # symbol_name -> true_branch_type
+    }
+    self.evaluator.narrowing_stack.append(ctx);
+    # Store predicates on the node for else/elif to compute false-branch types.
+    <>node._narrowing_preds = preds;
+}
+
+"""Pop narrowing context when exiting an if-statement.
+
+If the if-body always returns (early return) and has no else_body,
+push FALSE-branch narrowing for subsequent sibling statements.
+"""
+impl TypeCheckPass.exit_if_stmt(self: TypeCheckPass, <>node: uni.IfStmt) -> None {
+    # Pop the TRUE-branch context (if else_body consumed it via enter_else_*,
+    # the stack may already be clean; guard with length check).
+    if (self.evaluator.narrowing_stack and not <>node.else_body) {
+        self.evaluator.narrowing_stack.pop();
+    }
+    # Early-return detection: if no else_body and body ends with return/raise,
+    # push FALSE-branch narrowing for subsequent siblings.
+    if (
+        <>node.else_body is None
+        and <>node.body
+        and isinstance(<>node.body[-1], (uni.ReturnStmt, uni.RaiseStmt))
+        and <>node?._narrowing_preds
+    ) {
+        preds = <>node._narrowing_preds;
+        ctx: dict[str, Any] = {};
+        for pred in preds {
+            ctx[pred[0]] = pred[2];  # symbol_name -> false_branch_type
+        }
+        if ctx {
+            self.evaluator.narrowing_stack.append(ctx);
+            self.early_return_narrowing_depth += 1;
+        }
+    }
+}
+
+"""Swap from parent's TRUE-branch to ElseIf's TRUE-branch narrowing."""
+impl TypeCheckPass.enter_else_if(self: TypeCheckPass, <>node: uni.ElseIf) -> None {
+    # Pop parent IfStmt's TRUE-branch context.
+    if self.evaluator.narrowing_stack {
+        self.evaluator.narrowing_stack.pop();
+    }
+    # Extract this elif's own condition predicates and push its TRUE context.
+    preds = self.evaluator.extract_narrowing_predicates(<>node.condition);
+    ctx: dict[str, Any] = {};
+    for pred in preds {
+        ctx[pred[0]] = pred[1];  # elif's true_branch_type
+    }
+    self.evaluator.narrowing_stack.append(ctx);
+    <>node._narrowing_preds = preds;
+}
+
+"""Pop ElseIf's narrowing context."""
+impl TypeCheckPass.exit_else_if(self: TypeCheckPass, <>node: uni.ElseIf) -> None {
+    # If ElseIf has no else_body, we need to pop its context.
+    if (self.evaluator.narrowing_stack and not <>node.else_body) {
+        self.evaluator.narrowing_stack.pop();
+    }
+}
+
+"""Swap to FALSE-branch narrowing when entering else block."""
+impl TypeCheckPass.enter_else_stmt(self: TypeCheckPass, <>node: uni.ElseStmt) -> None {
+    # Pop the preceding TRUE/elif context.
+    if self.evaluator.narrowing_stack {
+        self.evaluator.narrowing_stack.pop();
+    }
+    # Walk up through IfStmt/ElseIf chain to collect all excluded types,
+    # then compute what remains for the final else branch.
+    ctx: dict[str, Any] = {};
+    # The parent of ElseStmt is an IfStmt or ElseIf.
+    parent_if = <>node.parent;
+    # Collect all narrowing predicates from the if/elif chain.
+    all_excluded: dict[str, list] = {};
+    current = parent_if;
+    while (current is not None and isinstance(current, uni.IfStmt)) {
+        if current?._narrowing_preds {
+            for pred in current._narrowing_preds {
+                sym_name = pred[0];
+                true_type = pred[1];
+                if sym_name not in all_excluded {
+                    all_excluded[sym_name] = [];
+                }
+                all_excluded[sym_name].append(true_type);
+            }
+        }
+        # Walk up to parent IfStmt if current is an ElseIf.
+        if isinstance(current, uni.ElseIf) {
+            current = current.parent;
+            if isinstance(current, uni.IfStmt) {
+                continue;
+            }
+        }
+        break;
+    }
+    # Compute remaining types by excluding all true-branch types from the original.
+    for (sym_name, excluded_types) in all_excluded.items() {
+        # Get the original declared type.
+        orig_type = None;
+        if scope := <>node.find_parent_of_type(uni.UniScopeNode) {
+            import from jaclang.compiler.type_system { type_utils }
+            if sym := type_utils.lookup_symtab(
+                scope, sym_name, self.evaluator.builtins_module
+            ) {
+                orig_type = self.evaluator.get_type_of_symbol(sym);
+            }
+        }
+        if orig_type is not None {
+            remaining = orig_type;
+            for excl in excluded_types {
+                remaining = self.evaluator.exclude_type_from_union(remaining, excl);
+            }
+            ctx[sym_name] = remaining;
+        }
+    }
+    self.evaluator.narrowing_stack.append(ctx);
+}
+
+"""Pop FALSE-branch narrowing context when exiting else block."""
+impl TypeCheckPass.exit_else_stmt(self: TypeCheckPass, <>node: uni.ElseStmt) -> None {
+    if self.evaluator.narrowing_stack {
+        self.evaluator.narrowing_stack.pop();
+    }
 }

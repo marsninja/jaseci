@@ -311,6 +311,21 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                     }
                     # Check for function overloads
                     symbol_type = self.get_type_of_symbol(symbol);
+                    # Consult narrowing context for flow-sensitive type.
+                    # Narrowed types represent variable values, so ensure
+                    # they are instance types (not instantiable class types).
+                    if narrowed := self.get_narrowed_type(symbol) {
+                        if isinstance(narrowed, types.UnionType) {
+                            symbol_type = types.UnionType(
+                                types=[
+                                    self._convert_to_instance(t)
+                                    for t in narrowed.types
+                                ]
+                            );
+                        } else {
+                            symbol_type = self._convert_to_instance(narrowed);
+                        }
+                    }
                     if isinstance(symbol_type, types.FunctionType) {
                         overloaded_ty: types.OverloadedType | None = None;
                         overloaded_fns: list[types.FunctionType] = [symbol_type];
@@ -685,14 +700,20 @@ impl TypeEvaluator.get_type_of_expression(node_: uni.Expr) -> TypeBase {
     if isinstance(node_, uni.Ability) {
         return self.get_type_of_ability(node_);
     }
-    # If it's alreay "cached" return it.
-    if node_.type is not None {
+    # Don't use cached type for Name nodes when narrowing is active,
+    # since the same Name may have different types in different branches.
+    is_narrowable = (
+        self.narrowing_stack and isinstance(node_, (uni.Name, uni.SpecialVarRef))
+    );
+    if node_.type is not None and not is_narrowable {
         return node_.type;
     }
     result = self._get_type_of_expression_core(node_);
     # If the context has an expected type, pyright does a compatibility and set
     # a diagnostics here, I don't understand why that might be necessary here.
-    node_.type = result;  # Cache the result
+    if not is_narrowable {
+        node_.type = result;  # Cache the result (skip for narrowed names)
+    }
     return result;
 }
 
@@ -833,6 +854,8 @@ impl TypeEvaluator.init(program: "JacProgram") -> None {
     self.prefetch: PrefetchedTypes = PrefetchedTypes();
     self.diagnostic_callback: DiagnosticCallback | None = None;
     self.builtins_module: uni.Module | None = None;
+    # Type narrowing stack for flow-sensitive analysis.
+    self.narrowing_stack: list[dict[str, types.TypeBase]] = [];
     # Cache for module types by resolved path to avoid redundant lookups.
     self._module_type_cache: dict[str, types.ModuleType] = {};
     # NOTE: The initialization order here is important.
@@ -850,3 +873,118 @@ impl TypeEvaluator.init(program: "JacProgram") -> None {
 }
 # Cache the type, pyright is doing invalidateTypeCacheIfCanceled()
 # we're not doing that any time sooner.
+
+# -------------------------------------------------------------------------
+# Type narrowing support (flow-sensitive)
+# -------------------------------------------------------------------------
+"""Look up a narrowed type for the given symbol from the narrowing stack."""
+impl TypeEvaluator.get_narrowed_type(symbol: uni.Symbol) -> TypeBase | None {
+    for i in range(len(self.narrowing_stack) - 1, -1, -1) {
+        ctx = self.narrowing_stack[i];
+        if symbol.sym_name in ctx {
+            return ctx[symbol.sym_name];
+        }
+    }
+    return None;
+}
+
+"""Extract narrowing predicates from an if-condition expression.
+
+Returns a list of (symbol_name, true_branch_type, false_branch_type) tuples.
+"""
+impl TypeEvaluator.extract_narrowing_predicates(condition: uni.Expr) -> list {
+    result: list = [];
+    # Pattern 1: isinstance(name, Type)
+    if (
+        isinstance(condition, uni.FuncCall)
+        and isinstance(condition.target, uni.Name)
+        and condition.target.value == "isinstance"
+        and len(condition.params) == 2
+        and isinstance(condition.params[0], uni.Name)
+        and not isinstance(condition.params[0], uni.KWPair)
+        and not isinstance(condition.params[1], uni.KWPair)
+    ) {
+        var_name_node = condition.params[0];
+        type_name_node = condition.params[1];
+        assert isinstance(var_name_node, uni.Name);
+        # Get the variable's declared type.
+        var_type: TypeBase | None = None;
+        if scope := var_name_node.find_parent_of_type(uni.UniScopeNode) {
+            if sym := type_utils.lookup_symtab(
+                scope, var_name_node.value, self.builtins_module
+            ) {
+                var_type = self.get_type_of_symbol(sym);
+            }
+        }
+        # Get the isinstance type argument.
+        isinstance_type = self.get_type_of_expression(type_name_node);
+        isinstance_inst = self._convert_to_instance(isinstance_type);
+        if var_type is not None {
+            false_type = self.exclude_type_from_union(var_type, isinstance_inst);
+            result.append((var_name_node.value, isinstance_inst, false_type));
+        }
+    }
+    # Pattern 2: name is None / name is not None
+    elif (
+        isinstance(condition, uni.CompareExpr)
+        and len(condition.ops) == 1
+        and len(condition.rights) == 1
+        and isinstance(condition.left, uni.Name)
+        and isinstance(condition.rights[0], uni.Null)
+    ) {
+        var_name_node = condition.left;
+        assert isinstance(var_name_node, uni.Name);
+        op_name = condition.ops[0].name;
+        # Get the variable's declared type.
+        var_type: TypeBase | None = None;
+        if scope := var_name_node.find_parent_of_type(uni.UniScopeNode) {
+            if sym := type_utils.lookup_symtab(
+                scope, var_name_node.value, self.builtins_module
+            ) {
+                var_type = self.get_type_of_symbol(sym);
+            }
+        }
+        if var_type is not None and self.prefetch and self.prefetch.none_type_class {
+            none_inst = self._convert_to_instance(self.prefetch.none_type_class);
+            non_none_type = self.exclude_type_from_union(var_type, none_inst);
+            if op_name == Tok.KW_IS {
+                # `x is None` -> true: NoneType, false: non-None
+                result.append((var_name_node.value, none_inst, non_none_type));
+            } elif op_name == Tok.KW_ISN {
+                # `x is not None` -> true: non-None, false: NoneType
+                result.append((var_name_node.value, non_none_type, none_inst));
+            }
+        }
+    }
+    return result;
+}
+
+"""Exclude a type from a union, returning the remaining type(s)."""
+impl TypeEvaluator.exclude_type_from_union(
+    original: TypeBase, to_exclude: TypeBase
+) -> TypeBase {
+    if isinstance(original, types.UnionType) and original.types {
+        remaining: list[TypeBase] = [];
+        for t in original.types {
+            # Compare class types by their shared detail identity.
+            if (
+                isinstance(t, types.ClassType)
+                and isinstance(to_exclude, types.ClassType)
+                and t.shared is not None
+                and to_exclude.shared is not None
+                and t.shared == to_exclude.shared
+            ) {
+                continue;
+            }
+            remaining.append(t);
+        }
+        if len(remaining) == 0 {
+            return types.NeverType();
+        } elif len(remaining) == 1 {
+            return remaining[0];
+        } else {
+            return types.UnionType(types=remaining);
+        }
+    }
+    return original;
+}
