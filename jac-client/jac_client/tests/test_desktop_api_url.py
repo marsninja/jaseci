@@ -659,62 +659,52 @@ def test_sidecar_no_stdout_after_port_marker() -> None:
 
     After the Tauri host reads JAC_SIDECAR_PORT= from stdout, it drops the
     pipe reader. Any further stdout writes would crash the sidecar with
-    BrokenPipeError. This test verifies all status/error messages use stderr.
+    BrokenPipeError. The only stdout write must be the port marker via
+    sys.stdout.write(); all other output uses console (stderr) or sys.stderr.
     """
-    print("[DEBUG] Starting test_sidecar_no_stdout_after_port_marker")
-
     content = _sidecar_main_path.read_text()
 
-    # Find all print() calls in main() function body
     main_start = content.index("def main():")
     main_body = content[main_start:]
 
-    # The ONLY stdout print should be the port marker line.
-    # All other print() calls must use file=sys.stderr.
     import re
 
-    # Find all print() calls that do NOT include file=sys.stderr
-    # (these write to stdout by default)
-    stdout_prints = []
-    for match in re.finditer(r'print\(([^)]*)\)', main_body):
-        call_text = match.group(0)
-        # Skip if it writes to stderr
-        if "file=sys.stderr" in call_text:
-            continue
-        stdout_prints.append(call_text)
-
-    print(f"[DEBUG] Found {len(stdout_prints)} stdout print(s): {stdout_prints}")
-
-    # Exactly one stdout print: the port marker
-    assert len(stdout_prints) == 1, (
-        f"Expected exactly 1 stdout print (port marker), "
-        f"found {len(stdout_prints)}: {stdout_prints}"
-    )
-    assert "JAC_SIDECAR_PORT=" in stdout_prints[0], (
-        f"The only stdout print should be the port marker, got: {stdout_prints[0]}"
+    # No bare print() calls should exist — use console or sys.stderr.write()
+    bare_prints = re.findall(r'(?<!\.)print\(', main_body)
+    assert len(bare_prints) == 0, (
+        f"sidecar should not use bare print() — "
+        f"use console or sys.stderr.write() instead. "
+        f"Found {len(bare_prints)} bare print() call(s)"
     )
 
+    # The only sys.stdout usage should be the port marker + flush
+    stdout_writes = re.findall(r'sys\.stdout\.write\(', main_body)
+    assert len(stdout_writes) == 1, (
+        f"Expected exactly 1 sys.stdout.write (port marker), "
+        f"found {len(stdout_writes)}"
+    )
+    assert "JAC_SIDECAR_PORT=" in main_body[
+        main_body.index("sys.stdout.write("):
+    ], "The only stdout write should be the port marker"
 
-def test_sidecar_does_not_import_console() -> None:
-    """Test that the sidecar does not import jaclang.cli.console.
 
-    The sidecar uses plain print() with file=sys.stderr for output because
-    jaclang's base JacConsole.print() silently ignores the file= parameter,
-    causing all output to go to stdout regardless. This would cause
-    BrokenPipeError when the Tauri host drops the stdout pipe reader.
+def test_sidecar_uses_console_after_import() -> None:
+    """Test that the sidecar uses jaclang console for output after import.
+
+    After jaclang is successfully imported, the sidecar should use
+    console.print() / console.error() for all user-facing output.
+    Pre-import errors use sys.stderr.write() as a fallback.
     """
-    print("[DEBUG] Starting test_sidecar_does_not_import_console")
-
     content = _sidecar_main_path.read_text()
 
-    assert "from jaclang.cli.console" not in content, (
-        "sidecar should not import jaclang.cli.console — "
-        "use plain print(file=sys.stderr) instead because "
-        "JacConsole.print() silently ignores the file= parameter"
+    assert "from jaclang.cli.console import console" in content, (
+        "sidecar should import console from jaclang.cli.console"
     )
-    assert "console.print" not in content, (
-        "sidecar should not use console.print() — "
-        "use plain print(file=sys.stderr) to ensure correct output stream"
+    assert "console.print(" in content, (
+        "sidecar should use console.print() for status output"
+    )
+    assert "console.error(" in content, (
+        "sidecar should use console.error() for error output"
     )
 
 
