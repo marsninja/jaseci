@@ -12,6 +12,7 @@ These tests validate the changes introduced for desktop app URL resolution:
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import os
 import socket
 import subprocess
@@ -20,9 +21,8 @@ import tempfile
 import types
 from pathlib import Path
 from unittest.mock import MagicMock
-import importlib.util
-import pytest
 
+import pytest
 
 # =============================================================================
 # Shared path constants (avoid repeating long path constructions)
@@ -30,12 +30,8 @@ import pytest
 
 _plugin_src = Path(__file__).parent.parent / "plugin" / "src"
 
-_sidecar_main_path = (
-    _plugin_src / "targets" / "desktop" / "sidecar" / "main.py"
-)
-_desktop_target_impl_path = (
-    _plugin_src / "targets" / "impl" / "desktop_target.impl.jac"
-)
+_sidecar_main_path = _plugin_src / "targets" / "desktop" / "sidecar" / "main.py"
+_desktop_target_impl_path = _plugin_src / "targets" / "impl" / "desktop_target.impl.jac"
 _vite_bundler_jac_path = _plugin_src / "vite_bundler.jac"
 _vite_bundler_impl_path = _plugin_src / "impl" / "vite_bundler.impl.jac"
 
@@ -223,8 +219,7 @@ def test_setup_generates_main_rs_with_sidecar_support() -> None:
             '"""Test."""\ndef:pub hello() -> str { return "hi"; }\n'
         )
         (project_dir / "jac.toml").write_text(
-            '[project]\nname = "test"\nversion = "1.0.0"\n'
-            'entry-point = "main.jac"\n'
+            '[project]\nname = "test"\nversion = "1.0.0"\nentry-point = "main.jac"\n'
         )
 
         # Run setup
@@ -255,25 +250,23 @@ def test_setup_generates_main_rs_with_sidecar_support() -> None:
         print(f"[DEBUG] main.rs length: {len(main_rs_content)} chars")
 
         # Verify key patterns for sidecar port discovery
-        assert 'CONFIGURED_BASE_URL' in main_rs_content, (
+        assert "CONFIGURED_BASE_URL" in main_rs_content, (
             "main.rs should contain CONFIGURED_BASE_URL constant"
         )
-        assert 'API_BASE_URL' in main_rs_content, (
+        assert "API_BASE_URL" in main_rs_content, (
             "main.rs should contain API_BASE_URL global storage"
         )
-        assert 'JAC_SIDECAR_PORT=' in main_rs_content, (
+        assert "JAC_SIDECAR_PORT=" in main_rs_content, (
             "main.rs should contain JAC_SIDECAR_PORT= parsing logic"
         )
-        assert '--port' in main_rs_content, (
-            "main.rs should pass --port to sidecar"
-        )
+        assert "--port" in main_rs_content, "main.rs should pass --port to sidecar"
         assert '"0"' in main_rs_content, (
             "main.rs should use port 0 for dynamic allocation"
         )
-        assert 'initialization_script' in main_rs_content, (
+        assert "initialization_script" in main_rs_content, (
             "main.rs should use initialization_script to inject URL before page JS"
         )
-        assert '__JAC_API_BASE_URL__' in main_rs_content, (
+        assert "__JAC_API_BASE_URL__" in main_rs_content, (
             "main.rs should set globalThis.__JAC_API_BASE_URL__"
         )
 
@@ -332,13 +325,13 @@ def test_vite_bundler_has_api_base_url_constant() -> None:
 
     content = _vite_bundler_jac_path.read_text()
 
-    assert 'API_BASE_URL_ENV_VAR' in content, (
+    assert "API_BASE_URL_ENV_VAR" in content, (
         "vite_bundler.jac should define API_BASE_URL_ENV_VAR"
     )
     assert '"JAC_CLIENT_API_BASE_URL"' in content, (
         "API_BASE_URL_ENV_VAR should equal 'JAC_CLIENT_API_BASE_URL'"
     )
-    assert '_resolve_api_base_url' in content, (
+    assert "_resolve_api_base_url" in content, (
         "vite_bundler.jac should declare _resolve_api_base_url method"
     )
 
@@ -420,12 +413,14 @@ def test_env_var_cleanup_pattern_in_build() -> None:
 
     # Find the build method's env var handling section
     # It should use try/finally for cleanup
-    build_section = content[content.index("impl DesktopTarget.build"):]
+    build_section = content[content.index("impl DesktopTarget.build") :]
     # Cut at next impl to isolate the build method
     next_impl = build_section.index("impl ", 10)
     build_section = build_section[:next_impl]
 
-    assert "try {" in build_section, "build() should use try block around web_target.build()"
+    assert "try {" in build_section, (
+        "build() should use try block around web_target.build()"
+    )
     assert "} finally {" in build_section, (
         "build() should use finally block for env var cleanup"
     )
@@ -443,9 +438,11 @@ def test_env_var_cleanup_pattern_in_start() -> None:
     content = _desktop_target_impl_path.read_text()
 
     # Find the start method's env var handling section
-    start_section = content[content.index("impl DesktopTarget.start"):]
+    start_section = content[content.index("impl DesktopTarget.start") :]
 
-    assert "try {" in start_section, "start() should use try block around web_target.build()"
+    assert "try {" in start_section, (
+        "start() should use try block around web_target.build()"
+    )
     assert "} finally {" in start_section, (
         "start() should use finally block for env var cleanup"
     )
@@ -569,9 +566,7 @@ def test_cli_passes_port_to_desktop_target() -> None:
     """Test that cli.jac extracts --port and passes api_port to desktop target."""
     print("[DEBUG] Starting test_cli_passes_port_to_desktop_target")
 
-    cli_jac_path = (
-        Path(__file__).parent.parent / "plugin" / "cli.jac"
-    )
+    cli_jac_path = Path(__file__).parent.parent / "plugin" / "cli.jac"
     assert cli_jac_path.exists()
 
     content = cli_jac_path.read_text()
@@ -618,9 +613,7 @@ def test_sidecar_prints_port_marker_to_stdout() -> None:
     assert 'sys.stdout.write(f"JAC_SIDECAR_PORT={port}' in content, (
         "sidecar main.py should write JAC_SIDECAR_PORT marker to stdout"
     )
-    assert "sys.stdout.flush()" in content, (
-        "Port marker should be flushed immediately"
-    )
+    assert "sys.stdout.flush()" in content, "Port marker should be flushed immediately"
 
     # Verify the marker is printed BEFORE server.start()
     marker_pos = content.index("JAC_SIDECAR_PORT=")
@@ -674,7 +667,7 @@ def test_sidecar_no_stdout_after_port_marker() -> None:
     import re
 
     # No bare print() calls should exist — use console or sys.stderr.write()
-    bare_prints = re.findall(r'(?<!\.)print\(', main_body)
+    bare_prints = re.findall(r"(?<!\.)print\(", main_body)
     assert len(bare_prints) == 0, (
         f"sidecar should not use bare print() — "
         f"use console or sys.stderr.write() instead. "
@@ -682,14 +675,13 @@ def test_sidecar_no_stdout_after_port_marker() -> None:
     )
 
     # The only sys.stdout usage should be the port marker + flush
-    stdout_writes = re.findall(r'sys\.stdout\.write\(', main_body)
+    stdout_writes = re.findall(r"sys\.stdout\.write\(", main_body)
     assert len(stdout_writes) == 1, (
-        f"Expected exactly 1 sys.stdout.write (port marker), "
-        f"found {len(stdout_writes)}"
+        f"Expected exactly 1 sys.stdout.write (port marker), found {len(stdout_writes)}"
     )
-    assert "JAC_SIDECAR_PORT=" in main_body[
-        main_body.index("sys.stdout.write("):
-    ], "The only stdout write should be the port marker"
+    assert "JAC_SIDECAR_PORT=" in main_body[main_body.index("sys.stdout.write(") :], (
+        "The only stdout write should be the port marker"
+    )
 
 
 def test_sidecar_uses_console_after_import() -> None:
@@ -718,9 +710,10 @@ def test_desktop_target_imports_api_base_url_env_var() -> None:
 
     content = _desktop_target_impl_path.read_text()
 
-    assert "import from jac_client.plugin.src.vite_bundler { API_BASE_URL_ENV_VAR }" in content, (
-        "desktop_target.impl.jac should import API_BASE_URL_ENV_VAR from vite_bundler"
-    )
+    assert (
+        "import from jac_client.plugin.src.vite_bundler { API_BASE_URL_ENV_VAR }"
+        in content
+    ), "desktop_target.impl.jac should import API_BASE_URL_ENV_VAR from vite_bundler"
 
     print("[DEBUG] Import consistency verification passed!")
 
@@ -798,9 +791,7 @@ def test_start_backend_server_helper_exists() -> None:
         "_start_backend_server should pass --no_client flag"
     )
     # Should pass --port
-    assert '"--port"' in content, (
-        "_start_backend_server should pass --port flag"
-    )
+    assert '"--port"' in content, "_start_backend_server should pass --port flag"
 
 
 def test_resolve_server_port_helper_exists() -> None:
@@ -825,7 +816,9 @@ def test_start_method_launches_backend_server() -> None:
     next_impl = content.find("\nimpl ", start_idx + 1)
     if next_impl == -1:
         next_impl = content.find("\ndef _", start_idx + 100)
-    start_body = content[start_idx:next_impl] if next_impl != -1 else content[start_idx:]
+    start_body = (
+        content[start_idx:next_impl] if next_impl != -1 else content[start_idx:]
+    )
 
     assert "_start_backend_server(" in start_body, (
         "start() should call _start_backend_server"
@@ -858,6 +851,4 @@ def test_dev_method_launches_backend_server() -> None:
         "dev() should call _resolve_server_port to determine server port"
     )
     # Server process should be terminated in cleanup
-    assert "server_process" in dev_body, (
-        "dev() should manage server_process lifecycle"
-    )
+    assert "server_process" in dev_body, "dev() should manage server_process lifecycle"

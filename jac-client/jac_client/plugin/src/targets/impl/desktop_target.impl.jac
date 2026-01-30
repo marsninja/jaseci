@@ -12,17 +12,14 @@ import os;
 import platform;
 import stat;
 
-
 def _make_localhost_url(port: int) -> str {
     return f"http://127.0.0.1:{port}";
 }
-
 
 def _get_toml_api_base_url(project_dir: Path) -> str {
     config_loader = JacClientConfig(project_dir);
     return config_loader.get_api_config().get('base_url', '');
 }
-
 
 """Setup desktop target - scaffold Tauri project structure."""
 impl DesktopTarget.setup(self: DesktopTarget, project_dir: Path) -> None {
@@ -256,10 +253,7 @@ def _generate_tauri_config(
             "devUrl": "http://localhost:5173",
             "frontendDist": "../.jac/client/dist"
         },
-        "app": {
-            "windows": [],
-            "security": {"csp": None}
-        },
+        "app": {"windows": [], "security": {"csp": None}},
         "bundle": {"active": True, "targets": "all", "icon": []},
         "plugins": {}
     };
@@ -2146,8 +2140,7 @@ exec python -m jac_client.plugin.src.targets.desktop.sidecar.main "$@"
 
 """Start desktop dev server - start web dev server and launch tauri dev."""
 impl DesktopTarget.dev(
-    self: DesktopTarget, entry_file: Path, project_dir: Path,
-    api_port: int = 8000
+    self: DesktopTarget, entry_file: Path, project_dir: Path, api_port: int = 8000
 ) -> None {
     import from jac_client.plugin.src.vite_bundler { ViteBundler }
     import signal;
@@ -2200,7 +2193,8 @@ impl DesktopTarget.dev(
     console.print("  Starting web dev server...", style="muted");
     # Desktop webview needs an explicit backend URL (same-origin doesn't work)
     dev_config_path = bundler.create_dev_vite_config(
-        entry_file, api_port=api_port,
+        entry_file,
+        api_port=api_port,
         api_base_url_override=_make_localhost_url(api_port)
     );
     # Start Vite dev server
@@ -2216,12 +2210,15 @@ impl DesktopTarget.dev(
     server_port = _resolve_server_port(toml_base_url, api_port);
     # Regenerate main.rs with the actual backend URL so sidecar is skipped
     _generate_main_rs(
-        tauri_dir,
-        api_base_url=toml_base_url or _make_localhost_url(server_port)
+        tauri_dir, api_base_url=toml_base_url or _make_localhost_url(server_port)
     );
-    console.print(f"  Step 3: Starting backend server on port {server_port}...", style="muted");
+    console.print(
+        f"  Step 3: Starting backend server on port {server_port}...", style="muted"
+    );
     server_process = _start_backend_server(entry_file, project_dir, server_port);
-    console.print(f"  ✔ Backend server starting on port {server_port}", style="success");
+    console.print(
+        f"  ✔ Backend server starting on port {server_port}", style="success"
+    );
     # Step 4: Launch tauri dev
     console.print("  Step 4: Launching Tauri dev window...", style="muted");
     console.print("  (Press Ctrl+C to stop)", style="muted");
@@ -2433,8 +2430,16 @@ def _start_backend_server(entry_file: Path, project_dir: Path, port: int) -> Any
     import subprocess;
     import sys;
     server_process = subprocess.Popen(
-        [sys.executable, "-m", "jaclang", "start", str(entry_file),
-         "--port", str(port), "--no_client"],
+        [
+            sys.executable,
+            "-m",
+            "jaclang",
+            "start",
+            str(entry_file),
+            "--port",
+            str(port),
+            "--no_client"
+        ],
         cwd=str(project_dir),
         stdout=None,
         stderr=None
@@ -2454,8 +2459,7 @@ def _resolve_server_port(toml_base_url: str, api_port: int) -> int {
 
 """Start desktop app - build web bundle and launch Tauri with built bundle."""
 impl DesktopTarget.start(
-    self: DesktopTarget, entry_file: Path, project_dir: Path,
-    api_port: int = 8000
+    self: DesktopTarget, entry_file: Path, project_dir: Path, api_port: int = 8000
 ) -> None {
     import from jac_client.plugin.src.targets.web_target { WebTarget }
     import signal;
@@ -2487,12 +2491,15 @@ impl DesktopTarget.start(
     server_port = _resolve_server_port(toml_base_url, api_port);
     # Regenerate main.rs with the actual backend URL so sidecar is skipped
     _generate_main_rs(
-        tauri_dir,
-        api_base_url=toml_base_url or _make_localhost_url(server_port)
+        tauri_dir, api_base_url=toml_base_url or _make_localhost_url(server_port)
     );
-    console.print(f"  Step 3: Starting backend server on port {server_port}...", style="muted");
+    console.print(
+        f"  Step 3: Starting backend server on port {server_port}...", style="muted"
+    );
     server_process = _start_backend_server(entry_file, project_dir, server_port);
-    console.print(f"  ✔ Backend server starting on port {server_port}", style="success");
+    console.print(
+        f"  ✔ Backend server starting on port {server_port}", style="success"
+    );
     # Step 4: Launch tauri dev (which will use the built bundle)
     console.print("  Step 4: Launching Tauri app...", style="muted");
     console.print("  (Press Ctrl+C to stop)", style="muted");
