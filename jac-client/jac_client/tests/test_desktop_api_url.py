@@ -195,7 +195,7 @@ def test_setup_generates_main_rs_with_sidecar_support() -> None:
     - CONFIGURED_BASE_URL constant
     - JAC_SIDECAR_PORT= parsing logic
     - API_BASE_URL global storage
-    - webview.eval injection
+    - initialization_script injection (runs before page JS)
     """
     print("[DEBUG] Starting test_setup_generates_main_rs_with_sidecar_support")
 
@@ -265,8 +265,8 @@ def test_setup_generates_main_rs_with_sidecar_support() -> None:
         assert '"0"' in main_rs_content, (
             "main.rs should use port 0 for dynamic allocation"
         )
-        assert 'webview' in main_rs_content.lower() or 'eval' in main_rs_content, (
-            "main.rs should inject URL into webview"
+        assert 'initialization_script' in main_rs_content, (
+            "main.rs should use initialization_script to inject URL before page JS"
         )
         assert '__JAC_API_BASE_URL__' in main_rs_content, (
             "main.rs should set globalThis.__JAC_API_BASE_URL__"
@@ -728,3 +728,141 @@ def test_desktop_target_imports_api_base_url_env_var() -> None:
     )
 
     print("[DEBUG] Import consistency verification passed!")
+
+
+def test_main_rs_uses_initialization_script_not_eval() -> None:
+    """Test that generated main.rs uses initialization_script instead of webview.eval.
+
+    webview.eval() in setup() executes AFTER page JS has already run, causing
+    a race condition where API calls use same-origin before the URL is injected.
+    initialization_script() runs BEFORE any page JS, fixing the timing issue.
+    """
+    print("[DEBUG] Starting test_main_rs_uses_initialization_script_not_eval")
+
+    content = _desktop_target_impl_path.read_text()
+
+    # Find the generated main.rs template (the f-string in _generate_main_rs)
+    assert "initialization_script" in content, (
+        "Generated main.rs should use initialization_script for URL injection"
+    )
+    assert "WebviewWindowBuilder" in content, (
+        "Generated main.rs should create window manually via WebviewWindowBuilder"
+    )
+    # Verify webview.eval() is NOT used for URL injection
+    # (the old pattern: app.get_webview_window("main") + webview.eval)
+    assert 'get_webview_window("main")' not in content, (
+        "Generated main.rs should NOT use get_webview_window — "
+        "window is created manually with initialization_script"
+    )
+
+    print("[DEBUG] initialization_script pattern verification passed!")
+
+
+def test_tauri_config_has_empty_windows() -> None:
+    """Test that _generate_tauri_config sets windows to empty array.
+
+    main.rs creates the window manually via WebviewWindowBuilder to support
+    initialization_script. An auto-created window from config would conflict.
+    """
+    print("[DEBUG] Starting test_tauri_config_has_empty_windows")
+
+    content = _desktop_target_impl_path.read_text()
+
+    # The _generate_tauri_config function should set windows to []
+    assert '"windows": []' in content, (
+        "_generate_tauri_config should set windows to empty array"
+    )
+
+    # The config update functions should also clear windows
+    # Find both _update_tauri_config_for_build and _update_tauri_config_for_dev
+    assert content.count('["windows"] = []') >= 2, (
+        "Both config update functions should clear the windows array"
+    )
+
+    print("[DEBUG] Empty windows config verification passed!")
+
+
+# =============================================================================
+# Test: Backend server auto-start
+# =============================================================================
+
+
+def test_start_backend_server_helper_exists() -> None:
+    """Test that _start_backend_server helper is defined and uses subprocess."""
+    content = _desktop_target_impl_path.read_text()
+
+    assert "def _start_backend_server(" in content, (
+        "_start_backend_server helper should be defined"
+    )
+    # Should use subprocess.Popen to launch the server
+    assert "subprocess.Popen" in content, (
+        "_start_backend_server should use subprocess.Popen"
+    )
+    # Should pass --no_client to skip client bundling
+    assert '"--no_client"' in content, (
+        "_start_backend_server should pass --no_client flag"
+    )
+    # Should pass --port
+    assert '"--port"' in content, (
+        "_start_backend_server should pass --port flag"
+    )
+
+
+def test_resolve_server_port_helper_exists() -> None:
+    """Test that _resolve_server_port helper is defined and parses URLs."""
+    content = _desktop_target_impl_path.read_text()
+
+    assert "def _resolve_server_port(" in content, (
+        "_resolve_server_port helper should be defined"
+    )
+    assert "urlparse" in content, (
+        "_resolve_server_port should use urlparse to extract port from URL"
+    )
+
+
+def test_start_method_launches_backend_server() -> None:
+    """Test that start() method launches the backend server before Tauri."""
+    content = _desktop_target_impl_path.read_text()
+
+    # Find start() method
+    start_idx = content.index("impl DesktopTarget.start(")
+    # Find the next impl or end of file
+    next_impl = content.find("\nimpl ", start_idx + 1)
+    if next_impl == -1:
+        next_impl = content.find("\ndef _", start_idx + 100)
+    start_body = content[start_idx:next_impl] if next_impl != -1 else content[start_idx:]
+
+    assert "_start_backend_server(" in start_body, (
+        "start() should call _start_backend_server"
+    )
+    assert "_resolve_server_port(" in start_body, (
+        "start() should call _resolve_server_port to determine server port"
+    )
+    # Server process should be terminated in cleanup
+    assert "server_process" in start_body, (
+        "start() should manage server_process lifecycle"
+    )
+
+
+def test_dev_method_launches_backend_server() -> None:
+    """Test that dev() method launches the backend server before Tauri."""
+    content = _desktop_target_impl_path.read_text()
+
+    # Find dev() method
+    dev_idx = content.index("impl DesktopTarget.dev(")
+    # Find next impl
+    next_impl = content.find("\nimpl ", dev_idx + 1)
+    if next_impl == -1:
+        next_impl = content.find('\n"""Update tauri', dev_idx + 100)
+    dev_body = content[dev_idx:next_impl] if next_impl != -1 else content[dev_idx:]
+
+    assert "_start_backend_server(" in dev_body, (
+        "dev() should call _start_backend_server"
+    )
+    assert "_resolve_server_port(" in dev_body, (
+        "dev() should call _resolve_server_port to determine server port"
+    )
+    # Server process should be terminated in cleanup
+    assert "server_process" in dev_body, (
+        "dev() should manage server_process lifecycle"
+    )

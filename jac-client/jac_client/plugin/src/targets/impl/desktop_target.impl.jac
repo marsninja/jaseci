@@ -257,17 +257,7 @@ def _generate_tauri_config(
             "frontendDist": "../.jac/client/dist"
         },
         "app": {
-            "windows": [
-                {
-                    "title": name,
-                    "width": 1200,
-                    "height": 800,
-                    "minWidth": 800,
-                    "minHeight": 600,
-                    "resizable": True,
-                    "fullscreen": False
-                }
-            ],
+            "windows": [],
             "security": {"csp": None}
         },
         "bundle": {"active": True, "targets": "all", "icon": []},
@@ -482,13 +472,48 @@ api_base_url: embed this URL and skip sidecar port discovery.
     Empty string means dynamic discovery at runtime.
 """
 def _generate_main_rs(tauri_dir: Path, api_base_url: str = "") -> None {
+    import json;
+
+    # Read window config from tauri.conf.json (before we clear windows array)
+    config_path = tauri_dir / "tauri.conf.json";
+    win_title = "Jac App";
+    win_width = 1200;
+    win_height = 800;
+    win_min_width = 800;
+    win_min_height = 600;
+    win_resizable = "true";
+
+    if config_path.exists() {
+        with open(config_path, "r") as f {
+            config = json.load(f);
+        }
+        windows = config.get("app", {}).get("windows", []);
+        if windows {
+            win = windows[0];
+            win_title = win.get("title", win_title);
+            win_width = win.get("width", win_width);
+            win_height = win.get("height", win_height);
+            win_min_width = win.get("minWidth", win_min_width);
+            win_min_height = win.get("minHeight", win_min_height);
+            win_resizable = "true" if win.get("resizable", True) else "false";
+        } else {
+            # No windows in config — fall back to productName for title
+            win_title = config.get("productName", win_title);
+        }
+
+        # Clear windows array — main.rs creates the window manually now
+        config.setdefault("app", {})["windows"] = [];
+        with open(config_path, "w") as f {
+            json.dump(config, f, indent=2);
+        }
+    }
+
     main_rs = f'''// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::io::{{BufRead, BufReader}};
 use std::process::{{Command, Child, Stdio}};
 use std::sync::Mutex;
-use std::time::Duration;
 use tauri::Manager;
 
 // Global storage for sidecar process
@@ -655,24 +680,43 @@ fn stop_sidecar() {{
 fn main() {{
     tauri::Builder::default()
         .setup(|app| {{
-            // Try to start sidecar on app startup
+            // Start sidecar to discover dynamic port
             if let Err(e) = find_and_start_sidecar(app.handle()) {{
                 eprintln!("Warning: Could not start sidecar: {{}}", e);
             }}
 
-            // Inject the API base URL into the webview so the client JS knows
-            // where the backend is. This runs before any app JS executes.
-            let url = API_BASE_URL.lock().unwrap();
-            if let Some(ref base_url) = *url {{
-                if let Some(webview) = app.get_webview_window("main") {{
-                    let js = format!(
-                        "globalThis.__JAC_API_BASE_URL__ = '{{}}';",
-                        base_url
-                    );
-                    let _ = webview.eval(&js);
-                    eprintln!("Injected API base URL: {{}}", base_url);
+            // Build initialization script with API base URL
+            let init_js = {{
+                let url = API_BASE_URL.lock().unwrap();
+                match *url {{
+                    Some(ref base_url) => {{
+                        eprintln!("Injecting API base URL: {{}}", base_url);
+                        format!(
+                            "globalThis.__JAC_API_BASE_URL__ = '{{}}';",
+                            base_url
+                        )
+                    }}
+                    None => String::new(),
                 }}
+            }};
+
+            // Create window with initialization_script (runs BEFORE page JS)
+            let mut builder = tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::App("index.html".into())
+            )
+            .title("{win_title}")
+            .inner_size({win_width}.0, {win_height}.0)
+            .min_inner_size({win_min_width}.0, {win_min_height}.0)
+            .resizable({win_resizable});
+
+            if !init_js.is_empty() {{
+                builder = builder.initialization_script(&init_js);
             }}
+
+            builder.build()?;
+
             Ok(())
         }})
         .on_window_event(|_window, event| {{
@@ -1500,9 +1544,7 @@ impl DesktopTarget.build(
     if not tauri_dir.exists() {
         raise RuntimeError("Desktop target not set up. Run 'jac setup desktop' first.") ;
     }
-    # For desktop builds without a user-configured base_url, the sidecar will
-    # dynamically discover its port at runtime (webview injection in main.rs).
-    # If TOML base_url IS set, bake it into the bundle via the env var.
+    # Bake TOML base_url into the bundle; otherwise sidecar discovers port at runtime.
     toml_base_url = _get_toml_api_base_url(project_dir);
     if toml_base_url {
         os.environ[API_BASE_URL_ENV_VAR] = toml_base_url;
@@ -1742,6 +1784,9 @@ def _update_tauri_config_for_build(
     and config["build"]["beforeBuildCommand"] is None {
         del config["build"]["beforeBuildCommand"];
     }
+
+    # main.rs creates the window via WebviewWindowBuilder (for initialization_script)
+    config.setdefault("app", {})["windows"] = [];
 
     # Populate icon array if empty or missing
     _populate_icon_array(tauri_dir, config);
@@ -2172,7 +2217,13 @@ impl DesktopTarget.dev(
     console.print(
         f"  ✔ Web dev server running on http://localhost:{vite_port}", style="success"
     );
-    # Step 3: Launch tauri dev
+    # Step 3: Start backend API server
+    toml_base_url = _get_toml_api_base_url(project_dir);
+    server_port = _resolve_server_port(toml_base_url, api_port);
+    console.print(f"  Starting backend server on port {server_port}...", style="muted");
+    server_process = _start_backend_server(entry_file, project_dir, server_port);
+    console.print(f"  ✔ Backend server starting on port {server_port}", style="success");
+    # Step 4: Launch tauri dev
     console.print("  Launching Tauri dev window...", style="muted");
     console.print("  (Press Ctrl+C to stop)", style="muted");
     # Setup signal handlers for cleanup
@@ -2184,6 +2235,14 @@ impl DesktopTarget.dev(
                 vite_process.wait(timeout=5);
             } except Exception {
                 vite_process.kill();
+            }
+        }
+        if server_process {
+            try {
+                server_process.terminate();
+                server_process.wait(timeout=5);
+            } except Exception {
+                server_process.kill();
             }
         }
         console.print("  ✔ Dev servers stopped", style="success");
@@ -2248,6 +2307,9 @@ def _update_tauri_config_for_dev(tauri_dir: Path) -> None {
     and config["build"]["beforeBuildCommand"] is None {
         del config["build"]["beforeBuildCommand"];
     }
+
+    # main.rs creates the window via WebviewWindowBuilder (for initialization_script)
+    config.setdefault("app", {})["windows"] = [];
 
     # Populate icon array if empty or missing
     _populate_icon_array(tauri_dir, config);
@@ -2367,6 +2429,30 @@ def _run_tauri_dev(tauri_dir: Path) -> subprocess.Popen {
     }
 }
 
+"""Start backend API server as a subprocess, returning the Popen handle."""
+def _start_backend_server(entry_file: Path, project_dir: Path, port: int) -> Any {
+    import subprocess;
+    import sys;
+    server_process = subprocess.Popen(
+        [sys.executable, "-m", "jaclang", "start", str(entry_file),
+         "--port", str(port), "--no_client"],
+        cwd=str(project_dir),
+        stdout=None,
+        stderr=None
+    );
+    return server_process;
+}
+
+"""Resolve the API server port from toml_base_url or fall back to api_port."""
+def _resolve_server_port(toml_base_url: str, api_port: int) -> int {
+    if toml_base_url {
+        import from urllib.parse { urlparse }
+        parsed = urlparse(toml_base_url);
+        return parsed.port or api_port;
+    }
+    return api_port;
+}
+
 """Start desktop app - build web bundle and launch Tauri with built bundle."""
 impl DesktopTarget.start(
     self: DesktopTarget, entry_file: Path, project_dir: Path,
@@ -2382,9 +2468,7 @@ impl DesktopTarget.start(
     if not tauri_dir.exists() {
         raise RuntimeError("Desktop target not set up. Run 'jac setup desktop' first.") ;
     }
-    # Step 1: Build web bundle first
-    # Desktop webview needs an explicit backend URL (same-origin doesn't work).
-    # Set env var so ViteBundler.create_vite_config picks it up deep in the build chain.
+    # Step 1: Build web bundle with explicit backend URL for desktop webview.
     toml_base_url = _get_toml_api_base_url(project_dir);
     if not toml_base_url {
         os.environ[API_BASE_URL_ENV_VAR] = _make_localhost_url(api_port);
@@ -2397,15 +2481,30 @@ impl DesktopTarget.start(
         os.environ.pop(API_BASE_URL_ENV_VAR, None);
     }
     console.print(f"  ✔ Web bundle built: {web_bundle_path}", style="success");
+    # Regenerate main.rs (creates window via WebviewWindowBuilder with initialization_script)
+    _generate_main_rs(tauri_dir, api_base_url=toml_base_url);
     # Step 2: Update tauri.conf.json to point to web bundle
     console.print("  Step 2: Updating Tauri configuration...", style="muted");
     _update_tauri_config_for_build(tauri_dir, project_dir, web_bundle_path);
-    # Step 3: Launch tauri dev (which will use the built bundle)
-    console.print("  Step 3: Launching Tauri app...", style="muted");
+    # Step 3: Start backend API server
+    server_port = _resolve_server_port(toml_base_url, api_port);
+    console.print(f"  Step 3: Starting backend server on port {server_port}...", style="muted");
+    server_process = _start_backend_server(entry_file, project_dir, server_port);
+    console.print(f"  ✔ Backend server starting on port {server_port}", style="success");
+    # Step 4: Launch tauri dev (which will use the built bundle)
+    console.print("  Step 4: Launching Tauri app...", style="muted");
     console.print("  (Press Ctrl+C to stop)", style="muted");
     # Setup signal handlers for cleanup
     def cleanup -> None {
         console.print("\n  Stopping app...", style="muted");
+        if server_process {
+            try {
+                server_process.terminate();
+                server_process.wait(timeout=5);
+            } except Exception {
+                server_process.kill();
+            }
+        }
         console.print("  ✔ App stopped", style="success");
     }
     def signal_handler(signum: int, frame: Any) -> None {
