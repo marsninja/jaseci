@@ -609,12 +609,12 @@ def test_sidecar_prints_port_marker_to_stdout() -> None:
         f"sidecar main.py not found at {_sidecar_main_path}"
     )
 
-    # Verify the source contains the port marker print statement
+    # Verify the source contains the port marker written to stdout
     content = _sidecar_main_path.read_text()
-    assert 'print(f"JAC_SIDECAR_PORT={port}", flush=True)' in content, (
-        "sidecar main.py should print JAC_SIDECAR_PORT marker to stdout"
+    assert 'sys.stdout.write(f"JAC_SIDECAR_PORT={port}' in content, (
+        "sidecar main.py should write JAC_SIDECAR_PORT marker to stdout"
     )
-    assert "flush=True" in content, (
+    assert "sys.stdout.flush()" in content, (
         "Port marker should be flushed immediately"
     )
 
