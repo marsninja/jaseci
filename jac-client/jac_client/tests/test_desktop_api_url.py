@@ -17,6 +17,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -39,7 +40,7 @@ _vite_bundler_jac_path = _plugin_src / "vite_bundler.jac"
 _vite_bundler_impl_path = _plugin_src / "impl" / "vite_bundler.impl.jac"
 
 
-def _import_sidecar_main():
+def _import_sidecar_main() -> types.ModuleType:
     """Import sidecar main.py as a module.
 
     Uses importlib to load the module from its file path, since the sidecar

@@ -85,8 +85,9 @@ def main():
         module_path = base_path / module_path
 
     if not module_path.exists():
-        print(f"Error: Module file not found: {module_path}", file=sys.stderr)
-        print(f"  Base path: {base_path}", file=sys.stderr)
+        # Console not yet available (jaclang not imported)
+        sys.stderr.write(f"Error: Module file not found: {module_path}\n")
+        sys.stderr.write(f"  Base path: {base_path}\n")
         sys.exit(1)
 
     # Extract module name (without .jac extension)
@@ -98,25 +99,25 @@ def main():
         # Import jaclang (must be installed via pip)
         from jaclang.pycore.runtime import JacRuntime as Jac
     except ImportError as e:
-        print(f"Error: Failed to import Jac runtime: {e}", file=sys.stderr)
-        print(
-            "  Make sure jaclang is installed: pip install jaclang", file=sys.stderr
-        )
+        # Console not available (jaclang import failed)
+        sys.stderr.write(f"Error: Failed to import Jac runtime: {e}\n")
+        sys.stderr.write("  Make sure jaclang is installed: pip install jaclang\n")
         sys.exit(1)
+
+    # Get the console now that jaclang is available
+    from jaclang.cli.console import console
 
     # Initialize Jac runtime
     try:
         # Import the module
         Jac.jac_import(target=module_name, base_path=str(module_base), lng="jac")
         if Jac.program.errors_had:
-            print("Error: Failed to compile module:", file=sys.stderr)
+            console.error("Failed to compile module:")
             for error in Jac.program.errors_had:
-                print(f"  {error}", file=sys.stderr)
+                console.print(f"  {error}", style="error")
             sys.exit(1)
     except Exception as e:
-        print(
-            f"Error: Failed to load module '{module_name}': {e}", file=sys.stderr
-        )
+        console.error(f"Failed to load module '{module_name}': {e}")
         import traceback
 
         traceback.print_exc()
@@ -130,26 +131,28 @@ def main():
             module_name=module_name, port=port, base_path=str(base_path)
         )
 
-        # MUST be stdout (not stderr) — Tauri host reads this to discover the port
-        print(f"JAC_SIDECAR_PORT={port}", flush=True)
+        # MUST be raw stdout — Tauri host reads this line to discover the port.
+        # Cannot use console here; Tauri parses this exact format.
+        sys.stdout.write(f"JAC_SIDECAR_PORT={port}\n")
+        sys.stdout.flush()
 
         # stderr: Tauri drops the stdout pipe after reading the port marker,
         # so any further stdout writes raise BrokenPipeError.
-        print("Jac Sidecar starting...", file=sys.stderr)
-        print(f"  Module: {module_name}", file=sys.stderr)
-        print(f"  Base path: {base_path}", file=sys.stderr)
-        print(f"  Server: http://{args.host}:{port}", file=sys.stderr)
-        print("\nPress Ctrl+C to stop the server\n", file=sys.stderr)
+        console.print("Jac Sidecar starting...", style="bold")
+        console.print(f"  Module: {module_name}", style="muted")
+        console.print(f"  Base path: {base_path}", style="muted")
+        console.print(f"  Server: http://{args.host}:{port}", style="muted")
+        console.print("")
 
         # Start the server (blocks until interrupted)
         # no_client=True: client bundle is already embedded in the Tauri webview
         server.start(dev=False, no_client=True)
 
     except KeyboardInterrupt:
-        print("\nShutting down sidecar...", file=sys.stderr)
+        console.print("\nShutting down sidecar...", style="muted")
         sys.exit(0)
     except Exception as e:
-        print(f"Error: Server failed to start: {e}", file=sys.stderr)
+        console.error(f"Server failed to start: {e}")
         import traceback
 
         traceback.print_exc()
