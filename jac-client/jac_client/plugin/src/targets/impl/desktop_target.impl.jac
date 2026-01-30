@@ -3,12 +3,26 @@ import from pathlib { Path }
 import from typing { Optional, Any }
 import from jaclang.cli.console { console }
 import from jaclang.project.config { get_config }
+import from jac_client.plugin.src.config_loader { JacClientConfig }
+import from jac_client.plugin.src.vite_bundler { API_BASE_URL_ENV_VAR }
 import subprocess;
 import json;
 import shutil;
 import os;
 import platform;
 import stat;
+
+
+def _make_localhost_url(port: int) -> str {
+    return f"http://127.0.0.1:{port}";
+}
+
+
+def _get_toml_api_base_url(project_dir: Path) -> str {
+    config_loader = JacClientConfig(project_dir);
+    return config_loader.get_api_config().get('base_url', '');
+}
+
 
 """Setup desktop target - scaffold Tauri project structure."""
 impl DesktopTarget.setup(self: DesktopTarget, project_dir: Path) -> None {
@@ -462,154 +476,217 @@ except ImportError:
     );
 }
 
-"""Generate main.rs."""
-def _generate_main_rs(tauri_dir: Path) -> None {
-    main_rs = '''// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+"""Generate main.rs.
+
+api_base_url: embed this URL and skip sidecar port discovery.
+    Empty string means dynamic discovery at runtime.
+"""
+def _generate_main_rs(tauri_dir: Path, api_base_url: str = "") -> None {
+    main_rs = f'''// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::process::{Command, Child};
+use std::io::{{BufRead, BufReader}};
+use std::process::{{Command, Child, Stdio}};
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::Manager;
 
 // Global storage for sidecar process
 static SIDECAR_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
+static API_BASE_URL: Mutex<Option<String>> = Mutex::new(None);
 
-fn find_and_start_sidecar(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+/// User-configured base URL from jac.toml (empty = dynamic discovery)
+const CONFIGURED_BASE_URL: &str = "{api_base_url}";
+
+fn find_and_start_sidecar(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {{
+    // Skip sidecar launch — user manages their own backend
+    if !CONFIGURED_BASE_URL.is_empty() {{
+        let mut url = API_BASE_URL.lock().unwrap();
+        *url = Some(CONFIGURED_BASE_URL.to_string());
+        eprintln!("Using configured API base URL: {{}}", CONFIGURED_BASE_URL);
+        return Ok(());
+    }}
+
     // Try to find the sidecar in bundled resources
     let resource_dir = app.path().resource_dir()?;
 
     // Possible sidecar names
-    let sidecar_names = if cfg!(windows) {
+    let sidecar_names = if cfg!(windows) {{
         vec!["binaries/jac-sidecar.exe", "binaries/jac-sidecar.bat"]
-    } else {
+    }} else {{
         vec!["binaries/jac-sidecar", "binaries/jac-sidecar.sh"]
-    };
+    }};
 
     let mut sidecar_path = None;
-    for name in &sidecar_names {
+    for name in &sidecar_names {{
         let path = resource_dir.join(name);
-        if path.exists() {
+        if path.exists() {{
             sidecar_path = Some(path);
             break;
-        }
-    }
+        }}
+    }}
 
     // If not found in resources, try relative to executable
-    if sidecar_path.is_none() {
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
+    if sidecar_path.is_none() {{
+        if let Ok(exe_path) = std::env::current_exe() {{
+            if let Some(exe_dir) = exe_path.parent() {{
                 let exe_dir = exe_dir.to_path_buf();
-                for name in &sidecar_names {
+                for name in &sidecar_names {{
                     let path = exe_dir.join(name);
-                    if path.exists() {
+                    if path.exists() {{
                         sidecar_path = Some(path);
                         break;
-                    }
-                }
-            }
-        }
-    }
+                    }}
+                }}
+            }}
+        }}
+    }}
 
-    if let Some(sidecar_path) = sidecar_path {
+    if let Some(sidecar_path) = sidecar_path {{
         // Determine module path (try to find main.jac relative to app)
-        let module_path = if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
+        let module_path = if let Ok(exe_path) = std::env::current_exe() {{
+            if let Some(exe_dir) = exe_path.parent() {{
                 // Look for main.jac in parent directories
                 let mut current = exe_dir.to_path_buf();
-                loop {
+                loop {{
                     let main_jac = current.join("main.jac");
-                    if main_jac.exists() {
+                    if main_jac.exists() {{
                         break Some(main_jac);
-                    }
-                    if !current.pop() {
+                    }}
+                    if !current.pop() {{
                         break None;
-                    }
-                }
-            } else {
+                    }}
+                }}
+            }} else {{
                 None
-            }
-        } else {
+            }}
+        }} else {{
             None
-        };
+        }};
 
         // Build command to start sidecar
-        let mut cmd = if cfg!(windows) {
-            if sidecar_path.extension().and_then(|s| s.to_str()) == Some("bat") {
+        let mut cmd = if cfg!(windows) {{
+            if sidecar_path.extension().and_then(|s| s.to_str()) == Some("bat") {{
                 let mut c = Command::new("cmd");
                 c.arg("/C");
                 c.arg(&sidecar_path);
                 c
-            } else {
+            }} else {{
                 Command::new(&sidecar_path)
-            }
-        } else {
-            if sidecar_path.extension().and_then(|s| s.to_str()) == Some("sh") {
+            }}
+        }} else {{
+            if sidecar_path.extension().and_then(|s| s.to_str()) == Some("sh") {{
                 let mut c = Command::new("sh");
                 c.arg(&sidecar_path);
                 c
-            } else {
+            }} else {{
                 Command::new(&sidecar_path)
-            }
-        };
+            }}
+        }};
 
         // Add arguments
-        if let Some(ref mp) = module_path {
+        if let Some(ref mp) = module_path {{
             cmd.arg("--module-path").arg(mp);
-        } else {
+        }} else {{
             cmd.arg("--module-path").arg("main.jac");
-        }
-        cmd.arg("--port").arg("8000");
+        }}
+        cmd.arg("--port").arg("0"); // OS assigns free port
         cmd.arg("--host").arg("127.0.0.1");
 
-        // Spawn sidecar process
-        match cmd.spawn() {
-            Ok(child) => {
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::inherit());
+
+        match cmd.spawn() {{
+            Ok(mut child) => {{
+                let mut discovered_port: Option<u16> = None;
+                if let Some(stdout) = child.stdout.take() {{
+                    let reader = BufReader::new(stdout);
+                    for line in reader.lines() {{
+                        match line {{
+                            Ok(line) => {{
+                                eprintln!("[sidecar] {{}}", line);
+                                if let Some(port_str) = line.strip_prefix("JAC_SIDECAR_PORT=") {{
+                                    if let Ok(port) = port_str.trim().parse::<u16>() {{
+                                        discovered_port = Some(port);
+                                        break;
+                                    }}
+                                }}
+                            }}
+                            Err(_) => break,
+                        }}
+                    }}
+                }}
+
                 let mut process = SIDECAR_PROCESS.lock().unwrap();
                 *process = Some(child);
-                eprintln!("Sidecar started successfully");
+
+                if let Some(port) = discovered_port {{
+                    let base_url = format!("http://127.0.0.1:{{}}", port);
+                    eprintln!("Sidecar started on {{}}", base_url);
+                    let mut url = API_BASE_URL.lock().unwrap();
+                    *url = Some(base_url);
+                }} else {{
+                    eprintln!("Error: Sidecar started but did not report its port.");
+                    eprintln!("       Expected JAC_SIDECAR_PORT=<port> on stdout.");
+                    return Err("Sidecar port discovery failed".into());
+                }}
                 Ok(())
-            }
-            Err(e) => {
-                eprintln!("Failed to start sidecar: {}", e);
+            }}
+            Err(e) => {{
+                eprintln!("Failed to start sidecar: {{}}", e);
                 Err(Box::new(e))
-            }
-        }
-    } else {
+            }}
+        }}
+    }} else {{
         eprintln!("Sidecar not found in resources, skipping auto-start");
         Ok(())
-    }
-}
+    }}
+}}
 
-fn stop_sidecar() {
+fn stop_sidecar() {{
     let mut process = SIDECAR_PROCESS.lock().unwrap();
-    if let Some(mut child) = process.take() {
+    if let Some(mut child) = process.take() {{
         let _ = child.kill();
         let _ = child.wait();
         eprintln!("Sidecar stopped");
-    }
-}
+    }}
+}}
 
-fn main() {
+fn main() {{
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(|app| {{
             // Try to start sidecar on app startup
-            if let Err(e) = find_and_start_sidecar(app.handle()) {
-                eprintln!("Warning: Could not start sidecar: {}", e);
-            }
+            if let Err(e) = find_and_start_sidecar(app.handle()) {{
+                eprintln!("Warning: Could not start sidecar: {{}}", e);
+            }}
+
+            // Inject the API base URL into the webview so the client JS knows
+            // where the backend is. This runs before any app JS executes.
+            let url = API_BASE_URL.lock().unwrap();
+            if let Some(ref base_url) = *url {{
+                if let Some(webview) = app.get_webview_window("main") {{
+                    let js = format!(
+                        "globalThis.__JAC_API_BASE_URL__ = '{{}}';",
+                        base_url
+                    );
+                    let _ = webview.eval(&js);
+                    eprintln!("Injected API base URL: {{}}", base_url);
+                }}
+            }}
             Ok(())
-        })
-        .on_window_event(|_window, event| {
+        }})
+        .on_window_event(|_window, event| {{
             // Clean up sidecar when last window closes
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+            if matches!(event, tauri::WindowEvent::CloseRequested {{ .. }}) {{
                 stop_sidecar();
-            }
-        })
+            }}
+        }})
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 
     // Ensure sidecar is stopped on exit
     stop_sidecar();
-}
+}}
 ''';
 
     main_path = tauri_dir / "src" / "main.rs";
@@ -1423,11 +1500,24 @@ impl DesktopTarget.build(
     if not tauri_dir.exists() {
         raise RuntimeError("Desktop target not set up. Run 'jac setup desktop' first.") ;
     }
+    # For desktop builds without a user-configured base_url, the sidecar will
+    # dynamically discover its port at runtime (webview injection in main.rs).
+    # If TOML base_url IS set, bake it into the bundle via the env var.
+    toml_base_url = _get_toml_api_base_url(project_dir);
+    if toml_base_url {
+        os.environ[API_BASE_URL_ENV_VAR] = toml_base_url;
+    }
     # Step 1: Build web bundle first (reuse existing pipeline)
     console.print("  Step 1: Building web bundle...", style="muted");
     web_target = WebTarget();
-    web_bundle_path = web_target.build(entry_file, project_dir, platform);
+    try {
+        web_bundle_path = web_target.build(entry_file, project_dir, platform);
+    } finally {
+        os.environ.pop(API_BASE_URL_ENV_VAR, None);
+    }
     console.print(f"  ✔ Web bundle built: {web_bundle_path}", style="success");
+    # Regenerate main.rs with latest TOML config (base_url may have changed since setup)
+    _generate_main_rs(tauri_dir, api_base_url=toml_base_url);
     # Step 1.5: Bundle sidecar (optional - can be skipped if not needed)
     # This bundles the Jac backend as an executable for local use
     sidecar_bundled = False;
@@ -2017,7 +2107,8 @@ exec python -m jac_client.plugin.src.targets.desktop.sidecar.main "$@"
 
 """Start desktop dev server - start web dev server and launch tauri dev."""
 impl DesktopTarget.dev(
-    self: DesktopTarget, entry_file: Path, project_dir: Path
+    self: DesktopTarget, entry_file: Path, project_dir: Path,
+    api_port: int = 8000
 ) -> None {
     import from jac_client.plugin.src.vite_bundler { ViteBundler }
     import signal;
@@ -2068,8 +2159,11 @@ impl DesktopTarget.dev(
     console.print("  ✔ Module compiled for dev mode", style="success");
     # Step 2: Start web dev server
     console.print("  Starting web dev server...", style="muted");
-    # Create dev vite config
-    dev_config_path = bundler.create_dev_vite_config(entry_file, api_port=8000);
+    # Desktop webview needs an explicit backend URL (same-origin doesn't work)
+    dev_config_path = bundler.create_dev_vite_config(
+        entry_file, api_port=api_port,
+        api_base_url_override=_make_localhost_url(api_port)
+    );
     # Start Vite dev server
     vite_process = bundler.start_dev_server(port=vite_port);
     if not vite_process {
@@ -2275,11 +2369,13 @@ def _run_tauri_dev(tauri_dir: Path) -> subprocess.Popen {
 
 """Start desktop app - build web bundle and launch Tauri with built bundle."""
 impl DesktopTarget.start(
-    self: DesktopTarget, entry_file: Path, project_dir: Path
+    self: DesktopTarget, entry_file: Path, project_dir: Path,
+    api_port: int = 8000
 ) -> None {
     import from jac_client.plugin.src.targets.web_target { WebTarget }
     import signal;
     import sys;
+    import os;
     console.print("\n🖥️  Starting desktop app (Tauri)", style="bold");
     # Check if setup has been run
     tauri_dir = project_dir / "src-tauri";
@@ -2287,9 +2383,19 @@ impl DesktopTarget.start(
         raise RuntimeError("Desktop target not set up. Run 'jac setup desktop' first.") ;
     }
     # Step 1: Build web bundle first
+    # Desktop webview needs an explicit backend URL (same-origin doesn't work).
+    # Set env var so ViteBundler.create_vite_config picks it up deep in the build chain.
+    toml_base_url = _get_toml_api_base_url(project_dir);
+    if not toml_base_url {
+        os.environ[API_BASE_URL_ENV_VAR] = _make_localhost_url(api_port);
+    }
     console.print("  Step 1: Building web bundle...", style="muted");
     web_target = WebTarget();
-    web_bundle_path = web_target.build(entry_file, project_dir, None);
+    try {
+        web_bundle_path = web_target.build(entry_file, project_dir, None);
+    } finally {
+        os.environ.pop(API_BASE_URL_ENV_VAR, None);
+    }
     console.print(f"  ✔ Web bundle built: {web_bundle_path}", style="success");
     # Step 2: Update tauri.conf.json to point to web bundle
     console.print("  Step 2: Updating Tauri configuration...", style="muted");

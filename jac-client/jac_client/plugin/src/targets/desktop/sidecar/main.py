@@ -11,7 +11,7 @@ Usage:
 
 Options:
     --module-path PATH    Path to the .jac module file (default: main.jac)
-    --port PORT          Port to bind the API server (default: 8000)
+    --port PORT          Port to bind the API server (default: 8000, 0 = auto)
     --base-path PATH     Base path for the project (default: current directory)
     --host HOST          Host to bind to (default: 127.0.0.1)
     --help               Show this help message
@@ -20,10 +20,16 @@ Options:
 from __future__ import annotations
 
 import argparse
+import socket
 import sys
 from pathlib import Path
 
-from jaclang.cli.console import console
+
+def _find_free_port(host: str = "127.0.0.1") -> int:
+    """Find and return a free port on the given host."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((host, 0))
+        return s.getsockname()[1]
 
 
 def main():
@@ -41,7 +47,7 @@ def main():
         "--port",
         type=int,
         default=8000,
-        help="Port to bind the API server (default: 8000)",
+        help="Port to bind the API server (default: 8000, 0 = auto-assign free port)",
     )
     parser.add_argument(
         "--base-path",
@@ -57,6 +63,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    port = args.port
+    if port == 0:
+        port = _find_free_port(args.host)
 
     # Determine base path
     if args.base_path:
@@ -75,8 +85,8 @@ def main():
         module_path = base_path / module_path
 
     if not module_path.exists():
-        console.print(f"Error: Module file not found: {module_path}", file=sys.stderr)
-        console.print(f"  Base path: {base_path}", file=sys.stderr)
+        print(f"Error: Module file not found: {module_path}", file=sys.stderr)
+        print(f"  Base path: {base_path}", file=sys.stderr)
         sys.exit(1)
 
     # Extract module name (without .jac extension)
@@ -88,8 +98,8 @@ def main():
         # Import jaclang (must be installed via pip)
         from jaclang.pycore.runtime import JacRuntime as Jac
     except ImportError as e:
-        console.print(f"Error: Failed to import Jac runtime: {e}", file=sys.stderr)
-        console.print(
+        print(f"Error: Failed to import Jac runtime: {e}", file=sys.stderr)
+        print(
             "  Make sure jaclang is installed: pip install jaclang", file=sys.stderr
         )
         sys.exit(1)
@@ -99,12 +109,12 @@ def main():
         # Import the module
         Jac.jac_import(target=module_name, base_path=str(module_base), lng="jac")
         if Jac.program.errors_had:
-            console.print("Error: Failed to compile module:", file=sys.stderr)
+            print("Error: Failed to compile module:", file=sys.stderr)
             for error in Jac.program.errors_had:
-                console.print(f"  {error}", file=sys.stderr)
+                print(f"  {error}", file=sys.stderr)
             sys.exit(1)
     except Exception as e:
-        console.print(
+        print(
             f"Error: Failed to load module '{module_name}': {e}", file=sys.stderr
         )
         import traceback
@@ -117,23 +127,28 @@ def main():
         # Get server class (allows plugins like jac-scale to provide enhanced server)
         server_class = Jac.get_api_server_class()
         server = server_class(
-            module_name=module_name, port=args.port, base_path=str(base_path)
+            module_name=module_name, port=port, base_path=str(base_path)
         )
 
-        console.print("Jac Sidecar starting...")
-        console.print(f"  Module: {module_name}")
-        console.print(f"  Base path: {base_path}")
-        console.print(f"  Server: http://{args.host}:{args.port}")
-        console.print("\nPress Ctrl+C to stop the server\n")
+        # MUST be stdout (not stderr) — Tauri host reads this to discover the port
+        print(f"JAC_SIDECAR_PORT={port}", flush=True)
+
+        # stderr: Tauri drops the stdout pipe after reading the port marker,
+        # so any further stdout writes raise BrokenPipeError.
+        print("Jac Sidecar starting...", file=sys.stderr)
+        print(f"  Module: {module_name}", file=sys.stderr)
+        print(f"  Base path: {base_path}", file=sys.stderr)
+        print(f"  Server: http://{args.host}:{port}", file=sys.stderr)
+        print("\nPress Ctrl+C to stop the server\n", file=sys.stderr)
 
         # Start the server (blocks until interrupted)
         server.start(dev=False)
 
     except KeyboardInterrupt:
-        console.print("\nShutting down sidecar...")
+        print("\nShutting down sidecar...", file=sys.stderr)
         sys.exit(0)
     except Exception as e:
-        console.print(f"Error: Server failed to start: {e}", file=sys.stderr)
+        print(f"Error: Server failed to start: {e}", file=sys.stderr)
         import traceback
 
         traceback.print_exc()
