@@ -500,12 +500,6 @@ def _generate_main_rs(tauri_dir: Path, api_base_url: str = "") -> None {
             # No windows in config — fall back to productName for title
             win_title = config.get("productName", win_title);
         }
-
-        # Clear windows array — main.rs creates the window manually now
-        config.setdefault("app", {})["windows"] = [];
-        with open(config_path, "w") as f {
-            json.dump(config, f, indent=2);
-        }
     }
 
     main_rs = f'''// Prevents additional console window on Windows in release, DO NOT REMOVE!!
@@ -2220,11 +2214,16 @@ impl DesktopTarget.dev(
     # Step 3: Start backend API server
     toml_base_url = _get_toml_api_base_url(project_dir);
     server_port = _resolve_server_port(toml_base_url, api_port);
-    console.print(f"  Starting backend server on port {server_port}...", style="muted");
+    # Regenerate main.rs with the actual backend URL so sidecar is skipped
+    _generate_main_rs(
+        tauri_dir,
+        api_base_url=toml_base_url or _make_localhost_url(server_port)
+    );
+    console.print(f"  Step 3: Starting backend server on port {server_port}...", style="muted");
     server_process = _start_backend_server(entry_file, project_dir, server_port);
     console.print(f"  ✔ Backend server starting on port {server_port}", style="success");
     # Step 4: Launch tauri dev
-    console.print("  Launching Tauri dev window...", style="muted");
+    console.print("  Step 4: Launching Tauri dev window...", style="muted");
     console.print("  (Press Ctrl+C to stop)", style="muted");
     # Setup signal handlers for cleanup
     def cleanup -> None {
@@ -2481,13 +2480,16 @@ impl DesktopTarget.start(
         os.environ.pop(API_BASE_URL_ENV_VAR, None);
     }
     console.print(f"  ✔ Web bundle built: {web_bundle_path}", style="success");
-    # Regenerate main.rs (creates window via WebviewWindowBuilder with initialization_script)
-    _generate_main_rs(tauri_dir, api_base_url=toml_base_url);
     # Step 2: Update tauri.conf.json to point to web bundle
     console.print("  Step 2: Updating Tauri configuration...", style="muted");
     _update_tauri_config_for_build(tauri_dir, project_dir, web_bundle_path);
     # Step 3: Start backend API server
     server_port = _resolve_server_port(toml_base_url, api_port);
+    # Regenerate main.rs with the actual backend URL so sidecar is skipped
+    _generate_main_rs(
+        tauri_dir,
+        api_base_url=toml_base_url or _make_localhost_url(server_port)
+    );
     console.print(f"  Step 3: Starting backend server on port {server_port}...", style="muted");
     server_process = _start_backend_server(entry_file, project_dir, server_port);
     console.print(f"  ✔ Backend server starting on port {server_port}", style="success");
@@ -2495,8 +2497,17 @@ impl DesktopTarget.start(
     console.print("  Step 4: Launching Tauri app...", style="muted");
     console.print("  (Press Ctrl+C to stop)", style="muted");
     # Setup signal handlers for cleanup
+    tauri_process = None;
     def cleanup -> None {
         console.print("\n  Stopping app...", style="muted");
+        if tauri_process {
+            try {
+                tauri_process.terminate();
+                tauri_process.wait(timeout=5);
+            } except Exception {
+                tauri_process.kill();
+            }
+        }
         if server_process {
             try {
                 server_process.terminate();
@@ -2513,7 +2524,6 @@ impl DesktopTarget.start(
     }
     signal.signal(signal.SIGINT, signal_handler);
     signal.signal(signal.SIGTERM, signal_handler);
-    tauri_process = None;
     try {
         # Run tauri dev (it will use the built bundle from distDir)
         tauri_process = _run_tauri_dev(tauri_dir);
@@ -2532,16 +2542,6 @@ impl DesktopTarget.start(
         console.print(
             "\n  Keyboard interrupt detected. Stopping app...", style="muted"
         );
-        if tauri_process {
-            try {
-                tauri_process.terminate();
-                tauri_process.wait(timeout=5);
-            } except Exception {
-                if tauri_process {
-                    tauri_process.kill();
-                }
-            }
-        }
     } except Exception as e {
         console.error(f"  Error starting desktop app: {e}");
         import traceback;

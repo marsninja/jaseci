@@ -142,7 +142,8 @@ def main():
         print("\nPress Ctrl+C to stop the server\n", file=sys.stderr)
 
         # Start the server (blocks until interrupted)
-        server.start(dev=False)
+        # no_client=True: client bundle is already embedded in the Tauri webview
+        server.start(dev=False, no_client=True)
 
     except KeyboardInterrupt:
         print("\nShutting down sidecar...", file=sys.stderr)
