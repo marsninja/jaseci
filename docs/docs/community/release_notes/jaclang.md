@@ -6,6 +6,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 - **ES Module Export Generation**: Exports now generated at compiler level via ESTree nodes instead of regex post-processing. Only `:pub` declarations are exported.
 - **Hot fix: call state**: Normal spawn calls inside API spawn calls supported.
+- **`no_client` parameter for `server.start()`**: `JacAPIServer.start()` now accepts `no_client: bool = False`. When `True`, the eager `ensure_bundle()` call is skipped, preventing duplicate client builds when the caller has already built the web bundle (e.g., desktop target). The `--no_client` CLI flag is forwarded through to the server.
 
 ## jaclang 0.9.12 (Latest Release)
 

@@ -5,6 +5,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 ## jac-scale 0.1.4 (Unreleased)
 
 - **Hot fix: call state**: Normal spawn calls inside API spawn calls supported.
+- **`no_client` parameter for `start()`**: The `JacAPIServer.start()` override now accepts `no_client: bool = False`, matching the base class signature. When `True`, eager client bundling via `ensure_bundle()` is skipped, preventing duplicate builds when the caller (e.g., desktop target) has already built the web bundle.
 
 ## jac-scale 0.1.3 (Latest Release)
 
