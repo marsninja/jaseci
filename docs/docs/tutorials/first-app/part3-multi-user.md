@@ -399,6 +399,7 @@ def:pub app -> any {
     def getIngredientsTotal -> float;
 
     # ... UI rendering follows ...
+}
 ```
 
 A few things to notice:
@@ -647,7 +648,7 @@ def:pub AuthForm(
                 <h1 className="auth-title">TaskFlow</h1>
                 {(<div className="auth-error">{error}</div>) if error else None}
                 <form onSubmit={onSubmit}>
-                    {/* username input, password input, submit button */}
+                    {"... username input, password input, submit button ..."}
                 </form>
                 <button onClick={onToggleMode}>
                     {("Sign In" if isSignup else "Sign Up")}

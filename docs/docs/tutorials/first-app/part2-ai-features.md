@@ -147,7 +147,7 @@ Two small changes in the `app` component. In the `toggle` method, include `categ
 
 And in the todo list rendering, add a category badge after the title span:
 
-```jac
+```html
                     <span class={"todo-title " + ("todo-done" if t.done else "")}>
                         {t.title}
                     </span>
