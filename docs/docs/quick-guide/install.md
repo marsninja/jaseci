@@ -151,4 +151,4 @@ See the [Contributing Guide](../community/contributing.md) for development setup
 ## Next Steps
 
 - [Hello World](hello-world.md) - Write your first program
-- [Your First Jac Application](first-fullstack-ai-app.md) - Build a complete application
+- [Build Your First App](../tutorials/first-app/part1-todo-app.md) - Build a complete full-stack application
