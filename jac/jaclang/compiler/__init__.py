@@ -31,30 +31,9 @@ def generate_static_parser(force: bool = False) -> None:
         sys.argv = save
 
 
-def generate_ts_static_parser(force: bool = False) -> None:
-    """Generate static parser for TypeScript/JavaScript."""
-    from lark.tools import standalone
-
-    lark_ts_parser_path = os.path.join(_pycore_dir, "lark_ts_parser.py")
-    if force or not os.path.exists(lark_ts_parser_path):
-        sys.argv, save = (
-            [
-                "lark",
-                os.path.join(_cur_dir, "ts.lark"),
-                "-o",
-                lark_ts_parser_path,
-                "-c",
-            ],
-            sys.argv,
-        )
-        standalone.main()
-        sys.argv = save
-
-
 def gen_all_parsers() -> None:
     """Generate all parsers."""
     generate_static_parser(force=True)
-    generate_ts_static_parser(force=True)
     print("Parsers generated.")
 
 
@@ -69,7 +48,6 @@ if not os.path.exists(_lark_jac_parser_path):
 
 __all__ = [
     "generate_static_parser",
-    "generate_ts_static_parser",
     "gen_all_parsers",
 ]
 

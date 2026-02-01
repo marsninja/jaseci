@@ -15,6 +15,7 @@ from jaclang.pycore.bccache import (
     CacheKey,
     get_bytecode_cache,
 )
+from jaclang.pycore.estree_parser import parse_ts_file
 from jaclang.pycore.helpers import read_file_with_encoding
 from jaclang.pycore.jac_parser import JacParser
 from jaclang.pycore.passes import (
@@ -26,7 +27,6 @@ from jaclang.pycore.passes import (
     SymTabBuildPass,
     Transform,
 )
-from jaclang.pycore.tsparser import TypeScriptParser
 
 if TYPE_CHECKING:
     from jaclang.pycore.program import JacProgram
@@ -248,11 +248,8 @@ class JacCompiler:
             mod = py_ast_ret.ir_out
         elif file_path.endswith((".js", ".ts", ".jsx", ".tsx")):
             source = uni.Source(source_str, mod_path=file_path)
-            ts_ast_ret = TypeScriptParser(
-                root_ir=source, prog=target_program, cancel_token=cancel_token
-            )
-            had_error = len(ts_ast_ret.errors_had) > 0
-            mod = ts_ast_ret.ir_out
+            mod = parse_ts_file(file_path, source_str, source)
+            had_error = mod.has_syntax_errors
         else:
             source = uni.Source(source_str, mod_path=file_path)
             jac_ast_ret: Transform[uni.Source, uni.Module] = JacParser(

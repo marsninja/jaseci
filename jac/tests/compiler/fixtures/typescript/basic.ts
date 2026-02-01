@@ -1,42 +1,66 @@
-// Basic TypeScript fixture - variables and functions
+// Basic TypeScript declarations for parser testing
+export const API_URL: string = "https://api.example.com";
+export let count: number = 0;
+export var legacy: boolean = true;
 
-// Variable declarations
-var oldStyle = "var declaration";
-let mutableVar = 42;
-const immutableVar = "constant";
-
-// Type annotations
-let typedString: string = "hello";
-let typedNumber: number = 123;
-let typedBool: boolean = true;
-
-// Function declarations
-function simpleFunc() {
-    return "simple";
+export function greet(name: string): string {
+  return `Hello, ${name}!`;
 }
 
-function funcWithParams(a: string, b: number): string {
-    return a + b.toString();
+export async function fetchData(url: string, timeout: number): Promise<string> {
+  const response = await fetch(url);
+  return response.text();
 }
 
-async function asyncFunc(): Promise<string> {
-    return "async result";
+export interface Todo {
+  id: number;
+  title: string;
+  completed: boolean;
+  tags: string[];
+  metadata?: Record<string, unknown>;
 }
 
-function* generatorFunc() {
-    yield 1;
-    yield 2;
+export interface TodoService {
+  getTodos(): Promise<Todo[]>;
+  addTodo(title: string): Promise<Todo>;
+  toggleTodo(id: number): Promise<void>;
 }
 
-// Arrow functions (expression body)
-const arrowSimple = () => "arrow";
-const arrowWithParam = (x: number) => x * 2;
-const arrowMultiParam = (a: string, b: string): string => a + b;
+export class TodoApp implements TodoService {
+  private todos: Todo[] = [];
+  public readonly name: string;
 
-// Arrow function with block body - as function argument (works inside parens)
-setTimeout(() => {
-    console.log("delayed");
-}, 1000);
+  constructor(name: string) {
+    this.name = name;
+  }
 
-// Async arrow (expression body)
-const asyncArrow = async () => "async arrow";
+  async getTodos(): Promise<Todo[]> {
+    return this.todos;
+  }
+
+  async addTodo(title: string): Promise<Todo> {
+    const todo: Todo = { id: Date.now(), title, completed: false, tags: [] };
+    this.todos.push(todo);
+    return todo;
+  }
+
+  async toggleTodo(id: number): Promise<void> {
+    const todo = this.todos.find(t => t.id === id);
+    if (todo) todo.completed = !todo.completed;
+  }
+
+  static create(name: string): TodoApp {
+    return new TodoApp(name);
+  }
+}
+
+export type Status = "active" | "completed" | "archived";
+
+export enum Priority {
+  LOW = 0,
+  MEDIUM = 1,
+  HIGH = 2,
+  CRITICAL = 3,
+}
+
+export default TodoApp;

@@ -8,9 +8,9 @@ Modules:
 - constant: Constants and token definitions
 - codeinfo: Code location info for AST nodes
 - jac_parser: Jac parser using Lark
-- tsparser: TypeScript/JavaScript parser
+- estree_parser: TypeScript/JavaScript parser (via oxc-parser)
+- estree_transformer: ESTree JSON to Jac AST transformer
 - lark_jac_parser: Generated Lark parser for Jac
-- lark_ts_parser: Generated Lark parser for TypeScript
 - passes/: Bootstrap-critical compiler passes
 - runtime: Runtime bootstrap infrastructure
 - helpers: Utility functions

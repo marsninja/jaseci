@@ -1,0 +1,8 @@
+{
+  "name": "jac-ts-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "oxc-parser": "^0.72.0"
+  }
+}
