@@ -5,53 +5,44 @@ Designed as the target spec for na {} codegen buildout.
 """
 
 # ===================== Enums =====================
+enum Color { WHITE = 0, BLACK = 1 }
 
-enum Color {
-    WHITE = 0,
-    BLACK = 1
-}
-
-enum PieceKind {
-    PAWN = 0,
-    KNIGHT = 1,
-    BISHOP = 2,
-    ROOK = 3,
-    QUEEN = 4,
-    KING = 5
-}
+enum PieceKind { PAWN = 0, KNIGHT = 1, BISHOP = 2, ROOK = 3, QUEEN = 4, KING = 5 }
 
 # ===================== Forward Declarations =====================
-
 obj Board;
 obj Piece;
 
 # ===================== Move =====================
-
 obj Move {
     has from_row: int,
         from_col: int,
         to_row: int,
         to_col: int;
+
     has is_castling: bool = False,
         is_en_passant: bool = False,
         is_promotion: bool = False,
         is_double_push: bool = False;
+
     has rook_from_col: int = -1,
         rook_to_col: int = -1;
+
     has captured_piece: Piece | None = None,
         promoted_from: Piece | None = None;
+
     has prev_has_moved: bool = False,
         prev_ep_row: int = -1,
         prev_ep_col: int = -1;
 }
 
 # ===================== Piece Base =====================
-
 obj Piece {
     has color: Color,
         kind: PieceKind,
         row: int,
         col: int;
+
     has has_moved: bool = False;
 
     def get_symbol() -> str {
@@ -72,15 +63,13 @@ obj Piece {
             while board.is_valid_pos(r, c) {
                 target: Piece | None = board.get_piece(r, c);
                 if target is None {
-                    moves.append(Move(
-                        from_row=self.row, from_col=self.col,
-                        to_row=r, to_col=c
-                    ));
+                    moves.append(
+                        Move(from_row=self.row, from_col=self.col, to_row=r, to_col=c)
+                    );
                 } elif target.color != self.color {
-                    moves.append(Move(
-                        from_row=self.row, from_col=self.col,
-                        to_row=r, to_col=c
-                    ));
+                    moves.append(
+                        Move(from_row=self.row, from_col=self.col, to_row=r, to_col=c)
+                    );
                     break;
                 } else {
                     break;
@@ -94,7 +83,6 @@ obj Piece {
 }
 
 # ===================== Pawn =====================
-
 obj Pawn(Piece) {
     def get_symbol() -> str {
         if self.color == Color.WHITE {
@@ -111,22 +99,31 @@ obj Pawn(Piece) {
 
         # Forward one
         new_row: int = self.row + direction;
-        if board.is_valid_pos(new_row, self.col) and board.get_piece(new_row, self.col) is None {
-            is_promo: bool = (new_row == promo_row);
-            moves.append(Move(
-                from_row=self.row, from_col=self.col,
-                to_row=new_row, to_col=self.col,
-                is_promotion=is_promo
-            ));
+        if board.is_valid_pos(new_row, self.col)
+        and board.get_piece(new_row, self.col) is None {
+            is_promo: bool = new_row == promo_row;
+            moves.append(
+                Move(
+                    from_row=self.row,
+                    from_col=self.col,
+                    to_row=new_row,
+                    to_col=self.col,
+                    is_promotion=is_promo
+                )
+            );
             # Forward two from start
             if self.row == start_row {
                 two_row: int = self.row + 2 * direction;
                 if board.get_piece(two_row, self.col) is None {
-                    moves.append(Move(
-                        from_row=self.row, from_col=self.col,
-                        to_row=two_row, to_col=self.col,
-                        is_double_push=True
-                    ));
+                    moves.append(
+                        Move(
+                            from_row=self.row,
+                            from_col=self.col,
+                            to_row=two_row,
+                            to_col=self.col,
+                            is_double_push=True
+                        )
+                    );
                 }
             }
         }
@@ -137,20 +134,28 @@ obj Pawn(Piece) {
             if board.is_valid_pos(new_row, nc) {
                 target: Piece | None = board.get_piece(new_row, nc);
                 if target is not None and target.color != self.color {
-                    is_promo: bool = (new_row == promo_row);
-                    moves.append(Move(
-                        from_row=self.row, from_col=self.col,
-                        to_row=new_row, to_col=nc,
-                        is_promotion=is_promo
-                    ));
+                    is_promo: bool = new_row == promo_row;
+                    moves.append(
+                        Move(
+                            from_row=self.row,
+                            from_col=self.col,
+                            to_row=new_row,
+                            to_col=nc,
+                            is_promotion=is_promo
+                        )
+                    );
                 }
                 # En passant
                 if new_row == board.ep_row and nc == board.ep_col {
-                    moves.append(Move(
-                        from_row=self.row, from_col=self.col,
-                        to_row=new_row, to_col=nc,
-                        is_en_passant=True
-                    ));
+                    moves.append(
+                        Move(
+                            from_row=self.row,
+                            from_col=self.col,
+                            to_row=new_row,
+                            to_col=nc,
+                            is_en_passant=True
+                        )
+                    );
                 }
             }
         }
@@ -160,7 +165,6 @@ obj Pawn(Piece) {
 }
 
 # ===================== Knight =====================
-
 obj Knight(Piece) {
     def get_symbol() -> str {
         if self.color == Color.WHITE {
@@ -172,8 +176,14 @@ obj Knight(Piece) {
     def get_raw_moves(board: Board) -> list[Move] {
         moves: list[Move] = [];
         offsets: list[list[int]] = [
-            [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-            [1, -2], [1, 2], [2, -1], [2, 1]
+            [-2, -1],
+            [-2, 1],
+            [-1, -2],
+            [-1, 2],
+            [1, -2],
+            [1, 2],
+            [2, -1],
+            [2, 1]
         ];
         for off in offsets {
             r: int = self.row + off[0];
@@ -181,10 +191,9 @@ obj Knight(Piece) {
             if board.is_valid_pos(r, c) {
                 target: Piece | None = board.get_piece(r, c);
                 if target is None or target.color != self.color {
-                    moves.append(Move(
-                        from_row=self.row, from_col=self.col,
-                        to_row=r, to_col=c
-                    ));
+                    moves.append(
+                        Move(from_row=self.row, from_col=self.col, to_row=r, to_col=c)
+                    );
                 }
             }
         }
@@ -193,7 +202,6 @@ obj Knight(Piece) {
 }
 
 # ===================== Bishop =====================
-
 obj Bishop(Piece) {
     def get_symbol() -> str {
         if self.color == Color.WHITE {
@@ -208,7 +216,6 @@ obj Bishop(Piece) {
 }
 
 # ===================== Rook =====================
-
 obj Rook(Piece) {
     def get_symbol() -> str {
         if self.color == Color.WHITE {
@@ -223,7 +230,6 @@ obj Rook(Piece) {
 }
 
 # ===================== Queen =====================
-
 obj Queen(Piece) {
     def get_symbol() -> str {
         if self.color == Color.WHITE {
@@ -233,16 +239,14 @@ obj Queen(Piece) {
     }
 
     def get_raw_moves(board: Board) -> list[Move] {
-        return self.slide_moves(board, [
-            [-1, -1], [-1, 0], [-1, 1],
-            [0, -1],           [0, 1],
-            [1, -1],  [1, 0],  [1, 1]
-        ]);
+        return self.slide_moves(
+            board,
+            [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]
+        );
     }
 }
 
 # ===================== King =====================
-
 obj King(Piece) {
     def get_symbol() -> str {
         if self.color == Color.WHITE {
@@ -263,10 +267,14 @@ obj King(Piece) {
                 if board.is_valid_pos(r, c) {
                     target: Piece | None = board.get_piece(r, c);
                     if target is None or target.color != self.color {
-                        moves.append(Move(
-                            from_row=self.row, from_col=self.col,
-                            to_row=r, to_col=c
-                        ));
+                        moves.append(
+                            Move(
+                                from_row=self.row,
+                                from_col=self.col,
+                                to_row=r,
+                                to_col=c
+                            )
+                        );
                     }
                 }
             }
@@ -276,8 +284,9 @@ obj King(Piece) {
 }
 
 # ===================== Helper Functions =====================
-
-def opposite_color(color: Color) -> Color {
+def opposite_color(
+    color: Color
+) -> Color {
     if color == Color.WHITE {
         return Color.BLACK;
     }
@@ -301,7 +310,6 @@ def create_piece(kind: PieceKind, color: Color, row: int, col: int) -> Piece {
 }
 
 # ===================== Board =====================
-
 obj Board {
     has squares: list[list[Piece | None]] = [],
         ep_row: int = -1,
@@ -321,8 +329,14 @@ obj Board {
 
     def setup_pieces() -> None {
         back_rank: list[PieceKind] = [
-            PieceKind.ROOK, PieceKind.KNIGHT, PieceKind.BISHOP, PieceKind.QUEEN,
-            PieceKind.KING, PieceKind.BISHOP, PieceKind.KNIGHT, PieceKind.ROOK
+            PieceKind.ROOK,
+            PieceKind.KNIGHT,
+            PieceKind.BISHOP,
+            PieceKind.QUEEN,
+            PieceKind.KING,
+            PieceKind.BISHOP,
+            PieceKind.KNIGHT,
+            PieceKind.ROOK
         ];
         for col in range(8) {
             self.squares[0][col] = create_piece(back_rank[col], Color.BLACK, 0, col);
@@ -375,8 +389,10 @@ obj Board {
         if move.is_promotion {
             move.promoted_from = piece;
             queen: Piece = Queen(
-                color=piece.color, kind=PieceKind.QUEEN,
-                row=move.to_row, col=move.to_col
+                color=piece.color,
+                kind=PieceKind.QUEEN,
+                row=move.to_row,
+                col=move.to_col
             );
             queen.has_moved = True;
             self.set_piece(move.to_row, move.to_col, queen);
@@ -480,7 +496,6 @@ obj Board {
 }
 
 # ===================== Game =====================
-
 obj Game {
     has board: Board | None = None,
         current_turn: Color = Color.WHITE,
@@ -494,7 +509,9 @@ obj Game {
         for r in range(8) {
             for c in range(8) {
                 piece: Piece | None = self.board.get_piece(r, c);
-                if piece is not None and piece.kind == PieceKind.KING and piece.color == color {
+                if piece is not None
+                and piece.kind == PieceKind.KING
+                and piece.color == color {
                     return piece;
                 }
             }
@@ -552,44 +569,60 @@ obj Game {
         if king is not None and not king.has_moved {
             back_rank: int = 7 if color == Color.WHITE else 0;
             opp: Color = opposite_color(color);
-
             # King-side castling (king e -> g, rook h -> f)
             rook_ks: Piece | None = self.board.get_piece(back_rank, 7);
-            if (rook_ks is not None
-                    and rook_ks.kind == PieceKind.ROOK
-                    and not rook_ks.has_moved) {
-                if (self.board.get_piece(back_rank, 5) is None
-                        and self.board.get_piece(back_rank, 6) is None) {
-                    if (not self.is_in_check(color)
-                            and not self.is_square_attacked(back_rank, 5, opp)
-                            and not self.is_square_attacked(back_rank, 6, opp)) {
+            if (
+                rook_ks is not None
+                and rook_ks.kind == PieceKind.ROOK
+                and not rook_ks.has_moved
+            ) {
+                if (
+                    self.board.get_piece(back_rank, 5) is None
+                    and self.board.get_piece(back_rank, 6) is None
+                ) {
+                    if (
+                        not self.is_in_check(color)
+                        and not self.is_square_attacked(back_rank, 5, opp)
+                        and not self.is_square_attacked(back_rank, 6, opp)
+                    ) {
                         castle_move: Move = Move(
-                            from_row=back_rank, from_col=4,
-                            to_row=back_rank, to_col=6,
+                            from_row=back_rank,
+                            from_col=4,
+                            to_row=back_rank,
+                            to_col=6,
                             is_castling=True,
-                            rook_from_col=7, rook_to_col=5
+                            rook_from_col=7,
+                            rook_to_col=5
                         );
                         legal.append(castle_move);
                     }
                 }
             }
-
             # Queen-side castling (king e -> c, rook a -> d)
             rook_qs: Piece | None = self.board.get_piece(back_rank, 0);
-            if (rook_qs is not None
-                    and rook_qs.kind == PieceKind.ROOK
-                    and not rook_qs.has_moved) {
-                if (self.board.get_piece(back_rank, 1) is None
-                        and self.board.get_piece(back_rank, 2) is None
-                        and self.board.get_piece(back_rank, 3) is None) {
-                    if (not self.is_in_check(color)
-                            and not self.is_square_attacked(back_rank, 2, opp)
-                            and not self.is_square_attacked(back_rank, 3, opp)) {
+            if (
+                rook_qs is not None
+                and rook_qs.kind == PieceKind.ROOK
+                and not rook_qs.has_moved
+            ) {
+                if (
+                    self.board.get_piece(back_rank, 1) is None
+                    and self.board.get_piece(back_rank, 2) is None
+                    and self.board.get_piece(back_rank, 3) is None
+                ) {
+                    if (
+                        not self.is_in_check(color)
+                        and not self.is_square_attacked(back_rank, 2, opp)
+                        and not self.is_square_attacked(back_rank, 3, opp)
+                    ) {
                         castle_move: Move = Move(
-                            from_row=back_rank, from_col=4,
-                            to_row=back_rank, to_col=2,
+                            from_row=back_rank,
+                            from_col=4,
+                            to_row=back_rank,
+                            to_col=2,
                             is_castling=True,
-                            rook_from_col=0, rook_to_col=3
+                            rook_from_col=0,
+                            rook_to_col=3
                         );
                         legal.append(castle_move);
                     }
@@ -622,8 +655,10 @@ obj Game {
         from_row: int = 8 - int(from_sq[1]);
         to_col: int = ord(to_sq[0]) - ord("a");
         to_row: int = 8 - int(to_sq[1]);
-        if (not self.board.is_valid_pos(from_row, from_col)
-                or not self.board.is_valid_pos(to_row, to_col)) {
+        if (
+            not self.board.is_valid_pos(from_row, from_col)
+            or not self.board.is_valid_pos(to_row, to_col)
+        ) {
             return [];
         }
         return [from_row, from_col, to_row, to_col];
@@ -668,8 +703,12 @@ obj Game {
             legal_moves: list[Move] = self.get_legal_moves(self.current_turn);
             found: Move | None = None;
             for move in legal_moves {
-                if (move.from_row == from_row and move.from_col == from_col
-                        and move.to_row == to_row and move.to_col == to_col) {
+                if (
+                    move.from_row == from_row
+                    and move.from_col == from_col
+                    and move.to_row == to_row
+                    and move.to_col == to_col
+                ) {
                     found = move;
                     break;
                 }
@@ -702,7 +741,6 @@ obj Game {
 }
 
 # ===================== Entry Point =====================
-
 with entry {
     game: Game = Game();
     game.play();

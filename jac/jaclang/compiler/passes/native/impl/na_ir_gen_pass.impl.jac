@@ -48,96 +48,55 @@ impl NaIRGenPass.init(
     super.init(ir_in=ir_in, prog=prog, cancel_token=cancel_token);
 }
 
-# ─── Pass Entry / Context Pruning ────────────────────────────
-"""Enter node — prune non-native contexts, manually codegen abilities."""
-impl NaIRGenPass.enter_node(<>node: uni.UniNode) -> None {
-    # Prune client and server blocks entirely
-    if isinstance(<>node, (uni.ClientBlock, uni.ServerBlock)) {
-        self.prune();
-        return;
-    }
-    # Prune enums (already processed in before_pass)
-    if isinstance(<>node, uni.Enum) {
-        self.prune();
-        return;
-    }
-    # Prune archetypes (processed in before_pass, methods generated separately)
-    if isinstance(<>node, uni.Archetype) {
-        self.prune();
-        return;
-    }
-    # Prune context-aware nodes that are not NATIVE (top-level only)
-    if (
-        isinstance(<>node, uni.ContextAwareNode)
-        and (<>node).code_context != CodeContext.NATIVE
-        and ((<>node).parent is None or isinstance((<>node).parent, uni.Module))
-    ) {
-        self.prune();
-        return;
-    }
-    # For Ability nodes in native context, do manual codegen and prune
-    if isinstance(<>node, uni.Ability) {
-        if (
-            isinstance(<>node, uni.ContextAwareNode)
-            and (<>node).code_context == CodeContext.NATIVE
-            and (<>node).signature is not None
-            and isinstance((<>node).signature, uni.FuncSignature)
-        ) {
-            self._codegen_ability(<>node);
-        }
-        self.prune();
-        return;
-    }
-    # For ModuleCode (with entry { ... }) in native context, generate jac_entry
-    if isinstance(<>node, uni.ModuleCode) {
-        if (
-            isinstance(<>node, uni.ContextAwareNode)
-            and (<>node).code_context == CodeContext.NATIVE
-        ) {
-            self._codegen_entry(<>node);
-        }
-        self.prune();
-        return;
-    }
-    super.enter_node(<>node);
-}
-
-"""Exit node."""
-impl NaIRGenPass.exit_node(<>node: uni.UniNode) -> None {
-    if isinstance(<>node, (uni.ClientBlock, uni.ServerBlock)) {
-        return;
-    }
-    if isinstance(<>node, uni.Ability) {
-        return;
-    }
-    if (
-        isinstance(<>node, uni.ContextAwareNode)
-        and (<>node).code_context != CodeContext.NATIVE
-        and ((<>node).parent is None or isinstance((<>node).parent, uni.Module))
-    ) {
-        return;
-    }
-    super.exit_node(<>node);
-}
-
-# ─── Module ──────────────────────────────────────────────────
-"""Store the LLVM module on the AST node's gen attribute."""
-impl NaIRGenPass.exit_module(<>node: uni.Module) -> None {
-    if self.has_native_code {
-        (<>node).gen.llvm_ir = self.llvm_module;
-    }
-}
-
-"""Handle NativeBlock — children already processed via visitor."""
-impl NaIRGenPass.exit_native_block(<>node: uni.NativeBlock) -> None {
-    ;
-}
-
-# ─── Forward Declaration ─────────────────────────────────────
-"""Forward-declare all native functions and register enums before generating bodies."""
-impl NaIRGenPass.before_pass -> None {
+# ─── Main Pass Logic ─────────────────────────────────────────
+"""Forward-declare, codegen native abilities/entries, and store the LLVM module."""
+impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
+    # Phase 0: Forward declarations (enums, archetypes, free functions)
     self._register_enums(self.ir_in);
     self._register_archetypes(self.ir_in);
+    # Phase 1: Codegen native abilities and entry blocks
+    for stmt in self.ir_in.body {
+        if isinstance(stmt, uni.NativeBlock) {
+            for inner in stmt.body {
+                if (
+                    isinstance(inner, uni.Ability)
+                    and isinstance(inner, uni.ContextAwareNode)
+                    and inner.code_context == CodeContext.NATIVE
+                    and inner.signature is not None
+                    and isinstance(inner.signature, uni.FuncSignature)
+                ) {
+                    self._codegen_ability(inner);
+                } elif (
+                    isinstance(inner, uni.ModuleCode)
+                    and isinstance(inner, uni.ContextAwareNode)
+                    and inner.code_context == CodeContext.NATIVE
+                ) {
+                    self._codegen_entry(inner);
+                }
+            }
+        } elif isinstance(stmt, uni.Ability) {
+            if (
+                isinstance(stmt, uni.ContextAwareNode)
+                and stmt.code_context == CodeContext.NATIVE
+                and stmt.signature is not None
+                and isinstance(stmt.signature, uni.FuncSignature)
+            ) {
+                self._codegen_ability(stmt);
+            }
+        } elif isinstance(stmt, uni.ModuleCode) {
+            if (
+                isinstance(stmt, uni.ContextAwareNode)
+                and stmt.code_context == CodeContext.NATIVE
+            ) {
+                self._codegen_entry(stmt);
+            }
+        }
+    }
+    # Store LLVM module on AST
+    if self.has_native_code {
+        self.ir_in.gen.llvm_ir = self.llvm_module;
+    }
+    return self.ir_in;
 }
 
 """Walk the module and register all native enum types."""
