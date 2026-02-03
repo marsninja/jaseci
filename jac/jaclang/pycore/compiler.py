@@ -10,14 +10,50 @@ from threading import Event
 from typing import TYPE_CHECKING
 
 import jaclang.pycore.unitree as uni
+from jaclang.compiler.rd_parser import is_rd_parser_enabled
 from jaclang.pycore.bccache import (
     BytecodeCache,
     CacheKey,
     get_bytecode_cache,
 )
 from jaclang.pycore.helpers import read_file_with_encoding
-from jaclang.pycore.jac_parser import JacParser
-from jaclang.pycore.passes import (
+from jaclang.pycore.jac_parser import JacParser as _LarkParser
+
+_RD_PARSER_PATH_SEGMENT = os.sep + "rd_parser" + os.sep
+
+
+def _get_jac_parser(file_path: str) -> type:
+    """Get the appropriate Jac parser class.
+
+    Always uses the Lark parser for rd_parser's own .jac files to
+    avoid a circular import (the RD parser is written in Jac).
+
+    During bootstrapping (first run), the RD parser core may not yet be
+    compiled.  The import attempt may trigger compilation of parser.jac
+    via the meta-importer (using Lark, since it lives in rd_parser/).
+    If that compilation is still in progress (re-entrant call), the
+    import will fail with ImportError and we fall back to Lark.
+    """
+    if is_rd_parser_enabled() and _RD_PARSER_PATH_SEGMENT not in file_path:
+        try:
+            # Verify the core module is actually available before selecting
+            # the RD parser.  This import may trigger first-time compilation
+            # of parser.jac (via Lark).  During that compilation, any
+            # re-entrant calls here will hit ImportError and fall back.
+            from jaclang.compiler.rd_parser import JacRDParser
+            from jaclang.compiler.rd_parser.parser import (
+                JacRDParserCore,  # noqa: F811,F401
+            )
+
+            return JacRDParser
+        except (ImportError, AttributeError):
+            return _LarkParser
+    return _LarkParser
+
+
+# Default for non-path-aware callers (formatter, linter)
+JacParser = _LarkParser
+from jaclang.pycore.passes import (  # noqa: E402
     DeclImplMatchPass,
     JacAnnexPass,
     PyastGenPass,
@@ -26,7 +62,7 @@ from jaclang.pycore.passes import (
     SymTabBuildPass,
     Transform,
 )
-from jaclang.pycore.tsparser import TypeScriptParser
+from jaclang.pycore.tsparser import TypeScriptParser  # noqa: E402
 
 if TYPE_CHECKING:
     from jaclang.pycore.program import JacProgram
@@ -255,7 +291,8 @@ class JacCompiler:
             mod = ts_ast_ret.ir_out
         else:
             source = uni.Source(source_str, mod_path=file_path)
-            jac_ast_ret: Transform[uni.Source, uni.Module] = JacParser(
+            parser_class = _get_jac_parser(file_path)
+            jac_ast_ret: Transform[uni.Source, uni.Module] = parser_class(
                 root_ir=source, prog=target_program
             )
             had_error = len(jac_ast_ret.errors_had) > 0

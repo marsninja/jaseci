@@ -38,6 +38,15 @@ def _discover_minimal_compile_modules() -> frozenset[str]:
             module_path = jac_file.relative_to(jaclang_dir).with_suffix("")
             modules.add(f"jaclang.{module_path.as_posix().replace('/', '.')}")
 
+    # Also include rd_parser modules to avoid circular imports and llvmlite dependency
+    rd_parser_dir = jaclang_dir / "compiler" / "rd_parser"
+    if rd_parser_dir.exists():
+        for jac_file in rd_parser_dir.rglob("*.jac"):
+            if jac_file.name.endswith(".impl.jac"):
+                continue
+            module_path = jac_file.relative_to(jaclang_dir).with_suffix("")
+            modules.add(f"jaclang.{module_path.as_posix().replace('/', '.')}")
+
     return frozenset(modules)
 
 
