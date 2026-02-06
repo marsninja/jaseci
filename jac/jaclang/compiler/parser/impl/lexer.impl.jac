@@ -43,9 +43,6 @@ impl Lexer.in_jsx -> bool {
     return mode in [LexerMode.JSX_TAG, LexerMode.JSX_CONTENT];
 }
 
-# =============================================================================
-# Character Access Implementations
-# =============================================================================
 impl Lexer.current -> str {
     if self.pos >= len(self.source) {
         return "";
@@ -95,12 +92,7 @@ impl Lexer.match_string(expected: str) -> bool {
     return False;
 }
 
-# =============================================================================
-# Location Tracking Implementations
-# =============================================================================
-impl Lexer.make_loc(
-    start_line: int, start_col: int, start_pos: int
-) -> SourceLoc {
+impl Lexer.make_loc(start_line: int, start_col: int, start_pos: int) -> SourceLoc {
     return SourceLoc(
         file_path=self.file_path,
         line=start_line,
@@ -128,12 +120,7 @@ impl Lexer.error(message: str, start_line: int, start_col: int, start_pos: int) 
     );
 }
 
-# =============================================================================
-# Character Classification Implementations
-# =============================================================================
-impl Lexer.is_digit(
-    ch: str
-) -> bool {
+impl Lexer.is_digit(ch: str) -> bool {
     return ch >= "0" and ch <= "9";
 }
 
@@ -153,9 +140,6 @@ impl Lexer.is_whitespace(ch: str) -> bool {
     return ch == " " or ch == "\t" or ch == "\r" or ch == "\n";
 }
 
-# =============================================================================
-# Skip Whitespace and Comments Implementations
-# =============================================================================
 impl Lexer.skip_whitespace{
     while not self.at_end() and self.is_whitespace(self.current()) {
         self.advance();
@@ -163,9 +147,19 @@ impl Lexer.skip_whitespace{
 }
 
 impl Lexer.skip_line_comment{
+    start_line = self.line;
+    start_col = self.col;
+    start_pos = self.pos;
     while not self.at_end() and self.current() != "\n" {
         self.advance();
     }
+    end_line = self.line;
+    end_col = self.col;
+    end_pos = self.pos;
+    value = self.source[start_pos:end_pos];
+    self.collected_comments.append(
+        (value, start_line, end_line, start_col, end_col, start_pos, end_pos)
+    );
 }
 
 impl Lexer.skip_block_comment -> bool {
@@ -173,12 +167,19 @@ impl Lexer.skip_block_comment -> bool {
     start_col = self.col;
     start_pos = self.pos;
     # Skip the opening #*
-    self.advance();  # #
-    self.advance();  # *
+    self.advance();
+    self.advance();
     while not self.at_end() {
         if self.current() == "*" and self.peek() == "#" {
-            self.advance();  # *
-            self.advance();  # #
+            self.advance();
+            self.advance();
+            end_line = self.line;
+            end_col = self.col;
+            end_pos = self.pos;
+            value = self.source[start_pos:end_pos];
+            self.collected_comments.append(
+                (value, start_line, end_line, start_col, end_col, start_pos, end_pos)
+            );
             return True;
         }
         self.advance();
@@ -205,9 +206,6 @@ impl Lexer.skip_whitespace_and_comments{
     }
 }
 
-# =============================================================================
-# Token Scanning Implementations
-# =============================================================================
 impl Lexer.scan_identifier -> Token {
     start_line = self.line;
     start_col = self.col;
@@ -218,62 +216,69 @@ impl Lexer.scan_identifier -> Token {
     }
     # Check for multi-word keywords: "not in" and "is not"
     if value == "not" {
-        # Save state for potential rollback
         saved_pos = self.pos;
         saved_line = self.line;
         saved_col = self.col;
-        # Skip whitespace (but not newlines for safety)
         while not self.at_end() and (self.current() == " " or self.current() == "\t") {
             self.advance();
         }
-        # Check for "in" - making it "not in"
         if not self.at_end() and self.current() == "i" {
             if self.source[self.pos:self.pos + 2] == "in"
             and (
                 self.pos + 2 >= len(self.source)
                 or not self.is_alnum(self.source[self.pos + 2])
             ) {
-                self.advance();  # i
-                self.advance();  # n
+                self.advance();
+                self.advance();
                 return self.make_token(
                     TokenKind.KW_NIN, "not in", start_line, start_col, start_pos
                 );
             }
         }
-        # Rollback if not "not in"
         self.pos = saved_pos;
         self.line = saved_line;
         self.col = saved_col;
     }
+    # Save state for potential rollback
+
+    # Skip whitespace (but not newlines for safety)
+
+    # Check for "in" - making it "not in"
+
+    # Rollback if not "not in"
     if value == "is" {
-        # Save state for potential rollback
         saved_pos = self.pos;
         saved_line = self.line;
         saved_col = self.col;
-        # Skip whitespace (but not newlines for safety)
         while not self.at_end() and (self.current() == " " or self.current() == "\t") {
             self.advance();
         }
-        # Check for "not" - making it "is not"
         if not self.at_end() and self.current() == "n" {
             if self.source[self.pos:self.pos + 3] == "not"
             and (
                 self.pos + 3 >= len(self.source)
                 or not self.is_alnum(self.source[self.pos + 3])
             ) {
-                self.advance();  # n
-                self.advance();  # o
-                self.advance();  # t
+                self.advance();
+                self.advance();
+                self.advance();
                 return self.make_token(
                     TokenKind.KW_ISN, "is not", start_line, start_col, start_pos
                 );
             }
         }
-        # Rollback if not "is not"
         self.pos = saved_pos;
         self.line = saved_line;
         self.col = saved_col;
     }
+    # Save state for potential rollback
+
+    # Skip whitespace (but not newlines for safety)
+
+    # Check for "not" - making it "is not"
+
+    # Rollback if not "is not"
+
     # Check for keyword
     kind = lookup_keyword(value);
     if kind is not None {
@@ -288,8 +293,8 @@ impl Lexer.scan_kwesc_name -> Token {
     start_col = self.col;
     start_pos = self.pos;
     # Skip the <> prefix
-    self.advance();  # <
-    self.advance();  # >
+    self.advance();
+    self.advance();
     value = "<>";
     while not self.at_end() and self.is_alnum(self.current()) {
         value += self.advance();
@@ -305,7 +310,6 @@ impl Lexer.scan_number -> Token {
     start_pos = self.pos;
     value = "";
     kind = TokenKind.INT;
-    # Check for hex, binary, or octal prefix
     if self.current() == "0" {
         value += self.advance();
         if self.current() == "x" or self.current() == "X" {
@@ -340,6 +344,8 @@ impl Lexer.scan_number -> Token {
             return self.make_token(kind, value, start_line, start_col, start_pos);
         }
     }
+    # Check for hex, binary, or octal prefix
+
     # Scan integer part (with underscore separators)
     while not self.at_end()
     and (self.is_digit(self.current()) or self.current() == "_") {
@@ -348,7 +354,7 @@ impl Lexer.scan_number -> Token {
     # Check for decimal point
     if self.current() == "." and self.is_digit(self.peek()) {
         kind = TokenKind.FLOAT;
-        value += self.advance();  # .
+        value += self.advance();
         while not self.at_end()
         and (self.is_digit(self.current()) or self.current() == "_") {
             value += self.advance();
@@ -373,7 +379,7 @@ impl Lexer.scan_leading_dot_float -> Token {
     start_line = self.line;
     start_col = self.col;
     start_pos = self.pos;
-    value = self.advance();  # consume the '.'
+    value = self.advance();
     while not self.at_end()
     and (self.is_digit(self.current()) or self.current() == "_") {
         value += self.advance();
@@ -398,15 +404,15 @@ impl Lexer.scan_string(quote: str) -> Token {
     start_pos = self.pos;
     value = "";
     triple = False;
-    # Check for triple-quoted string
     if self.peek() == quote and self.peek(2) == quote {
         triple = True;
-        value += self.advance();  # First quote
-        value += self.advance();  # Second quote
-        value += self.advance();  # Third quote
+        value += self.advance();
+        value += self.advance();
+        value += self.advance();
     } else {
-        value += self.advance();  # Opening quote
+        value += self.advance();
     }
+    # Check for triple-quoted string
     while not self.at_end() {
         ch = self.current();
 
@@ -436,7 +442,6 @@ impl Lexer.scan_string(quote: str) -> Token {
             }
         }
 
-        # Handle escape sequences
         if ch == "\\" {
             value += self.advance();
             if not self.at_end() {
@@ -446,6 +451,7 @@ impl Lexer.scan_string(quote: str) -> Token {
             value += self.advance();
         }
     }
+    # Handle escape sequences
     self.error("Unterminated string literal", start_line, start_col, start_pos);
     return self.make_token(TokenKind.ERROR, value, start_line, start_col, start_pos);
 }
@@ -524,18 +530,14 @@ impl Lexer.scan_fstring_content -> Token {
     while not self.at_end() {
         ch = self.current();
 
-        # Check for closing quote(s)
         if is_triple {
             if ch == quote and self.peek() == quote and self.peek(2) == quote {
-                # End of f-string
                 if len(value) > 0 {
-                    # Return accumulated text first
                     text_kind = self.get_fstring_text_kind(mode);
                     return self.make_token(
                         text_kind, value, start_line, start_col, start_pos
                     );
                 }
-                # Return end token
                 self.advance();
                 self.advance();
                 self.advance();
@@ -561,7 +563,6 @@ impl Lexer.scan_fstring_content -> Token {
                     end_kind, quote, start_line, start_col, start_pos
                 );
             }
-            # Non-triple f-strings can't have newlines
             if ch == "\n" {
                 self.error("Unterminated f-string", start_line, start_col, start_pos);
                 return self.make_token(
@@ -570,7 +571,6 @@ impl Lexer.scan_fstring_content -> Token {
             }
         }
 
-        # Check for escaped brace {{ or }}
         if ch == "{" and self.peek() == "{" {
             if len(value) > 0 {
                 text_kind = self.get_fstring_text_kind(mode);
@@ -584,6 +584,7 @@ impl Lexer.scan_fstring_content -> Token {
                 TokenKind.D_LBRACE, "{{", start_line, start_col, start_pos
             );
         }
+
         if ch == "}" and self.peek() == "}" {
             if len(value) > 0 {
                 text_kind = self.get_fstring_text_kind(mode);
@@ -598,7 +599,6 @@ impl Lexer.scan_fstring_content -> Token {
             );
         }
 
-        # Check for expression start
         if ch == "{" {
             if len(value) > 0 {
                 text_kind = self.get_fstring_text_kind(mode);
@@ -615,7 +615,6 @@ impl Lexer.scan_fstring_content -> Token {
             );
         }
 
-        # Handle escape sequences (for non-raw f-strings)
         if ch == "\\" {
             value += self.advance();
             if not self.at_end() {
@@ -625,6 +624,21 @@ impl Lexer.scan_fstring_content -> Token {
             value += self.advance();
         }
     }
+    # Check for closing quote(s)
+
+    # End of f-string
+
+    # Return accumulated text first
+
+    # Return end token
+
+    # Non-triple f-strings can't have newlines
+
+    # Check for escaped brace {{ or }}
+
+    # Check for expression start
+
+    # Handle escape sequences (for non-raw f-strings)
     self.error("Unterminated f-string", start_line, start_col, start_pos);
     return self.make_token(TokenKind.ERROR, value, start_line, start_col, start_pos);
 }
@@ -644,8 +658,7 @@ impl Lexer.get_fstring_text_kind(mode: LexerMode) -> TokenKind {
             return TokenKind.F_TEXT_TSQ;
 
         case _:
-            return TokenKind.F_TEXT_DQ;  # Fallback
-
+            return TokenKind.F_TEXT_DQ;
 
     }
 }
@@ -665,8 +678,7 @@ impl Lexer.get_fstring_end_kind(mode: LexerMode) -> TokenKind {
             return TokenKind.F_TSQ_END;
 
         case _:
-            return TokenKind.F_DQ_END;  # Fallback
-
+            return TokenKind.F_DQ_END;
 
     }
 }
@@ -677,25 +689,27 @@ impl Lexer.scan_fstring_expr_token -> Token {
     start_col = self.col;
     start_pos = self.pos;
     ch = self.current();
-    # Track brace depth
     if ch == "{" {
         self.fstring_brace_depth += 1;
         self.advance();
         return self.make_token(TokenKind.LBRACE, "{", start_line, start_col, start_pos);
     }
+    # Track brace depth
     if ch == "}" {
         self.fstring_brace_depth -= 1;
         self.advance();
         if self.fstring_brace_depth == 0 {
-            # End of f-string expression, pop back to f-string content mode
             self.pop_mode();
-            # Restore previous fstring_brace_depth from stack
             if self.fstring_brace_depth_stack {
                 self.fstring_brace_depth = self.fstring_brace_depth_stack.pop();
             }
         }
         return self.make_token(TokenKind.RBRACE, "}", start_line, start_col, start_pos);
     }
+    # End of f-string expression, pop back to f-string content mode
+
+    # Restore previous fstring_brace_depth from stack
+
     # Check for conversion specifier !s, !r, !a
     if ch == "!" and self.peek() in ["s", "r", "a", "S", "R", "A"] {
         self.advance();
@@ -713,15 +727,12 @@ impl Lexer.scan_fstring_expr_token -> Token {
     return self.scan_regular_token();
 }
 
-# =============================================================================
-# JSX Scanning
-# =============================================================================
 """Scan JSX opening tag start: consume < and enter tag mode."""
 impl Lexer.scan_jsx_open_start -> Token {
     start_line = self.line;
     start_col = self.col;
     start_pos = self.pos;
-    self.advance();  # consume <
+    self.advance();
     self.jsx_depth += 1;
     self.push_mode(LexerMode.JSX_TAG);
     return self.make_token(
@@ -736,7 +747,6 @@ impl Lexer.scan_jsx_tag_token -> Token {
     start_col = self.col;
     start_pos = self.pos;
     ch = self.current();
-    # Self-closing: />
     if ch == "/" and self.peek() == ">" {
         self.advance();
         self.advance();
@@ -746,29 +756,34 @@ impl Lexer.scan_jsx_tag_token -> Token {
             TokenKind.JSX_SELF_CLOSE, "/>", start_line, start_col, start_pos
         );
     }
+    # Self-closing: />
+
     # Tag end: > - switch to JSX_CONTENT mode or finish closing tag
     if ch == ">" {
         self.advance();
-        self.pop_mode();  # Pop JSX_TAG
+        self.pop_mode();
         if self.jsx_closing_tag {
-            # End of closing tag - decrement depth and return to parent context
             self.jsx_closing_tag = False;
             self.jsx_depth -= 1;
-            # Don't push JSX_CONTENT - we're done with this element
         } else {
-            # End of opening tag - switch to content mode
             self.push_mode(LexerMode.JSX_CONTENT);
         }
         return self.make_token(
             TokenKind.JSX_TAG_END, ">", start_line, start_col, start_pos
         );
     }
+    # End of closing tag - decrement depth and return to parent context
+
+    # Don't push JSX_CONTENT - we're done with this element
+
+    # End of opening tag - switch to content mode
+
     # Opening brace for expression attribute: {expr}
     if ch == "{" {
         self.advance();
         self.jsx_brace_depth_stack.append(self.jsx_brace_depth);
         self.jsx_brace_depth = 1;
-        self.push_mode(LexerMode.NORMAL);  # Parse expression in normal mode
+        self.push_mode(LexerMode.NORMAL);
         return self.make_token(TokenKind.LBRACE, "{", start_line, start_col, start_pos);
     }
     # Attribute name (JSX identifiers can contain hyphens)
@@ -811,27 +826,29 @@ impl Lexer.scan_jsx_content -> Token {
     start_col = self.col;
     start_pos = self.pos;
     ch = self.current();
-    # Check for closing tag: </
     if ch == "<" and self.peek() == "/" {
         self.advance();
         self.advance();
-        self.pop_mode();  # Pop JSX_CONTENT
-        self.push_mode(LexerMode.JSX_TAG);  # For scanning closing tag name
-        self.jsx_closing_tag = True;  # Mark that we're in a closing tag
+        self.pop_mode();
+        self.push_mode(LexerMode.JSX_TAG);
+        self.jsx_closing_tag = True;
         return self.make_token(
             TokenKind.JSX_CLOSE_START, "</", start_line, start_col, start_pos
         );
     }
+    # Check for closing tag: </
+
     # Check for nested JSX element: <identifier
     if ch == "<" and self.is_alpha(self.peek()) {
-        self.advance();  # consume <
+        self.advance();
         self.jsx_depth += 1;
-        # Push JSX_TAG on top of current JSX_CONTENT
         self.push_mode(LexerMode.JSX_TAG);
         return self.make_token(
             TokenKind.JSX_OPEN_START, "<", start_line, start_col, start_pos
         );
     }
+    # Push JSX_TAG on top of current JSX_CONTENT
+
     # Check for JSX fragment: <>
     if ch == "<" and self.peek() == ">" {
         self.advance();
@@ -859,24 +876,39 @@ impl Lexer.scan_jsx_content -> Token {
         self.advance();
         self.jsx_brace_depth_stack.append(self.jsx_brace_depth);
         self.jsx_brace_depth = 1;
-        self.push_mode(LexerMode.NORMAL);  # Parse expression in normal mode
+        self.push_mode(LexerMode.NORMAL);
         return self.make_token(TokenKind.LBRACE, "{", start_line, start_col, start_pos);
     }
-    # Text content - collect until we hit <, {, or end
+    # Text content - collect until we hit <, {, newline, or end
+    # Newlines split JSX text into per-line tokens (matches Lark behavior)
     value = "";
     while not self.at_end() {
         ch = self.current();
-        if ch == "<" or ch == "{" {
+
+        if ch == "<" or ch == "{" or ch == "\n" {
             break;
         }
+
+        if ch == "\r" {
+            self.advance();
+            continue;
+        }
         value += self.advance();
+    }
+    # Consume the newline but don't include it in the token value
+    if not self.at_end() and self.current() == "\n" {
+        self.advance();
     }
     if len(value) > 0 {
         return self.make_token(
             TokenKind.JSX_TEXT, value, start_line, start_col, start_pos
         );
     }
-    # Empty - shouldn't happen
+    # Empty line (whitespace only) - skip and try next content
+    if not self.at_end() {
+        return self.scan_jsx_content();
+    }
+    # Truly empty - shouldn't happen
     self.error("Unexpected end of JSX content", start_line, start_col, start_pos);
     return self.make_token(TokenKind.ERROR, "", start_line, start_col, start_pos);
 }
@@ -899,15 +931,16 @@ impl Lexer.scan_jsx_expr_token -> Token {
         self.jsx_brace_depth -= 1;
         self.advance();
         if self.jsx_brace_depth == 0 {
-            # End of JSX expression, pop back to previous mode
             self.pop_mode();
-            # Restore previous jsx_brace_depth from stack
             if self.jsx_brace_depth_stack {
                 self.jsx_brace_depth = self.jsx_brace_depth_stack.pop();
             }
         }
         return self.make_token(TokenKind.RBRACE, "}", start_line, start_col, start_pos);
     }
+    # End of JSX expression, pop back to previous mode
+
+    # Restore previous jsx_brace_depth from stack
     return self.scan_regular_token();
 }
 
@@ -929,9 +962,7 @@ impl Lexer.scan_regular_token -> Token {
         );
     }
     ch = self.current();
-    # Identifier or keyword
     if self.is_alpha(ch) {
-        # Check for f-string prefix
         if ch == "f" and (self.peek() == "\"" or self.peek() == "'") {
             self.advance();
             return self.scan_fstring("f");
@@ -945,6 +976,10 @@ impl Lexer.scan_regular_token -> Token {
         }
         return self.scan_identifier();
     }
+    # Identifier or keyword
+
+    # Check for f-string prefix
+
     # Number
     if self.is_digit(ch) {
         return self.scan_number();
@@ -979,10 +1014,11 @@ impl Lexer.scan_pynline -> Token {
     start_line = self.line;
     start_col = self.col;
     start_pos = self.pos;
-    # Skip opening ::py::
     for _ in range(6) {
         self.advance();
     }
+    # Skip opening ::py::
+
     # Collect all content until closing ::py::
     code = "";
     while not self.at_end() {
@@ -992,7 +1028,6 @@ impl Lexer.scan_pynline -> Token {
         and self.peek(3) == "y"
         and self.peek(4) == ":"
         and self.peek(5) == ":" {
-            # Skip closing ::py::
             for _ in range(6) {
                 self.advance();
             }
@@ -1002,6 +1037,7 @@ impl Lexer.scan_pynline -> Token {
         }
         code += self.advance();
     }
+    # Skip closing ::py::
     self.error("Unterminated inline Python block", start_line, start_col, start_pos);
     return self.make_token(TokenKind.ERROR, code, start_line, start_col, start_pos);
 }
@@ -1011,14 +1047,14 @@ impl Lexer.scan_operator -> Token {
     start_col = self.col;
     start_pos = self.pos;
     ch = self.current();
-    # Try multi-character operators first (longest match)
-
-    # 4-character operators
     if self.match_string("<-->") {
         return self.make_token(
             TokenKind.ARROW_BI, "<-->", start_line, start_col, start_pos
         );
     }
+    # Try multi-character operators first (longest match)
+
+    # 4-character operators
     if self.match_string("<++>") {
         return self.make_token(
             TokenKind.CARROW_BI, "<++>", start_line, start_col, start_pos
@@ -1297,7 +1333,6 @@ impl Lexer.scan_operator -> Token {
             );
 
         case "{":
-            # Track nested braces inside JSX expressions
             if self.jsx_brace_depth > 0 {
                 self.jsx_brace_depth += 1;
             }
@@ -1306,13 +1341,10 @@ impl Lexer.scan_operator -> Token {
             );
 
         case "}":
-            # Check if we're closing a JSX expression
             if self.jsx_brace_depth > 0 {
                 self.jsx_brace_depth -= 1;
                 if self.jsx_brace_depth == 0 {
-                    # End of JSX expression, pop back to previous JSX mode
                     self.pop_mode();
-                    # Restore previous jsx_brace_depth from stack
                     if self.jsx_brace_depth_stack {
                         self.jsx_brace_depth = self.jsx_brace_depth_stack.pop();
                     }
@@ -1417,17 +1449,21 @@ impl Lexer.scan_operator -> Token {
             );
 
     }
+    # Track nested braces inside JSX expressions
+
+    # Check if we're closing a JSX expression
+
+    # End of JSX expression, pop back to previous JSX mode
+
+    # Restore previous jsx_brace_depth from stack
+
     # Unknown character
     self.error(f"Unexpected character: '{ch}'", start_line, start_col, start_pos);
     return self.make_token(TokenKind.ERROR, ch, start_line, start_col, start_pos);
 }
 
-# =============================================================================
-# Main Tokenization Implementations
-# =============================================================================
 impl Lexer.next_token -> Token {
     mode = self.current_mode();
-    # Handle f-string modes
     if mode in [
         LexerMode.FSTRING_DQ,
         LexerMode.FSTRING_SQ,
@@ -1438,6 +1474,8 @@ impl Lexer.next_token -> Token {
     } elif mode == LexerMode.FSTRING_EXPR {
         return self.scan_fstring_expr_token();
     }
+    # Handle f-string modes
+
     # Handle JSX modes
     if mode == LexerMode.JSX_TAG {
         return self.scan_jsx_tag_token();
@@ -1462,30 +1500,32 @@ impl Lexer.next_token -> Token {
         );
     }
     ch = self.current();
-    # Check for keyword-escaped name: <>identifier
     if ch == "<" and self.peek() == ">" and self.is_alpha(self.peek(2)) {
         return self.scan_kwesc_name();
     }
+    # Check for keyword-escaped name: <>identifier
+
     # Check for JSX opening tag: <identifier (but not <> which is kwesc or fragment)
     if ch == "<" and self.is_alpha(self.peek()) {
         return self.scan_jsx_open_start();
     }
     # Identifier or keyword
     if self.is_alpha(ch) {
-        # Check for f-string prefix
         if ch == "f" and (self.peek() == "\"" or self.peek() == "'") {
-            self.advance();  # Skip 'f'
+            self.advance();
             return self.scan_fstring("f");
         }
         if ch == "r"
         and self.peek() == "f"
         and (self.peek(2) == "\"" or self.peek(2) == "'") {
-            self.advance();  # Skip 'r'
-            self.advance();  # Skip 'f'
+            self.advance();
+            self.advance();
             return self.scan_fstring("rf");
         }
         return self.scan_identifier();
     }
+    # Check for f-string prefix
+
     # Number
     if self.is_digit(ch) {
         return self.scan_number();
@@ -1516,6 +1556,7 @@ impl Lexer.tokenize -> list[Token] {
     while True {
         token = self.next_token();
         tokens.append(token);
+
         if token.kind == TokenKind.EOF {
             break;
         }
@@ -1527,9 +1568,6 @@ impl Lexer.has_errors -> bool {
     return len(self.errors) > 0;
 }
 
-# =============================================================================
-# Convenience Function Implementation
-# =============================================================================
 impl tokenize(
     source: str, file_path: str = "<input>"
 ) -> tuple[list[Token], list[LexerError]] {
@@ -1537,3 +1575,83 @@ impl tokenize(
     tokens = lexer.tokenize();
     return (tokens, lexer.errors);
 }
+# =============================================================================
+# Character Access Implementations
+# =============================================================================
+
+# =============================================================================
+# Location Tracking Implementations
+# =============================================================================
+
+# =============================================================================
+# Character Classification Implementations
+# =============================================================================
+
+# =============================================================================
+# Skip Whitespace and Comments Implementations
+# =============================================================================
+
+# #
+# *
+
+# *
+# #
+
+# =============================================================================
+# Token Scanning Implementations
+# =============================================================================
+
+# i
+# n
+
+# n
+# o
+# t
+
+# <
+# >
+
+# .
+
+# consume the '.'
+
+# First quote
+# Second quote
+# Third quote
+
+# Opening quote
+
+# Fallback
+
+# Fallback
+
+# =============================================================================
+# JSX Scanning
+# =============================================================================
+
+# consume <
+
+# Pop JSX_TAG
+
+# Parse expression in normal mode
+
+# Pop JSX_CONTENT
+# For scanning closing tag name
+# Mark that we're in a closing tag
+
+# consume <
+
+# Parse expression in normal mode
+
+# =============================================================================
+# Main Tokenization Implementations
+# =============================================================================
+
+# Skip 'f'
+
+# Skip 'r'
+# Skip 'f'
+
+# =============================================================================
+# Convenience Function Implementation
+# =============================================================================

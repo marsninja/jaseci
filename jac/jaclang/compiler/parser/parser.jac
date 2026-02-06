@@ -8,14 +8,10 @@ This parser outputs unitree.py AST nodes directly.
 """
 
 import from .tokens { Token, TokenKind, SourceLoc }
-import from .lexer { Lexer, LexerError }
-
+import from .lexer { Lexer, LexerError
 # Import unitree classes from Python
-import from jaclang.pycore.unitree {
-    UniNode,
-    Token as UniToken,
-    Expr
 }
+import from jaclang.pycore.unitree { UniNode, Token as UniToken, Expr }
 import from jaclang.pycore.unitree { Name, String, Int, Float, Bool, Null }
 import from jaclang.pycore.unitree {
     Ellipsis as EllipsisLit,
@@ -129,18 +125,18 @@ import from jaclang.pycore.unitree {
     JsxNormalAttribute
 }
 import from jaclang.pycore.unitree { JsxText, JsxExpression }
-
 import from jaclang.pycore.constant {
     Tokens as Tok,
     SymbolAccess,
     SymbolType,
     EdgeDir,
     CodeContext
-}
 
 # =============================================================================
 # Parser Error
 # =============================================================================
+}
+
 obj ParseError {
     has message: str,
         loc: SourceLoc;
@@ -148,15 +144,28 @@ obj ParseError {
     def __str__ -> str {
         return f"ParseError at line {self.loc.line}: {self.message}";
     }
+    # =============================================================================
+    # Token Kind to Tok Mapping
+    # =============================================================================
 }
 
-# =============================================================================
-# Token Kind to Tok Mapping
-# =============================================================================
-glob TOKEN_KIND_TO_TOK:
-         dict[TokenKind, str] = {
-         # Literals
-         TokenKind.INT: Tok.INT.value,
+glob TOKEN_KIND_TO_TOK: dict[TokenKind, str] = {
+         TokenKind.INT: Tok.INT.value
+         # Identifiers
+         # Built-in Types
+         # Keywords
+         # Delimiters
+         # Assignment Operators
+         # Comparison Operators
+         # Arithmetic Operators
+         # Bitwise Operators
+         # Pipe Operators
+         # Arrow Operators
+         # Connect Arrows
+         # Special Operators
+         # F-String Tokens
+         # EOF
+         ,
          TokenKind.HEX: Tok.HEX.value,
          TokenKind.BIN: Tok.BIN.value,
          TokenKind.OCT: Tok.OCT.value,
@@ -166,10 +175,8 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.NULL: Tok.NULL.value,
          TokenKind.ELLIPSIS: Tok.ELLIPSIS.value,
          TokenKind.PYNLINE: Tok.PYNLINE.value,
-         # Identifiers
          TokenKind.NAME: Tok.NAME.value,
          TokenKind.KWESC_NAME: Tok.KWESC_NAME.value,
-         # Built-in Types
          TokenKind.TYP_STRING: Tok.TYP_STRING.value,
          TokenKind.TYP_INT: Tok.TYP_INT.value,
          TokenKind.TYP_FLOAT: Tok.TYP_FLOAT.value,
@@ -181,7 +188,6 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.TYP_BYTES: Tok.TYP_BYTES.value,
          TokenKind.TYP_ANY: Tok.TYP_ANY.value,
          TokenKind.TYP_TYPE: Tok.TYP_TYPE.value,
-         # Keywords
          TokenKind.KW_ABSTRACT: Tok.KW_ABSTRACT.value,
          TokenKind.KW_OBJECT: Tok.KW_OBJECT.value,
          TokenKind.KW_CLASS: Tok.KW_CLASS.value,
@@ -257,7 +263,6 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.KW_INIT: Tok.KW_INIT.value,
          TokenKind.KW_SUPER: Tok.KW_SUPER.value,
          TokenKind.KW_POST_INIT: Tok.KW_POST_INIT.value,
-         # Delimiters
          TokenKind.LPAREN: Tok.LPAREN.value,
          TokenKind.RPAREN: Tok.RPAREN.value,
          TokenKind.LBRACE: Tok.LBRACE.value,
@@ -268,7 +273,6 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.COLON: Tok.COLON.value,
          TokenKind.SEMI: Tok.SEMI.value,
          TokenKind.DOT: Tok.DOT.value,
-         # Assignment Operators
          TokenKind.EQ: Tok.EQ.value,
          TokenKind.WALRUS_EQ: Tok.WALRUS_EQ.value,
          TokenKind.ADD_EQ: Tok.ADD_EQ.value,
@@ -284,14 +288,12 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.LSHIFT_EQ: Tok.LSHIFT_EQ.value,
          TokenKind.RSHIFT_EQ: Tok.RSHIFT_EQ.value,
          TokenKind.MATMUL_EQ: Tok.MATMUL_EQ.value,
-         # Comparison Operators
          TokenKind.EE: Tok.EE.value,
          TokenKind.NE: Tok.NE.value,
          TokenKind.LT: Tok.LT.value,
          TokenKind.GT: Tok.GT.value,
          TokenKind.LTE: Tok.LTE.value,
          TokenKind.GTE: Tok.GTE.value,
-         # Arithmetic Operators
          TokenKind.PLUS: Tok.PLUS.value,
          TokenKind.MINUS: Tok.MINUS.value,
          TokenKind.STAR_MUL: Tok.STAR_MUL.value,
@@ -299,21 +301,18 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.FLOOR_DIV: Tok.FLOOR_DIV.value,
          TokenKind.MOD: Tok.MOD.value,
          TokenKind.STAR_POW: Tok.STAR_POW.value,
-         # Bitwise Operators
          TokenKind.BW_AND: Tok.BW_AND.value,
          TokenKind.BW_OR: Tok.BW_OR.value,
          TokenKind.BW_XOR: Tok.BW_XOR.value,
          TokenKind.BW_NOT: Tok.BW_NOT.value,
          TokenKind.LSHIFT: Tok.LSHIFT.value,
          TokenKind.RSHIFT: Tok.RSHIFT.value,
-         # Pipe Operators
          TokenKind.PIPE_FWD: Tok.PIPE_FWD.value,
          TokenKind.PIPE_BKWD: Tok.PIPE_BKWD.value,
          TokenKind.A_PIPE_FWD: Tok.A_PIPE_FWD.value,
          TokenKind.A_PIPE_BKWD: Tok.A_PIPE_BKWD.value,
          TokenKind.DOT_FWD: Tok.DOT_FWD.value,
          TokenKind.DOT_BKWD: Tok.DOT_BKWD.value,
-         # Arrow Operators
          TokenKind.ARROW_L: Tok.ARROW_L.value,
          TokenKind.ARROW_R: Tok.ARROW_R.value,
          TokenKind.ARROW_BI: Tok.ARROW_BI.value,
@@ -321,7 +320,6 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.ARROW_L_P2: Tok.ARROW_L_P2.value,
          TokenKind.ARROW_R_P1: Tok.ARROW_R_P1.value,
          TokenKind.ARROW_R_P2: Tok.ARROW_R_P2.value,
-         # Connect Arrows
          TokenKind.CARROW_L: Tok.CARROW_L.value,
          TokenKind.CARROW_R: Tok.CARROW_R.value,
          TokenKind.CARROW_BI: Tok.CARROW_BI.value,
@@ -329,12 +327,10 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.CARROW_L_P2: Tok.CARROW_L_P2.value,
          TokenKind.CARROW_R_P1: Tok.CARROW_R_P1.value,
          TokenKind.CARROW_R_P2: Tok.CARROW_R_P2.value,
-         # Special Operators
          TokenKind.RETURN_HINT: Tok.RETURN_HINT.value,
          TokenKind.NULL_OK: Tok.NULL_OK.value,
          TokenKind.DECOR_OP: Tok.DECOR_OP.value,
          TokenKind.TYPE_OP: Tok.TYPE_OP.value,
-         # F-String Tokens
          TokenKind.F_DQ_START: Tok.F_DQ_START.value,
          TokenKind.F_SQ_START: Tok.F_SQ_START.value,
          TokenKind.F_TDQ_START: Tok.F_TDQ_START.value,
@@ -345,13 +341,9 @@ glob TOKEN_KIND_TO_TOK:
          TokenKind.F_TSQ_END: Tok.F_TSQ_END.value,
          TokenKind.D_LBRACE: Tok.D_LBRACE.value,
          TokenKind.D_RBRACE: Tok.D_RBRACE.value,
-         # EOF
          TokenKind.EOF: "EOF"
      };
 
-# =============================================================================
-# Parser
-# =============================================================================
 obj Parser {
     has tokens: list[Token],
         pos: int = 0,
@@ -461,6 +453,7 @@ obj Parser {
     def parse_element_stmt;
     def parse_client_block -> ClientBlock;
     def parse_server_block -> ServerBlock;
+    def parse_native_block -> NativeBlock;
     def parse_module_code -> ModuleCode;
     def parse_code_block_stmts -> list;
     def parse_statement;
@@ -515,11 +508,16 @@ obj Parser {
     def parse_impl_enum_body -> list;
     def parse_sem_def -> SemDef;
     def parse_dotted_name -> Expr;
+    # =============================================================================
+    # Convenience Functions
+    # =============================================================================
 }
 
-# =============================================================================
-# Convenience Functions
-# =============================================================================
 def parse(
     source: str, file_path: str = "<input>"
 ) -> tuple[Module, list[ParseError], list[LexerError]];
+# Literals
+
+# =============================================================================
+# Parser
+# =============================================================================

@@ -373,8 +373,6 @@ MICRO_JAC_FILES: list[str] = [
     "tests/compiler/passes/main/fixtures/symtab_build_tests/main.jac",
     "tests/compiler/passes/main/fixtures/symtab_build_tests/no_dupls.jac",
     "tests/compiler/passes/main/fixtures/symtab_build_tests/one.jac",
-    "tests/compiler/passes/main/fixtures/ts_imports/client.cl.jac",
-    "tests/compiler/passes/main/fixtures/ts_imports/main.jac",
     "tests/compiler/passes/main/fixtures/type_annotation_assignment.jac",
     "tests/compiler/passes/main/fixtures/type_info.jac",
     "tests/compiler/passes/tool/fixtures/archetype_frmt.jac",

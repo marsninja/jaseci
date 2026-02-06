@@ -4,25 +4,25 @@ This lexer converts source code into a stream of tokens. It is designed
 to be native-compilation friendly with no runtime reflection.
 """
 
-import from .tokens { Token, TokenKind, SourceLoc, lookup_keyword, KEYWORDS }
-
+import from .tokens { Token, TokenKind, SourceLoc, lookup_keyword, KEYWORDS
 # =============================================================================
 # Lexer Mode - For contextual lexing (f-strings, JSX)
 # =============================================================================
-enum LexerMode {
-    NORMAL = "normal",
-    FSTRING_DQ = "fstring_dq",  # Inside f"..."
-    FSTRING_SQ = "fstring_sq",  # Inside f'...'
-    FSTRING_TDQ = "fstring_tdq",  # Inside f"""..."""
-    FSTRING_TSQ = "fstring_tsq",  # Inside f'''...'''
-    FSTRING_EXPR = "fstring_expr",  # Inside {...} in f-string
-    JSX_TAG = "jsx_tag",  # Inside <Tag ...>
-    JSX_CONTENT = "jsx_content"  # Between JSX tags
 }
 
-# =============================================================================
-# Lexer Error
-# =============================================================================
+enum LexerMode {
+    NORMAL = "normal",
+    FSTRING_DQ = "fstring_dq",
+    FSTRING_SQ = "fstring_sq",
+    FSTRING_TDQ = "fstring_tdq",
+    FSTRING_TSQ = "fstring_tsq",
+    FSTRING_EXPR = "fstring_expr",
+    JSX_TAG = "jsx_tag",
+    JSX_CONTENT = "jsx_content"
+    # =============================================================================
+    # Lexer Error
+    # =============================================================================
+}
 obj LexerError {
     has message: str,
         loc: SourceLoc;
@@ -30,11 +30,11 @@ obj LexerError {
     def __str__ -> str {
         return f"LexerError at line {self.loc.line}, col {self.loc.col_start}: {self.message}";
     }
+    # =============================================================================
+    # Lexer
+    # =============================================================================
 }
 
-# =============================================================================
-# Lexer
-# =============================================================================
 obj Lexer {
     has source: str,
         file_path: str = "<input>",
@@ -43,12 +43,13 @@ obj Lexer {
         col: int = 1,
         errors: list[LexerError] = [],
         mode_stack: list[LexerMode] = [],
-        fstring_brace_depth: int = 0,  # Track nested braces in f-string expressions
-        fstring_brace_depth_stack: list[int] = [],  # Stack for nested f-string brace depth
-        jsx_depth: int = 0,  # Track nested JSX elements
-        jsx_brace_depth: int = 0,  # Track nested braces in JSX expressions
-        jsx_brace_depth_stack: list[int] = [],  # Stack for nested JSX brace depth
-        jsx_closing_tag: bool = False;  # True when scanning a closing tag </...>
+        fstring_brace_depth: int = 0,
+        fstring_brace_depth_stack: list[int] = [],
+        jsx_depth: int = 0,
+        jsx_brace_depth: int = 0,
+        jsx_brace_depth_stack: list[int] = [],
+        jsx_closing_tag: bool = False,
+        collected_comments: list = [];
 
     # Mode management
     def push_mode(mode: LexerMode);
@@ -104,11 +105,25 @@ obj Lexer {
     def next_token -> Token;
     def tokenize -> list[Token];
     def has_errors -> bool;
+    # =============================================================================
+    # Convenience Function
+    # =============================================================================
 }
 
-# =============================================================================
-# Convenience Function
-# =============================================================================
 def tokenize(
     source: str, file_path: str = "<input>"
 ) -> tuple[list[Token], list[LexerError]];
+# Inside f"..."
+# Inside f'...'
+# Inside f"""..."""
+# Inside f'''...'''
+# Inside {...} in f-string
+# Inside <Tag ...>
+# Between JSX tags
+
+# Track nested braces in f-string expressions
+# Stack for nested f-string brace depth
+# Track nested JSX elements
+# Track nested braces in JSX expressions
+# Stack for nested JSX brace depth
+# True when scanning a closing tag </...>
