@@ -6,6 +6,7 @@ exclude: |
         ^jac/jaclang/vendor/|
         ^jac/jaclang/pycore/lark_jac_parser\.py$|
         ^jac/jaclang/pycore/lark_ts_parser\.py$|
+        ^jac/jaclang/compiler/bootstrap/bootstrap_parser\.py$|
         ^$
     )
 
@@ -41,7 +42,7 @@ repos:
           - --config-file=mypy.ini
           - --explicit-package-bases
         additional_dependencies: [types-PyYAML, types-requests]
-        exclude: (/fixtures/|lark_jac_parser\.py|lark_ts_parser\.py|/vendor/|/scripts/|jac/examples/reference)
+        exclude: (/fixtures/|lark_jac_parser\.py|lark_ts_parser\.py|/vendor/|/scripts/|jac/examples/reference|bootstrap_parser\.py)
   - repo: local
     hooks:
       - id: check-no-binary-files
@@ -82,11 +83,10 @@ repos:
       - id: jac-format
         name: jac-format
         description: Format and lint-fix Jac files
-        entry: env PYTHONPATH=jac python3 -m jaclang format
-        language: python
+        entry: .venv/bin/python -m jaclang format
+        language: system
         types: [file]
         args: [--lintfix]
         files: \.jac$
         require_serial: true
         exclude: (/fixtures/|_err\.jac$|_syntax_err\.jac$)
-        additional_dependencies: [llvmlite>=0.43.0]

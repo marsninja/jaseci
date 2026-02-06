@@ -20,8 +20,9 @@ from jaclang.pycore.bccache import (
     get_bytecode_cache,
 )
 from jaclang.pycore.compile_options import CompileOptions
+from jaclang.pycore.constant import CodeContext
+from jaclang.pycore.constant import Tokens as Tok
 from jaclang.pycore.helpers import read_file_with_encoding
-from jaclang.pycore.jac_parser import JacParser
 from jaclang.pycore.passes import (
     DeclImplMatchPass,
     InteropAnalysisPass,
@@ -192,6 +193,82 @@ class _SetupProgress:
 setup_progress = _SetupProgress()
 
 
+def _recalculate_parents(node: uni.UniNode) -> None:
+    """Recalculate `.parent` pointers after mutating node children."""
+    for child in node.kid:
+        child.parent = node
+        _recalculate_parents(child)
+
+
+def _coerce_client_module(module: uni.Module) -> None:
+    """Treat a `.cl.jac` file as client code, except for explicit sv blocks."""
+    elements: list[uni.ElementStmt] = []
+    for stmt in module.body:
+        if isinstance(stmt, uni.ClientBlock):
+            elements.extend(stmt.body)
+        elif isinstance(stmt, (uni.ServerBlock, uni.ElementStmt)):
+            elements.append(stmt)
+    for elem in elements:
+        if isinstance(elem, uni.ServerBlock):
+            continue
+        if isinstance(elem, uni.ContextAwareNode):
+            context_token = elem._source_context_token()
+            if context_token is not None and context_token.name == Tok.KW_SERVER:
+                continue
+            elem.code_context = CodeContext.CLIENT
+            if isinstance(elem, uni.ModuleCode) and elem.body:
+                for inner in elem.body:
+                    if isinstance(inner, uni.ContextAwareNode):
+                        inner.code_context = CodeContext.CLIENT
+    module.body = elements
+    module.normalize(deep=False)
+    _recalculate_parents(module)
+
+
+def _coerce_server_module(module: uni.Module) -> None:
+    """Treat a `.sv.jac` file as server code (explicit marking)."""
+    elements: list[uni.ElementStmt] = []
+    for stmt in module.body:
+        if isinstance(stmt, uni.ServerBlock):
+            elements.extend(stmt.body)
+        elif isinstance(stmt, (uni.ClientBlock, uni.ElementStmt)):
+            elements.append(stmt)
+    for elem in elements:
+        if isinstance(elem, uni.ClientBlock):
+            continue
+        if isinstance(elem, uni.ContextAwareNode):
+            elem.code_context = CodeContext.SERVER
+            if isinstance(elem, uni.ModuleCode) and elem.body:
+                for inner in elem.body:
+                    if isinstance(inner, uni.ContextAwareNode):
+                        inner.code_context = CodeContext.SERVER
+    module.body = elements
+    module.normalize(deep=False)
+    _recalculate_parents(module)
+
+
+def _coerce_native_module(module: uni.Module) -> None:
+    """Treat a `.na.jac` file as native code."""
+    elements: list[uni.ElementStmt] = []
+    for stmt in module.body:
+        if isinstance(stmt, uni.NativeBlock):
+            elements.extend(stmt.body)
+        elif isinstance(stmt, (uni.ServerBlock, uni.ClientBlock, uni.ElementStmt)):
+            elements.append(stmt)
+    for elem in elements:
+        if isinstance(elem, (uni.ServerBlock, uni.ClientBlock)):
+            continue
+        if isinstance(elem, uni.ContextAwareNode):
+            elem.code_context = CodeContext.NATIVE
+            if isinstance(elem, uni.ModuleCode) and elem.body:
+                for inner in elem.body:
+                    if isinstance(inner, uni.ContextAwareNode):
+                        inner.code_context = CodeContext.NATIVE
+    module.body = elements
+    module.normalize(deep=False)
+    _recalculate_parents(module)
+
+
 class JacCompiler:
     """Jac Compiler singleton.
 
@@ -200,6 +277,8 @@ class JacCompiler:
     """
 
     _jaclang_root: str | None = None
+    _rd_parse_fn: types.FunctionType | None = None
+    _rd_parser_init_attempted: bool = False
 
     def __init__(self, bytecode_cache: BytecodeCache | None = None) -> None:
         """Initialize with optional custom bytecode cache."""
@@ -221,6 +300,79 @@ class JacCompiler:
         if cls._jaclang_root is None:
             cls._jaclang_root = os.path.dirname(os.path.dirname(__file__))
         return cls._jaclang_root
+
+    @classmethod
+    def _init_rd_parser(cls) -> None:
+        """Lazily initialize the bootstrap-compiled RD parser.
+
+        Compiles the Jac RD parser source files using the bootstrap parser,
+        loads the resulting bytecode modules, and stores the parse() function
+        for use by parse_str().
+        """
+        if cls._rd_parser_init_attempted:
+            return
+        cls._rd_parser_init_attempted = True
+
+        try:
+            prog = cls.bootstrap_compile_parser()
+            jaclang_root = cls._get_jaclang_root()
+            parser_dir = os.path.normpath(
+                os.path.join(jaclang_root, "compiler", "parser")
+            )
+            impl_dir = os.path.join(parser_dir, "impl")
+            pkg = "jaclang.compiler.parser"
+            impl_pkg = pkg + ".impl"
+
+            # Ensure package modules exist in sys.modules
+            for mod_name, mod_path in [(pkg, parser_dir), (impl_pkg, impl_dir)]:
+                if mod_name not in sys.modules:
+                    m = types.ModuleType(mod_name)
+                    m.__package__ = mod_name
+                    m.__path__ = [mod_path]
+                    sys.modules[mod_name] = m
+
+            # Load bytecode modules in dependency order
+            load_order = [
+                ("tokens.jac", pkg + ".tokens"),
+                ("impl/tokens.impl.jac", impl_pkg + ".tokens"),
+                ("lexer.jac", pkg + ".lexer"),
+                ("impl/lexer.impl.jac", impl_pkg + ".lexer"),
+                ("parser.jac", pkg + ".parser"),
+                ("impl/parser.impl.jac", impl_pkg + ".parser"),
+                ("__init__.jac", pkg),
+            ]
+            for fname, mod_name in load_order:
+                fpath = os.path.join(parser_dir, fname)
+                mod_ast = prog.mod.hub.get(fpath)
+                if not mod_ast or not mod_ast.gen.py_bytecode:
+                    continue
+                bc = mod_ast.gen.py_bytecode
+                code = marshal.loads(bc) if isinstance(bc, bytes) else None
+                if code is None:
+                    continue
+                m = types.ModuleType(mod_name)
+                m.__file__ = fpath
+                m.__package__ = (
+                    mod_name if fname == "__init__.jac" else mod_name.rsplit(".", 1)[0]
+                )
+                if fname == "__init__.jac":
+                    m.__path__ = [parser_dir]
+                sys.modules[mod_name] = m
+                exec(code, m.__dict__)  # noqa: S102
+
+            # Extract the parse() function
+            parser_pkg = sys.modules.get(pkg)
+            if parser_pkg and hasattr(parser_pkg, "parse"):
+                cls._rd_parse_fn = parser_pkg.parse
+        except Exception as e:
+            import traceback
+
+            print(  # noqa: T201
+                f"Warning: Failed to initialize bootstrap RD parser: {e}",
+                file=sys.stderr,
+            )
+            traceback.print_exc(file=sys.stderr)
+            cls._rd_parse_fn = None
 
     def _resolve_program(
         self, file_path: str, target_program: JacProgram
@@ -497,6 +649,60 @@ class JacCompiler:
 
         return False
 
+    def _parse_jac(
+        self,
+        source_str: str,
+        file_path: str,
+        target_program: JacProgram,
+        cancel_token: Event | None = None,
+    ) -> uni.Module:
+        """Parse a .jac source string into a Module AST using the RD parser."""
+        if not JacCompiler._rd_parser_init_attempted:
+            JacCompiler._init_rd_parser()
+
+        if JacCompiler._rd_parse_fn is None:
+            raise RuntimeError(
+                "Jac RD parser failed to initialize. Check stderr for details."
+            )
+
+        module, parse_errors, lex_errors = JacCompiler._rd_parse_fn(
+            source_str, file_path
+        )
+        all_errors = list(parse_errors or []) + list(lex_errors or [])
+        if all_errors:
+            module.has_syntax_errors = True
+            # Propagate parse errors to the program's error list
+            from jaclang.pycore.codeinfo import CodeLocInfo
+            from jaclang.pycore.passes.transform import Alert, Transform
+
+            source = uni.Source(source_str, mod_path=file_path)
+            for err in all_errors:
+                tok = uni.Token(
+                    name=Tok.WS,
+                    value="",
+                    orig_src=source,
+                    col_start=err.loc.col_start,
+                    col_end=err.loc.col_end,
+                    line=err.loc.line,
+                    end_line=err.loc.end_line,
+                    pos_start=err.loc.pos_start,
+                    pos_end=err.loc.pos_end,
+                )
+                loc = CodeLocInfo(first_tok=tok, last_tok=tok)
+                target_program.errors_had.append(
+                    Alert(msg=err.message, loc=loc, from_pass=Transform)  # type: ignore[type-abstract]
+                )
+
+        # Apply module coercion for special file types
+        if file_path.endswith(".cl.jac"):
+            _coerce_client_module(module)
+        elif file_path.endswith(".sv.jac"):
+            _coerce_server_module(module)
+        elif file_path.endswith(".na.jac"):
+            _coerce_native_module(module)
+
+        return module
+
     def parse_str(
         self,
         source_str: str,
@@ -528,12 +734,8 @@ class JacCompiler:
             had_error = len(ts_ast_ret.errors_had) > 0
             mod = ts_ast_ret.ir_out
         else:
-            source = uni.Source(source_str, mod_path=file_path)
-            jac_ast_ret: Transform[uni.Source, uni.Module] = JacParser(
-                root_ir=source, prog=target_program, cancel_token=cancel_token
-            )
-            had_error = len(jac_ast_ret.errors_had) > 0
-            mod = jac_ast_ret.ir_out
+            mod = self._parse_jac(source_str, file_path, target_program, cancel_token)
+            had_error = mod.has_syntax_errors
         if had_error:
             return mod
         if target_program.mod.main.stub_only:
@@ -639,15 +841,121 @@ class JacCompiler:
             current_pass(ir_in=mod, prog=target_program, cancel_token=cancel_token)  # type: ignore
 
     @staticmethod
+    def bootstrap_compile_parser(parser_dir: str | None = None) -> JacProgram:
+        """Compile the Jac RD parser using the bootstrap parser.
+
+        Uses the minimal Python bootstrap parser to parse the Jac parser
+        source files, then runs the standard compilation passes to produce
+        Python bytecode. This enables Jac to compile itself without Lark.
+
+        Args:
+            parser_dir: Path to the parser source directory. If None, uses
+                the default location (jaclang/compiler/parser/).
+
+        Returns:
+            JacProgram with all parser modules compiled and registered.
+        """
+        from jaclang.compiler.bootstrap.bootstrap_parser import bootstrap_parse
+        from jaclang.pycore.program import JacProgram
+
+        if parser_dir is None:
+            parser_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "..",
+                "compiler",
+                "parser",
+            )
+            parser_dir = os.path.normpath(parser_dir)
+
+        files = [
+            "tokens.jac",
+            "lexer.jac",
+            "parser.jac",
+            "__init__.jac",
+            "impl/tokens.impl.jac",
+            "impl/lexer.impl.jac",
+            "impl/parser.impl.jac",
+        ]
+
+        prog = JacProgram()
+
+        # Phase 1: Parse all files with bootstrap parser
+        for f in files:
+            fpath = os.path.join(parser_dir, f)
+            source_str = read_file_with_encoding(fpath)
+            mod = bootstrap_parse(source_str, fpath)
+            prog.mod.hub[fpath] = mod
+
+        # Phase 2: Link annex files (impl modules) to their base modules
+        annex_map = {
+            "tokens.jac": "impl/tokens.impl.jac",
+            "lexer.jac": "impl/lexer.impl.jac",
+            "parser.jac": "impl/parser.impl.jac",
+        }
+        for base, impl in annex_map.items():
+            base_path = os.path.join(parser_dir, base)
+            impl_path = os.path.join(parser_dir, impl)
+            base_mod = prog.mod.hub[base_path]
+            impl_mod = prog.mod.hub[impl_path]
+            base_mod.impl_mod.append(impl_mod)
+
+        # Phase 3: Build symbol tables for all modules
+        for f in files:
+            fpath = os.path.join(parser_dir, f)
+            SymTabBuildPass(ir_in=prog.mod.hub[fpath], prog=prog)
+
+        # Phase 4: Match declarations to implementations (base modules only)
+        for base in annex_map:
+            fpath = os.path.join(parser_dir, base)
+            DeclImplMatchPass(ir_in=prog.mod.hub[fpath], prog=prog)
+        # Also run on __init__.jac
+        init_path = os.path.join(parser_dir, "__init__.jac")
+        DeclImplMatchPass(ir_in=prog.mod.hub[init_path], prog=prog)
+
+        # Phase 5: Semantic analysis and code generation
+        # Run each pass across ALL files before moving to the next pass.
+        # This is critical because PyastGenPass creates child passes for
+        # impl modules (via _init_child_passes), so SemanticAnalysisPass
+        # must have already run on impl modules before PyastGenPass
+        # processes their base modules.
+        codegen_passes: list[type[Transform[uni.Module, uni.Module]]] = [
+            SemanticAnalysisPass,
+            PyastGenPass,
+            PyBytecodeGenPass,
+        ]
+        all_paths = [os.path.join(parser_dir, f) for f in files]
+        for pass_cls in codegen_passes:
+            for fpath in all_paths:
+                mod = prog.mod.hub[fpath]
+                if not mod.has_syntax_errors:
+                    pass_cls(ir_in=mod, prog=prog)
+
+        return prog
+
+    @staticmethod
+    def _rd_parse(source_str: str, file_path: str) -> uni.Module:
+        """Parse source string using the RD parser (shared by formatters/linters)."""
+        if not JacCompiler._rd_parser_init_attempted:
+            JacCompiler._init_rd_parser()
+        if JacCompiler._rd_parse_fn is None:
+            raise RuntimeError(
+                "Jac RD parser failed to initialize. Check stderr for details."
+            )
+        module, parse_errors, lex_errors = JacCompiler._rd_parse_fn(
+            source_str, file_path
+        )
+        if parse_errors or lex_errors:
+            module.has_syntax_errors = True
+        return module
+
+    @staticmethod
     def jac_file_formatter(file_path: str, auto_lint: bool = False) -> JacProgram:
         """Format a Jac file."""
         from jaclang.pycore.program import JacProgram
 
         prog = JacProgram()
         source_str = read_file_with_encoding(file_path)
-        source = uni.Source(source_str, mod_path=file_path)
-        parser_pass = JacParser(root_ir=source, prog=prog)
-        current_mod = parser_pass.ir_out
+        current_mod = JacCompiler._rd_parse(source_str, file_path)
         for pass_cls in get_format_sched(auto_lint=auto_lint):
             current_mod = pass_cls(ir_in=current_mod, prog=prog).ir_out
         prog.mod = uni.ProgramModule(current_mod)
@@ -661,9 +969,7 @@ class JacCompiler:
         from jaclang.pycore.program import JacProgram
 
         prog = JacProgram()
-        source = uni.Source(source_str, mod_path=file_path)
-        parser_pass = JacParser(root_ir=source, prog=prog)
-        current_mod = parser_pass.ir_out
+        current_mod = JacCompiler._rd_parse(source_str, file_path)
         for pass_cls in get_format_sched(auto_lint=auto_lint):
             current_mod = pass_cls(ir_in=current_mod, prog=prog).ir_out
         prog.mod = uni.ProgramModule(current_mod)
@@ -676,9 +982,7 @@ class JacCompiler:
 
         prog = JacProgram()
         source_str = read_file_with_encoding(file_path)
-        source = uni.Source(source_str, mod_path=file_path)
-        parser_pass = JacParser(root_ir=source, prog=prog)
-        current_mod = parser_pass.ir_out
+        current_mod = JacCompiler._rd_parse(source_str, file_path)
         for pass_cls in get_lint_sched():
             current_mod = pass_cls(ir_in=current_mod, prog=prog).ir_out
         prog.mod = uni.ProgramModule(current_mod)

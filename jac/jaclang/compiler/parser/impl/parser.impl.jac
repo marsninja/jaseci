@@ -124,7 +124,8 @@ import from jaclang.pycore.unitree {
 }
 import from jaclang.pycore.unitree { JsxText, JsxExpression }
 
-import from jaclang.pycore.constant { Tokens as Tok, SymbolAccess, SymbolType }
+import from jaclang.pycore.unitree { ContextAwareNode }
+import from jaclang.pycore.constant { Tokens as Tok, SymbolAccess, SymbolType, CodeContext }
 import from jaclang.pycore.codeinfo { CodeLocInfo }
 
 # =============================================================================
@@ -582,7 +583,7 @@ impl Parser.parse -> Module {
 }
 
 impl Parser.parse_module -> Module {
-    self.source = Source(self.file_path, self.source_code);
+    self.source = Source(self.source_code, self.file_path);
     doc: String | None = None;
     body: list = [];
     terminals: list = [];
@@ -904,7 +905,10 @@ impl Parser.parse_edge_op_ref_inline -> EdgeOpRef | None {
         # Simple edge operator: -->, <--, <-->
         tok = self.advance();
         edge_op = self.make_uni_token(tok);
-        return EdgeOpRef(filter_cond=None, edge_dir=edge_op, kid=[edge_op]);
+        dir = EdgeDir.OUT;
+        if tok.kind == TokenKind.ARROW_L { dir = EdgeDir.IN; }
+        elif tok.kind == TokenKind.ARROW_BI { dir = EdgeDir.ANY; }
+        return EdgeOpRef(filter_cond=None, edge_dir=dir, kid=[edge_op]);
     }
     if self.match_tok(TokenKind.ARROW_R_P1) {
         # Typed edge: ->:Type:->
@@ -918,7 +922,7 @@ impl Parser.parse_edge_op_ref_inline -> EdgeOpRef | None {
             end = self.make_uni_token(self.previous());
             kid.append(end);
         }
-        return EdgeOpRef(filter_cond=None, edge_dir=start, kid=kid);
+        return EdgeOpRef(filter_cond=None, edge_dir=EdgeDir.OUT, kid=kid);
     }
     if self.match_tok(TokenKind.ARROW_L_P1) {
         # Typed edge: <-:Type:<-
@@ -932,7 +936,7 @@ impl Parser.parse_edge_op_ref_inline -> EdgeOpRef | None {
             end = self.make_uni_token(self.previous());
             kid.append(end);
         }
-        return EdgeOpRef(filter_cond=None, edge_dir=start, kid=kid);
+        return EdgeOpRef(filter_cond=None, edge_dir=EdgeDir.IN, kid=kid);
     }
     return None;
 }
@@ -1170,7 +1174,15 @@ impl Parser.parse_pipe_call -> Expr {
 
 impl Parser.parse_atomic_chain -> Expr {
     expr = self.parse_atom();
+    chain_null_ok = False;
     while True {
+        # Check for NULL_OK followed by index/call (e.g., x?[idx], x?(args))
+        if self.check(TokenKind.NULL_OK)
+        and self.peek().kind in [TokenKind.LSQUARE, TokenKind.LPAREN] {
+            self.advance();  # consume ?
+            chain_null_ok = True;
+            # Fall through to LSQUARE/LPAREN handling below
+        }
         if self.match_tok(TokenKind.DOT)
         or self.match_tok(TokenKind.NULL_OK)
         or self.match_tok(TokenKind.DOT_FWD)
@@ -1353,11 +1365,16 @@ impl Parser.parse_atomic_chain -> Expr {
                 slice_kid.append(self.gen_token(Tok.RSQUARE.value, "]"));
                 index_slice = IndexSlice(slices=slices, is_range=True, kid=slice_kid);
                 kid = [expr, index_slice];
+                cur_null_ok = chain_null_ok;
+                chain_null_ok = False;
+                kid = [expr];
+                if cur_null_ok { kid.append(self.gen_token(Tok.NULL_OK.value, "?")); }
+                kid.append(index_slice);
                 expr = AtomTrailer(
                     target=expr,
                     right=index_slice,
                     is_attr=False,
-                    is_null_ok=False,
+                    is_null_ok=cur_null_ok,
                     kid=kid
                 );
             } else {
@@ -1392,12 +1409,16 @@ impl Parser.parse_atomic_chain -> Expr {
                     is_range=False,
                     kid=index_slice_kid
                 );
-                kid = [expr, index_slice];
+                cur_null_ok = chain_null_ok;
+                chain_null_ok = False;
+                kid = [expr];
+                if cur_null_ok { kid.append(self.gen_token(Tok.NULL_OK.value, "?")); }
+                kid.append(index_slice);
                 expr = AtomTrailer(
                     target=expr,
                     right=index_slice,
                     is_attr=False,
-                    is_null_ok=False,
+                    is_null_ok=cur_null_ok,
                     kid=kid
                 );
             }
@@ -1991,12 +2012,12 @@ impl Parser.parse_fstring -> FString {
         } elif self.match_tok(TokenKind.LBRACE) {
             # Parse expression inside braces, with optional !conv and :format_spec
             expr = self.parse_expression();
-            conv = 0;
+            conv = -1;
             fv_kid: list = [self.gen_token(Tok.LBRACE.value, "{"), expr];
             # Handle conversion: !r, !s, !a
             if self.check(TokenKind.CONV) {
                 conv_tok = self.advance();
-                conv = ord(conv_tok.value[1]) if len(conv_tok.value) > 1 else 0;
+                conv = ord(conv_tok.value[1]) if len(conv_tok.value) > 1 else -1;
                 fv_kid.append(self.make_uni_token(conv_tok));
             }
             # Handle format spec: :format
@@ -2939,6 +2960,9 @@ impl Parser.parse_element_stmt{
             stmt = self.parse_element_stmt();
             if stmt is not None {
                 stmt.add_kids_left([cl_tok]);
+                if isinstance(stmt, ContextAwareNode) {
+                    stmt.code_context = CodeContext.CLIENT;
+                }
             }
             return stmt;
         }
@@ -2952,6 +2976,9 @@ impl Parser.parse_element_stmt{
             stmt = self.parse_element_stmt();
             if stmt is not None {
                 stmt.add_kids_left([sv_tok]);
+                if isinstance(stmt, ContextAwareNode) {
+                    stmt.code_context = CodeContext.SERVER;
+                }
             }
             return stmt;
         }
@@ -3199,7 +3226,7 @@ impl Parser.parse_module_code -> ModuleCode {
     target_name = None;  # For :__main__ style target
     if self.check_any(TokenKind.KW_ENTRY, TokenKind.KW_EXIT) {
         name_tok = self.advance();
-        name = self.make_uni_token(name_tok);
+        name = self.make_name(name_tok);
     }
     # Check for optional :NAME after entry/exit (e.g., with entry:__main__)
     if self.match_tok(TokenKind.COLON) {
@@ -3220,8 +3247,9 @@ impl Parser.parse_module_code -> ModuleCode {
     kid.append(self.gen_token(Tok.LBRACE.value));
     kid.extend(body);
     kid.append(self.gen_token(Tok.RBRACE.value));
-    # Use target_name as the name if provided
-    return ModuleCode(name=target_name or name, body=body, kid=kid, doc=None);
+    # Only use target_name (from :NAME syntax) as the ModuleCode name.
+    # Plain 'with entry' should have name=None so body runs unconditionally at module level.
+    return ModuleCode(name=target_name, body=body, kid=kid, doc=None);
 }
 
 impl Parser.parse_code_block_stmts -> list {
@@ -4412,20 +4440,25 @@ impl Parser.parse_import_stmt -> Import {
         kid.append(self.gen_token(Tok.KW_FROM.value));
         # Parse module path
         path_names: list = [];
+        import_level = 0;
+        dot_kids: list = [];
         if self.check_any(TokenKind.DOT, TokenKind.ELLIPSIS) {
             # Relative import (.module, ..module, ...module)
+            # Count dots for level, don't include in path_names
             while self.check_any(TokenKind.DOT, TokenKind.ELLIPSIS) {
                 if self.check(TokenKind.ELLIPSIS) {
-                    path_names.append(self.make_ellipsis(self.advance()));
+                    dot_kids.append(self.make_ellipsis(self.advance()));
+                    import_level += 3;
                 } else {
-                    path_names.append(self.make_uni_token(self.advance()));
+                    dot_kids.append(self.make_uni_token(self.advance()));
+                    import_level += 1;
                 }
             }
         }
         path_kid: list = [];
         # Add leading dot tokens to path_kid for relative imports
-        for pn in path_names {
-            path_kid.append(pn);
+        for dk in dot_kids {
+            path_kid.append(dk);
         }
         if self.check(TokenKind.STRING) {
             # String import path: import from "@jac/runtime" { ... }
@@ -4454,7 +4487,7 @@ impl Parser.parse_import_stmt -> Import {
         if len(path_kid) == 0 {
             path_kid = path_names or [EmptyToken()];
         }
-        from_loc = ModulePath(path=path_names, level=0, alias=None, kid=path_kid);
+        from_loc = ModulePath(path=path_names, level=import_level, alias=None, kid=path_kid);
         kid.append(from_loc);
     }
     # Parse items in braces: { item1, item2, ... }
@@ -4543,14 +4576,10 @@ impl Parser.parse_import_stmt -> Import {
                 path_kid.append(alias);
             }
             path = ModulePath(path=path_names, level=0, alias=alias, kid=path_kid);
-            item = ModuleItem(
-                name=path_names[-1]
-                if path_names
-                else self.gen_token(Tok.NAME.value, ""),
-                alias=alias,
-                kid=[path] if alias is None else [path, alias]
-            );
-            items.append(item);
+            # For simple 'import X' and 'include X', items contains ModulePath
+            # directly. ModulePath has resolve_relative_path() needed by
+            # sym_tab_build_pass and exit_module_path generates full dotted names.
+            items.append(path);
             kid.append(path);
             # Check for more imports
             if not self.match_tok(TokenKind.COMMA) {
@@ -4603,7 +4632,7 @@ impl Parser.parse_archetype -> Archetype {
         }
         self.expect(TokenKind.RPAREN);
     }
-    body: list = [];
+    body: list | None = [];
     has_body = False;
     if self.match_tok(TokenKind.LBRACE) {
         has_body = True;
@@ -4616,6 +4645,8 @@ impl Parser.parse_archetype -> Archetype {
         self.expect(TokenKind.RBRACE);
     } else {
         self.match_tok(TokenKind.SEMI);
+        # Declaration-only: body must be None so needs_impl returns True
+        body = None;
     }
     kid: list = [];
     for d in decorators {
@@ -4647,7 +4678,7 @@ impl Parser.parse_archetype -> Archetype {
     } else {
         kid.append(self.make_semi());
     }
-    return Archetype(
+    arch = Archetype(
         name=name,
         arch_type=arch_type,
         access=access,
@@ -4657,6 +4688,10 @@ impl Parser.parse_archetype -> Archetype {
         doc=None,
         decorators=decorators
     );
+    if is_async {
+        arch.is_async = True;
+    }
+    return arch;
 }
 
 impl Parser.parse_archetype_member{
@@ -4957,7 +4992,7 @@ impl Parser.parse_ability -> Ability {
     } else {
         signature = self.parse_func_signature();
     }
-    body: list = [];
+    body: list | None = [];
     is_abstract = False;
     body_type = "semi";  # "brace", "by", or "semi"
     if self.match_tok(TokenKind.LBRACE) {
@@ -4976,6 +5011,8 @@ impl Parser.parse_ability -> Ability {
             is_abstract = True;
         }
         self.expect(TokenKind.SEMI);
+        # Declaration-only: body must be None so needs_impl returns True
+        body = None;
     }
     kid: list = [];
     for d in decorators {
@@ -5004,6 +5041,8 @@ impl Parser.parse_ability -> Ability {
     );
     if has_sig_content {
         kid.append(signature);
+    } else {
+        signature = None;
     }
     if body_type == "brace" {
         kid.append(self.gen_token(Tok.LBRACE.value));
@@ -5034,13 +5073,13 @@ impl Parser.parse_ability -> Ability {
 }
 
 impl Parser.parse_func_signature -> FuncSignature {
-    params: list = [];
+    all_params: list = [];
     return_type = None;
     kid: list = [];
     if self.match_tok(TokenKind.LPAREN) {
         kid.append(self.gen_token(Tok.LPAREN.value, "("));
         if not self.check(TokenKind.RPAREN) {
-            params = self.parse_func_params(kid);
+            all_params = self.parse_func_params(kid);
         }
         self.expect(TokenKind.RPAREN);
         kid.append(self.gen_token(Tok.RPAREN.value, ")"));
@@ -5054,12 +5093,51 @@ impl Parser.parse_func_signature -> FuncSignature {
     if len(kid) == 0 {
         kid.append(EmptyToken());
     }
+    # Categorize parameters into posonly, regular, varargs, kwonly, kwargs
+    # Same state machine logic as Lark parser's _parse_parameter_categories
+    posonly_params: list = [];
+    params: list = [];
+    varargs = None;
+    kwonlyargs: list = [];
+    kwargs = None;
+    # First pass: check if there's a / separator (means we start in posonly state)
+    has_posonly = False;
+    for nd in kid {
+        if isinstance(nd, UniToken) and nd.name == Tok.DIV.value {
+            has_posonly = True;
+            break;
+        }
+    }
+    cur_state = "posonly" if has_posonly else "positional";
+    for nd in kid {
+        # State transitions on separator tokens
+        if isinstance(nd, UniToken) {
+            if nd.name == Tok.DIV.value {
+                cur_state = "positional";
+            } elif nd.name == Tok.STAR_MUL.value {
+                cur_state = "keyword_only";
+            }
+        } elif isinstance(nd, ParamVar) {
+            if nd.is_vararg {
+                varargs = nd;
+                cur_state = "keyword_only";
+            } elif nd.is_kwargs {
+                kwargs = nd;
+            } elif cur_state == "posonly" {
+                posonly_params.append(nd);
+            } elif cur_state == "positional" {
+                params.append(nd);
+            } elif cur_state == "keyword_only" {
+                kwonlyargs.append(nd);
+            }
+        }
+    }
     return FuncSignature(
-        posonly_params=[],
+        posonly_params=posonly_params,
         params=params,
-        varargs=None,
-        kwonlyargs=[],
-        kwargs=None,
+        varargs=varargs,
+        kwonlyargs=kwonlyargs,
+        kwargs=kwargs,
         return_type=return_type,
         kid=kid
     );
@@ -5198,7 +5276,7 @@ impl Parser.parse_enum -> Enum {
         }
         self.expect(TokenKind.RPAREN);
     }
-    body: list = [];
+    body: list | None = [];
     body_kid: list = [];
     has_body = False;
     if self.match_tok(TokenKind.LBRACE) {
@@ -5218,6 +5296,8 @@ impl Parser.parse_enum -> Enum {
         self.expect(TokenKind.RBRACE);
     } else {
         self.expect(TokenKind.SEMI);
+        # Declaration-only: body must be None so needs_impl returns True
+        body = None;
     }
     kid: list = [];
     for d in decorators {
@@ -5229,6 +5309,16 @@ impl Parser.parse_enum -> Enum {
         kid.append(access);
     }
     kid.append(name);
+    if base_classes {
+        kid.append(self.gen_token(Tok.LPAREN.value));
+        for (i, bc) in enumerate(base_classes) {
+            if i > 0 {
+                kid.append(self.gen_token(Tok.COMMA.value, ","));
+            }
+            kid.append(bc);
+        }
+        kid.append(self.gen_token(Tok.RPAREN.value));
+    }
     if has_body {
         kid.append(self.gen_token(Tok.LBRACE.value));
         kid.extend(body_kid);
@@ -5609,6 +5699,10 @@ impl Parser.parse_impl_target_name -> Name {
     } elif self.check_any(TokenKind.KW_ENTRY, TokenKind.KW_EXIT, TokenKind.KW_DEFAULT) {
         name_tok = self.advance();
         return self.make_special_name(name_tok);
+    } elif self.is_keyword_token() {
+        # Any keyword used as an impl target name (e.g., impl test(...))
+        name_tok = self.advance();
+        return self.make_name(name_tok);
     } else {
         name_tok = self.expect(TokenKind.NAME);  # Will error
         return self.make_name(name_tok);

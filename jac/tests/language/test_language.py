@@ -227,7 +227,7 @@ def test_assignment_list_no_infinite_loop():
     result = jac_prog.compile(use_str=code, file_path="test.jac")
     # Should have errors (invalid syntax) but not hang
     assert result is not None  # Returns a Module object
-    assert len(jac_prog.errors_had) > 0  # Check errors on program
+    assert result.has_syntax_errors  # Parser detected invalid syntax
 
 
 def test_need_import(

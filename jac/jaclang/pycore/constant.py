@@ -376,6 +376,70 @@ DELIM_MAP = {
     Tokens.DOT: ".",
 }
 
+# Static map from token name strings to display values.
+# Replaces the Lark-derived TOKEN_MAP that was previously in jac_parser.py.
+# Only includes entries NOT already in DELIM_MAP.
+# fmt: off
+TOK_VALUE_MAP: dict[str, str] = {
+    # Keywords
+    "KW_ABSTRACT": "abs", "KW_AND": "and", "KW_AS": "as", "KW_ASSERT": "assert",
+    "KW_ASYNC": "async", "KW_AWAIT": "await", "KW_BREAK": "break", "KW_BY": "by",
+    "KW_CAN": "can", "KW_CASE": "case", "KW_CLASS": "class", "KW_CLIENT": "cl",
+    "KW_CONTINUE": "continue", "KW_DEF": "def", "KW_DEFAULT": "default",
+    "KW_DELETE": "del", "KW_DISENGAGE": "disengage", "KW_EDGE": "edge",
+    "KW_ELIF": "elif", "KW_ELSE": "else", "KW_ENTRY": "entry", "KW_ENUM": "enum",
+    "KW_EXCEPT": "except", "KW_EXIT": "exit", "KW_FINALLY": "finally",
+    "KW_FLOW": "flow", "KW_FOR": "for", "KW_FROM": "from", "KW_GLOBAL": "glob",
+    "KW_HAS": "has", "KW_HERE": "here", "KW_IF": "if", "KW_IMPL": "impl",
+    "KW_IMPORT": "import", "KW_IN": "in", "KW_INCLUDE": "include", "KW_INIT": "init",
+    "KW_IS": "is", "KW_ISN": "is not", "KW_LAMBDA": "lambda", "KW_MATCH": "match",
+    "KW_NATIVE": "na", "KW_NIN": "not in", "KW_NODE": "node", "KW_OBJECT": "obj",
+    "KW_OR": "|", "KW_OVERRIDE": "override", "KW_POST_INIT": "postinit",
+    "KW_PRIV": "priv", "KW_PROPS": "props", "KW_PROT": "protect", "KW_PUB": "pub",
+    "KW_RAISE": "raise", "KW_REPORT": "report", "KW_RETURN": "return",
+    "KW_ROOT": "root", "KW_SELF": "self", "KW_SEM": "sem", "KW_SERVER": "sv",
+    "KW_SKIP": "skip", "KW_SPAWN": "spawn", "KW_STATIC": "static",
+    "KW_SUPER": "super", "KW_SWITCH": "switch", "KW_TEST": "test", "KW_TO": "to",
+    "KW_TRY": "try", "KW_VISIT": "visit", "KW_VISITOR": "visitor", "KW_WAIT": "wait",
+    "KW_WALKER": "walker", "KW_WHILE": "while", "KW_WITH": "with", "KW_YIELD": "yield",
+    # Comparison and equality
+    "EE": "==", "NE": "!=", "LT": "<", "GT": ">", "LTE": "<=", "GTE": ">=",
+    # Arithmetic operators
+    "PLUS": "+", "MINUS": "-", "STAR_MUL": "*", "STAR_POW": "**",
+    "DIV": "/", "FLOOR_DIV": "//", "MOD": "%",
+    # Bitwise operators
+    "BW_AND": "&", "BW_OR": "|", "BW_XOR": "^", "BW_NOT": "~",
+    "LSHIFT": "<<", "RSHIFT": ">>",
+    # Assignment operators
+    "ADD_EQ": "+=", "SUB_EQ": "-=", "MUL_EQ": "*=", "DIV_EQ": "/=",
+    "FLOOR_DIV_EQ": "//=", "MOD_EQ": "%=", "STAR_POW_EQ": "**=",
+    "BW_AND_EQ": "&=", "BW_OR_EQ": "|=", "BW_XOR_EQ": "^=", "BW_NOT_EQ": "~=",
+    "LSHIFT_EQ": "<<=", "RSHIFT_EQ": ">>=", "MATMUL_EQ": "@=",
+    "WALRUS_EQ": ":=",
+    # Arrow operators (edges)
+    "ARROW_R": "-->", "ARROW_L": "<--", "ARROW_BI": "<-->",
+    "ARROW_R_P1": "->:", "ARROW_R_P2": ":->", "ARROW_L_P1": "<-:", "ARROW_L_P2": ":<-",
+    "CARROW_R": "++>", "CARROW_L": "<++", "CARROW_BI": "<++>",
+    "CARROW_R_P1": "+>:", "CARROW_R_P2": ":+>", "CARROW_L_P1": "<+:", "CARROW_L_P2": ":<+",
+    # Pipe and dot operators
+    "PIPE_FWD": "|>", "PIPE_BKWD": "<|",
+    "A_PIPE_FWD": ":>", "A_PIPE_BKWD": "<:",
+    "DOT_FWD": ".>", "DOT_BKWD": "<.",
+    # Special operators
+    "NULL_OK": "?", "ELLIPSIS": "...", "NOT": "not", "TYPE_OP": "`",
+    "PYNLINE": "::py::", "GLOBAL_OP": "global", "NONLOCAL_OP": "nonlocal",
+    # Archetype operators
+    "WALKER_OP": ":walker:", "NODE_OP": ":node:", "EDGE_OP": ":edge:",
+    "CLASS_OP": ":class:", "OBJECT_OP": ":obj:", "ABILITY_OP": ":can:",
+    # Type keywords
+    "TYP_ANY": "any", "TYP_BOOL": "bool", "TYP_BYTES": "bytes", "TYP_DICT": "dict",
+    "TYP_FLOAT": "float", "TYP_INT": "int", "TYP_LIST": "list", "TYP_SET": "set",
+    "TYP_STRING": "str", "TYP_TUPLE": "tuple", "TYP_TYPE": "type",
+    # Literals
+    "NULL": "None",
+}
+# fmt: on
+
 colors = [
     "#FFE9E9",
     "#F0FFF0",

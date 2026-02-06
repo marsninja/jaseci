@@ -441,11 +441,11 @@ impl test(
     return 0;
 }
 
-"""Generate static parser."""
+"""Generate static TS parser."""
 impl gen_parser -> int {
-    import from jaclang.compiler { gen_all_parsers }
-    gen_all_parsers();
-    console.success('Parser generated.');
+    import from jaclang.compiler { generate_ts_static_parser }
+    generate_ts_static_parser(force=True);
+    console.success('TS parser generated.');
     return 0;
 }
 

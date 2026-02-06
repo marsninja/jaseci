@@ -22,7 +22,7 @@ import keyword;
 import jaclang.pycore.unitree as uni;
 import from jaclang.pycore.passes { UniPass }
 import from jaclang.pycore.constant { Tokens as Tok }
-import from jaclang.pycore.jac_parser { TOKEN_MAP }
+import from jaclang.pycore.constant { TOK_VALUE_MAP as TOKEN_MAP }
 import from jaclang.project.config { LintRule }
 """Auto linting pass that applies code style corrections to Jac AST."""
 obj JacAutoLintPass(UniPass) {

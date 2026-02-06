@@ -176,7 +176,7 @@ class UniNode:
             raise ValueError(f"Empty kid for Token {type(self).__name__}")
 
     def gen_token(self, name: Tok, value: str | None = None) -> Token:
-        from jaclang.pycore.jac_parser import TOKEN_MAP
+        from jaclang.pycore.constant import TOK_VALUE_MAP
 
         value = (
             value
@@ -184,7 +184,7 @@ class UniNode:
             else (
                 DELIM_MAP[name]
                 if name in DELIM_MAP
-                else TOKEN_MAP.get(name.value, name.value)
+                else TOK_VALUE_MAP.get(name.value, name.value)
             )
         )
         return Token(
