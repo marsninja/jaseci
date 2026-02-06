@@ -9,8 +9,7 @@ import from fastapi { Request, Response }
 import from dataclasses { dataclass }
 
 """Standardized user information from SSO providers."""
-@dataclass
-class SSOUserInfo {
+obj SSOUserInfo {
     has email: str,
         external_id: str,
         platform: str,
