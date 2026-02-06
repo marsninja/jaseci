@@ -384,7 +384,10 @@ obj Parser {
     def make_bool(tok: Token) -> Bool;
     def make_null(tok: Token) -> Null;
     def make_ellipsis(tok: Token) -> EllipsisLit;
-    def gen_token(tok_type: str, value: str | None = None) -> UniToken;
+    def gen_token(
+        tok_type: str, value: str | None = None, source_tok: Token | None = None
+    ) -> UniToken;
+
     def make_semi -> Semi;
     # -------------------------------------------------------------------------
     # Synchronization (Error Recovery)
