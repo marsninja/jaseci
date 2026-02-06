@@ -533,7 +533,6 @@ JACLANG_PYTHON_FILES: list[str] = [
     "jaclang/pycore/program.py",
     "jaclang/pycore/runtime.py",
     "jaclang/pycore/treeprinter.py",
-    "jaclang/pycore/tsparser.py",
     "jaclang/pycore/unitree.py",
     "jaclang/utils/__init__.py",
 ]

@@ -7,8 +7,6 @@ Modules:
 - unitree: Core AST definitions
 - constant: Constants and token definitions
 - codeinfo: Code location info for AST nodes
-- tsparser: TypeScript/JavaScript parser
-- lark_ts_parser: Generated Lark parser for TypeScript
 - passes/: Bootstrap-critical compiler passes
 - runtime: Runtime bootstrap infrastructure
 - helpers: Utility functions

@@ -33,7 +33,6 @@ from jaclang.pycore.passes import (
     SymTabBuildPass,
     Transform,
 )
-from jaclang.pycore.tsparser import TypeScriptParser
 
 if TYPE_CHECKING:
     from jaclang.pycore.program import JacProgram
@@ -726,13 +725,6 @@ class JacCompiler:
             )
             had_error = len(py_ast_ret.errors_had) > 0
             mod = py_ast_ret.ir_out
-        elif file_path.endswith((".js", ".ts", ".jsx", ".tsx")):
-            source = uni.Source(source_str, mod_path=file_path)
-            ts_ast_ret = TypeScriptParser(
-                root_ir=source, prog=target_program, cancel_token=cancel_token
-            )
-            had_error = len(ts_ast_ret.errors_had) > 0
-            mod = ts_ast_ret.ir_out
         else:
             mod = self._parse_jac(source_str, file_path, target_program, cancel_token)
             had_error = mod.has_syntax_errors
@@ -846,7 +838,7 @@ class JacCompiler:
 
         Uses the minimal Python bootstrap parser to parse the Jac parser
         source files, then runs the standard compilation passes to produce
-        Python bytecode. This enables Jac to compile itself without Lark.
+        Python bytecode. This enables Jac to compile itself.
 
         Args:
             parser_dir: Path to the parser source directory. If None, uses

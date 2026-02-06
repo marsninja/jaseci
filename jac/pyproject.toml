@@ -19,7 +19,7 @@ requires-python = ">=3.11"
 dependencies = [
     "llvmlite>=0.43.0",
 ]
-# Note: lark, interegular, pluggy, pygls are vendored
+# Note: pluggy, pygls are vendored
 
 [project.urls]
 Repository = "https://github.com/Jaseci-Labs/jaseci"
@@ -42,7 +42,7 @@ dev = [
 include = ["jaclang*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.jac", "*.impl/*.jac", "*.cl/*.jac", "*.lark", "*.pyi", "py.typed"]
+"*" = ["*.jac", "*.impl/*.jac", "*.cl/*.jac", "*.pyi", "py.typed"]
 jaclang = ["sitecustomize.py"]
 
 [tool.setuptools]
