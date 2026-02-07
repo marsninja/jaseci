@@ -9,7 +9,34 @@ on:
       - main
 
 jobs:
-  test-core:
+  test-core-compiler:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.12
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e jac
+        pip install pytest
+        pip install pytest-xdist
+
+    - name: Warm up Jac compiler cache
+      run: python -c "import jaclang"
+
+    - name: Run compiler and language tests
+      timeout-minutes: 15
+      run: pytest -x jac/tests/compiler/ jac/tests/language/ -n auto
+
+  test-core-runtime:
     runs-on: ubuntu-latest
     steps:
     - name: Check out code
@@ -33,9 +60,9 @@ jobs:
     - name: Warm up Jac compiler cache
       run: python -c "import jaclang"
 
-    - name: Run Jac core tests
-      timeout-minutes: 20
-      run: pytest -x jac --ignore=jac/examples -n auto
+    - name: Run runtime and project tests
+      timeout-minutes: 15
+      run: pytest -x jac/tests/project/ jac/tests/runtimelib/ jac/tests/langserve/ jac/tests/utils/ -n auto
 
   test-client:
     runs-on: ubuntu-latest
