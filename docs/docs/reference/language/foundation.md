@@ -713,7 +713,6 @@ Jac includes all standard Python operators plus several unique operators for gra
 
 ### 3 Logical Operators
 
-<!-- skip-validate: RD parser doesn't support || operator yet -->
 ```jac
 def example() {
     a = True;

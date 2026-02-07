@@ -1254,10 +1254,18 @@ impl Lexer.scan_operator -> Token {
             TokenKind.BW_AND_EQ, "&=", start_line, start_col, start_pos
         );
     }
+    if self.match_string("&&") {
+        return self.make_token(
+            TokenKind.KW_AND, "&&", start_line, start_col, start_pos
+        );
+    }
     if self.match_string("|=") {
         return self.make_token(
             TokenKind.BW_OR_EQ, "|=", start_line, start_col, start_pos
         );
+    }
+    if self.match_string("||") {
+        return self.make_token(TokenKind.KW_OR, "||", start_line, start_col, start_pos);
     }
     if self.match_string("^=") {
         return self.make_token(
