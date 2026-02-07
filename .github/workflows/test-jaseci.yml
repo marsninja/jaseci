@@ -31,6 +31,7 @@ jobs:
         pip install watchdog
 
     - name: Run Jac core tests
+      timeout-minutes: 15
       run: pytest -x jac -n auto
 
   test-client:
