@@ -1316,6 +1316,35 @@ impl Parser.parse_atomic_chain -> Expr {
                     is_null_ok=null_ok,
                     kid=kid
                 );
+            } else {
+                # Incomplete dot expression (e.g. "foo." with no attribute) -
+                # preserve dot token in AST for completion support
+                kid: list = [expr];
+                if null_ok {
+                    kid.append(self.gen_token(Tok.NULL_OK.value, "?"));
+                }
+                dot_token = self.gen_token(dot_tok_name, dot_tok_val, source_tok=self.previous());
+                kid.append(dot_token);
+                # Use an empty Name as placeholder for the missing attribute
+                empty_name = Name(
+                    orig_src=self.get_source(),
+                    name="NAME",
+                    value="",
+                    line=self.current().loc.line,
+                    end_line=self.current().loc.line,
+                    col_start=self.current().loc.col_start,
+                    col_end=self.current().loc.col_start,
+                    pos_start=self.current().loc.pos_start,
+                    pos_end=self.current().loc.pos_start
+                );
+                kid.append(empty_name);
+                expr = AtomTrailer(
+                    target=expr,
+                    right=empty_name,
+                    is_attr=True,
+                    is_null_ok=null_ok,
+                    kid=kid
+                );
             }
         } elif self.check(TokenKind.LPAREN) {
             if self.peek().kind == TokenKind.NULL_OK
@@ -6298,7 +6327,27 @@ impl parse(
             src.comments.append(ct);
         }
     }
-    # Convert collected comments to CommentToken objects
+    # Populate _in_mod_nodes by walking the AST (replaces Lark parser's node tracking)
+    all_nodes: list = [];
+    walk_stack: list = [module];
+    seen_ids: set = set();
+    while walk_stack {
+        node = walk_stack.pop();
+        nid = id(node);
+        if nid in seen_ids {
+            continue;
+        }
+        seen_ids.add(nid);
+        all_nodes.append(node);
+        if hasattr(node, 'kid') and node.kid {
+            for child in node.kid {
+                if child is not None {
+                    walk_stack.append(child);
+                }
+            }
+        }
+    }
+    module._in_mod_nodes = all_nodes;
     return (module, parser.errors, lexer.errors);
 }
 # =============================================================================

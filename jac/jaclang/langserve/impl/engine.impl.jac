@@ -104,8 +104,10 @@ impl JacLangServer.type_check_file(
             (
                 uris.from_fs_path(annex_view)
                 if annex_view
-                else uris.from_fs_path(fs_path)
-                # to display diagnostic , it need URI starts with "file://"
+                else uris.from_fs_path(
+                    fs_path
+                    # to display diagnostic , it need URI starts with "file://"
+                )
             ),
             utils.gen_diagnostics(
                 (annex_view or fs_path), self.errors_had, self.warnings_had
@@ -325,6 +327,37 @@ impl JacLangServer.get_definition(
     }
     if isinstance(parent, uni.ImplDef) and parent.decl_link {
         return make_location(parent.decl_link.sym.decl);
+    }
+    ####################################################################
+    ##     Handle member access (AtomTrailer): look up in target scope ##
+    ####################################################################
+    if isinstance(parent, uni.AtomTrailer)
+    and parent.is_attr
+    and parent.right is node_selected {
+        target = parent.target;
+        if isinstance(target, uni.AstSymbolNode) and target.sym and target.sym.decl {
+            decl = target.sym.decl;
+            # Navigate from Name declaration to owning scope (e.g., Archetype)
+            scope_node = (
+                decl.name_of
+                if isinstance(decl, uni.NameAtom)
+                and isinstance(decl.name_of, uni.UniScopeNode)
+                else decl
+            );
+            if isinstance(scope_node, uni.UniScopeNode) {
+                member_name = node_selected.value
+                if isinstance(node_selected, uni.Token)
+                else node_selected.sym_name;
+                member_sym = scope_node.names_in_scope.get(member_name);
+                if member_sym and member_sym.defn {
+                    try {
+                        return make_location(member_sym.defn[0]);
+                    } except Exception as e {
+                        self.log_py(f"Error navigating to member definition: {e}");
+                    }
+                }
+            }
+        }
     }
     ####################################################################
     ##         Fallback: use symbol resolution if available           ##

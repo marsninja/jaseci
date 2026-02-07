@@ -55,7 +55,7 @@ def test_open_valid_file_no_diagnostics():
 
 def test_open_with_syntax_error():
     """Test opening a Jac file with syntax error produces diagnostics."""
-    test_file = JacTestFile.from_template(CIRCLE_TEMPLATE, "error")
+    test_file = JacTestFile.from_template(CIRCLE_TEMPLATE, "= 5;")
     uri, ls = create_ls_with_workspace(test_file.path)
     if uri:
         test_file.uri = uri
@@ -66,7 +66,7 @@ def test_open_with_syntax_error():
         helper.assert_has_diagnostics(count=2, message_contains="Unexpected token")
 
         diagnostics = helper.get_diagnostics()
-        assert str(diagnostics[0].range) == "57:0-57:5"
+        assert str(diagnostics[0].range) == "57:0-57:1"
     finally:
         ls.shutdown()
         test_file.cleanup()
@@ -91,7 +91,7 @@ def test_did_open_and_simple_syntax_error():
 
         # Introduce syntax error
         broken_code = load_jac_template(
-            test_file._get_template_path(CIRCLE_TEMPLATE), "error"
+            test_file._get_template_path(CIRCLE_TEMPLATE), "= 5;"
         )
         helper.change_document(broken_code)
         helper.assert_has_diagnostics(count=2)
@@ -120,7 +120,7 @@ def test_did_save():
 
         # Save with syntax error
         broken_code = load_jac_template(
-            test_file._get_template_path(CIRCLE_TEMPLATE), "error"
+            test_file._get_template_path(CIRCLE_TEMPLATE), "= 5;"
         )
         helper.save_document(broken_code)
         helper.assert_semantic_tokens_count(EXPECTED_CIRCLE_TOKEN_COUNT_ERROR)
@@ -150,11 +150,9 @@ def test_did_change():
         )
 
         # Change with syntax error
-        helper.change_document("\nerror" + test_file.code)
+        helper.change_document("\n= 5;" + test_file.code)
         helper.assert_semantic_tokens_count(EXPECTED_CIRCLE_TOKEN_COUNT)
-        helper.assert_has_diagnostics(
-            count=2, message_contains="Unexpected token 'error'"
-        )
+        helper.assert_has_diagnostics(count=2, message_contains="Unexpected token")
     finally:
         ls.shutdown()
         test_file.cleanup()
@@ -184,7 +182,7 @@ def test_vsce_formatting():
 def test_multifile_workspace():
     """Test opening multiple Jac files in a workspace."""
     file1 = JacTestFile.from_template(GLOB_TEMPLATE)
-    file2 = JacTestFile.from_template(GLOB_TEMPLATE, "error")
+    file2 = JacTestFile.from_template(GLOB_TEMPLATE, "= 5;")
 
     uri1, ls = create_ls_with_workspace(file1.path)
     if uri1:

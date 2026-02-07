@@ -163,6 +163,8 @@ impl SemTokManager.gen_sem_tok_node(
     } except Exception as e {
         logger.error(f"Error generating semantic token nodes: {e}");
     }
+    # Sort by (line, col) to match gen_sem_tokens order for index correspondence
+    tokens.sort(key=lambda t: Any : (t[0].line, t[0].character));
     return tokens;
 }
 

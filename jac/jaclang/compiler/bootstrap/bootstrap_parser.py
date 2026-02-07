@@ -3748,4 +3748,21 @@ def bootstrap_parse(source_str: str, file_path: str) -> uni.Module:
     lexer = BootstrapLexer(source_str, file_path)
     tokens = lexer.tokenize()
     parser = BootstrapParser(tokens, source_str, file_path)
-    return parser.parse()
+    module = parser.parse()
+    # Populate _in_mod_nodes by walking the AST (replaces Lark parser's node tracking)
+    all_nodes: list[uni.UniNode] = []
+    walk_stack: list[uni.UniNode] = [module]
+    seen_ids: set[int] = set()
+    while walk_stack:
+        node = walk_stack.pop()
+        nid = id(node)
+        if nid in seen_ids:
+            continue
+        seen_ids.add(nid)
+        all_nodes.append(node)
+        if hasattr(node, "kid") and node.kid:
+            for child in node.kid:
+                if child is not None:
+                    walk_stack.append(child)
+    module._in_mod_nodes = all_nodes
+    return module
