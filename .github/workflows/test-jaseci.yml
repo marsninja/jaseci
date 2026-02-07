@@ -31,7 +31,7 @@ jobs:
         pip install watchdog
 
     - name: Warm up Jac compiler cache
-      run: python -c "from jaclang import jac_import"
+      run: python -c "import jaclang"
 
     - name: Run Jac core tests
       timeout-minutes: 20
