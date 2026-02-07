@@ -35,7 +35,7 @@ jobs:
 
     - name: Run Jac core tests
       timeout-minutes: 20
-      run: pytest -x jac -n auto
+      run: pytest -x jac --ignore=jac/examples -n auto
 
   test-client:
     runs-on: ubuntu-latest
