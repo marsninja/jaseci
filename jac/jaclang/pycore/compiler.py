@@ -278,6 +278,7 @@ class JacCompiler:
     _jaclang_root: str | None = None
     _rd_parse_fn: types.FunctionType | None = None
     _rd_parser_init_attempted: bool = False
+    _bootstrapping: bool = False
 
     def __init__(self, bytecode_cache: BytecodeCache | None = None) -> None:
         """Initialize with optional custom bytecode cache."""
@@ -313,7 +314,9 @@ class JacCompiler:
         cls._rd_parser_init_attempted = True
 
         try:
+            cls._bootstrapping = True
             prog = cls.bootstrap_compile_parser()
+            cls._bootstrapping = False
             jaclang_root = cls._get_jaclang_root()
             parser_dir = os.path.normpath(
                 os.path.join(jaclang_root, "compiler", "parser")
@@ -366,6 +369,7 @@ class JacCompiler:
         except Exception as e:
             import traceback
 
+            cls._bootstrapping = False
             print(  # noqa: T201
                 f"Warning: Failed to initialize bootstrap RD parser: {e}",
                 file=sys.stderr,
@@ -660,6 +664,13 @@ class JacCompiler:
             JacCompiler._init_rd_parser()
 
         if JacCompiler._rd_parse_fn is None:
+            if JacCompiler._bootstrapping:
+                # During bootstrap, fall back to the bootstrap parser
+                from jaclang.compiler.bootstrap.bootstrap_parser import (
+                    bootstrap_parse,
+                )
+
+                return bootstrap_parse(source_str, file_path)
             raise RuntimeError(
                 "Jac RD parser failed to initialize. Check stderr for details."
             )

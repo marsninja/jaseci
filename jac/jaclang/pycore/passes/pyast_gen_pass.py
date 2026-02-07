@@ -105,7 +105,7 @@ class PyastGenPass(BaseAstGenPass[ast3.AST]):
                 import jaclang.runtimelib.builtin as builtin_mod
 
                 cls._builtin_names = set(builtin_mod.__all__)
-            except (ImportError, AttributeError):
+            except (ImportError, AttributeError, RuntimeError):
                 # Builtin module not yet available during bootstrap
                 return set()
         return cls._builtin_names
