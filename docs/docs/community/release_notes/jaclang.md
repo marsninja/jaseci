@@ -14,6 +14,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Auto-install watchdog for `--dev` mode**: `jac start --dev` automatically installs `watchdog` if missing, eliminating the manual `jac install --dev` step.
 - **Trim Redundant Parser Test Fixtures**: Removed 46 redundant entries from the micro parser test suite by eliminating exact duplicates across directories, near-identical examples, and files that add no unique syntax coverage, reducing the fixture list from 481 to 435 files.
 - **RD Parser Grammar Gap Fixes**: Fixed 9 coverage gaps in the recursive descent parser to match the Lark grammar spec: `skip` statement, `@=` operator, `na` context blocks, typed context blocks (`-> Type { ... }`), `is` separator in `sem` definitions, `impl` inside archetype bodies, raw f-strings (`rf"..."`), parenthesized yield expressions, and `*args`/`**kwargs` in lambda parameters.
+- **Refactor: Centralized NormalizePass**: Extracted the ~104 `normalize()` methods from individual AST node classes in `unitree.py` into a dedicated `NormalizePass` implemented in Jac (`normalize_pass.jac` + `impl/normalize_pass.impl.jac`). This keeps AST classes purely structural and follows the same self-hosted pass pattern used by `UnparsePass` and other tool passes.
 
 ## jaclang 0.9.15 (Latest Release)
 
