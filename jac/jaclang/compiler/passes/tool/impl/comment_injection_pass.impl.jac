@@ -818,7 +818,8 @@ impl CommentInjectionPass._inject_into_parts(
                 tokens, key=lambda t: Any : (t.loc.last_line, t.loc.col_end)
             );
             token_id: int = id(last_token);
-            for info in self._comments.take_inline(token_id) {
+            inline_comments = self._comments.take_inline(token_id);
+            for info in inline_comments {
                 add_line: bool = True;
                 if ((index + 1) < len(parts)) {
                     next_part = parts[(index + 1)];

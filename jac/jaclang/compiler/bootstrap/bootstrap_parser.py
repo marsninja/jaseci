@@ -1654,6 +1654,22 @@ class BootstrapParser:
     # AST node construction helpers
     # =================================================================
 
+    @staticmethod
+    def _collect_terminals(kids: list) -> list:
+        """Collect all Token leaf nodes from the AST in source order."""
+        result: list = []
+        stack = list(reversed(kids))
+        while stack:
+            node = stack.pop()
+            if node is None:
+                continue
+            if isinstance(node, uni.Token):
+                result.append(node)
+            elif hasattr(node, 'kid'):
+                stack.extend(reversed(node.kid))
+        result.sort(key=lambda t: (t.loc.first_line, t.loc.col_start))
+        return result
+
     def _tok(self, tok: BootstrapToken, name: str | None = None) -> uni.Token:
         """Convert BootstrapToken to uni.Token."""
         return uni.Token(
@@ -1769,13 +1785,16 @@ class BootstrapParser:
             if stmt is not None:
                 body.append(stmt)
 
-        terminals = [self._tok(t) for t in self.tokens if t.type != "EOF"]
         kid: list = []
         if doc:
             kid.append(doc)
         kid.extend(body)
         if not kid:
             kid.append(self.make_empty())
+
+        # Collect actual Token objects from the AST (not recreated copies)
+        # so that comment injection can match by id().
+        terminals = self._collect_terminals(kid)
 
         return uni.Module(
             name=self.file_path, source=self.src, doc=doc,

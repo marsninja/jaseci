@@ -592,14 +592,38 @@ impl Parser.parse -> Module {
     return self.parse_module();
 }
 
+"""Sort terminals by source position (line, col)."""
+impl Parser._sort_terminals(terminals: list) -> list {
+    # Simple insertion sort to avoid lambda syntax issues with bootstrap parser
+    result = list(terminals);
+    n = len(result);
+    for i in range(1, n) {
+        key_item = result[i];
+        key_line = key_item.loc.first_line;
+        key_col = key_item.loc.col_start;
+        j = i - 1;
+        while (
+            j >= 0
+            and (
+                result[j].loc.first_line > key_line
+                or (
+                    result[j].loc.first_line == key_line
+                    and result[j].loc.col_start > key_col
+                )
+            )
+        ) {
+            result[j + 1] = result[j];
+            j -= 1;
+        }
+        result[j + 1] = key_item;
+    }
+    return result;
+}
+
 impl Parser.parse_module -> Module {
     self.source = Source(self.source_code, self.file_path);
     doc: String | None = None;
     body: list = [];
-    terminals: list = [];
-    for tok in self.tokens {
-        terminals.append(self.make_uni_token(tok));
-    }
     if self.check(TokenKind.STRING) {
         tok = self.advance();
         doc = self.make_string(tok);
@@ -619,6 +643,24 @@ impl Parser.parse_module -> Module {
     if len(kid) == 0 {
         kid.append(EmptyToken(orig_src=self.get_source()));
     }
+    # Collect actual Token objects from the AST (not recreated copies)
+    # so that comment injection can match by id().
+    terminals: list = [];
+    stack: list = list(reversed(kid));
+    while stack {
+        cur_node = stack.pop();
+        if cur_node is None {
+            continue;
+        }
+        if isinstance(cur_node, UniToken) {
+            terminals.append(cur_node);
+        } elif cur_node?.kid {
+            stack.extend(reversed(cur_node.kid));
+        }
+    }
+    # Sort by source position using operator.attrgetter alternative
+    # (from_module also sorts, but terminals order matters for Module init)
+    terminals = self._sort_terminals(terminals);
     mod_name = self.file_path.split("/")[-1];
     if mod_name.endswith(".jac") {
         mod_name = mod_name[:-4];

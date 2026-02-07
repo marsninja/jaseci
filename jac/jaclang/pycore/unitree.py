@@ -1949,9 +1949,16 @@ class ImplDef(
         if isinstance(self.body, Expr):
             new_kid.append(self.body)
         else:
+            # Filter out parser-included COMMA tokens from enum impl bodies
+            body_stmts = [
+                s
+                for s in self.body
+                if not (isinstance(s, Token) and s.name == Tok.COMMA)
+            ]
+            self.body = body_stmts  # type: ignore[assignment]
             new_kid.append(self.gen_token(Tok.LBRACE))
             prev_stmt = None
-            for stmt in self.body:
+            for stmt in body_stmts:
                 if isinstance(prev_stmt, EnumBlockStmt) and prev_stmt.is_enum_stmt:
                     new_kid.append(self.gen_token(Tok.COMMA))
                 new_kid.append(stmt)
@@ -3838,28 +3845,22 @@ class TupleVal(AtomExpr):
         if deep:
             for i in self.values:
                 res = res and i.normalize(deep)
-        in_ret_type = (
-            self.parent
-            and isinstance(self.parent, IndexSlice)
-            and self.parent
-            and isinstance(self.parent.parent, AtomTrailer)
-            and self.parent.parent
-            and isinstance(self.parent.parent.parent, FuncSignature)
-        )
+        in_subscript = self.parent and isinstance(self.parent, IndexSlice)
+        skip_parens = in_subscript
         new_kid: list[UniNode] = (
             [
                 self.gen_token(Tok.LPAREN),
             ]
-            if not in_ret_type
+            if not skip_parens
             else []
         )
         for idx, i in enumerate(self.values):
             new_kid.append(i)
             if idx < len(self.values) - 1:
                 new_kid.append(self.gen_token(Tok.COMMA))
-        if len(self.values) == 1:
+        if len(self.values) == 1 and not skip_parens:
             new_kid.append(self.gen_token(Tok.COMMA))
-        if not in_ret_type:
+        if not skip_parens:
             new_kid.append(self.gen_token(Tok.RPAREN))
         self.set_kids(nodes=new_kid)
         return res

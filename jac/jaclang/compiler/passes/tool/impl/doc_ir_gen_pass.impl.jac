@@ -1,4 +1,5 @@
 """Initialize the DocIRGenPass."""
+
 impl DocIRGenPass.init(ir_in: uni.Module, prog: Any, cancel_token: Any = None) -> None {
     super.init(ir_in, prog, cancel_token);
 }
@@ -299,7 +300,8 @@ impl DocIRGenPass.exit_impl_def(<>node: uni.ImplDef) -> None {
         if ((i == <>node.doc) or (<>node.decorators and (i in <>node.decorators))) {
             parts.append(i.gen.doc_ir);
             parts.append(self.hard_line());
-        } elif self.is_within(i, <>node.target) {
+        } elif (i in <>node.target)
+        or (not in_body and isinstance(i, uni.Token) and (i.name == Tok.DOT)) {
             parts.append(i.gen.doc_ir);
         } elif (
             in_body
@@ -1965,6 +1967,8 @@ impl DocIRGenPass.exit_ability(<>node: uni.Ability) -> None {
             prev_body_item = i;
         } elif (not in_body and isinstance(i, uni.Token) and (i.name == Tok.DECOR_OP)) {
             parts.append(i.gen.doc_ir);
+        } elif (isinstance(i, uni.Token) and (i.name == Tok.WS)) {
+            0;
         } elif (isinstance(i, uni.Token) and (i.name == Tok.SEMI)) {
             parts.pop();
             parts.append(i.gen.doc_ir);
