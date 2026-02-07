@@ -664,13 +664,6 @@ class JacCompiler:
             JacCompiler._init_rd_parser()
 
         if JacCompiler._rd_parse_fn is None:
-            if JacCompiler._bootstrapping:
-                # During bootstrap, fall back to the bootstrap parser
-                from jaclang.compiler.bootstrap.bootstrap_parser import (
-                    bootstrap_parse,
-                )
-
-                return bootstrap_parse(source_str, file_path)
             raise RuntimeError(
                 "Jac RD parser failed to initialize. Check stderr for details."
             )
