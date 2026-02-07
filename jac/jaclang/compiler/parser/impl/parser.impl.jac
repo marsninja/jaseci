@@ -4081,13 +4081,8 @@ impl Parser.parse_single_pattern{
         val = self.make_float(tok);
         return MatchValue(value=val, kid=[val]);
     }
-    if self.check(TokenKind.STRING) {
-        tok = self.advance();
-        str_val = self.make_string(tok);
-        val = MultiString(strings=[str_val], kid=[str_val]);
-        return MatchValue(value=val, kid=[val]);
-    }
-    if self.check_any(
+    if self.check(TokenKind.STRING)
+    or self.check_any(
         TokenKind.F_DQ_START,
         TokenKind.F_SQ_START,
         TokenKind.F_TDQ_START,
@@ -4097,7 +4092,32 @@ impl Parser.parse_single_pattern{
         TokenKind.RF_TDQ_START,
         TokenKind.RF_TSQ_START
     ) {
-        val = self.parse_fstring();
+        strings: list = [];
+        if self.check(TokenKind.STRING) {
+            tok = self.advance();
+            strings.append(self.make_string(tok));
+        } else {
+            strings.append(self.parse_fstring());
+        }
+        while self.check(TokenKind.STRING)
+        or self.check_any(
+            TokenKind.F_DQ_START,
+            TokenKind.F_SQ_START,
+            TokenKind.F_TDQ_START,
+            TokenKind.F_TSQ_START,
+            TokenKind.RF_DQ_START,
+            TokenKind.RF_SQ_START,
+            TokenKind.RF_TDQ_START,
+            TokenKind.RF_TSQ_START
+        ) {
+            if self.check(TokenKind.STRING) {
+                next_tok = self.advance();
+                strings.append(self.make_string(next_tok));
+            } else {
+                strings.append(self.parse_fstring());
+            }
+        }
+        val = MultiString(strings=strings, kid=strings);
         return MatchValue(value=val, kid=[val]);
     }
     # Check for unary minus (negative literal)
@@ -4307,13 +4327,8 @@ impl Parser.parse_literal_for_mapping{
         val = self.make_float(tok);
         return MatchValue(value=val, kid=[val]);
     }
-    if self.check(TokenKind.STRING) {
-        tok = self.advance();
-        str_val = self.make_string(tok);
-        ms = MultiString(strings=[str_val], kid=[str_val]);
-        return MatchValue(value=ms, kid=[ms]);
-    }
-    if self.check_any(
+    if self.check(TokenKind.STRING)
+    or self.check_any(
         TokenKind.F_DQ_START,
         TokenKind.F_SQ_START,
         TokenKind.F_TDQ_START,
@@ -4323,8 +4338,32 @@ impl Parser.parse_literal_for_mapping{
         TokenKind.RF_TDQ_START,
         TokenKind.RF_TSQ_START
     ) {
-        fstr = self.parse_fstring();
-        ms = MultiString(strings=[fstr], kid=[fstr]);
+        strings: list = [];
+        if self.check(TokenKind.STRING) {
+            tok = self.advance();
+            strings.append(self.make_string(tok));
+        } else {
+            strings.append(self.parse_fstring());
+        }
+        while self.check(TokenKind.STRING)
+        or self.check_any(
+            TokenKind.F_DQ_START,
+            TokenKind.F_SQ_START,
+            TokenKind.F_TDQ_START,
+            TokenKind.F_TSQ_START,
+            TokenKind.RF_DQ_START,
+            TokenKind.RF_SQ_START,
+            TokenKind.RF_TDQ_START,
+            TokenKind.RF_TSQ_START
+        ) {
+            if self.check(TokenKind.STRING) {
+                next_tok = self.advance();
+                strings.append(self.make_string(next_tok));
+            } else {
+                strings.append(self.parse_fstring());
+            }
+        }
+        ms = MultiString(strings=strings, kid=strings);
         return MatchValue(value=ms, kid=[ms]);
     }
     if self.check(TokenKind.MINUS) {
@@ -5456,6 +5495,18 @@ impl Parser.parse_enum -> Enum {
                 if self.match_tok(TokenKind.COMMA) {
                     body_kid.append(self.gen_token(Tok.COMMA.value, ","));
                 }
+            } elif self.check(TokenKind.PYNLINE) {
+                py_tok = self.advance();
+                py_code = self.make_uni_token(py_tok);
+                pynline = PyInlineCode(code=py_code, kid=[py_code]);
+                pynline.is_enum_stmt = True;
+                body.append(pynline);
+                body_kid.append(pynline);
+            } elif self.check(TokenKind.KW_WITH) {
+                mc = self.parse_module_code();
+                mc.is_enum_stmt = True;
+                body.append(mc);
+                body_kid.append(mc);
             } else {
                 break;
             }

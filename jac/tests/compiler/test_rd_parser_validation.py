@@ -204,6 +204,9 @@ _gap_files = [
         "tests/compiler/fixtures/rd_parser_gaps/impl_event_clause.jac",
         "tests/compiler/fixtures/rd_parser_gaps/impl_by_expr.jac",
         "tests/compiler/fixtures/rd_parser_gaps/fstring_nested_fmt.jac",
+        "tests/compiler/fixtures/rd_parser_gaps/match_multistring.jac",
+        "tests/compiler/fixtures/rd_parser_gaps/enum_pynline.jac",
+        "tests/compiler/fixtures/rd_parser_gaps/enum_free_code.jac",
     ]
 ]
 
