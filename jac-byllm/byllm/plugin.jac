@@ -116,6 +116,7 @@ class JacRuntime {
         and isinstance(rhs, BaseLLM) {
             return JacByLLM.filter_visitable_by(lhs_list, rhs);
         }
+
         raise NotImplementedError(
             "The 'by' operator requires visitable nodes on the left and an LLM model on the right."
         ) ;

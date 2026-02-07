@@ -117,9 +117,9 @@ cl {
                         "fontWeight": "700"
                     }}
                 >
-                    📝 My Todo App
+                                        📝 My Todo App
                 </h1>
-                # Add todo form
+                                # Add todo form
                 <div
                     style={{
                         "display": "flex",
@@ -162,10 +162,10 @@ cl {
                             "transition": "background 0.2s"
                         }}
                     >
-                        Add
+                                                Add
                     </button>
                 </div>
-                # Filter buttons
+                                # Filter buttons
                 <div
                     style={{
                         "display": "flex",
@@ -187,7 +187,7 @@ cl {
                             "cursor": "pointer"
                         }}
                     >
-                        All
+                                                All
                     </button>
                     <button
                         onClick={lambda -> None { filter = "active";}}
@@ -204,7 +204,7 @@ cl {
                             "cursor": "pointer"
                         }}
                     >
-                        Active
+                                                Active
                     </button>
                     <button
                         onClick={lambda -> None { filter = "completed";}}
@@ -223,10 +223,10 @@ cl {
                             "cursor": "pointer"
                         }}
                     >
-                        Completed
+                                                Completed
                     </button>
                 </div>
-                # Todo list
+                                # Todo list
                 <div
                     style={{
                         "background": "#ffffff",
@@ -311,13 +311,13 @@ cl {
                                             "transition": "background 0.2s"
                                         }}
                                     >
-                                        Delete
+                                                                                Delete
                                     </button>
                                 </div>; }
                         )
                     )}
                 </div>
-                # Stats and clear completed button
+                                # Stats and clear completed button
                 {(
                     <div
                         style={{
@@ -348,7 +348,7 @@ cl {
                                     "cursor": "pointer"
                                 }}
                             >
-                                Clear Completed
+                                                                Clear Completed
                             </button>
                         )
                         if todos.some(lambda todo: any  -> bool { return todo.done; })

@@ -2,21 +2,21 @@
 # Media Implementations
 #-------------------------------------------------------------------------------
 """Convert the content to a dictionary. Subclasses must implement."""
+
 impl Media.to_dict -> list[dict] {
     raise NotImplementedError("Subclasses must implement this method.") ;
 }
 
-#-------------------------------------------------------------------------------
-# Text
-#-------------------------------------------------------------------------------
 """Convert the text content to a dictionary."""
-impl Text.to_dict -> list[dict] {
-    return [{"type": "text", "text": self.text}];
-}
-
 #-------------------------------------------------------------------------------
 # Image
 #-------------------------------------------------------------------------------
+impl Text.to_dict -> list[
+    dict
+] {
+    return [{"type": "text", "text": self.text}];
+}
+
 """Normalize input into a data URL or leave remote/data URLs as-is.
 
 Supported inputs:
@@ -28,6 +28,7 @@ Supported inputs:
 - os.PathLike
 - PIL.Image.Image instances
 """
+# If we reach here, the input type isn't supported
 impl Image.postinit -> None {
     value = self.url;
     # Handle path-like inputs by converting to string
@@ -118,7 +119,6 @@ impl Image.postinit -> None {
         }
         return;
     }
-    # If we reach here, the input type isn't supported
     raise TypeError(
         "Unsupported Image input type. Provide a URL/path string, data URL, bytes, "
         "BytesIO, file-like object, os.PathLike, or PIL.Image.Image."
@@ -152,17 +152,19 @@ impl Image._data_url_from_bytes(data: bytes, fmt: str | None) -> str {
 }
 
 """Convert the image to a dictionary for LLM API calls."""
-impl Image.to_dict -> list[dict] {
+#-------------------------------------------------------------------------------
+# Video
+#-------------------------------------------------------------------------------
+impl Image.to_dict -> list[
+    dict
+] {
     image_url = {"url": self.url};
     if self.mime_type {
         image_url["format"] = self.mime_type;
     }
-    return [{"type": "image_url", "image_url": image_url,}];
+    return [{"type": "image_url", "image_url": image_url}];
 }
 
-#-------------------------------------------------------------------------------
-# Video
-#-------------------------------------------------------------------------------
 """Validate that the video path exists."""
 impl Video.postinit -> None {
     if not os.path.exists(self.path) {
@@ -202,13 +204,18 @@ impl Video.load_frames -> None {
 }
 
 """Convert the video frames to a list of image dictionaries."""
-impl Video.to_dict -> list[dict] {
+#-------------------------------------------------------------------------------
+# Text
+#-------------------------------------------------------------------------------
+impl Video.to_dict -> list[
+    dict
+] {
     if self._base64frames is None {
         self.load_frames();
     }
     assert (self._base64frames is not None) , "Frames must be loaded before conversion.";
     return [
-        {"type": "image_url", "image_url": f"data:image/jpeg;base64,{frame}",}
+        {"type": "image_url", "image_url": f"data:image/jpeg;base64,{frame}"}
         for frame in self._base64frames
     ];
 }

@@ -1,4 +1,5 @@
 """Generate a static shell completion script from pre-processed command data."""
+
 impl static_shellcode(
     commands: list, executable: str = "jac", shell: str = "bash"
 ) -> str {

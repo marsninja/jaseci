@@ -23,26 +23,26 @@ cl {
         return
             <div>
                 <h1>
-                    🏠 Home Page
+                                        🏠 Home Page
                 </h1>
                 <p>
-                    Welcome to the home page!
+                                        Welcome to the home page!
                 </p>
                 <p>
-                    This example uses React Router's
+                                        This example uses React Router's
                     <strong>
-                        HashRouter
+                                                HashRouter
                     </strong>
-                    #  for client-side routing.
+                                        #  for client-side routing.
                 </p>
                 <p>
-                    Current path:
+                                        Current path:
                     <code>
                         {location.pathname}
                     </code>
                 </p>
                 <button onClick={goToAbout}>
-                    Go to About →
+                                        Go to About →
                 </button>
             </div>;
     }
@@ -54,23 +54,23 @@ cl {
         return
             <div>
                 <h1>
-                    ℹ️ About Page
+                                        ℹ️ About Page
                 </h1>
                 <p>
-                    This is the about page.
+                                        This is the about page.
                 </p>
                 <p>
-                    Learn more about our application here.
+                                        Learn more about our application here.
                 </p>
                 <p>
-                    Current path:
+                                        Current path:
                     <code>
                         {location.pathname}
                     </code>
                 </p>
                 <div style={{"marginTop": "1rem"}}>
                     <Link to="/about/team">
-                        View Team →
+                                                View Team →
                     </Link>
                 </div>
             </div>;
@@ -81,13 +81,13 @@ cl {
         return
             <div>
                 <h1>
-                    👥 Our Team
+                                        👥 Our Team
                 </h1>
                 <p>
-                    Meet the amazing team behind this project!
+                                        Meet the amazing team behind this project!
                 </p>
                 <Link to="/about">
-                    ← Back to About
+                                        ← Back to About
                 </Link>
             </div>;
     }
@@ -100,22 +100,22 @@ cl {
         return
             <div>
                 <h1>
-                    👤 User Profile
+                                        👤 User Profile
                 </h1>
                 <p>
-                    Viewing profile for user:
+                                        Viewing profile for user:
                     <strong>
                         {userId}
                     </strong>
                 </p>
                 <p>
-                    This demonstrates URL parameters using
+                                        This demonstrates URL parameters using
                     <code>
-                        /user/:id
+                                                /user/:id
                     </code>
                 </p>
                 <Link to="/">
-                    ← Back to Home
+                                        ← Back to Home
                 </Link>
             </div>;
     }
@@ -137,14 +137,14 @@ cl {
             return
                 <div>
                     <h1>
-                        📧 Contact Page
+                                                📧 Contact Page
                     </h1>
                     <div style={{"color": "green"}}>
                         <p>
-                            ✓ Thank you! Your message has been sent.
+                                                        ✓ Thank you! Your message has been sent.
                         </p>
                         <button onClick={resetForm}>
-                            Send another
+                                                        Send another
                         </button>
                     </div>
                 </div>;
@@ -153,10 +153,10 @@ cl {
         return
             <div>
                 <h1>
-                    📧 Contact Page
+                                        📧 Contact Page
                 </h1>
                 <p>
-                    Get in touch with us!
+                                        Get in touch with us!
                 </p>
                 <form onSubmit={handleSubmit}>
                     <input
@@ -174,7 +174,7 @@ cl {
                         style={{"margin": "0.5rem 0", "display": "block"}}
                     ></textarea>
                     <button type="submit">
-                        Send Message
+                                                Send Message
                     </button>
                 </form>
             </div>;
@@ -192,17 +192,17 @@ cl {
         return
             <div style={{"textAlign": "center", "padding": "2rem"}}>
                 <h1>
-                    🔍 404 - Page Not Found
+                                        🔍 404 - Page Not Found
                 </h1>
                 <p>
-                    The page
+                                        The page
                     <code>
                         {location.pathname}
                     </code>
-                    does not exist.
+                                        does not exist.
                 </p>
                 <button onClick={goHome}>
-                    Go Home
+                                        Go Home
                 </button>
             </div>;
     }
@@ -243,16 +243,16 @@ cl {
                     }}
                 >
                     <Link to="/" style={linkStyle("/")}>
-                        Home
+                                                Home
                     </Link>
                     <Link to="/about" style={linkStyle("/about")}>
-                        About
+                                                About
                     </Link>
                     <Link to="/contact" style={linkStyle("/contact")}>
-                        Contact
+                                                Contact
                     </Link>
                     <Link to="/user/123" style={linkStyle("/user/123")}>
-                        Profile Demo
+                                                Profile Demo
                     </Link>
                 </div>
             </nav>;

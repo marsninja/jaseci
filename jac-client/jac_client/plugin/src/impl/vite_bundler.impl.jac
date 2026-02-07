@@ -602,7 +602,8 @@ impl ViteBundler.build(self: ViteBundler, entry_file: Optional[Path] = None) -> 
                 }
                 console.print(f"\n  ✔ Dependencies installed ({elapsed:.1f}s)");
             } except FileNotFoundError {
-                # This shouldn't happen since we check for bun at the start
+            # This shouldn't happen since we check for bun at the start
+
                 raise ClientBundleError(
                     'Bun command not found. Install Bun: https://bun.sh'
                 ) from None ;
@@ -754,7 +755,6 @@ impl ViteBundler.start_dev_server(self: ViteBundler, port: int = 3000) -> Any {
 </html>
 ''';
     index_html.write_text(index_content, encoding='utf-8');
-    # Ensure dependencies are installed
     if not node_modules.exists() {
         generated_package_json = build_dir / 'configs' / 'package.json';
         if not generated_package_json.exists() {
@@ -784,6 +784,7 @@ impl ViteBundler.start_dev_server(self: ViteBundler, port: int = 3000) -> Any {
             }
         }
     }
+    # Ensure dependencies are installed
     # Find the dev config
     dev_config = build_dir / 'configs' / 'vite.dev.config.js';
     if not dev_config.exists() {

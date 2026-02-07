@@ -283,7 +283,6 @@ with entry {
 glob history = [],
      chat_display_history = [];
 
-# Initial screen render
 with entry {
     render_ui();
 
@@ -314,3 +313,5 @@ with entry {
     }
 }
 # Store chat messages for display
+
+# Initial screen render

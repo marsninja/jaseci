@@ -110,7 +110,7 @@ def:pub ResultDisplay(
     if not data {
         return
             <div style={{"color": "#9ca3af", "fontStyle": "italic"}}>
-                No data to display
+                                No data to display
             </div>;
     }
 
@@ -327,7 +327,7 @@ def:pub FeaturesTest -> JsxElement {
                 "fontFamily": "system-ui, -apple-system, sans-serif"
             }}
         >
-            # Header
+                        # Header
             <div
                 style={{
                     "display": "flex",
@@ -337,7 +337,7 @@ def:pub FeaturesTest -> JsxElement {
                 }}
             >
                 <h1 style={{"color": "#1f2937", "margin": "0"}}>
-                    JAC Features Test Suite
+                                        JAC Features Test Suite
                 </h1>
                 <Link to="/">
                     <TestButton
@@ -347,7 +347,7 @@ def:pub FeaturesTest -> JsxElement {
                     />
                 </Link>
             </div>
-            # Loading indicator
+                        # Loading indicator
             {loading
             and <div
                 style={{
@@ -362,16 +362,16 @@ def:pub FeaturesTest -> JsxElement {
                     "zIndex": "1000"
                 }}
             >
-                Processing...
+                                Processing...
             </div>}
-            # Section 1: Walker CRUD Operations
+                        # Section 1: Walker CRUD Operations
             <TestCard
                 title="1. Walker CRUD Operations (Spawn from CL)"
                 color="#dbeafe"
             >
                 <div style={{"marginBottom": "15px"}}>
                     <p style={{"color": "#4b5563", "marginBottom": "10px"}}>
-                        Test creating, reading, updating, and deleting data using walkers spawned from client code.
+                                                Test creating, reading, updating, and deleting data using walkers spawned from client code.
                     </p>
                     <div
                         style={{
@@ -401,11 +401,11 @@ def:pub FeaturesTest -> JsxElement {
                     </div>
                     <div style={{"marginTop": "20px"}}>
                         <strong style={{"color": "#374151"}}>
-                            Stored Data ({testData.length}items):
+                                                        Stored Data ({testData.length}items):
                         </strong>
                         {testData.length == 0
                         and <p style={{"color": "#9ca3af", "fontStyle": "italic"}}>
-                            No data yet. Create some!
+                                                        No data yet. Create some!
                         </p>}
                         {testData.map(
                             lambda item: any  -> JsxElement { return
@@ -436,7 +436,7 @@ def:pub FeaturesTest -> JsxElement {
                                                 "color": "#6b7280"
                                             }}
                                         >
-                                            Count: {item.count}| Created: {item.created_at}
+                                                                                        Count: {item.count}| Created: {item.created_at}
                                         </div>
                                     </div>
                                     <div style={{"display": "flex", "gap": "8px"}}>
@@ -460,16 +460,16 @@ def:pub FeaturesTest -> JsxElement {
                     </div>
                 </div>
             </TestCard>
-            # # Section 2: String Methods
+                        # # Section 2: String Methods
             <TestCard title="2. String Methods (Client & Walker)" color="#fce7f3">
                 <div>
                     <p style={{"color": "#4b5563", "marginBottom": "10px"}}>
-                        Client-side string manipulation and walker-based string processing.
+                                                Client-side string manipulation and walker-based string processing.
                     </p>
-                    # Client-side demo
+                                        # Client-side demo
                     <div style={{"marginBottom": "20px"}}>
                         <strong style={{"color": "#374151"}}>
-                            Client-side String Demo:
+                                                        Client-side String Demo:
                         </strong>
                         <div
                             style={{
@@ -490,10 +490,10 @@ def:pub FeaturesTest -> JsxElement {
                             )}
                         </div>
                     </div>
-                    # Walker-based test
+                                        # Walker-based test
                     <div>
                         <strong style={{"color": "#374151"}}>
-                            Walker String Processing:
+                                                        Walker String Processing:
                         </strong>
                         <div
                             style={{
@@ -525,11 +525,11 @@ def:pub FeaturesTest -> JsxElement {
                     </div>
                 </div>
             </TestCard>
-            # # Section 3: List Operations
+                        # # Section 3: List Operations
             <TestCard title="3. List/Array Operations" color="#ddd6fe">
                 <div>
                     <p style={{"color": "#4b5563", "marginBottom": "10px"}}>
-                        Process arrays/lists using walker operations.
+                                                Process arrays/lists using walker operations.
                     </p>
                     <div
                         style={{"display": "flex", "gap": "10px", "marginTop": "10px"}}
@@ -560,51 +560,69 @@ def:pub FeaturesTest -> JsxElement {
                     />}
                 </div>
             </TestCard>
-            # # Section 4: TypeScript Component Integration
-            # <TestCard title="4. TypeScript Component (PieChart.tsx)" color="#ccfbf1">
-            #     <div>
-            #         <p style={{"color": "#4b5563", "marginBottom": "10px"}}>
-            #             Imported TypeScript React component with data from JAC.
-            #         </p>
-            #         # <PieChart data={chart_data} title="Feature Test Distribution" />
-            #         <p style={{"marginTop": "10px", "color": "#6b7280", "fontSize": "14px"}}>
-            #             Total tests: {total_tests} (calculated using JS helper: sumBy)
-            #         </p>
-            #     </div>
-            # </TestCard>
-
-            # # Section 5: Import Demonstrations
+                        # # Section 4: TypeScript Component Integration
+                        #
+            <TestCard title="4. TypeScript Component (PieChart.tsx)" color="#ccfbf1">
+                            #
+                <div>
+                                #
+                    <p style={{"color": "#4b5563", "marginBottom": "10px"}}>
+                                    #             Imported TypeScript React component with data from JAC.            #
+                    </p>
+                                #         #
+                    <PieChart data={chart_data} title="Feature Test Distribution" />
+                                #
+                    <p
+                        style={{
+                            "marginTop": "10px",
+                            "color": "#6b7280",
+                            "fontSize": "14px"
+                        }}
+                    >
+                                    #             Total tests: {total_tests} (calculated using JS helper: sumBy)            #
+                    </p>
+                                #
+                </div>
+                            #
+            </TestCard>
+                        # # Section 5: Import Demonstrations
             <TestCard title="5. Import Demonstrations" color="#fed7aa">
                 <div>
                     <p style={{"color": "#4b5563", "marginBottom": "15px"}}>
-                        This page demonstrates various import types:
+                                                This page demonstrates various import types:
                     </p>
                     <ul style={{"color": "#374151", "lineHeight": "1.8"}}>
                         <li>
                             <strong>
-                                JAC-Client Utils:
+                                                                JAC-Client Utils:
                             </strong>
-                            Router components (Link, useNavigate)
+                                                        Router components (Link, useNavigate)
                         </li>
                         <li>
                             <strong>
-                                React:
+                                                                React:
                             </strong>
-                            Hooks (useState, useEffect)
+                                                        Hooks (useState, useEffect)
                         </li>
-                        # <li><strong>TypeScript:</strong> PieChart component from .tsx file</li>
+                                                #
                         <li>
                             <strong>
-                                JavaScript:
+                                TypeScript:
                             </strong>
-                            Helper functions from .js file (generateId, sumBy)
+                             PieChart component from .tsx file
                         </li>
                         <li>
                             <strong>
-                                JAC Files:
+                                                                JavaScript:
                             </strong>
-                            for
-                            matCurrency from utils/formatters.jac
+                                                        Helper functions from .js file (generateId, sumBy)
+                        </li>
+                        <li>
+                            <strong>
+                                                                JAC Files:
+                            </strong>
+                                                        for
+                                                        matCurrency from utils/formatters.jac
                         </li>
                     </ul>
                     <div
@@ -616,7 +634,7 @@ def:pub FeaturesTest -> JsxElement {
                         }}
                     >
                         <strong style={{"color": "#065f46"}}>
-                            Examples:
+                                                        Examples:
                         </strong>
                         <div
                             style={{
@@ -626,23 +644,27 @@ def:pub FeaturesTest -> JsxElement {
                             }}
                         >
                             <div>
-                                Generated ID: {generateId()}
+                                                                Generated ID: {generateId()}
                             </div>
                             <div>
-                                Formatted Currency: {formatCurrency(1234.56)}
+                                                                Formatted Currency: {formatCurrency(
+                                    1234.56
+                                )}
                             </div>
                             <div>
-                                Percentage Calc: {calculatePercentage(75, 100)}%
+                                                                Percentage Calc: {calculatePercentage(
+                                    75, 100
+                                )}%
                             </div>
                         </div>
                     </div>
                 </div>
             </TestCard>
-            # # Section 6: Complex Data Processing
+                        # # Section 6: Complex Data Processing
             <TestCard title="6. Complex Data Processing" color="#e0e7ff">
                 <div>
                     <p style={{"color": "#4b5563", "marginBottom": "10px"}}>
-                        Process complex nested data structures with walkers.
+                                                Process complex nested data structures with walkers.
                     </p>
                     <TestButton
                         text="Process Sample Data"
@@ -656,7 +678,7 @@ def:pub FeaturesTest -> JsxElement {
                     />}
                 </div>
             </TestCard>
-            # Footer
+                        # Footer
             <div
                 style={{
                     "marginTop": "30px",
@@ -668,7 +690,7 @@ def:pub FeaturesTest -> JsxElement {
                 }}
             >
                 <p style={{"margin": "0"}}>
-                    ✅ All features tested: Props, Exports, CL Files, TypeScript, JavaScript, JAC Imports, String Methods, Walker Spawning
+                                        ✅ All features tested: Props, Exports, CL Files, TypeScript, JavaScript, JAC Imports, String Methods, Walker Spawning
                 </p>
             </div>
         </div>;

@@ -12,6 +12,6 @@ cl def:pub SubmitButton -> any {
                 "cursor": "pointer"
             }}
         >
-            Sign Up
+                        Sign Up
         </button>;
 }

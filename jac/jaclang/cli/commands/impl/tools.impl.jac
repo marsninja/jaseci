@@ -176,8 +176,7 @@ def _extract_commands(registry: Any) -> list {
                 "help": spec.help or "",
                 "flags": flags,
                 "value_opts": value_opts,
-                "has_file_positional": has_file_positional,
-
+                "has_file_positional": has_file_positional
             }
         );
     }
@@ -193,8 +192,7 @@ def _install_completion(shell: str, code: str) -> int {
     config_map = {
         "bash": os.path.join(home, ".bashrc"),
         "zsh": os.path.join(home, ".zshrc"),
-        "fish": os.path.join(home, ".config", "fish", "config.fish"),
-
+        "fish": os.path.join(home, ".config", "fish", "config.fish")
     };
     # Completion script files stored in ~/.jac/
     ext_map = {"bash": "bash", "zsh": "zsh", "fish": "fish"};
@@ -231,7 +229,7 @@ def _install_completion(shell: str, code: str) -> int {
         content = "";
     }
     pattern = re.compile(
-        rf"{re.escape(start_marker)}.*?{re.escape(end_marker)}\n?", re.DOTALL
+        rf"{re.escape(start_marker)}{re.escape(end_marker)}", re.DOTALL
     );
     if pattern.search(content) {
         content = pattern.sub(new_block, content);

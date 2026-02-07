@@ -2,6 +2,7 @@
 
 Configures logging to stdout.
 """
+
 impl MockLLM.postinit -> None {
     logger.remove();  # remove default stderr sink
     logger.add(sys.stdout);

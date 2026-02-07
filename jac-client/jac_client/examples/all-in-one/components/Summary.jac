@@ -21,7 +21,7 @@ cl {
             <div className="summary">
                 <div className="summary-card business-income">
                     <span className="summary-label">
-                        Business Income
+                                                Business Income
                     </span>
                     <span className="summary-value">
                         {formatCurrency(businessIncome)}
@@ -29,7 +29,7 @@ cl {
                 </div>
                 <div className="summary-card business-expenses">
                     <span className="summary-label">
-                        Business Expenses
+                                                Business Expenses
                     </span>
                     <span className="summary-value">
                         {formatCurrency(businessExpenses)}
@@ -37,7 +37,7 @@ cl {
                 </div>
                 <div className="summary-card personal-income">
                     <span className="summary-label">
-                        Personal Income
+                                                Personal Income
                     </span>
                     <span className="summary-value">
                         {formatCurrency(personalIncome)}
@@ -45,7 +45,7 @@ cl {
                 </div>
                 <div className="summary-card personal-expenses">
                     <span className="summary-label">
-                        Personal Expenses
+                                                Personal Expenses
                     </span>
                     <span className="summary-value">
                         {formatCurrency(personalExpenses)}
@@ -53,7 +53,7 @@ cl {
                 </div>
                 <div className="summary-card tax-reserve">
                     <span className="summary-label">
-                        Tax Reserve (20%)
+                                                Tax Reserve (20%)
                     </span>
                     <span className="summary-value">
                         {formatCurrency(taxReserve)}
@@ -65,7 +65,7 @@ cl {
                     else ("summary-card net-profit negative")}
                 >
                     <span className="summary-label">
-                        Net Profit
+                                                Net Profit
                     </span>
                     <span className="summary-value">
                         {("+") if netProfit > 0 else ("")}{formatCurrency(netProfit)}

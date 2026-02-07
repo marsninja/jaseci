@@ -32,8 +32,6 @@ glob _byllm_config = get_byllm_config(),
      _model_config = _byllm_config.get_model_config(),
      _call_params_config = _byllm_config.get_call_params_config();
 
-# Configure LiteLLM based on jac.toml settings
-# Note: LiteLLM reads this env var directly, so we set it based on config
 with entry {
     if _litellm_config['local_cost_map'] {
         os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True";
@@ -98,3 +96,5 @@ obj Model(BaseLLM) {
         url: str, token: str, payload: dict, ca_bundle: str | bool
     ) -> object;
 }
+# Configure LiteLLM based on jac.toml settings
+# Note: LiteLLM reads this env var directly, so we set it based on config

@@ -5,6 +5,7 @@ This module contains ASCII art, banners, and branded output for the Jac CLI.
 import platform;
 import sys;
 import from jaclang.cli.console { console }
+
 glob JAC_LOGO = '   _\n  (_) __ _  ___\n  | |/ _` |/ __|\n  | | (_| | (__\n _/ |\\__,_|\\___|\n|__/',
      JAC_DOCS_URL = 'https://docs.jaseci.org',
      JAC_DISCORD_URL = 'https://discord.gg/6j3QNdtcN6',

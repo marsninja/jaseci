@@ -11,29 +11,29 @@ cl {
                 }}
             >
                 <h1>
-                    📁 Nested Folder Imports
+                                        📁 Nested Folder Imports
                 </h1>
                 <p>
-                    This page mirrors the
+                                        This page mirrors the
                     {" "}
                     <code>
-                        nested-folders/nested-basic
+                                                nested-folders/nested-basic
                     </code>
                     {" "}
-                    example by importing components from both
+                                        example by importing components from both
                     {" "}
                     <code>
-                        components.button
+                                                components.button
                     </code>
                     {" "}
-                    and
+                                        and
                     {" "}
                     <code>
-                        button
+                                                button
                     </code>
                 </p>
                 <p style={{"marginTop": "0.75rem"}}>
-                    Both buttons below are rendered via relative imports:
+                                        Both buttons below are rendered via relative imports:
                 </p>
                 <div style={{"display": "flex", "gap": "1rem", "marginTop": "1.5rem"}}>
                     <CustomButton />

@@ -32,9 +32,9 @@ jobs:
     - name: Warm up Jac compiler cache
       run: python -c "import jaclang"
 
-    - name: Run compiler and language tests
+    - name: Run compiler tests
       timeout-minutes: 15
-      run: pytest -x jac/tests/compiler/ jac/tests/language/ -n auto
+      run: pytest -x jac/tests/compiler/ -n 2
 
   test-core-runtime:
     runs-on: ubuntu-latest
@@ -60,9 +60,9 @@ jobs:
     - name: Warm up Jac compiler cache
       run: python -c "import jaclang"
 
-    - name: Run runtime and project tests
+    - name: Run runtime, language, and project tests
       timeout-minutes: 15
-      run: pytest -x jac/tests/project/ jac/tests/runtimelib/ jac/tests/langserve/ jac/tests/utils/ -n auto
+      run: pytest -x jac/tests/language/ jac/tests/project/ jac/tests/runtimelib/ jac/tests/langserve/ jac/tests/utils/ -n auto
 
   test-client:
     runs-on: ubuntu-latest

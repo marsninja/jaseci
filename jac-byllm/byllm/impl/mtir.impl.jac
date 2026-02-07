@@ -172,10 +172,12 @@ impl MTRuntime.dispatch_params -> dict[str, object] {
         "messages": self.get_msg_list(),
         "tools": self.get_tool_list() or None,
         "response_format": self.get_output_schema(),
-        "temperature": self.call_params.get("temperature", 0.7),
-        # "max_tokens": self.call_params.get("max_tokens", 100),
-        # "top_k": self.call_params.get("top_k", 50),
-        # "top_p": self.call_params.get("top_p", 0.9),
+        "temperature": self.call_params.get(
+            "temperature", 0.7
+            # "max_tokens": self.call_params.get("max_tokens", 100),
+            # "top_k": self.call_params.get("top_k", 50),
+            # "top_p": self.call_params.get("top_p", 0.9),
+        )
     };
     return params;
 }

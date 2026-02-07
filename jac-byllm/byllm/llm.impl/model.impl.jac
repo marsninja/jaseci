@@ -3,6 +3,7 @@
 Sets up proxy mode and mock delegation based on config.
 Configures logging when using real LLM backends.
 """
+
 impl Model.postinit -> None {
     # Check instance config first, then fall back to global config
     self.proxy = bool(self.config.get("proxy", _model_config.get("proxy", False)));

@@ -30,12 +30,12 @@ cl {
             <Container>
                 <Card>
                     <Title>
-                        Counter Application
+                                                Counter Application
                     </Title>
                     <Divider></Divider>
                     <CounterSection>
                         <Label>
-                            Current Count
+                                                        Current Count
                         </Label>
                         <CountDisplay count={count}>
                             {count}
@@ -44,17 +44,17 @@ cl {
                     <Divider></Divider>
                     <ButtonGroup>
                         <Button bgColor="#ef4444" onClick={handleDecrement}>
-                            -
+                                                        -
                         </Button>
                         <Button bgColor="#6b7280" onClick={handleReset}>
-                            ↻
+                                                        ↻
                         </Button>
                         <Button bgColor="#22c55e" onClick={handleIncrement}>
-                            +
+                                                        +
                         </Button>
                     </ButtonGroup>
                     <Hint>
-                        Click the buttons to increment, decrement, or reset the counter
+                                                Click the buttons to increment, decrement, or reset the counter
                     </Hint>
                 </Card>
             </Container>;

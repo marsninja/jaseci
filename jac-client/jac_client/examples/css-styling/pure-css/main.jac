@@ -23,12 +23,12 @@ cl {
             <div className="container">
                 <div className="card">
                     <h1 className="title">
-                        Counter Application
+                                                Counter Application
                     </h1>
                     <div className="divider"></div>
                     <div className="counterSection">
                         <div className="label">
-                            Current Count
+                                                        Current Count
                         </div>
                         <div className={countClass}>
                             {count}
@@ -37,17 +37,17 @@ cl {
                     <div className="divider"></div>
                     <div className="buttonGroup">
                         <button className="btn btnDecrement" onClick={handleDecrement}>
-                            -
+                                                        -
                         </button>
                         <button className="btn btnReset" onClick={handleReset}>
-                            ↻
+                                                        ↻
                         </button>
                         <button className="btn btnIncrement" onClick={handleIncrement}>
-                            +
+                                                        +
                         </button>
                     </div>
                     <div className="hint">
-                        Click the buttons to increment, decrement, or reset the counter
+                                                Click the buttons to increment, decrement, or reset the counter
                     </div>
                 </div>
             </div>;

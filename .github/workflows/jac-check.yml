@@ -28,12 +28,15 @@ jobs:
           pip install -e ./jac-byllm
           pip install -e ./jac-super
 
-      - name: Warm up Jac compiler cache
-        run: python -c "import jaclang"
+      - name: Warm up Jac compiler and format caches
+        run: |
+          echo 'glob x: int = 5;' > /tmp/warmup.jac
+          jac format /tmp/warmup.jac
+          rm /tmp/warmup.jac
 
       - name: Run jac format (check formatting)
         run: |
-          find . -name "*.jac" ! -path "*/fixtures/*" ! -name "*_err.jac" ! -name "*_syntax_err.jac" -print0 | xargs -0 -P 4 -n 50 --no-run-if-empty jac format --lintfix
+          find . -name "*.jac" ! -path "*/fixtures/*" ! -name "*_err.jac" ! -name "*_syntax_err.jac" -print0 | xargs -0 -n 100 --no-run-if-empty jac format --lintfix
           if ! git diff --quiet; then
             echo "::error::jac format found unformatted files. Run 'jac format . --lintfix' locally."
             git diff --name-only

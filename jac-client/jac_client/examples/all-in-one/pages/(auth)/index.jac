@@ -63,27 +63,27 @@ cl {
                 }}
             >
                 <h1>
-                    🍔 Router + Styling + Assets Demo
+                                        🍔 Router + Styling + Assets Demo
                 </h1>
                 <p>
-                    This home page combines
+                                        This home page combines
                     {" "}
                     <strong>
-                        React Router,
+                                                React Router,
                     </strong>
                     {" "}
                     <strong>
-                        pure CSS styling,
+                                                pure CSS styling,
                     </strong>
                     {" "}
                     <strong>
-                        staticassets
+                                                staticassets
                     </strong>
                     {" "}
-                    and
+                                        and
                     {" "}
                     <strong>
-                        nested folder imports
+                                                nested folder imports
                     </strong>
                 </p>
                 <div className="container">
@@ -93,7 +93,7 @@ cl {
                             "textShadow": "2px 2px 4px rgba(0,0,0,0.6)"
                         }}
                     >
-                        CSS Background Image
+                                                CSS Background Image
                     </h2>
                     <p
                         style={{
@@ -102,13 +102,13 @@ cl {
                             "textShadow": "1px 1px 3px rgba(0,0,0,0.7)"
                         }}
                     >
-                        This section uses the burger image as a background via CSS, just like the
+                                                This section uses the burger image as a background via CSS, just like the
                         {" "}
                         <code>
-                            asset-serving/css-with-image
+                                                        asset-serving/css-with-image
                         </code>
                         {" "}
-                        example.
+                                                example.
                     </p>
                 </div>
                 <Card
@@ -117,12 +117,12 @@ cl {
                     variant="highlighted"
                 >
                     <p style={{"margin": "0.5rem 0", "color": "#374151"}}>
-                        This is a TypeScript component imported and used in Jac code!
+                                                This is a TypeScript component imported and used in Jac code!
                     </p>
                 </Card>
                 <div className="card">
                     <h3>
-                        Direct &lt;img&gt; asset
+                                                Direct &lt;img&gt; asset
                     </h3>
                     <img
                         src="/static/assets/burger.png"
@@ -130,33 +130,33 @@ cl {
                         className="burgerImage"
                     />
                     <p style={{"marginTop": "0.75rem", "color": "#555"}}>
-                        This image is served from the project
+                                                This image is served from the project
                         {" "}
                         <code>
-                            assets/
+                                                        assets/
                         </code>
                         {" "}
-                        folder using the
+                                                folder using the
                         {" "}
                         <code>
-                            /static/assets/
+                                                        /static/assets/
                         </code>
                         {" "}
-                        path.
+                                                path.
                     </p>
                 </div>
                 <div style={{"marginTop": "2rem"}}>
                     <h3>
-                        Counter with pure CSS classes
+                                                Counter with pure CSS classes
                     </h3>
                     <p>
-                        You've clicked the burger
+                                                You've clicked the burger
                         {" "}
                         <strong>
                             {count}
                         </strong>
                         {" "}
-                        times.
+                                                times.
                     </p>
                     <button
                         onClick={lambda e: any  -> None { count = count + 1;}}
@@ -171,24 +171,24 @@ cl {
                             "boxShadow": "0 2px 4px rgba(0,0,0,0.2)"
                         }}
                     >
-                        Click the Burger! 🍔
+                                                Click the Burger! 🍔
                     </button>
                 </div>
                 <div style={{"marginTop": "2rem"}}>
                     <h3>
-                        Backend Walkers
+                                                Backend Walkers
                     </h3>
                     <p>
-                        Basic example walkers:
+                                                Basic example walkers:
                         {" "}
                         <code>
-                            ping_server
+                                                        ping_server
                         </code>
                         {" "}
-                        and
+                                                and
                         {" "}
                         <code>
-                            get_server_message
+                                                        get_server_message
                         </code>
                     </p>
                     <button
@@ -203,7 +203,7 @@ cl {
                             "cursor": "pointer"
                         }}
                     >
-                        Ping Backend
+                                                Ping Backend
                     </button>
                     <button
                         onClick={lambda e: any  -> None { handleCreateSampleTodo();}}
@@ -216,12 +216,12 @@ cl {
                             "cursor": "pointer"
                         }}
                     >
-                        Create Sample Todo
+                                                Create Sample Todo
                     </button>
                     {pingResult
                     and (
                         <span style={{"marginLeft": "0.5rem", "color": "#374151"}}>
-                            Result:
+                                                        Result:
                             {" "}
                             <code>
                                 {pingResult}
@@ -231,7 +231,7 @@ cl {
                     {serverMessage
                     and (
                         <p style={{"marginTop": "0.75rem", "color": "#374151"}}>
-                            Message:
+                                                        Message:
                             {" "}
                             <code>
                                 {serverMessage}
@@ -247,16 +247,16 @@ cl {
                 </div>
                 <div style={{"marginTop": "2rem"}}>
                     <h3>
-                        Web Worker
+                                                Web Worker
                     </h3>
                     <p>
-                        This demonstrates how to communicate with a
+                                                This demonstrates how to communicate with a
                         {" "}
                         <strong>
-                            Python backend worker
+                                                        Python backend worker
                         </strong>
                         {" "}
-                        using Web Workers for asynchronous processing.
+                                                using Web Workers for asynchronous processing.
                     </p>
                     <p
                         style={{
@@ -265,13 +265,13 @@ cl {
                             "marginTop": "0.5rem"
                         }}
                     >
-                        File:
+                                                File:
                         {" "}
                         <code>
-                            worker.py
+                                                        worker.py
                         </code>
                         {" "}
-                        — Runs in a separate thread to avoid blocking the UI.
+                                                — Runs in a separate thread to avoid blocking the UI.
                     </p>
                     <button
                         onClick={lambda -> None { handleClick();}}
@@ -285,7 +285,7 @@ cl {
                             "cursor": "pointer"
                         }}
                     >
-                        Call Python Worker
+                                                Call Python Worker
                     </button>
                     {message
                     && (

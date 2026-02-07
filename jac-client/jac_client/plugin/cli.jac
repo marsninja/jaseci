@@ -15,11 +15,7 @@ import os;
 
 glob registry = get_registry();
 
-# Register targets when module loads
-# Import base target classes - this should trigger annex pass to auto-discover .impl.jac files
-import from jac_client.plugin.src.targets.desktop_target {
-    DesktopTarget
-}
+import from jac_client.plugin.src.targets.desktop_target { DesktopTarget }
 import from jac_client.plugin.src.targets.web_target { WebTarget }
 import from jac_client.plugin.src.targets.register { register_targets }
 
@@ -165,7 +161,8 @@ class JacCmd {
                 command_name="start",
                 args=[
                     Arg.create(
-                        "client",  # Use client to avoid conflict with jac-scale's --client
+                        "client"  # Use client to avoid conflict with jac-scale's --client
+                        ,
                         typ=str,
                         default="web",
                         help="Client build target for dev server (web, desktop)",
@@ -582,3 +579,5 @@ def _handle_npm_remove(ctx: HookContext) -> None {
         ctx.set_data("cancel_return_code", 1);
     }
 }
+# Register targets when module loads
+# Import base target classes - this should trigger annex pass to auto-discover .impl.jac files

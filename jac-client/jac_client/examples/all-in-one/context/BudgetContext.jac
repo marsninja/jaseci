@@ -7,8 +7,8 @@ cl import from react {
 cl import from ..hooks.useBudget { useBudget }
 
 cl {
-    # Create the context - demonstrates glob for context
     glob:pub BudgetContext = createContext(None);
+    # Create the context - demonstrates glob for context
 
     # Provider component - wraps app and provides budget state
     def:pub BudgetProvider(children: any) -> JsxElement {

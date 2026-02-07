@@ -1,4 +1,5 @@
 """Validate the function and extract its type annotations and description."""
+
 impl Tool.postinit -> None {
     annotations = get_type_hints(self.func);
     with suppress(Exception) {
@@ -53,7 +54,7 @@ impl Tool.make_finish_tool(resp_type: type) -> Tool {
     return Tool(
         func=finish_tool,
         description="This tool is used to finish the tool calls and return the final output.",
-        params_desc={"final_output": "The final output of the tool calls.",},
+        params_desc={"final_output": "The final output of the tool calls."},
     );
 }
 

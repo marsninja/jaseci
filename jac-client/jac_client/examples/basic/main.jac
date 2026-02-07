@@ -10,13 +10,13 @@ cl {
         return
             <div>
                 <h1>
-                    Hello, World!
+                                        Hello, World!
                 </h1>
                 <p>
-                    Count: {count}
+                                        Count: {count}
                 </p>
                 <button onClick={lambda e: any  -> None { count = count + 1;}}>
-                    Increment
+                                        Increment
                 </button>
             </div>;
     }

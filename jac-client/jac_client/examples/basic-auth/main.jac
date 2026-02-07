@@ -113,7 +113,7 @@ cl {
                                 "fontWeight": "700"
                             }}
                         >
-                            ✅ Welcome!
+                                                        ✅ Welcome!
                         </h1>
                         <p
                             style={{
@@ -122,7 +122,7 @@ cl {
                                 "marginBottom": "32px"
                             }}
                         >
-                            You are successfully logged in
+                                                        You are successfully logged in
                         </p>
                         <div
                             style={{
@@ -139,7 +139,7 @@ cl {
                                     "marginBottom": "8px"
                                 }}
                             >
-                                Logged in as:
+                                                                Logged in as:
                             </p>
                             <p
                                 style={{
@@ -148,7 +148,7 @@ cl {
                                     "color": "#667eea"
                                 }}
                             >
-                                User
+                                                                User
                             </p>
                         </div>
                         <button
@@ -167,7 +167,7 @@ cl {
                                 "boxShadow": "0 4px 12px rgba(239,68,68,0.3)"
                             }}
                         >
-                            Logout
+                                                        Logout
                         </button>
                     </div>
                 </div>;
@@ -196,7 +196,7 @@ cl {
                         "width": "100%"
                     }}
                 >
-                    # Header
+                                        # Header
                     <div style={{"textAlign": "center", "marginBottom": "32px"}}>
                         <h1
                             style={{
@@ -216,7 +216,7 @@ cl {
                             )}
                         </p>
                     </div>
-                    # Form
+                                        # Form
                     <form onSubmit={handleSubmit} style={{"marginBottom": "24px"}}>
                         <div style={{"marginBottom": "20px"}}>
                             <label
@@ -228,7 +228,7 @@ cl {
                                     "fontWeight": "600"
                                 }}
                             >
-                                Username
+                                                                Username
                             </label>
                             <input
                                 type="text"
@@ -257,7 +257,7 @@ cl {
                                     "fontWeight": "600"
                                 }}
                             >
-                                Password
+                                                                Password
                             </label>
                             <input
                                 type="password"
@@ -325,7 +325,7 @@ cl {
                             )}
                         </button>
                     </form>
-                    # Toggle between login/signup
+                                        # Toggle between login/signup
                     <div style={{"textAlign": "center"}}>
                         <p
                             style={{

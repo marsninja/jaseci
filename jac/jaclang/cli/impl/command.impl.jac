@@ -4,6 +4,9 @@
 # Arg Implementation
 # ===============================================================================
 """Create argument with auto-generated short flag."""
+# ===============================================================================
+# CommandSpec Implementation
+# ===============================================================================
 impl Arg.create(
     name: str,
     kind: ArgKind = ArgKind.OPTION,
@@ -33,9 +36,6 @@ impl Arg.create(
     );
 }
 
-# ===============================================================================
-# CommandSpec Implementation
-# ===============================================================================
 """Get all arguments (base + plugin-extended)."""
 impl CommandSpec.get_all_args -> list[Arg] {
     return self.args + self.extra_args;
@@ -54,13 +54,15 @@ impl CommandSpec.add_pre_hook(hook: Callable, source: str) -> None {
 }
 
 """Add a post-execution hook from a plugin."""
-impl CommandSpec.add_post_hook(hook: Callable, source: str) -> None {
-    self.post_hooks.append((hook, source));
-}
-
 # ===============================================================================
 # HookContext Implementation
 # ===============================================================================
+impl CommandSpec.add_post_hook(
+    hook: Callable, source: str
+) -> None {
+    self.post_hooks.append((hook, source));
+}
+
 """Get an argument value with optional default."""
 impl HookContext.get_arg(name: str, default: Any = None) -> Any {
     return self.args.get(name, default);

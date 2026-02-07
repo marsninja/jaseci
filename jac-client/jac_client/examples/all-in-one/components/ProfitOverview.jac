@@ -17,36 +17,40 @@ cl {
         return
             <div className="profit-overview">
                 <h3 className="profit-title">
-                    Monthly Profit Snapshot
+                                        Monthly Profit Snapshot
                 </h3>
                 <div className="profit-breakdown">
                     <div className="profit-row income">
                         <span className="profit-label">
-                            Business Income
+                                                        Business Income
                         </span>
                         <span className="profit-value positive">
-                            +{formatCurrency(businessIncome)}
+                                                        +{formatCurrency(
+                                businessIncome
+                            )}
                         </span>
                     </div>
                     <div className="profit-row expense">
                         <span className="profit-label">
-                            Business Expenses
+                                                        Business Expenses
                         </span>
                         <span className="profit-value negative">
-                            -{formatCurrency(businessExpenses)}
+                                                        -{formatCurrency(
+                                businessExpenses
+                            )}
                         </span>
                     </div>
                     <div className="profit-row tax">
                         <span className="profit-label">
-                            Tax Reserve (20%)
+                                                        Tax Reserve (20%)
                         </span>
                         <span className="profit-value negative">
-                            -{formatCurrency(taxReserve)}
+                                                        -{formatCurrency(taxReserve)}
                         </span>
                     </div>
                     <div className="profit-row total">
                         <span className="profit-label">
-                            Net Profit
+                                                        Net Profit
                         </span>
                         <span
                             className={("profit-value bold positive")

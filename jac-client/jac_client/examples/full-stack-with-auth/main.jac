@@ -75,14 +75,14 @@ cl {
                     }}
                 >
                     <div style={{"fontWeight": "600"}}>
-                        Todo App
+                                                Todo App
                     </div>
                     <div style={{"display": "flex", "gap": "16px"}}>
                         <Link
                             to="/todos"
                             style={{"color": "#ffffff", "textDecoration": "none"}}
                         >
-                            Todos
+                                                        Todos
                         </Link>
                         <button
                             onClick={handleLogout}
@@ -95,7 +95,7 @@ cl {
                                 "cursor": "pointer"
                             }}
                         >
-                            Logout
+                                                        Logout
                         </button>
                     </div>
                 </nav>;
@@ -112,20 +112,20 @@ cl {
                 }}
             >
                 <div style={{"fontWeight": "600"}}>
-                    Todo App
+                                        Todo App
                 </div>
                 <div style={{"display": "flex", "gap": "16px"}}>
                     <Link
                         to="/login"
                         style={{"color": "#ffffff", "textDecoration": "none"}}
                     >
-                        Login
+                                                Login
                     </Link>
                     <Link
                         to="/signup"
                         style={{"color": "#ffffff", "textDecoration": "none"}}
                     >
-                        Sign Up
+                                                Sign Up
                     </Link>
                 </div>
             </nav>;
@@ -191,7 +191,7 @@ cl {
                     }}
                 >
                     <h2 style={{"marginBottom": "20px"}}>
-                        Login
+                                                Login
                     </h2>
                     <form onSubmit={handleLogin}>
                         <input
@@ -236,7 +236,7 @@ cl {
                                 "fontWeight": "600"
                             }}
                         >
-                            Login
+                                                        Login
                         </button>
                     </form>
                     <p
@@ -246,9 +246,9 @@ cl {
                             "fontSize": "14px"
                         }}
                     >
-                        Need an account?
+                                                Need an account?
                         <Link to="/signup">
-                            Sign up
+                                                        Sign up
                         </Link>
                     </p>
                 </div>
@@ -315,7 +315,7 @@ cl {
                     }}
                 >
                     <h2 style={{"marginBottom": "20px"}}>
-                        Sign Up
+                                                Sign Up
                     </h2>
                     <form onSubmit={handleSignup}>
                         <input
@@ -360,7 +360,7 @@ cl {
                                 "fontWeight": "600"
                             }}
                         >
-                            Sign Up
+                                                        Sign Up
                         </button>
                     </form>
                     <p
@@ -370,9 +370,9 @@ cl {
                             "fontSize": "14px"
                         }}
                     >
-                        Have an account?
+                                                Have an account?
                         <Link to="/login">
-                            Login
+                                                        Login
                         </Link>
                     </p>
                 </div>
@@ -414,7 +414,7 @@ cl {
                         "fontWeight": "600"
                     }}
                 >
-                    Add
+                                        Add
                 </button>
             </div>;
     }
@@ -438,7 +438,7 @@ cl {
                         "fontSize": "14px"
                     }}
                 >
-                    All
+                                        All
                 </button>
                 <button
                     onClick={lambda -> None { setFilter("active");}}
@@ -452,7 +452,7 @@ cl {
                         "fontSize": "14px"
                     }}
                 >
-                    Active
+                                        Active
                 </button>
                 <button
                     onClick={lambda -> None { setFilter("completed");}}
@@ -468,7 +468,7 @@ cl {
                         "fontSize": "14px"
                     }}
                 >
-                    Completed
+                                        Completed
                 </button>
             </div>;
     }
@@ -517,7 +517,7 @@ cl {
                         "fontSize": "12px"
                     }}
                 >
-                    Delete
+                                        Delete
                 </button>
             </div>;
     }
@@ -533,7 +533,7 @@ cl {
                 <div
                     style={{"padding": "20px", "textAlign": "center", "color": "#999"}}
                 >
-                    No todos yet. Add one above!
+                                        No todos yet. Add one above!
                 </div>;
         }
 
@@ -633,7 +633,7 @@ cl {
                 }}
             >
                 <h1 style={{"marginBottom": "20px"}}>
-                    My Todos
+                                        My Todos
                 </h1>
                 <TodoInput input={input} setInput={setInput} addTodo={addTodo} />
                 <TodoFilters filter={filter} setFilter={setFilter} />

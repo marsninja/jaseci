@@ -17,17 +17,17 @@ cl def:pub Card -> any {
             }}
         >
             <h3>
-                Card Component (Second Level)
+                                Card Component (Second Level)
             </h3>
             <p>
-                This card imports from:
+                                This card imports from:
             </p>
             <ul>
                 <li>
-                    Root level: ButtonRoot (using ..)
+                                        Root level: ButtonRoot (using ..)
                 </li>
                 <li>
-                    Third level: ButtonThirdL (using .level2)
+                                        Third level: ButtonThirdL (using .level2)
                 </li>
             </ul>
             <div style={{marginTop: "15px"}}>

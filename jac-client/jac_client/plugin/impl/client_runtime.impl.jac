@@ -226,8 +226,7 @@ impl ErrorFallback(error: str, resetErrorBoundary: any) -> any {
                 justifyContent: "center",
                 alignItems: "center",
                 backgroundColor: "#f9fafb",
-                fontFamily: "system-ui, sans-serif",
-
+                fontFamily: "system-ui, sans-serif"
             }}
         >
             <div
@@ -239,15 +238,14 @@ impl ErrorFallback(error: str, resetErrorBoundary: any) -> any {
                     justifyContent: "center",
                     alignItems: "center",
                     backgroundColor: "#f9fafb",
-                    fontFamily: "system-ui, sans-serif",
-
+                    fontFamily: "system-ui, sans-serif"
                 }}
             >
                 <h2 style={{color: "#dc2626", marginBottom: "12px"}}>
-                    🚨 Something went wrong
+                                                            🚨 Something went wrong
                 </h2>
                 <p style={{color: "#374151", marginBottom: "16px"}}>
-                    An unexpected error occurred. Please try again.
+                                                            An unexpected error occurred. Please try again.
                 </p>
                 <pre
                     style={{
@@ -257,8 +255,7 @@ impl ErrorFallback(error: str, resetErrorBoundary: any) -> any {
                         borderRadius: "8px",
                         fontSize: "14px",
                         overflowX: "auto",
-                        marginBottom: "16px",
-
+                        marginBottom: "16px"
                     }}
                 >
                     {error.error.message}
@@ -272,11 +269,10 @@ impl ErrorFallback(error: str, resetErrorBoundary: any) -> any {
                         borderRadius: "8px",
                         border: "none",
                         cursor: "pointer",
-                        fontSize: "14px",
-
+                        fontSize: "14px"
                     }}
                 >
-                    🔄 Try again
+                                                            🔄 Try again
                 </button>
             </div>
         </div>;
@@ -298,8 +294,7 @@ impl errorOverlay(filePath: str, errors: str) -> any {
                 zIndex: 999999,
                 overflow: "auto",
                 padding: 20,
-                boxSizing: "border-box",
-
+                boxSizing: "border-box"
             }}
         >
             <div style={{maxWidth: 1200, margin: "0 auto"}}>
@@ -310,23 +305,21 @@ impl errorOverlay(filePath: str, errors: str) -> any {
                         padding: "16px 24px",
                         borderRadius: "8px 8px 0 0",
                         fontSize: 18,
-                        fontWeight: "bold",
-
+                        fontWeight: "bold"
                     }}
                 >
-                    ⚠️ Compilation Error
+                                                            ⚠️ Compilation Error
                 </div>
                 <div
                     style={{
                         background: "#1e1e1e",
                         padding: 24,
-                        borderRadius: "0 0 8px 8px",
-
+                        borderRadius: "0 0 8px 8px"
                     }}
                 >
                     <div style={{marginBottom: 16}}>
                         <div style={{color: "#888", marginBottom: 8}}>
-                            File:
+                                                                                    File:
                         </div>
                         <div style={{color: "#64b5f6", fontWeight: "bold"}}>
                             {filePath}
@@ -334,7 +327,7 @@ impl errorOverlay(filePath: str, errors: str) -> any {
                     </div>
                     <div>
                         <div style={{color: "#888", marginBottom: 8}}>
-                            Error:
+                                                                                    Error:
                         </div>
                         <pre
                             style={{
@@ -345,8 +338,7 @@ impl errorOverlay(filePath: str, errors: str) -> any {
                                 margin: 0,
                                 borderLeft: "4px solid #d32f2f",
                                 lineHeight: 1.6,
-                                color: "#ff6b6b",
-
+                                color: "#ff6b6b"
                             }}
                         >
                             {errors}
@@ -358,11 +350,10 @@ impl errorOverlay(filePath: str, errors: str) -> any {
                             paddingTop: 16,
                             borderTop: "1px solid #444",
                             color: "#888",
-                            fontSize: 13,
-
+                            fontSize: 13
                         }}
                     >
-                        💡 Fix the error and save the file to continue development.
+                                                                        💡 Fix the error and save the file to continue development.
                     </div>
                 </div>
             </div>

@@ -3,7 +3,6 @@ import from pathlib { Path }
 
 glob llm = Model(model_name="gpt-4o-mini");
 
-# Simple task object with semantic annotations
 obj Task {
     has name: str,
         type: str,
@@ -176,3 +175,4 @@ with entry {
     print("\nGenius Lite Demo Complete!");
     print("Features: Task planning, code generation, validation");
 }
+# Simple task object with semantic annotations

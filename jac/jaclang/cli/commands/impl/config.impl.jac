@@ -6,7 +6,6 @@ Direct implementations - no delegation.
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 
-# Configuration groups available in jac.toml
 glob CONFIG_GROUPS = [
          "project",
          "run",
@@ -862,7 +861,9 @@ def _format_value(value: object) -> str {
         if not value {
             return "{}";
         }
-        return f"{{{len(value)} keys}}";
+        return f"{{
+        # Configuration groups available in jac.toml
+        {len(value)} keys}}";
     } else {
         return str(value);
     }

@@ -64,7 +64,7 @@ cl {
                             else ("toggle-btn")}
                             onClick={lambda : setTxType("expense")}
                         >
-                            Expense
+                                                        Expense
                         </button>
                         <button
                             type="button"
@@ -73,7 +73,7 @@ cl {
                             else ("toggle-btn")}
                             onClick={lambda : setTxType("income")}
                         >
-                            Income
+                                                        Income
                         </button>
                     </div>
                     <div className="form-group business-toggle">
@@ -84,7 +84,7 @@ cl {
                             else ("toggle-btn")}
                             onClick={lambda : setIsBusiness(true)}
                         >
-                            Business
+                                                        Business
                         </button>
                         <button
                             type="button"
@@ -93,14 +93,14 @@ cl {
                             else ("toggle-btn")}
                             onClick={lambda : setIsBusiness(false)}
                         >
-                            Personal
+                                                        Personal
                         </button>
                     </div>
                 </div>
                 <div className="form-row">
                     <div className="form-group">
                         <label htmlFor="description">
-                            Description
+                                                        Description
                         </label>
                         <input
                             id="description"
@@ -115,7 +115,7 @@ cl {
                     </div>
                     <div className="form-group">
                         <label htmlFor="amount">
-                            Amount
+                                                        Amount
                         </label>
                         <input
                             id="amount"
@@ -132,7 +132,7 @@ cl {
                     </div>
                     <div className="form-group">
                         <label htmlFor="category">
-                            Category
+                                                        Category
                         </label>
                         <select
                             id="category"
@@ -153,7 +153,7 @@ cl {
                     {showClientDropdown
                     and <div className="form-group">
                         <label htmlFor="client">
-                            Client
+                                                        Client
                         </label>
                         <select
                             id="client"
@@ -164,7 +164,7 @@ cl {
                             className="form-select"
                         >
                             <option value="">
-                                Select Client (Optional)
+                                                                Select Client (Optional)
                             </option>
                             {CLIENTS.map(
                                 lambda client: str  -> any { return
@@ -176,10 +176,12 @@ cl {
                     </div>}
                     <div className="form-group">
                         <label>
-                            Action
+                                                        Action
                         </label>
                         <button type="submit" className="submit-btn">
-                            Add {(txType[0].toUpperCase() + txType.slice(1))}
+                                                        Add {(
+                                txType[0].toUpperCase() + txType.slice(1)
+                            )}
                         </button>
                     </div>
                 </div>

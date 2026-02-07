@@ -86,7 +86,12 @@ impl CommandExecutor.run_post_hooks(
 }
 
 """Execute the command handler."""
-impl CommandExecutor.run_handler(spec: CommandSpec, args: dict[str, Any]) -> int {
+# ===============================================================================
+# Module-level Functions Implementation
+# ===============================================================================
+impl CommandExecutor.run_handler(
+    spec: CommandSpec, args: dict[str, Any]
+) -> int {
     import inspect;
     import from jaclang.cli.command { CommandSpec }
     if spec.handler is None {
@@ -123,9 +128,6 @@ impl CommandExecutor.run_handler(spec: CommandSpec, args: dict[str, Any]) -> int
     }
 }
 
-# ===============================================================================
-# Module-level Functions Implementation
-# ===============================================================================
 """Get the global command executor."""
 impl get_executor -> CommandExecutor {
     import from jaclang.cli.executor { CommandExecutor }

@@ -238,7 +238,7 @@ cl def TweetCard(tweet: ClientTweet) -> any {
                 class="tweet-header"
                 style={{"fontWeight": "bold", "marginBottom": "80px"}}
             >
-                @{tweet.username}
+                                @{tweet.username}
             </div>
             <div class="tweet-content" style={{"marginBottom": "12px"}}>
                 {tweet.content}
@@ -248,10 +248,10 @@ cl def TweetCard(tweet: ClientTweet) -> any {
                     onclick={like_tweet_action(tweet.id)}
                     style={{"padding": "5px 10px", "cursor": "pointer"}}
                 >
-                    Like ({tweet.likes.length})
+                                        Like ({tweet.likes.length})
                 </button>
                 <button style={{"padding": "5px 10px"}}>
-                    Comment ({tweet.comments.length})
+                                        Comment ({tweet.comments.length})
                 </button>
             </div>
         </div>;
@@ -288,7 +288,7 @@ cl def FeedView(tweets: list) -> any {
                 style={{"padding": "20px", "borderBottom": "1px solid #e1e8ed"}}
             >
                 <h1 style={{"margin": "0"}}>
-                    LittleX Feed
+                                        LittleX Feed
                 </h1>
             </div>
             <div class="feed-content">
@@ -311,7 +311,7 @@ cl def LoginForm -> any {
             <form onSubmit={handle_login}>
                 <div style={{"marginBottom": "15px"}}>
                     <label style={{"display": "block", "marginBottom": "5px"}}>
-                        Username:
+                                                Username:
                     </label>
                     <input
                         type="text"
@@ -325,7 +325,7 @@ cl def LoginForm -> any {
                 </div>
                 <div style={{"marginBottom": "15px"}}>
                     <label style={{"display": "block", "marginBottom": "5px"}}>
-                        Password:
+                                                Password:
                     </label>
                     <input
                         type="password"
@@ -349,24 +349,24 @@ cl def LoginForm -> any {
                         "cursor": "pointer"
                     }}
                 >
-                    Login
+                                        Login
                 </Button>
                 <Button color="default" variant="dashed">
-                    Dashed
+                                        Dashed
                 </Button>
                 <Button color="default" variant="filled">
-                    Filled
+                                        Filled
                 </Button>
                 <Button color="default" variant="text">
-                    Text
+                                        Text
                 </Button>
                 <Button color="default" variant="link">
-                    Link
+                                        Link
                 </Button>
             </form>
             <div style={{"marginTop": "15px", "textAlign": "center"}}>
                 <Link href="/signup">
-                    Don't have an account? Sign up
+                                        Don't have an account? Sign up
                 </Link>
             </div>
         </Card>;
@@ -400,12 +400,12 @@ cl def SignupForm -> any {
             }}
         >
             <Typography.Title level={2} style={{"marginTop": "0"}}>
-                Sign Up for LittleX
+                                Sign Up for LittleX
             </Typography.Title>
             <form onSubmit={handle_signup}>
                 <div style={{"marginBottom": "15px"}}>
                     <label style={{"display": "block", "marginBottom": "5px"}}>
-                        Username:
+                                                Username:
                     </label>
                     <input
                         type="text"
@@ -420,7 +420,7 @@ cl def SignupForm -> any {
                 </div>
                 <div style={{"marginBottom": "15px"}}>
                     <label style={{"display": "block", "marginBottom": "5px"}}>
-                        Password:
+                                                Password:
                     </label>
                     <input
                         type="password"
@@ -435,7 +435,7 @@ cl def SignupForm -> any {
                 </div>
                 <div style={{"marginBottom": "15px"}}>
                     <label style={{"display": "block", "marginBottom": "5px"}}>
-                        Confirm Password:
+                                                Confirm Password:
                     </label>
                     <input
                         type="password"
@@ -460,12 +460,12 @@ cl def SignupForm -> any {
                         "cursor": "pointer"
                     }}
                 >
-                    Sign Up
+                                        Sign Up
                 </button>
             </form>
             <div style={{"marginTop": "15px", "textAlign": "center"}}>
                 <Link href="/login">
-                    Already have an account? Login
+                                        Already have an account? Login
                 </Link>
             </div>
         </div>;
@@ -543,7 +543,7 @@ cl def:pub App -> any {
             {build_nav_bar(currentPath)}
             <Rotate>
                 <span>
-                    😂
+                                        😂
                 </span>
             </Rotate>
             {router.render()}
@@ -580,7 +580,7 @@ cl def build_nav_bar(route: str) -> any {
                             "fontWeight": "bold"
                         }}
                     >
-                        Home
+                                                Home
                     </span>
                 </Link>
                 <Link href="/profile">
@@ -591,7 +591,7 @@ cl def build_nav_bar(route: str) -> any {
                             "fontWeight": "bold"
                         }}
                     >
-                        Profile
+                                                Profile
                     </span>
                 </Link>
                 <button
@@ -607,7 +607,7 @@ cl def build_nav_bar(route: str) -> any {
                         "fontWeight": "bold"
                     }}
                 >
-                    Logout
+                                        Logout
                 </button>
             </div>
         </nav>;
@@ -630,13 +630,13 @@ cl def HomeView -> any {
             }}
         >
             <h1>
-                Home Feed
+                                Home Feed
             </h1>
             <p>
-                Welcome to LittleX! This is the home page.
+                                Welcome to LittleX! This is the home page.
             </p>
             <p>
-                The reactive router is working!
+                                The reactive router is working!
             </p>
         </div>;
 }
@@ -659,7 +659,7 @@ cl def ProfileView -> any {
             }}
         >
             <h1>
-                Profile
+                                Profile
             </h1>
             <div
                 style={{
@@ -669,7 +669,7 @@ cl def ProfileView -> any {
                 }}
             >
                 <p>
-                    Profile information will be displayed here.
+                                        Profile information will be displayed here.
                 </p>
             </div>
         </div>;

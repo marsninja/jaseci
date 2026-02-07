@@ -6,7 +6,7 @@ cl def:pub ButtonSecondL -> JsxElement {
     return
         <div>
             <Button type="default" size="large">
-                Second Level Button (imports from root)
+                                Second Level Button (imports from root)
             </Button>
             <div style={{marginTop: "10px"}}>
                 <ButtonRoot />

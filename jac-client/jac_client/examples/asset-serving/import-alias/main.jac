@@ -21,14 +21,14 @@ cl {
                 }}
             >
                 <h1>
-                    🍔 Import Alias Example
+                                        🍔 Import Alias Example
                 </h1>
                 <p style={{color: "#666", marginBottom: "20px"}}>
-                    Using
+                                        Using
                     <code>
-                        @jac-client/assets
+                                                @jac-client/assets
                     </code>
-                    alias to import assets
+                                        alias to import assets
                 </p>
                 <img
                     src={burgerImage}
@@ -42,11 +42,11 @@ cl {
                     }}
                 />
                 <p style={{fontSize: "18px", margin: "20px 0"}}>
-                    You've clicked the burger
+                                        You've clicked the burger
                     <strong>
                         {count}
                     </strong>
-                    times!
+                                        times!
                 </p>
                 <button
                     onClick={lambda e: any  -> None { count = count + 1;}}
@@ -61,7 +61,7 @@ cl {
                         boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
                     }}
                 >
-                    Click the Burger! 🍔
+                                        Click the Burger! 🍔
                 </button>
                 <div
                     style={{
@@ -76,31 +76,31 @@ cl {
                     }}
                 >
                     <strong>
-                        How it works:
+                                                How it works:
                     </strong>
                     <ul style={{marginTop: "10px", paddingLeft: "20px"}}>
                         <li>
-                            Import using:
+                                                        Import using:
                             <code>
-                                climportfrom'@jac-client/assets/burger.png'
+                                                                climportfrom'@jac-client/assets/burger.png'
                             </code>
                         </li>
                         <li>
-                            Vite processes the import and generates optimized URLs
+                                                        Vite processes the import and generates optimized URLs
                         </li>
                         <li>
-                            Assets are automatically copied from
+                                                        Assets are automatically copied from
                             <code>
-                                assets/
+                                                                assets/
                             </code>
-                            to
+                                                        to
                             <code>
-                                compiled/assets/
+                                                                compiled/assets/
                             </code>
-                            during build
+                                                        during build
                         </li>
                         <li>
-                            Automatic hash generation for cache busting
+                                                        Automatic hash generation for cache busting
                         </li>
                     </ul>
                 </div>

@@ -25,12 +25,12 @@ cl {
             <div style={styles.container}>
                 <div style={styles.card}>
                     <h1 style={styles.title}>
-                        Counter Application
+                                                Counter Application
                     </h1>
                     <div style={styles.divider}></div>
                     <div style={styles.counterSection}>
                         <div style={styles.label}>
-                            Current Count
+                                                        Current Count
                         </div>
                         <div style={countStyle}>
                             {count}
@@ -42,20 +42,20 @@ cl {
                             style={styles.buttonDecrement}
                             onClick={handleDecrement}
                         >
-                            -
+                                                        -
                         </button>
                         <button style={styles.buttonReset} onClick={handleReset}>
-                            ↻
+                                                        ↻
                         </button>
                         <button
                             style={styles.buttonIncrement}
                             onClick={handleIncrement}
                         >
-                            +
+                                                        +
                         </button>
                     </div>
                     <div style={styles.hint}>
-                        Click the buttons to increment, decrement, or reset the counter
+                                                Click the buttons to increment, decrement, or reset the counter
                     </div>
                 </div>
             </div>;

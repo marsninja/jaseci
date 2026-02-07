@@ -875,7 +875,8 @@ def _check_and_install_rust -> bool {
                         "-c",
                         "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
                     ],
-                    timeout=600,  # 10 minute timeout
+                    timeout  # 10 minute timeout
+                    =600,
                     check=False
                 );
                 if result.returncode == 0 {
@@ -1891,7 +1892,8 @@ def _create_appimage_from_appdir(appdir_path: Path) -> Path | None {
         result = subprocess.run(
             ["appimagetool", str(appdir_path), str(appimage_path)],
             cwd=appdir_path.parent,
-            check=False,  # Don't raise on error, we'll check manually
+            check  # Don't raise on error, we'll check manually
+            =False,
             capture_output=True,
             text=True,
             timeout=300  # 5 minute timeout
@@ -2369,6 +2371,7 @@ def _run_tauri_dev(tauri_dir: Path) -> subprocess.Popen {
         console.warning("Tauri CLI not found.");
         console.print("  Install manually: cargo install tauri-cli", style="muted");
         console.print("  Or use bun: bun add -g @tauri-apps/cli", style="muted");
+
         raise RuntimeError(
             "Tauri CLI not installed. Install it first:\n"
             "  cargo install tauri-cli\n"
@@ -2415,8 +2418,10 @@ def _run_tauri_dev(tauri_dir: Path) -> subprocess.Popen {
         process = subprocess.Popen(
             dev_cmd,
             cwd=tauri_dir.parent,
-            stdout=None,  # Show output directly
-            stderr=None,  # Show errors directly
+            stdout  # Show output directly
+            =None,
+            stderr  # Show errors directly
+            =None,
             text=True
         );
         return process;

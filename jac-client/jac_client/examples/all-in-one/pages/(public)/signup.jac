@@ -60,7 +60,7 @@ cl {
                     }}
                 >
                     <h2 style={{"marginBottom": "24px", "textAlign": "center"}}>
-                        Sign Up
+                                                Sign Up
                     </h2>
                     <form onSubmit={handleSignup}>
                         <input
@@ -105,7 +105,7 @@ cl {
                                 "fontWeight": "600"
                             }}
                         >
-                            Sign Up
+                                                        Sign Up
                         </button>
                     </form>
                     <p
@@ -115,10 +115,10 @@ cl {
                             "fontSize": "14px"
                         }}
                     >
-                        Have an account?
+                                                Have an account?
                         {" "}
                         <Link to="/login">
-                            Login
+                                                        Login
                         </Link>
                     </p>
                 </div>

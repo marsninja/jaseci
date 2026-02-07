@@ -1,4 +1,5 @@
 """Get the client build directory from project config."""
+
 impl ViteCompiler._get_client_dir(self: ViteCompiler) -> Path {
     # Try to get from project config
     try {
@@ -114,12 +115,12 @@ impl ViteCompiler._create_pages_entry_content(
     lines.append('\t);');
     lines.append('}');
     lines.append('');
-    # --- Auth guard routes (reused in both layout and non-layout paths) ---
-    # AuthGuard is a runtime function compiled with plain parameters (not React props
-    # destructuring), so we wrap it in a component that passes the redirect string directly.
     lines.append(
         f'function _AuthGuardRoute() {{ return AuthGuard("{auth_redirect}"); }}'
     );
+    # --- Auth guard routes (reused in both layout and non-layout paths) ---
+    # AuthGuard is a runtime function compiled with plain parameters (not React props
+    # destructuring), so we wrap it in a component that passes the redirect string directly.
     lines.append(
         'const authGuardElement = React.createElement(_AuthGuardRoute, null);'
     );
@@ -384,7 +385,6 @@ impl ViteCompiler._generate_routes_manifest(self: ViteCompiler) -> None {
     routes = scanner._routes;
     layouts = scanner.get_layouts();
     lines: list[str] = [];
-    # Import page components
     for route in routes {
         if route.is_layout {
             continue;
@@ -400,7 +400,6 @@ impl ViteCompiler._generate_routes_manifest(self: ViteCompiler) -> None {
             f'import {{ page as {route.component_import} }} from "./{rel_str}";'
         );
     }
-    # Import layout components
     for (prefix, layout) in layouts.items() {
         try {
             rel_path = layout.file_path.relative_to(self.project_dir);
@@ -412,6 +411,8 @@ impl ViteCompiler._generate_routes_manifest(self: ViteCompiler) -> None {
             f'import {{ layout as {layout.component_import} }} from "./{rel_str}";'
         );
     }
+    # Import page components
+    # Import layout components
     lines.append('');
     # Export routes array
     lines.append('export const routes = [');

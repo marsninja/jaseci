@@ -3,6 +3,7 @@
 Handles primitive types, Union types, lists, tuples, sets, dicts,
 dataclasses, enums, and functions.
 """
+
 impl _type_to_schema(
     ty: type, title: str = "", desc: str = "", info: Info | None = None
 ) -> dict {
@@ -65,8 +66,7 @@ impl _type_to_schema(
                     ),
                 ) for (i, arg) in enumerate(args)
             ],
-            "title": title,
-
+            "title": title
         } | context;
     }
     # Handle annotated list
@@ -76,8 +76,7 @@ impl _type_to_schema(
             "type": "array",
             "items": _type_to_schema(
                 item_type, info=info if info_type == "list" else None
-            ),
-
+            )
         } | context;
     }
     # Handle annotated tuple/set
@@ -90,8 +89,7 @@ impl _type_to_schema(
                 "type": "array",
                 "items": _type_to_schema(
                     item_type, info=info[1] if info[0] == "tuple" else None
-                ),
-
+                )
             } | context;
         }
         raise ValueError(
@@ -134,8 +132,7 @@ impl _type_to_schema(
             "type": "object",
             "properties": properties,
             "required": list(properties.keys()),
-            "additionalProperties": False,
-
+            "additionalProperties": False
         };
     }
     # Handle enums
@@ -211,8 +208,7 @@ impl _type_to_schema(
             full_desc = f"{base_desc}{enum_desc}";
             return {
                 "description": full_desc,
-                "type": "integer" if enum_type == "int" else "string",
-
+                "type": "integer" if enum_type == "int" else "string"
             };
         }
         # Fallback to runtime introspection if EnumInfo not available
@@ -239,8 +235,7 @@ impl _type_to_schema(
         }
         return {
             "description": semstr + enum_desc,
-            "type": "integer" if enum_type is int else "string",
-
+            "type": "integer" if enum_type is int else "string"
         };
     }
     # Handle functions
@@ -267,8 +262,7 @@ impl _type_to_schema(
             "description": semstr,
             "properties": params,
             "required": list(params.keys()),
-            "additionalProperties": False,
-
+            "additionalProperties": False
         };
     }
     raise ValueError(
@@ -304,19 +298,15 @@ impl _convert_dict_to_schema(ty_dict: type) -> dict {
                     "type": "object",
                     "properties": {
                         "key": _type_to_schema(key_type),
-                        "value": _type_to_schema(value_type),
-
+                        "value": _type_to_schema(value_type)
                     },
                     "required": ["key", "value"],
-                    "additionalProperties": False,
-
-                },
-
+                    "additionalProperties": False
+                }
             }
         },
         "additionalProperties": False,
-        "required": [_SCHEMA_DICT_WRAPPER],
-
+        "required": [_SCHEMA_DICT_WRAPPER]
     };
 }
 
@@ -340,10 +330,9 @@ impl _wrap_to_object(schema: dict[str, object]) -> dict[str, object] {
     return {
         "type": "object",
         "title": _SCHEMA_OBJECT_WRAPPER,
-        "properties": {_SCHEMA_OBJECT_WRAPPER: schema,},
+        "properties": {_SCHEMA_OBJECT_WRAPPER: schema},
         "required": [_SCHEMA_OBJECT_WRAPPER],
-        "additionalProperties": False,
-
+        "additionalProperties": False
     };
 }
 
@@ -362,8 +351,7 @@ impl type_to_schema(resp_type: type, info: Info) -> dict[str, object] {
     schema = _wrap_to_object(schema);
     return {
         "type": "json_schema",
-        "json_schema": {"name": type_name, "schema": schema, "strict": True,},
-
+        "json_schema": {"name": type_name, "schema": schema, "strict": True}
     };
 }
 
@@ -386,12 +374,9 @@ impl tool_to_schema(
                 "type": "object",
                 "properties": properties,
                 "required": required,
-                "additionalProperties": False,
-
-            },
-
-        },
-
+                "additionalProperties": False
+            }
+        }
     };
 }
 

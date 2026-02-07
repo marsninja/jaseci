@@ -6,10 +6,10 @@ cl {
             <header className="header">
                 <div className="header-content">
                     <h1 className="header-title">
-                        Budget Planner
+                                                Budget Planner
                     </h1>
                     <p className="header-subtitle">
-                        Track your income and expenses
+                                                Track your income and expenses
                     </p>
                 </div>
             </header>;

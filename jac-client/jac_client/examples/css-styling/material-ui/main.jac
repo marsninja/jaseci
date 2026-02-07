@@ -42,7 +42,7 @@ cl {
                             gutterBottom
                             sx={{"textAlign": "center", "color": "primary.main"}}
                         >
-                            Counter Application
+                                                        Counter Application
                         </Typography>
                         <Divider sx={{"my": 2}} />
                         <Box
@@ -58,7 +58,7 @@ cl {
                                 color="text.secondary"
                                 gutterBottom
                             >
-                                Current Count
+                                                                Current Count
                             </Typography>
                             <Typography
                                 variant="h1"
@@ -113,7 +113,7 @@ cl {
                             color="text.secondary"
                             sx={{"display": "block", "textAlign": "center"}}
                         >
-                            Click the buttons to increment, decrement, or reset the counter
+                                                        Click the buttons to increment, decrement, or reset the counter
                         </Typography>
                     </Box>
                 </Card>

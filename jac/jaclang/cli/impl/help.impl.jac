@@ -38,13 +38,15 @@ impl CommandGroups.register_group(
 }
 
 """Get all groups in display order."""
-impl CommandGroups.get_ordered_groups -> list[str] {
-    return self.group_order.copy();
-}
-
 # ===============================================================================
 # HelpFormatter Implementation
 # ===============================================================================
+impl CommandGroups.get_ordered_groups -> list[
+    str
+] {
+    return self.group_order.copy();
+}
+
 """Format the main help message with grouped commands."""
 impl HelpFormatter.format_main_help(
     commands: list[CommandSpec], prog: str = "jac", version: str | None = None
@@ -258,7 +260,12 @@ impl HelpFormatter.format_examples(examples: list[tuple[str, str]]) -> str {
 }
 
 """Format a usage line for a command."""
-impl HelpFormatter.format_usage(spec: CommandSpec, prog: str = "jac") -> str {
+# ===============================================================================
+# Module-level Functions Implementation
+# ===============================================================================
+impl HelpFormatter.format_usage(
+    spec: CommandSpec, prog: str = "jac"
+) -> str {
     import from jaclang.cli.command { CommandSpec, ArgKind }
     parts = [f"Usage: {prog} {spec.name}"];
     # Add positional arguments
@@ -287,9 +294,6 @@ impl HelpFormatter.format_usage(spec: CommandSpec, prog: str = "jac") -> str {
     return " ".join(parts);
 }
 
-# ===============================================================================
-# Module-level Functions Implementation
-# ===============================================================================
 """Get the global CommandGroups instance."""
 impl get_command_groups -> CommandGroups {
     import from jaclang.cli.help { CommandGroups }

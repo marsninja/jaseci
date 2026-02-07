@@ -13,10 +13,10 @@ cl {
         return
             <div style={{padding: "2rem", fontFamily: "Arial, sans-serif"}}>
                 <h1>
-                    Hello, World!
+                                        Hello, World!
                 </h1>
                 <p>
-                    Count: {count}
+                                        Count: {count}
                 </p>
                 <div style={{display: "flex", gap: "1rem", marginTop: "1rem"}}>
                     <Button

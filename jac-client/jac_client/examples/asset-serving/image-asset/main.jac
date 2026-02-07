@@ -16,7 +16,7 @@ cl {
                 }}
             >
                 <h1>
-                    🍔 Burger Counter App
+                                        🍔 Burger Counter App
                 </h1>
                 <img
                     src="/static/assets/burger.png"
@@ -30,11 +30,11 @@ cl {
                     }}
                 />
                 <p style={{fontSize: "18px", margin: "20px 0"}}>
-                    You've clicked the burger
+                                        You've clicked the burger
                     <strong>
                         {count}
                     </strong>
-                    times!
+                                        times!
                 </p>
                 <button
                     onClick={lambda e: any  -> None { count = count + 1;}}
@@ -49,7 +49,7 @@ cl {
                         boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
                     }}
                 >
-                    Click the Burger! 🍔
+                                        Click the Burger! 🍔
                 </button>
             </div>;
     }

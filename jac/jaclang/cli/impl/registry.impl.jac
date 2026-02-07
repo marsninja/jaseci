@@ -229,7 +229,12 @@ impl CommandRegistry._build_subparser(
 }
 
 """Add an argument to an argparse parser."""
-impl CommandRegistry._add_argument(parser: argparse.ArgumentParser, arg: Arg) -> None {
+# ===============================================================================
+# Module-level Functions Implementation
+# ===============================================================================
+impl CommandRegistry._add_argument(
+    parser: argparse.ArgumentParser, arg: Arg
+) -> None {
     import from jaclang.cli.command { Arg, ArgKind }
     kwargs: dict = {"help": arg.help};
     if arg.choices {
@@ -294,9 +299,6 @@ impl CommandRegistry._add_argument(parser: argparse.ArgumentParser, arg: Arg) ->
     }
 }
 
-# ===============================================================================
-# Module-level Functions Implementation
-# ===============================================================================
 """Get the global command registry."""
 impl get_registry -> CommandRegistry {
     import from jaclang.cli.registry { CommandRegistry }

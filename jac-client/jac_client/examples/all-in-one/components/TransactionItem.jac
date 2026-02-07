@@ -33,7 +33,7 @@ cl {
                         <span className="tx-description">
                             {description}{(clientName != None and isIncome)
                             and <span className="tx-client">
-                                • {clientName}
+                                                                • {clientName}
                             </span>}
                         </span>
                         <span className="tx-date">
@@ -54,7 +54,7 @@ cl {
                         onClick={lambda : onDelete(id)}
                         title="Delete transaction"
                     >
-                        X
+                                                X
                     </button>
                 </div>
             </div>;

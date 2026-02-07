@@ -2,6 +2,7 @@
 
 Allows chaining like: `model(temperature=0.5).invoke(mt_run)`.
 """
+
 impl BaseLLM.__call__(**kwargs: object) -> BaseLLM {
     self.call_params = kwargs;
     return self;
@@ -90,8 +91,7 @@ impl BaseLLM.make_model_params(mt_run: MTRuntime) -> dict {
         "tools": mt_run.get_tool_list() or None,
         "response_format": mt_run.get_output_schema(),
         "temperature": self.call_params.get("temperature", default_temp),
-        "max_tokens": self.call_params.get("max_tokens", default_max_tokens),
-
+        "max_tokens": self.call_params.get("max_tokens", default_max_tokens)
     };
     return params;
 }

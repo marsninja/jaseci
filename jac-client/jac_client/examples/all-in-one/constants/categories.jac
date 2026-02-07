@@ -4,7 +4,6 @@ cl {
     # Category enum - demonstrates enum:pub export
     enum:pub Category { INCOME, FOOD, TRANSPORT, UTILITIES, ENTERTAINMENT, OTHER }
 
-    # Category colors - demonstrates glob:pub export
     glob:pub CATEGORY_COLORS: dict = {
              "INCOME": "#10b981",
              "FOOD": "#f59e0b",
@@ -13,6 +12,8 @@ cl {
              "ENTERTAINMENT": "#ec4899",
              "OTHER": "#6b7280"
          };
+
+    # Category colors - demonstrates glob:pub export
 
     # Category labels for display
     glob:pub CATEGORY_LABELS: dict = {

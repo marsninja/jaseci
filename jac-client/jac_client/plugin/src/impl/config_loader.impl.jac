@@ -28,7 +28,8 @@ impl JacClientConfig.get_default_config(self: JacClientConfig) -> dict[str, Any]
             'resolve': {}
         },
         'ts': {'compilerOptions': {}, 'include': [], 'exclude': []},
-        'configs': {},  # Generic config file generation: { "postcss": {...}, "tailwind": {...} }
+        'configs'  # Generic config file generation: { "postcss": {...}, "tailwind": {...} }
+        : {},
         'package': {
             'name': '',
             'version': '1.0.0',

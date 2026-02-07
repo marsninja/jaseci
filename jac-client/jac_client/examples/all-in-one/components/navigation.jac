@@ -45,15 +45,15 @@ cl {
                     "fontWeight": "600"
                 }}
             >
-                Logout
+                                Logout
             </button>;
         } else {
             authButtons = <>
                 <Link to="/login" style={linkStyle("/login")}>
-                    Login
+                                        Login
                 </Link>
                 <Link to="/signup" style={linkStyle("/signup")}>
-                    Sign Up
+                                        Sign Up
                 </Link>
             </>;
         }
@@ -88,19 +88,19 @@ cl {
                         and (
                             <>
                                 <Link to="/" style={linkStyle("/")}>
-                                    Home
+                                                                        Home
                                 </Link>
                                 <Link to="/nested" style={linkStyle("/nested")}>
-                                    Nested Imports
+                                                                        Nested Imports
                                 </Link>
                                 <Link to="/features" style={linkStyle("/features")}>
-                                    Features Test
+                                                                        Features Test
                                 </Link>
                                 <Link to="/landing" style={linkStyle("/landing")}>
-                                    Landing Page
+                                                                        Landing Page
                                 </Link>
                                 <Link to="/budget" style={linkStyle("/budget")}>
-                                    Budget Planner
+                                                                        Budget Planner
                                 </Link>
                             </>
                         )}

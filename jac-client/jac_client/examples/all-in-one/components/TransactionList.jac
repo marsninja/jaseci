@@ -11,10 +11,10 @@ cl {
             return
                 <div className="empty-state">
                     <p>
-                        No transactions yet.
+                                                No transactions yet.
                     </p>
                     <p>
-                        Add your first income or expense above!
+                                                Add your first income or expense above!
                     </p>
                 </div>;
         }
@@ -22,7 +22,7 @@ cl {
         return
             <div className="transaction-list">
                 <h3 className="list-title">
-                    Transactions ({transactions.length})
+                                        Transactions ({transactions.length})
                 </h3>
                 {transactions.map(
                     lambda tx: dict  -> JsxElement { return

@@ -2,6 +2,7 @@
 # ToolCall Implementations
 #-------------------------------------------------------------------------------
 """Execute the tool call and return a result message."""
+
 impl ToolCall.__call__ -> ToolCallResultMsg {
     if self.args is not None {
         result = self.tool(**self.args);
@@ -25,19 +26,20 @@ impl ToolCall.is_finish_call -> bool {
 }
 
 """Get the output from the finish tool call."""
+#-------------------------------------------------------------------------------
+# MockToolCall Implementations
+#-------------------------------------------------------------------------------
 impl ToolCall.get_output -> object {
     assert (self.is_finish_call()) , "This method should only be called for finish tools.";
     return self.tool(**self.args);
 }
 
-#-------------------------------------------------------------------------------
-# MockToolCall Implementations
-#-------------------------------------------------------------------------------
 """Convert the mock tool call to a real ToolCall for testing."""
 impl MockToolCall.to_tool_call -> ToolCall {
     args_parsed = Tool(self.tool).parse_arguments(self.args);
     return ToolCall(
-        call_id="",  # Call ID is not used in mock calls.
+        call_id  # Call ID is not used in mock calls.
+        ="",
         tool=Tool(self.tool),
         args=args_parsed,
     );

@@ -47,14 +47,14 @@ cl {
                             "color": "#ffffff"
                         }}
                     >
-                        MyApp
+                                                MyApp
                     </div>
                     <div style={{"display": "flex", "gap": "16px"}}>
                         <Link
                             to="/dashboard"
                             style={{"color": "#ffffff", "textDecoration": "none"}}
                         >
-                            Dashboard
+                                                        Dashboard
                         </Link>
                         <button
                             onClick={handleLogout}
@@ -67,7 +67,7 @@ cl {
                                 "cursor": "pointer"
                             }}
                         >
-                            Logout
+                                                        Logout
                         </button>
                     </div>
                 </nav>;
@@ -90,20 +90,20 @@ cl {
                         "color": "#ffffff"
                     }}
                 >
-                    MyApp
+                                        MyApp
                 </div>
                 <div style={{"display": "flex", "gap": "16px"}}>
                     <Link
                         to="/login"
                         style={{"color": "#ffffff", "textDecoration": "none"}}
                     >
-                        Login
+                                                Login
                     </Link>
                     <Link
                         to="/signup"
                         style={{"color": "#ffffff", "textDecoration": "none"}}
                     >
-                        Sign Up
+                                                Sign Up
                     </Link>
                 </div>
             </nav>;
@@ -169,7 +169,7 @@ cl {
                     }}
                 >
                     <h2 style={{"marginBottom": "24px", "textAlign": "center"}}>
-                        Login
+                                                Login
                     </h2>
                     <form onSubmit={handleLogin}>
                         <input
@@ -214,7 +214,7 @@ cl {
                                 "fontWeight": "600"
                             }}
                         >
-                            Login
+                                                        Login
                         </button>
                     </form>
                     <p
@@ -224,9 +224,9 @@ cl {
                             "fontSize": "14px"
                         }}
                     >
-                        Need an account?
+                                                Need an account?
                         <Link to="/signup">
-                            Sign up
+                                                        Sign up
                         </Link>
                     </p>
                 </div>
@@ -293,7 +293,7 @@ cl {
                     }}
                 >
                     <h2 style={{"marginBottom": "24px", "textAlign": "center"}}>
-                        Sign Up
+                                                Sign Up
                     </h2>
                     <form onSubmit={handleSignup}>
                         <input
@@ -338,7 +338,7 @@ cl {
                                 "fontWeight": "600"
                             }}
                         >
-                            Sign Up
+                                                        Sign Up
                         </button>
                     </form>
                     <p
@@ -348,9 +348,9 @@ cl {
                             "fontSize": "14px"
                         }}
                     >
-                        Have an account?
+                                                Have an account?
                         <Link to="/login">
-                            Login
+                                                        Login
                         </Link>
                     </p>
                 </div>
@@ -384,10 +384,10 @@ cl {
                     }}
                 >
                     <h1 style={{"marginBottom": "16px"}}>
-                        🎉 Welcome to Your Dashboard
+                                                🎉 Welcome to Your Dashboard
                     </h1>
                     <p style={{"color": "#666", "lineHeight": "1.6"}}>
-                        You are now logged in and can access protected content.
+                                                You are now logged in and can access protected content.
                     </p>
                     <p
                         style={{
@@ -396,7 +396,7 @@ cl {
                             "marginTop": "16px"
                         }}
                     >
-                        This is a simple dashboard page demonstrating authenticationwith React Router in Jac. You can add your own content and functionality here.
+                                                This is a simple dashboard page demonstrating authenticationwith React Router in Jac. You can add your own content and functionality here.
                     </p>
                     <div
                         style={{
@@ -408,10 +408,10 @@ cl {
                         }}
                     >
                         <h3 style={{"marginBottom": "8px", "color": "#0369a1"}}>
-                            Protected Route Demo
+                                                        Protected Route Demo
                         </h3>
                         <p style={{"color": "#0c4a6e", "fontSize": "14px"}}>
-                            This page is only accessible to authenticated users. Try logging outand accessing this page - you'll be redirected to the login page!
+                                                        This page is only accessible to authenticated users. Try logging outand accessing this page - you'll be redirected to the login page!
                         </p>
                     </div>
                 </div>

@@ -18,7 +18,7 @@ cl {
                 }}
             >
                 <h1>
-                    🍔 Burger Counter App
+                                        🍔 Burger Counter App
                 </h1>
                 <img
                     src="/static/assets/burger.png"
@@ -32,11 +32,11 @@ cl {
                     }}
                 />
                 <p style={{fontSize: "18px", margin: "20px 0"}}>
-                    You've clicked the burger
+                                        You've clicked the burger
                     <strong>
                         {count}
                     </strong>
-                    times!
+                                        times!
                 </p>
                 <button
                     onClick={lambda e: any  -> None { count = count + 1;}}
@@ -51,10 +51,10 @@ cl {
                         boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
                     }}
                 >
-                    Click the Burger! 🍔
+                                        Click the Burger! 🍔
                 </button>
                 <h2 style={{marginTop: "40px", marginBottom: "20px"}}>
-                    CSS Asset Examples
+                                        CSS Asset Examples
                 </h2>
                 <div className="container">
                     <h3
@@ -63,7 +63,7 @@ cl {
                             textShadow: "2px 2px 4px rgba(0,0,0,0.5)"
                         }}
                     >
-                        Background Image Example
+                                                Background Image Example
                     </h3>
                     <p
                         style={{
@@ -71,12 +71,12 @@ cl {
                             textShadow: "2px 2px 4px rgba(0,0,0,0.5)"
                         }}
                     >
-                        This container uses the burger image as a background via CSS
+                                                This container uses the burger image as a background via CSS
                     </p>
                 </div>
                 <div className="card">
                     <h3>
-                        Image in Card
+                                                Image in Card
                     </h3>
                     <img
                         src="/static/assets/burger.png"
@@ -84,7 +84,7 @@ cl {
                         className="burgerImage"
                     />
                     <p style={{marginTop: "15px", color: "#666"}}>
-                        This image is displayed within a styled card using CSS classes
+                                                This image is displayed within a styled card using CSS classes
                     </p>
                 </div>
             </div>;

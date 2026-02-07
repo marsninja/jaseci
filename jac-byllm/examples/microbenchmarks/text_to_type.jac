@@ -12,8 +12,9 @@ obj Person {
         job: str;
 }
 
-glob llm = Model(
-         # model_name="gpt-4o",
+glob llm = Model
+     # model_name="gpt-4o",
+     (
          model_name="mockllm",
          print_prompt=True,
          outputs=[
