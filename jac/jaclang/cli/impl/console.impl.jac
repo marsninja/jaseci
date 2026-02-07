@@ -4,9 +4,6 @@ import sys;
 import from contextlib { contextmanager }
 import from typing { Any }
 
-# ===============================================================================
-# JacConsole Implementation
-# ===============================================================================
 """Initialize the console."""
 impl JacConsole.init -> None {
     self.use_emoji = JacConsole._should_use_emoji();
@@ -55,17 +52,9 @@ impl JacConsole.print(*args: Any, **kwargs: Any) -> None {
     # Strip Rich markup tags like [cyan], [/cyan], [bold], [dim], etc.
     # Only match closing tags [/...] and known Rich style/color keywords
     # to avoid stripping content like TOML headers [project] or graphviz [label=...]
-    _rich_styles = (
-        'bold|dim|italic|underline|strike|reverse|blink|overline|'
-        'red|green|blue|cyan|magenta|yellow|white|black|'
-        'bright_red|bright_green|bright_blue|bright_cyan|bright_magenta|bright_yellow|bright_white|'
-        'grey0|grey100|muted|info|success|warning|error|link'
-    );
-    markup_pattern = re.compile(
-        r'\[/[a-zA-Z_][a-zA-Z0-9_ ]*\]'  # Closing tags: [/bold], [/red], etc.
-        r'|'
-        r'\[(?:' + _rich_styles + r')(?:\s[^\]]*?)?\]'  # Opening style tags
-    );
+    _rich_styles = 'bold|dim|italic|underline|strike|reverse|blink|overline|red|green|blue|cyan|magenta|yellow|white|black|bright_red|bright_green|bright_blue|bright_cyan|bright_magenta|bright_yellow|bright_white|grey0|grey100|muted|info|success|warning|error|link';
+    _pat = r'\[/[a-zA-Z_][a-zA-Z0-9_ ]*\]|\[(?:' + _rich_styles + r')(?:\s[^\]]*?)?\]';
+    markup_pattern = re.compile(_pat);
     stripped_args = tuple(
         markup_pattern.sub('', str(arg)) if isinstance(arg, str) else arg
         for arg in args
@@ -248,7 +237,13 @@ Args:
 impl JacConsole.print_elapsed_time(seconds: float) -> None {
     if seconds < 1 {
         ms = seconds * 1000;
-        print(f"  Done in {ms:.0f}ms");
+        print(
+            f"  Done in {ms:.0f
+            # ===============================================================================
+            # JacConsole Implementation
+            # ===============================================================================
+            }ms"
+        );
     } else {
         print(f"  Done in {seconds:.1f}s");
     }
@@ -274,15 +269,17 @@ Args:
     pattern: File pattern being watched
     count: Number of files
 """
-impl JacConsole.print_watching(pattern: str, count: int) -> None {
+# ===============================================================================
+# Module-level function implementations
+# ===============================================================================
+impl JacConsole.print_watching(
+    pattern: str, count: int
+) -> None {
     watch_emoji = '👀' if self.use_emoji else '[WATCHING]';
     print(f"{watch_emoji} Watching for changes...");
     print(f"   Monitoring: {pattern} ({count} files)");
 }
 
-# ===============================================================================
-# Module-level function implementations
-# ===============================================================================
 """Get the console instance using the hook system, allowing plugins to override."""
 impl _get_console -> JacConsole {
     global _console_instance;

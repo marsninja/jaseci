@@ -3261,8 +3261,7 @@ impl Parser.parse_element_stmt{
         TokenKind.KW_OVERRIDE,
         TokenKind.KW_STATIC,
         TokenKind.KW_ASYNC,
-        TokenKind.KW_ABSTRACT,
-        TokenKind.DECOR_OP
+        TokenKind.KW_ABSTRACT
     ] {
         doc_tok = self.advance();
         elem_doc = self.make_string(doc_tok);
@@ -3270,6 +3269,37 @@ impl Parser.parse_element_stmt{
         ability.doc = elem_doc;
         ability.add_kids_left([elem_doc]);
         return ability;
+    }
+    # Handle docstring before decorated element: "doc" @decorator ...
+    if self.check(TokenKind.STRING) and self.peek().kind == TokenKind.DECOR_OP {
+        doc_tok = self.advance();
+        elem_doc = self.make_string(doc_tok);
+        # Use look-ahead to determine what the decorated item is
+        save_pos = self.pos;
+        while self.check(TokenKind.DECOR_OP) {
+            self.advance();
+            self.parse_atomic_chain();
+        }
+        while self.check_any(TokenKind.KW_ASYNC, TokenKind.KW_ABSTRACT) {
+            self.advance();
+        }
+        is_impl = self.check(TokenKind.KW_IMPL);
+        self.pos = save_pos;
+        if is_impl {
+            impl_def = self.parse_impl_def();
+            impl_def.doc = elem_doc;
+            impl_def.add_kids_left([elem_doc]);
+            return impl_def;
+        } else {
+            # Delegate to the DECOR_OP handler below via recursive call
+            # (it handles ability, enum, archetype dispatching)
+            elem = self.parse_element_stmt();
+            if elem is not None {
+                elem.doc = elem_doc;
+                elem.add_kids_left([elem_doc]);
+            }
+            return elem;
+        }
     }
     if self.check(TokenKind.STRING)
     and self.peek().kind in [
@@ -3346,7 +3376,7 @@ impl Parser.parse_element_stmt{
     if self.check(TokenKind.KW_WITH) {
         return self.parse_module_code();
     }
-    # Handle decorators for archetypes and abilities
+    # Handle decorators for archetypes, abilities, and impl defs
     if self.check(TokenKind.DECOR_OP) {
         save_pos = self.pos;
         while self.check(TokenKind.DECOR_OP) {
@@ -3358,11 +3388,14 @@ impl Parser.parse_element_stmt{
         }
         is_ability = self.check_any(TokenKind.KW_DEF, TokenKind.KW_CAN);
         is_enum = self.check(TokenKind.KW_ENUM);
+        is_impl = self.check(TokenKind.KW_IMPL);
         self.pos = save_pos;
         if is_ability {
             return self.parse_ability();
         } elif is_enum {
             return self.parse_enum();
+        } elif is_impl {
+            return self.parse_impl_def();
         } else {
             return self.parse_archetype();
         }
@@ -3682,6 +3715,10 @@ impl Parser.parse_statement{
     }
     if self.check(TokenKind.KW_ENUM) {
         return self.parse_enum();
+    }
+    # Handle impl definitions inside code blocks
+    if self.check(TokenKind.KW_IMPL) {
+        return self.parse_impl_def();
     }
     # Handle has statements (in impl bodies and archetype bodies)
     if self.check(TokenKind.KW_HAS)
