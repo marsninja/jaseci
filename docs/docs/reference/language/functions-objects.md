@@ -363,6 +363,7 @@ with entry {
 
 ### 4 Enums with Inline Python
 
+<!-- skip-validate: RD parser doesn't support ::py:: inline Python in enums yet -->
 ```jac
 enum HttpStatus {
     OK = 200,

@@ -3259,9 +3259,7 @@ impl Parser.parse_element_stmt{
         TokenKind.KW_DEF,
         TokenKind.KW_CAN,
         TokenKind.KW_OVERRIDE,
-        TokenKind.KW_STATIC,
-        TokenKind.KW_ASYNC,
-        TokenKind.KW_ABSTRACT
+        TokenKind.KW_STATIC
     ] {
         doc_tok = self.advance();
         elem_doc = self.make_string(doc_tok);
@@ -3269,6 +3267,34 @@ impl Parser.parse_element_stmt{
         ability.doc = elem_doc;
         ability.add_kids_left([elem_doc]);
         return ability;
+    }
+    # Handle docstring before async/abstract archetype or ability
+    if self.check(TokenKind.STRING)
+    and self.peek().kind in [TokenKind.KW_ASYNC, TokenKind.KW_ABSTRACT] {
+        # Look ahead past async/abstract to see if it's an archetype or ability
+        save_pos = self.pos;
+        self.advance();  # skip STRING
+        while self.check_any(TokenKind.KW_ASYNC, TokenKind.KW_ABSTRACT) {
+            self.advance();
+        }
+        is_archetype = self.check_any(
+            TokenKind.KW_OBJECT, TokenKind.KW_NODE,
+            TokenKind.KW_EDGE, TokenKind.KW_WALKER, TokenKind.KW_CLASS
+        );
+        self.pos = save_pos;
+        doc_tok = self.advance();
+        elem_doc = self.make_string(doc_tok);
+        if is_archetype {
+            arch = self.parse_archetype();
+            arch.doc = elem_doc;
+            arch.add_kids_left([elem_doc]);
+            return arch;
+        } else {
+            ability = self.parse_ability();
+            ability.doc = elem_doc;
+            ability.add_kids_left([elem_doc]);
+            return ability;
+        }
     }
     # Handle docstring before decorated element: "doc" @decorator ...
     if self.check(TokenKind.STRING) and self.peek().kind == TokenKind.DECOR_OP {

@@ -705,19 +705,19 @@ def test_connect_filter(fixture_path: Callable[[str], str]) -> None:
                                      ^^^^^^^
         """,
         """
-        Member "not_exist not found on type <class Book>"
+        Member "not_exist" not found on type "<class Book>"
             lst(=title="Parry Potter",author="K.J. Bowling",year=1997);  # Ok
             lst(=not_exist="some");  # Error
                  ^^^^^^^^^
         """,
         """
-        Type "<class str> is not assignable to type <class int>"
+        Type "<class str>" is not assignable to type "<class int>"
             lst(=not_exist="some");  # Error
             lst(=year="Type Error");  # Error
                       ^^^^^^^^^^^^
         """,
         """
-        Member "not_exists not found on type <class MyEdge>"
+        Member "not_exists" not found on type "<class MyEdge>"
             [->:MyEdge:id==1:->];  # Ok
             [->:MyEdge:not_exists>=1:->];  # Error
                        ^^^^^^^^^^

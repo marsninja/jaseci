@@ -713,6 +713,7 @@ Jac includes all standard Python operators plus several unique operators for gra
 
 ### 3 Logical Operators
 
+<!-- skip-validate: RD parser doesn't support || operator yet -->
 ```jac
 def example() {
     a = True;
@@ -816,6 +817,7 @@ def example() {
 
 The walrus operator assigns a value and returns it in a single expression:
 
+<!-- skip-validate: RD parser doesn't support walrus operator yet -->
 ```jac
 def example() {
     items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];

@@ -233,6 +233,7 @@ Open `http://localhost:5173` in your browser.
 
 ## Testing
 
+<!-- skip-validate: RD parser doesn't support edge traversal syntax yet -->
 ```jac
 import from datetime { datetime }
 

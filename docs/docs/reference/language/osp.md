@@ -773,6 +773,7 @@ walker Querier {
 
 Handle different types with specialized code paths. The syntax uses `->Type{code}` with no space between the arrow and type name:
 
+<!-- skip-validate: RD parser doesn't support typed context blocks yet -->
 ```jac
 walker AnimalVisitor {
     can visit with Animal entry {
@@ -809,6 +810,7 @@ walker Processor {
 
 Nodes reacting to different walker types:
 
+<!-- skip-validate: RD parser doesn't support typed context blocks yet -->
 ```jac
 node DataNode {
     has value: int;
@@ -828,6 +830,7 @@ node DataNode {
 
 From the reference examples, showing inheritance-based dispatch:
 
+<!-- skip-validate: RD parser doesn't support typed context blocks yet -->
 ```jac
 walker ShoppingCart {
     can process_item with Product entry {

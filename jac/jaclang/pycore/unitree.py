@@ -5448,6 +5448,26 @@ class String(Literal):
     def lit_value(self) -> str:
         if isinstance(self.value, bytes):
             return self.value
+
+        # For f-string literal parts, always decode escape sequences
+        # regardless of whether the part starts with a quote character
+        if self.parent and isinstance(self.parent, FString):
+            fstring_parent: FString = self.parent
+            is_raw = False
+            if fstring_parent.start and fstring_parent.start.value:
+                prefix = fstring_parent.start.value.lower()
+                is_raw = "r" in prefix
+            if not is_raw:
+                result = self.value
+                placeholder = "\x00"
+                result = result.replace("\\\\", placeholder)
+                result = result.replace("\\n", "\n")
+                result = result.replace("\\t", "\t")
+                result = result.replace("\\r", "\r")
+                result = result.replace(placeholder, "\\")
+                return result
+            return self.value
+
         if any(
             self.value.startswith(prefix)
             and self.value[len(prefix) :].startswith(("'", '"'))
@@ -5456,43 +5476,15 @@ class String(Literal):
             return eval(self.value)
 
         elif self.value.startswith(("'", '"')):
-            if (not self.find_parent_of_type(FString)) or (
-                not (self.parent and isinstance(self.parent, FString))
-            ):
-                try:
-                    return ast3.literal_eval(self.value)
-                except (ValueError, SyntaxError):
-                    if (
-                        self.value.startswith('"""') and self.value.endswith('"""')
-                    ) or (self.value.startswith("'''") and self.value.endswith("'''")):
-                        return self.value[3:-3]
-                    return self.value[1:-1]
             try:
                 return ast3.literal_eval(self.value)
             except (ValueError, SyntaxError):
-                return self.value
+                if (self.value.startswith('"""') and self.value.endswith('"""')) or (
+                    self.value.startswith("'''") and self.value.endswith("'''")
+                ):
+                    return self.value[3:-3]
+                return self.value[1:-1]
         else:
-            # For f-string literal parts (no quotes), decode common escape sequences
-            # but only if the f-string is not a raw string (rf"..." or fr"...")
-            if self.parent and isinstance(self.parent, FString):
-                fstring_parent: FString = self.parent
-                # Check if it's a raw f-string by looking at the start token
-                is_raw = False
-                if fstring_parent.start and fstring_parent.start.value:
-                    prefix = fstring_parent.start.value.lower()
-                    is_raw = "r" in prefix
-                if not is_raw:
-                    # Decode escape sequences in the correct order:
-                    # First protect \\ by replacing with placeholder, then decode
-                    # escape sequences, then restore backslashes
-                    result = self.value
-                    placeholder = "\x00"
-                    result = result.replace("\\\\", placeholder)
-                    result = result.replace("\\n", "\n")
-                    result = result.replace("\\t", "\t")
-                    result = result.replace("\\r", "\r")
-                    result = result.replace(placeholder, "\\")
-                    return result
             return self.value
 
     def normalize(self, deep: bool = True) -> bool:

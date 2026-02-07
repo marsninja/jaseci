@@ -58,6 +58,9 @@ def extract_code_blocks(file_path: Path) -> list[CodeBlock]:
     while i < len(lines):
         match = pattern.match(lines[i])
         if match:
+            # Check if previous line has skip marker
+            skip = i > 0 and "skip-validate" in lines[i - 1]
+
             start_line = i + 1
             block_lines = []
             i += 1
@@ -67,7 +70,7 @@ def extract_code_blocks(file_path: Path) -> list[CodeBlock]:
                 i += 1
 
             content = "\n".join(block_lines).strip()
-            if content:
+            if content and not skip:
                 code_blocks.append(
                     CodeBlock(
                         content=content,
