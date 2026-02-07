@@ -196,7 +196,14 @@ obj BootstrapCodegen {
         for d in node.decorators {
             self.emit("@" + self.gen_expr(d.expr));
         }
-        params_str = self.gen_params(node.params, True);
+        add_self = True;
+        for d in node.decorators {
+            dname = self.gen_expr(d.expr);
+            if dname == "staticmethod" or dname == "classmethod" {
+                add_self = False;
+            }
+        }
+        params_str = self.gen_params(node.params, add_self);
         ret_str = "";
         if node.return_type is not None {
             ret_str = " -> " + self.gen_type(node.return_type);
@@ -221,7 +228,16 @@ obj BootstrapCodegen {
         for d in node.decorators {
             self.emit("@" + self.gen_expr(d.expr));
         }
-        params_str = self.gen_params(node.params, is_method);
+        add_self = is_method;
+        if is_method {
+            for d in node.decorators {
+                dname = self.gen_expr(d.expr);
+                if dname == "staticmethod" or dname == "classmethod" {
+                    add_self = False;
+                }
+            }
+        }
+        params_str = self.gen_params(node.params, add_self);
         ret_str = "";
         if node.return_type is not None {
             ret_str = " -> " + self.gen_type(node.return_type);
@@ -289,7 +305,19 @@ obj BootstrapCodegen {
     }
 
     def is_mutable_default(node: AstNode) -> bool {
-        return node.kind == "list" or node.kind == "dict" or node.kind == "set";
+        if node.kind == "list" or node.kind == "dict" or node.kind == "set" {
+            return True;
+        }
+        # Treat calls to set(), list(), dict() as mutable defaults
+        if node.kind == "call" and node.func is not None {
+            if node.func.kind == "name" {
+                fname = node.func.name;
+                if fname == "set" or fname == "list" or fname == "dict" {
+                    return True;
+                }
+            }
+        }
+        return False;
     }
 
     # -------------------------------------------------------------------------

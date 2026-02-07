@@ -1364,12 +1364,29 @@ obj BootstrapParser {
     # Helpers
     # -------------------------------------------------------------------------
 
+    def expect_name_or_keyword() -> BootstrapToken {
+        # Accept NAME or any keyword token as an identifier.
+        # Needed for import paths like "import from enum { ... }"
+        # where "enum" is a keyword but also a valid Python module name.
+        tok = self.current();
+        if tok.kind == "NAME" or tok.kind.startswith("KW_") {
+            self.pos = self.pos + 1;
+            return tok;
+        }
+        self.error(f"Expected NAME or keyword, got {tok.kind} ({tok.value})");
+        return tok;
+    }
+
     def parse_dotted_name() -> str {
         parts: list[str] = [];
-        parts.append(self.expect("NAME").value);
-        while self.check("DOT") and self.peek_kind(1) == "NAME" {
+        parts.append(self.expect_name_or_keyword().value);
+        while self.check("DOT") {
+            next_kind = self.peek_kind(1);
+            if next_kind != "NAME" and not next_kind.startswith("KW_") {
+                break;
+            }
             self.advance();
-            parts.append(self.expect("NAME").value);
+            parts.append(self.expect_name_or_keyword().value);
         }
         result = "";
         i = 0;
