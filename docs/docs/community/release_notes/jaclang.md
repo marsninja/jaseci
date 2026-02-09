@@ -2,7 +2,9 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.9.16 (Unreleased)
+## jaclang 0.10.1 (Unreleased)
+
+## jaclang 0.10.0 (Latest Release)
 
 - **KWESC_NAME syntax changed from `<>` to backtick**: Keyword-escaped names now use a backtick prefix (`` `node ``) instead of the angle-bracket prefix (`<>node`). All `.jac` source files, the lexer, parser, unparse/DocIR passes, and auto-lint rules have been updated accordingly.
 - **Remove Backtick Type Operator**: Removed the backtick (`` ` ``) `TYPE_OP` token and `TypeRef` AST node from the language. The `Root` type is now referenced directly by name (e.g., `with Root entry` instead of `` with `root entry ``). Filter comprehension syntax changed from `` (`?Type:field==val) `` to `(?:Type, field==val)`. `Root` is automatically imported from `jaclib` when used in walker event signatures.
@@ -20,10 +22,11 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **RD Parser: Yield in Assignments & Grammar Extraction Improvements**: The RD parser now correctly handles `x = yield expr` in assignments. The `jac grammar` extraction pass was improved to accurately display binary operator rules (e.g., `logical_or` now shows `logical_and (KW_OR logical_and)*` instead of the incorrect `logical_and KW_OR*`).
 - **RD Parser: Async, Impl & F-String Gap Fixes**: Fixed 6 more coverage gaps in the recursive descent parser: `async with` statements, async comprehensions (list/set/gen), `async for` token in AST kid lists, `impl` with event clause missing `with` token, `impl` by-expression extra `by` token, and nested `{expr}` inside f-string format specs (e.g., `f"{value:{width}}"`).
 - **RD Parser: Enum & Match Pattern Gap Fixes**: Fixed 3 more coverage gaps: multistring (concatenated string literals) in match literal patterns, `py_code_block` (inline Python) in enum blocks, and `free_code` (`with entry` blocks) in enum blocks.
+- **CLI Dependency Command Refactor**: Redesigned the `jac install`, `jac add`, `jac remove`, and new `jac update` commands for cleaner, more consistent behavior. `jac install` now syncs all dependency types including plugin-provided ones (npm, etc.). `jac add` requires package arguments (no longer silently falls through to install) and errors on missing `jac.toml`. When no version is specified, `jac add` queries the installed version and records a `~=X.Y` compatible-release spec instead of `>=0.0.0`. The new `jac update [pkg]` command updates all or specific dependencies to their latest compatible versions and writes `~=X.Y` specs back to `jac.toml`.
+- **Fix:** Fixed `config.save()` to correctly persist dependency removals and git dependencies to disk.
 - **RD Parser: Strictness Parity with Lark**: Tightened the RD parser to reject constructs that the Lark grammar also rejects, closing 7 permissiveness gaps.
-- **`jac purge` Command**: Added `jac purge` command to clear the bytecode cache.
 
-## jaclang 0.9.15 (Latest Release)
+## jaclang 0.9.15
 
 - **Fix: Type Errors in Impl Files Now Show Correct Location**: Type errors in `.impl.jac` files now point to the actual error location instead of the declaration in the main file.
 - **First-Run Progress Messages**: The first time `jac` is run after installation, it now prints clear progress messages to stderr showing each internal compiler module being compiled and cached, so users understand why the first launch is slower and don't think the process is hanging.
