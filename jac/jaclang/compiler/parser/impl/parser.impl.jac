@@ -1223,7 +1223,9 @@ impl Parser.parse_atomic_chain -> Expr {
                 name_tok = self.advance();
                 attr = self.make_special_name(name_tok);
             }
-            if attr {
+            if attr is None {
+                self.error("Incomplete member access");
+            } else {
                 kid: list = [expr];
                 if null_ok {
                     kid.append(self.gen_token(Tok.NULL_OK.value, "?"));
