@@ -6,7 +6,7 @@
 - [Plugin System](#plugin-system) - Installing and managing plugins
 - [Project Configuration](#project-configuration) - jac.toml settings
 - [Python Interoperability](#python-interoperability) - Using Python from Jac
-- [JavaScript/TypeScript Interoperability](#javascripttypescript-interoperability) - Using JS from Jac
+- [JavaScript/npm Interoperability](#javascriptnpm-interoperability) - Using JS from Jac
 
 ---
 
@@ -213,8 +213,8 @@ cache = false
 |----------|-------------|
 | `OPENAI_API_KEY` | OpenAI API key |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
-| `REDIS_HOST`, `REDIS_PORT` | Redis connection |
-| `MONGO_URI`, `MONGO_DB` | MongoDB connection |
+| `REDIS_URL` | Redis connection URL |
+| `MONGODB_URI` | MongoDB connection URI |
 | `JWT_SECRET` | JWT signing secret |
 
 **Client-side (Vite):**
@@ -320,7 +320,7 @@ instance = my_module.MyClass()
 
 ---
 
-## JavaScript/TypeScript Interoperability
+## JavaScript/npm Interoperability
 
 ### 1 npm Packages
 
@@ -333,14 +333,16 @@ cl {
 }
 ```
 
-### 2 TypeScript Support
+### 2 TypeScript Configuration
 
-Enable in `jac.toml`:
+TypeScript is supported through the jac-client Vite toolchain for client-side code. Configure in `jac.toml`:
 
 ```toml
 [plugins.client]
 typescript = true
 ```
+
+> **Note:** Jac does not parse TypeScript files directly. TypeScript support is provided through Vite's built-in TypeScript handling in client-side (`cl {}`) code.
 
 ### 3 Browser APIs
 
