@@ -5539,6 +5539,8 @@ impl Parser.parse_enum -> Enum {
                 body_kid.append(member);
                 if self.match_tok(TokenKind.COMMA) {
                     body_kid.append(self.gen_token(Tok.COMMA.value, ","));
+                } elif self.check_name() {
+                    self.error("Missing COMMA");
                 }
             } elif self.check(TokenKind.PYNLINE) {
                 py_tok = self.advance();
