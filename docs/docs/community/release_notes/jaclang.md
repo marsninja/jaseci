@@ -22,6 +22,7 @@ This document provides a summary of new features, improvements, and bug fixes in
   - **Fix: LiteralString Type Support**: Added `LiteralString` class to the type checker, improving binary operator chain handling and ensuring type compatibility between `LiteralString` and `str` types.
   - **Type Checking for `super.init()` Calls**: Added validation for `super.init()` calls, catching argument errors against parent class initializers with proper MRO resolution.
 - **Fix: Native Code Cache False Positive**: Fixed a bug where "Setting up Jac for first use" appeared on every run instead of only the first time.
+- **Fix: Spurious Write Access Warning on System Root During Sync**: Fixed `SqliteMemory.sync()` unconditionally calling `check_write_access()` on every persistent anchor in memory, even when nothing had changed. After a server restart, the system root would trigger a spurious `INFO` warning on every authenticated user commit. Sync now only checks write access and writes to the DB when access or archetype fields have actually changed.
 - **3 Small Refactors**
 
 ## jaclang 0.10.0 (Latest Release)
