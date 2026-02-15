@@ -1,0 +1,118 @@
+"""Compilation tests – migrated from test_pyast_gen_pass.py and test_language.py.
+
+These tests verify that the Jac compiler can successfully compile various
+fixture files without errors, and test compilation-level behaviour.
+"""
+
+import os;
+import from pathlib { Path }
+import jaclang;
+import from jaclang.jac0core.program { JacProgram }
+
+glob JAC_ROOT = str(Path(jaclang.__file__).parent.parent),
+     EXAMPLES = os.path.join(JAC_ROOT, "examples"),
+     FIXTURES = os.path.join(
+         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
+     ),
+     LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
+
+test compile_hodge_podge {
+    """Compile hodge_podge.jac and verify no errors (from test_pyast_gen_pass.test_hodge_podge)."""
+    out = JacProgram();
+    out.compile(os.path.join(EXAMPLES, "micro", "hodge_podge.jac"));
+    assert len(out.errors_had) == 0;
+}
+
+test compile_fstrings {
+    """Compile fstrings.jac and verify no errors."""
+    out = JacProgram();
+    out.compile(os.path.join(FIXTURES, "fstrings.jac"));
+    assert len(out.errors_had) == 0;
+}
+
+test compile_from_string {
+    """Compile from inline string (from test_language.test_assignment_list_no_infinite_loop)."""
+    code = "with entry { p1, p2 = (10, 20); }";
+    out = JacProgram();
+    result = out.compile(use_str=code, file_path="test.jac");
+    assert result is not None;
+}
+
+test arith_precedence {
+    """Compile and execute arithmetic expression (from test_language.test_arith_precedence)."""
+    import from builtins { compile as pycompile, exec as pyexec }
+    import io;
+    import sys;
+    prog = JacProgram().compile(
+        use_str="with entry {print(4-5-4);}", file_path="test.jac"
+    );
+    old = sys.stdout;
+    buf = io.StringIO();
+    sys.stdout = buf;
+    try {
+        pyexec(pycompile(prog.gen.py_ast[0], "test.jac", "exec"));
+    } finally {
+        sys.stdout = old;
+    }
+    assert buf.getvalue() == "-5\n";
+}
+
+test double_format_issue {
+    """Verify that formatting is idempotent (from test_language.test_double_format_issue)."""
+    prog = JacProgram().compile("with entry {print(hello);}", "test.jac");
+    prog.unparse();
+    before = prog.format();
+    prog.format();
+    prog.format();
+    after = prog.format();
+    assert before == after;
+}
+
+test multiline_single_tok {
+    """Verify multi-line token source mapping (from test_language.test_multiline_single_tok)."""
+    mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "byllmissue.jac"));
+    assert "2:5 - 4:8" in mypass.pp();
+}
+
+test annotation_tuple_issue {
+    """Verify annotation and tuple type output (from test_language.test_annotation_tuple_issue)."""
+    mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "slice_vals.jac"));
+    assert "Annotated[Str, INT, BLAH]" in mypass.gen.py;
+    assert "tuple[int, Optional[type], Optional[tuple]]" in mypass.gen.py;
+}
+
+test obj_hasvar_initialization {
+    """Verify uninitialised has-var errors (from test_language.test_obj_hasvar_initialization)."""
+    out = JacProgram();
+    out.compile(os.path.join(LANG_FIXTURES, "uninitialized_hasvars.jac"));
+    assert out.errors_had;
+
+    errors_output = "";
+    for error in out.errors_had {
+        errors_output += error.pretty_print() + "\n";
+    }
+
+    for exp in [
+        "Non default attribute 'var3' follows default attribute",
+        "    3 |     has var1: int;",
+        "    4 |     has var2: int = 42;",
+        "    5 |     has var3: int;  # <-- This should be syntax error.",
+        "      |         ^^^^",
+        "    6 | }",
+        'Missing "postinit" method required by un initialized attribute(s).',
+        "    9 | obj Test2 {",
+        "   10 |     has var1: str;",
+        "   11 |     has var2: int by postinit;",
+        "      |         ^^^^",
+        "   12 | }",
+        "Non default attribute 'var4' follows default attribute",
+        "   17 |     has var2: int = 42;",
+        "   18 |     has var3: int by postinit;  # <-- This is fine.",
+        "   19 |     has var4: int;  # <-- This should be syntax error.",
+        "      |         ^^^^",
+        "   20 |",
+        "   21 |     def postinit() {"
+    ] {
+        assert exp in errors_output;
+    }
+}
