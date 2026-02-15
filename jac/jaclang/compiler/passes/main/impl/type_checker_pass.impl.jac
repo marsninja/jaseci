@@ -154,15 +154,15 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: uni.Ability) -> None {
         ability_end_line = nd.loc.last_line;
         # Find orphaned Name nodes in type annotations at this ability's location
         if module := nd.find_parent_of_type(uni.Module) {
-            for nd in module._in_mod_nodes {
+            for mod_nd in module._in_mod_nodes {
                 if (
-                    isinstance(nd, uni.Name)
-                    and nd.sym is None
-                    and ability_start_line <= nd.loc.first_line <= ability_end_line
-                    and isinstance(nd.parent, uni.SubTag)
+                    isinstance(mod_nd, uni.Name)
+                    and mod_nd.sym is None
+                    and ability_start_line <= mod_nd.loc.first_line <= ability_end_line
+                    and isinstance(mod_nd.parent, uni.SubTag)
                 ) {  # SubTag is the type annotation wrapper
 
-                    self.evaluator.get_type_of_expression(nd);
+                    self.evaluator.get_type_of_expression(mod_nd);
                 }
             }
         }
