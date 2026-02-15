@@ -570,37 +570,9 @@ impl CommentInjectionPass._handle_body_comments(
             body_end = nd.loc.last_line + 1;
         }
     }
-    if ((body_start is None) and isinstance(nd, uni.JsxElement) and nd.kid) {
-        opening_tag = nd.kid[0];
-        if isinstance(opening_tag, uni.JsxElement) {
-            body_start = next(
-                (
-                    (k.loc.last_line + 1)
-                    for k in opening_tag.kid
-                    if (
-                        isinstance(k, uni.Token)
-                        and (k.name == Tok.JSX_TAG_END)
-                        and k.loc
-                    )
-                ),
-                None
-            );
-        }
-        closing_tag = nd.kid[-1];
-        if isinstance(closing_tag, uni.JsxElement) {
-            body_end = next(
-                (
-                    k.loc.first_line
-                    for k in closing_tag.kid
-                    if (
-                        isinstance(k, uni.Token)
-                        and (k.name == Tok.JSX_CLOSE_START)
-                        and k.loc
-                    )
-                ),
-                None
-            );
-        }
+    if ((body_start is None) and isinstance(nd, uni.JsxElement)) {
+        body_start = nd.get_body_start_line();
+        body_end = nd.get_body_end_line();
     }
     if ((body_start is None) and isinstance(nd, uni.ArchHas)) {
         body_start = next(

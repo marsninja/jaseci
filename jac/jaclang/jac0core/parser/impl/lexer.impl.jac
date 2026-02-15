@@ -835,8 +835,10 @@ impl Lexer.scan_jsx_tag_token -> Token {
 
 """Scan JSX content between tags."""
 impl Lexer.scan_jsx_content -> Token {
-    # Only skip whitespace in JSX — # is regular text content, not a comment.
-    self.skip_whitespace();
+    # Do NOT skip whitespace here — whitespace in JSX content is significant
+    # for same-line spacing (e.g., "{expr}  text"). Whitespace normalization
+    # is handled downstream by JsxText.get_normalized_text(). Whitespace-only
+    # text nodes are filtered by the parser.
     if self.at_end() {
         self.error("Unexpected end of JSX content", self.line, self.col, self.pos);
         return self.make_token(TokenKind.ERROR, "", self.line, self.col, self.pos);

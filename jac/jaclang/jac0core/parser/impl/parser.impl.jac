@@ -3113,44 +3113,16 @@ impl Parser.parse_jsx_children -> list {
 
 """Parse a single JSX child: text, expression {expr}, or nested element."""
 impl Parser.parse_jsx_child -> Expr {
-    # Text content
+    # Text content — store raw token; whitespace normalization is handled
+    # downstream by JsxText.get_normalized_text() (single source of truth).
     if self.check(TokenKind.JSX_TEXT) {
         text_tok = self.advance();
-        # Strip whitespace and skip whitespace-only text (matching Lark parser behavior)
-        fully_stripped = text_tok.value.strip();
-        if not fully_stripped {
-            # Whitespace-only text node, try next child
+        if not text_tok.value.strip() {
+            # Whitespace-only text node, skip (structural decision)
             return self.parse_jsx_child();
         }
-        # Normalize JSX text whitespace (like HTML):
-        # 1. Strip leading/trailing newlines+whitespace
-        # 2. Collapse internal newline+whitespace sequences into single space
-        import re;
-        normalized = re.sub(r'^\s*\n\s*', '', text_tok.value).rstrip();
-        if not normalized {
-            normalized = fully_stripped;
-        }
-        # Collapse any remaining internal newline+whitespace into single space
-        normalized = re.sub(r'\s*\n\s*', ' ', normalized);
-        # Preserve meaningful same-line separator spaces that appear immediately
-        # before this JSX_TEXT token (e.g., "{expr}  # text"). The lexer can
-        # omit these from token value, so recover them from source text.
-        tok_pos_start = text_tok.loc.pos_start if text_tok.loc else 0;
-        if (self.source_code and (tok_pos_start > 0)) {
-            line_start = self.source_code.rfind('\n', 0, tok_pos_start) + 1;
-            prefix = self.source_code[line_start:tok_pos_start];
-            if (prefix and prefix[-1].isspace()) {
-                stripped_prefix = prefix.rstrip();
-                if stripped_prefix {
-                    trailing_ws = len(prefix) - len(stripped_prefix);
-                    if trailing_ws > 0 {
-                        normalized = (' ' * trailing_ws) + normalized;
-                    }
-                }
-            }
-        }
         text_node = self.make_uni_token(text_tok);
-        return JsxText(value=normalized, kid=[text_node]);
+        return JsxText(value=text_node, kid=[text_node]);
     }
     # Expression: {expr}
     if self.check(TokenKind.LBRACE) {
