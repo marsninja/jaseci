@@ -630,7 +630,7 @@ enum ::=
 
 enum_member ::= NAME (EQ expression)?
 
-test ::= KW_TEST NAME? LBRACE code_block_stmts RBRACE
+test ::= KW_TEST STRING? LBRACE code_block_stmts RBRACE
 
 switch_stmt ::= KW_SWITCH expression LBRACE ((KW_CASE | KW_DEFAULT) switch_case)* RBRACE
 
