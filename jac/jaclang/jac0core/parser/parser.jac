@@ -376,6 +376,7 @@ obj Parser {
     def consume_uni(kind: TokenKind) -> UniToken;
     def expect_name -> Token;
     def error(message: str);
+    def error_at(message: str, loc: SourceLoc);
     def make_uni_token(tok: Token) -> UniToken;
     def make_name(tok: Token, is_enum_stmt: bool = False) -> Name;
     def make_special_name(tok: Token) -> Name;

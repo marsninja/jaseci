@@ -17,21 +17,18 @@ glob JAC_ROOT = str(Path(jaclang.__file__).parent.parent),
      LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 
 test compile_hodge_podge {
-    """Compile hodge_podge.jac and verify no errors (from test_pyast_gen_pass.test_hodge_podge)."""
     out = JacProgram();
     out.compile(os.path.join(EXAMPLES, "micro", "hodge_podge.jac"));
     assert len(out.errors_had) == 0;
 }
 
 test compile_fstrings {
-    """Compile fstrings.jac and verify no errors."""
     out = JacProgram();
     out.compile(os.path.join(FIXTURES, "fstrings.jac"));
     assert len(out.errors_had) == 0;
 }
 
 test compile_from_string {
-    """Compile from inline string (from test_language.test_assignment_list_no_infinite_loop)."""
     code = "with entry { p1, p2 = (10, 20); }";
     out = JacProgram();
     result = out.compile(use_str=code, file_path="test.jac");
@@ -39,7 +36,6 @@ test compile_from_string {
 }
 
 test arith_precedence {
-    """Compile and execute arithmetic expression (from test_language.test_arith_precedence)."""
     import from builtins { compile as pycompile, exec as pyexec }
     import io;
     import sys;
@@ -58,7 +54,6 @@ test arith_precedence {
 }
 
 test double_format_issue {
-    """Verify that formatting is idempotent (from test_language.test_double_format_issue)."""
     prog = JacProgram().compile("with entry {print(hello);}", "test.jac");
     prog.unparse();
     before = prog.format();
@@ -69,20 +64,17 @@ test double_format_issue {
 }
 
 test multiline_single_tok {
-    """Verify multi-line token source mapping (from test_language.test_multiline_single_tok)."""
     mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "byllmissue.jac"));
     assert "2:5 - 4:8" in mypass.pp();
 }
 
 test annotation_tuple_issue {
-    """Verify annotation and tuple type output (from test_language.test_annotation_tuple_issue)."""
     mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "slice_vals.jac"));
     assert "Annotated[Str, INT, BLAH]" in mypass.gen.py;
     assert "tuple[int, Optional[type], Optional[tuple]]" in mypass.gen.py;
 }
 
 test obj_hasvar_initialization {
-    """Verify uninitialised has-var errors (from test_language.test_obj_hasvar_initialization)."""
     out = JacProgram();
     out.compile(os.path.join(LANG_FIXTURES, "uninitialized_hasvars.jac"));
     assert out.errors_had;

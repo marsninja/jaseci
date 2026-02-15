@@ -247,6 +247,27 @@ impl Parser.error(message: str) {
     }
 }
 
+impl Parser.error_at(message: str, loc: SourceLoc) {
+    self.errors.append(ParseError(message=message, loc=loc));
+    if self.prog is not None and hasattr(self.prog, "errors_had") {
+        source = self.get_source();
+        tok = UniToken(
+            orig_src=source,
+            name="ERROR",
+            value="",
+            line=loc.line,
+            end_line=loc.end_line,
+            col_start=loc.col_start,
+            col_end=loc.col_end,
+            pos_start=loc.pos_start,
+            pos_end=loc.pos_end
+        );
+        code_loc = CodeLocInfo(tok, tok);
+        alrt = Alert(message, code_loc, Parser);
+        self.prog.errors_had.append(alrt);
+    }
+}
+
 impl Parser.check_name -> bool {
     # Check for NAME or KWESC_NAME (keyword-escaped identifier like `type)
     return self.check(TokenKind.NAME) or self.check(TokenKind.KWESC_NAME);
@@ -3527,10 +3548,37 @@ impl Parser.parse_module_code -> ModuleCode {
 
 impl Parser.parse_code_block_stmts -> list {
     stmts: list = [];
+    checked_first = False;
     while not self.check(TokenKind.RBRACE) and not self.at_end() {
         before = self.pos;
         stmt = self.parse_statement();
         if stmt is not None {
+            # Reject Python-style docstrings as first statement in code block.
+            # In Jac, semstrings go before the declaration, not inside.
+            is_docstring = False;
+            if (
+                not checked_first
+                and isinstance(stmt, ExprStmt)
+                and not stmt.in_fstring
+            ) {
+                if isinstance(stmt.expr, String) {
+                    is_docstring = True;
+                } elif (
+                    isinstance(stmt.expr, MultiString)
+                    and all(isinstance(s, String) for s in stmt.expr.strings)
+                ) {
+                    is_docstring = True;
+                }
+            }
+            if is_docstring {
+                self.error_at(
+                    'Docstrings in Jac go before the declaration, not inside the body. ' + 'Move this string before the enclosing test/can/obj/etc.',
+                    self.tokens[before].loc
+                );
+            }
+            if not isinstance(stmt, Semi) {
+                checked_first = True;
+            }
             stmts.append(stmt);
             # Add Semi token if present (for statements like assignment SEMI)
             if self.match_tok(TokenKind.SEMI) {

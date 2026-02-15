@@ -107,13 +107,18 @@ def _fresh_jac_state():
 class JacFile(pytest.File):
     """Collector that imports a ``.jac`` file and yields its ``test`` blocks."""
 
-    def collect(self):  # noqa: C901
+    def collect(self) -> list[JacTestItem]:  # noqa: C901
         from jaclang.jac0core.runtime import JacRuntimeInterface
         from jaclang.runtimelib.test import JacTestCheck
 
         _ensure_jac_runtime()
         _fresh_jac_state()
         JacTestCheck.reset()
+
+        # Snapshot sys.modules so we can clean up Jac-imported modules after
+        # collection.  This prevents collisions with .py files that share the
+        # same stem (e.g. test_language.py + test_language.jac).
+        modules_before = set(sys.modules.keys())
 
         # Suppress stdout during collection (entry blocks, prints, etc.)
         old_stdout = sys.stdout
@@ -142,19 +147,30 @@ class JacFile(pytest.File):
                 )
             except Exception:
                 # Import failure -- nothing to collect from this file.
-                return
+                return []
         finally:
             sys.stdout.close()
             sys.stdout = old_stdout
 
-        # Yield one JacTestItem per registered test.
+        # Collect test items into a list.
+        items: list[JacTestItem] = []
         for _key, tests in JacTestCheck.test_suite_path.items():
             for test_info in tests:
-                yield JacTestItem.from_parent(
-                    self,
-                    name=test_info.func_name,
-                    callobj=test_info.test_case,
+                items.append(
+                    JacTestItem.from_parent(
+                        self,
+                        name=test_info.func_name,
+                        callobj=test_info.test_case,
+                    )
                 )
+
+        # Remove Jac-imported modules from sys.modules to avoid collisions
+        # with Python test files that share the same basename.
+        for name in list(sys.modules.keys()):
+            if name not in modules_before:
+                sys.modules.pop(name, None)
+
+        return items
 
 
 # ---------------------------------------------------------------------------

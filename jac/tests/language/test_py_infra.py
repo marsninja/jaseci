@@ -1,9 +1,8 @@
-"""Test Jac language generally.
+"""Tests requiring Python-only infrastructure.
 
-Tests that require Python-only infrastructure (PyastBuildPass, tempfile,
-subprocess, sys.stderr redirect, os.chdir, xfail, etc.) remain here.
-All simple "run fixture and check stdout" tests have been migrated to
-jac/tests/jactests/test_language.jac.
+Covers py2jac conversion (PyastBuildPass), tempfile, subprocess,
+sys.stderr redirect, os.chdir, xfail, etc.  All simple "run fixture
+and check stdout" tests live in test_language.jac.
 """
 
 import io
