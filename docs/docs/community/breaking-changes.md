@@ -550,22 +550,22 @@ The `check` keyword has been removed from Jaclang. All testing functionality is 
 glob a: int = 5;
 glob b: int = 2;
 
-test test_equality {
+test "equality" {
     check a == 5;
     check b == 2;
 }
 
-test test_comparison {
+test "comparison" {
     check a > b;
     check a - b == 3;
 }
 
-test test_membership {
+test "membership" {
     check "a" in "abc";
     check "d" not in "abc";
 }
 
-test test_function_result {
+test "function result" {
     check almostEqual(a + b, 7);
 }
 ```
@@ -576,22 +576,22 @@ test test_function_result {
 glob a: int = 5;
 glob b: int = 2;
 
-test test_equality {
+test "equality" {
     assert a == 5;
     assert b == 2;
 }
 
-test test_comparison {
+test "comparison" {
     assert a > b;
     assert a - b == 3;
 }
 
-test test_membership {
+test "membership" {
     assert "a" in "abc";
     assert "d" not in "abc";
 }
 
-test test_function_result {
+test "function result" {
     assert almostEqual(a + b, 7);
 }
 ```
