@@ -16,7 +16,7 @@ glob FIXTURES = os.path.join(
          "symtab_build_tests"
      );
 
-test no_dupl_symbols {
+test "no dupl symbols" {
     file_path = os.path.join(FIXTURES, "no_dupls.jac");
     mod = JacProgram().compile(file_path);
     assert len(mod.sym_tab.names_in_scope.values()) == 3;
@@ -25,7 +25,7 @@ test no_dupl_symbols {
     }
 }
 
-test package {
+test "package" {
     file_path = os.path.join(FIXTURES, "main.jac");
     prog = JacProgram();
     prog.compile(file_path);
@@ -33,7 +33,7 @@ test package {
     assert prog.warnings_had == [];
 }
 
-test expr_as_item_alias_variable {
+test "expr as item alias variable" {
     file_path = os.path.join(FIXTURES, "with_as_clause.jac");
     mod = JacProgram().compile(file_path);
     with_names = mod.sym_tab.kid_scope[0].names_in_scope;
@@ -41,7 +41,7 @@ test expr_as_item_alias_variable {
     assert str(with_names["f"].sym_type) == "variable";
 }
 
-test in_for_stmt_iteration_variables {
+test "in for stmt iteration variables" {
     file_path = os.path.join(FIXTURES, "for_loop_unpacking.jac");
     mod = JacProgram().compile(file_path);
     test_cases = [
@@ -60,7 +60,7 @@ test in_for_stmt_iteration_variables {
     }
 }
 
-test compr_unpacking_variables {
+test "compr unpacking variables" {
     file_path = os.path.join(FIXTURES, "comprehension_patterns.jac");
     mod = JacProgram().compile(file_path);
     test_cases = [
@@ -82,7 +82,7 @@ test compr_unpacking_variables {
     }
 }
 
-test except_variable_registration {
+test "except variable registration" {
     file_path = os.path.join(FIXTURES, "symtab_features.jac");
     mod = JacProgram().compile(file_path);
     try_stmt = mod.sym_tab.kid_scope[0];
@@ -90,7 +90,7 @@ test except_variable_registration {
     assert "e" in except_clause.names_in_scope , "Exception variable 'e' should be registered in except block symbol table";
 }
 
-test assignment_patterns {
+test "assignment patterns" {
     file_path = os.path.join(FIXTURES, "assignment_patterns.jac");
     mod = JacProgram().compile(file_path);
     scope_vars = mod.sym_tab.names_in_scope;

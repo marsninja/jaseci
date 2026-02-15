@@ -14,7 +14,7 @@ glob FIXTURES = os.path.join(
          "fixtures"
      );
 
-test sem_def_match {
+test "sem def match" {
     out = JacProgram();
     out.compile(os.path.join(FIXTURES, "sem_def_match.jac"));
     assert not out.errors_had;

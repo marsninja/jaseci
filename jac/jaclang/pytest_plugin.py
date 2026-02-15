@@ -159,7 +159,7 @@ class JacFile(pytest.File):
                 items.append(
                     JacTestItem.from_parent(
                         self,
-                        name=test_info.func_name,
+                        name=test_info.display_name,
                         callobj=test_info.test_case,
                     )
                 )

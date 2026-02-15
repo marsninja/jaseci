@@ -20,7 +20,7 @@ glob FIXTURES = os.path.join(
          "fixtures"
      );
 
-test pygen_jac_cli {
+test "pygen jac cli" {
     out = JacProgram();
     out.compile(os.path.join(FIXTURES, "base.jac"));
     assert not out.errors_had;
@@ -28,7 +28,7 @@ test pygen_jac_cli {
     assert "56" in str(mod.to_dict());
 }
 
-test import_auto_impl {
+test "import auto impl" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "autoimpl.jac"));
     num_modules = len(list(prog.mod.hub.values())[0].impl_mod);
@@ -40,7 +40,7 @@ test import_auto_impl {
     assert "autoimpl.shared.impl" in mod_names;
 }
 
-test import_include_auto_impl {
+test "import include auto impl" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "incautoimpl.jac"));
     num_modules = len(list(prog.mod.hub.values())[1].impl_mod) + 1;
@@ -54,7 +54,7 @@ test import_include_auto_impl {
     assert "autoimpl.shared.impl" in mod_names;
 }
 
-test annexable_by_discovery {
+test "annexable by discovery" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "incautoimpl.jac"));
     count = 0;
@@ -71,7 +71,7 @@ test annexable_by_discovery {
     assert count == 5;
 }
 
-test annexable_by_shared_folder {
+test "annexable by shared folder" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "autoimpl.jac"));
     main_mod = list(prog.mod.hub.values())[0];
@@ -86,7 +86,7 @@ test annexable_by_shared_folder {
     assert shared_impl.annexable_by == os.path.join(FIXTURES, "autoimpl.jac");
 }
 
-test double_empty_anx {
+test "double empty anx" {
     old_stdout = sys.stdout;
     buf = io.StringIO();
     sys.stdout = buf;
@@ -102,7 +102,7 @@ test double_empty_anx {
     assert "baz" in stdout_value;
 }
 
-test circular_import {
+test "circular import" {
     state = JacProgram();
     state.compile(os.path.join(FIXTURES, "circular_import.jac"));
     assert not state.errors_had;

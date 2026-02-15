@@ -15,7 +15,7 @@ glob FIXTURES = os.path.join(
          "fixtures"
      );
 
-test simple_bcgen {
+test "simple bcgen" {
     jac_code = JacProgram().compile(file_path=os.path.join(FIXTURES, "func.jac"));
     bytecode = jac_code.gen.py_bytecode;
     assert bytecode is not None , "Expected bytecode to be generated";

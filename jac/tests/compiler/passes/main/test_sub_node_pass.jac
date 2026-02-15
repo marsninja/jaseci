@@ -10,7 +10,7 @@ glob EXAMPLES = os.path.join(
          str(Path(jaclang.__file__).parent.parent), "examples"
      );
 
-test sub_node_pass {
+test "sub node pass" {
     out = JacProgram();
     code_gen = out.compile(
         file_path=os.path.join(EXAMPLES, "manual_code", "circle.jac")

@@ -16,26 +16,26 @@ glob JAC_ROOT = str(Path(jaclang.__file__).parent.parent),
      ),
      LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 
-test compile_hodge_podge {
+test "compile hodge podge" {
     out = JacProgram();
     out.compile(os.path.join(EXAMPLES, "micro", "hodge_podge.jac"));
     assert len(out.errors_had) == 0;
 }
 
-test compile_fstrings {
+test "compile fstrings" {
     out = JacProgram();
     out.compile(os.path.join(FIXTURES, "fstrings.jac"));
     assert len(out.errors_had) == 0;
 }
 
-test compile_from_string {
+test "compile from string" {
     code = "with entry { p1, p2 = (10, 20); }";
     out = JacProgram();
     result = out.compile(use_str=code, file_path="test.jac");
     assert result is not None;
 }
 
-test arith_precedence {
+test "arith precedence" {
     import from builtins { compile as pycompile, exec as pyexec }
     import io;
     import sys;
@@ -53,7 +53,7 @@ test arith_precedence {
     assert buf.getvalue() == "-5\n";
 }
 
-test double_format_issue {
+test "double format issue" {
     prog = JacProgram().compile("with entry {print(hello);}", "test.jac");
     prog.unparse();
     before = prog.format();
@@ -63,18 +63,18 @@ test double_format_issue {
     assert before == after;
 }
 
-test multiline_single_tok {
+test "multiline single tok" {
     mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "byllmissue.jac"));
     assert "2:5 - 4:8" in mypass.pp();
 }
 
-test annotation_tuple_issue {
+test "annotation tuple issue" {
     mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "slice_vals.jac"));
     assert "Annotated[Str, INT, BLAH]" in mypass.gen.py;
     assert "tuple[int, Optional[type], Optional[tuple]]" in mypass.gen.py;
 }
 
-test obj_hasvar_initialization {
+test "obj hasvar initialization" {
     out = JacProgram();
     out.compile(os.path.join(LANG_FIXTURES, "uninitialized_hasvars.jac"));
     assert out.errors_had;

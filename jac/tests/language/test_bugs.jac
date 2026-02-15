@@ -9,7 +9,7 @@ glob FIXTURES = os.path.join(
          str(Path(jaclang.__file__).parent.parent), "tests", "language", "fixtures"
      );
 
-test impl_match_confusion_issue {
+test "impl match confusion issue" {
     mypass = JacProgram();
     mypass.compile(os.path.join(FIXTURES, "impl_match_confused.jac"));
     assert len(mypass.errors_had) == 1;

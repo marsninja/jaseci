@@ -16,7 +16,7 @@ glob FIXTURES = os.path.join(
          "fixtures"
      );
 
-test mtir_gen_basic {
+test "mtir gen basic" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
@@ -27,7 +27,7 @@ test mtir_gen_basic {
     assert len(scopes) > 0 , "Should have at least one MTIR entry";
 }
 
-test mtir_gen_standalone_function {
+test "mtir gen standalone function" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
@@ -52,7 +52,7 @@ test mtir_gen_standalone_function {
     assert func_info.return_type == "str";
 }
 
-test mtir_gen_method {
+test "mtir gen method" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
@@ -77,7 +77,7 @@ test mtir_gen_method {
     assert method_info.parent_class.name == "Project";
 }
 
-test mtir_gen_complex_return_type {
+test "mtir gen complex return type" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
@@ -101,7 +101,7 @@ test mtir_gen_complex_return_type {
     }
 }
 
-test mtir_gen_list_return_type {
+test "mtir gen list return type" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
@@ -123,7 +123,7 @@ test mtir_gen_list_return_type {
     }
 }
 
-test mtir_gen_semstrings {
+test "mtir gen semstrings" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
@@ -154,7 +154,7 @@ test mtir_gen_semstrings {
     }
 }
 
-test mtir_gen_class_info_extraction {
+test "mtir gen class info extraction" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
@@ -187,7 +187,7 @@ test mtir_gen_class_info_extraction {
     }
 }
 
-test mtir_gen_all_genai_abilities_captured {
+test "mtir gen all genai abilities captured" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
