@@ -570,37 +570,9 @@ impl CommentInjectionPass._handle_body_comments(
             body_end = `node.loc.last_line + 1;
         }
     }
-    if ((body_start is None) and isinstance(`node, uni.JsxElement) and `node.kid) {
-        opening_tag = `node.kid[0];
-        if isinstance(opening_tag, uni.JsxElement) {
-            body_start = next(
-                (
-                    (k.loc.last_line + 1)
-                    for k in opening_tag.kid
-                    if (
-                        isinstance(k, uni.Token)
-                        and (k.name == Tok.JSX_TAG_END)
-                        and k.loc
-                    )
-                ),
-                None
-            );
-        }
-        closing_tag = `node.kid[-1];
-        if isinstance(closing_tag, uni.JsxElement) {
-            body_end = next(
-                (
-                    k.loc.first_line
-                    for k in closing_tag.kid
-                    if (
-                        isinstance(k, uni.Token)
-                        and (k.name == Tok.JSX_CLOSE_START)
-                        and k.loc
-                    )
-                ),
-                None
-            );
-        }
+    if ((body_start is None) and isinstance(`node, uni.JsxElement)) {
+        body_start = `node.get_body_start_line();
+        body_end = `node.get_body_end_line();
     }
     if ((body_start is None) and isinstance(`node, uni.ArchHas)) {
         body_start = next(

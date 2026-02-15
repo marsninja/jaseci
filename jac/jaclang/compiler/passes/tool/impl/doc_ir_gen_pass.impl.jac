@@ -12,12 +12,10 @@ impl DocIRGenPass.exit_jsx_expression(`node: uni.JsxExpression) -> None {
     `node.gen.doc_ir = self.concat(parts, ast_node=`node);
 }
 
-"""Generate DocIR for JSX text - use stripped value to avoid raw whitespace."""
+"""Generate DocIR for JSX text — normalize via single source of truth."""
 impl DocIRGenPass.exit_jsx_text(`node: uni.JsxText) -> None {
-    # Use the JsxText.value (which is stripped) instead of raw token text
-    # to avoid extra newlines/whitespace from source formatting
     source_tok = `node.kid[0] if `node.kid else None;
-    `node.gen.doc_ir = doc.Text(`node.value, source_token=source_tok);
+    `node.gen.doc_ir = doc.Text(`node.get_normalized_text(), source_token=source_tok);
 }
 
 """Generate DocIR for JSX normal attributes."""
