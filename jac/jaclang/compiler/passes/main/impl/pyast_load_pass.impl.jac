@@ -1170,9 +1170,7 @@ impl PyastBuildPass.proc_match_as(nd: py_ast.MatchAs) -> (uni.MatchAs | uni.Matc
         line=nd.lineno,
         end_line=nd.end_lineno or nd.lineno,
         col_start=nd.col_offset,
-        col_end=(nd.col_offset + len(nd.name))
-        if nd.name
-        else (nd.col_offset + 1),
+        col_end=(nd.col_offset + len(nd.name)) if nd.name else (nd.col_offset + 1),
         pos_start=0,
         pos_end=0
     );
@@ -1577,9 +1575,7 @@ impl PyastBuildPass.proc_formatted_value(
     prev_in_fstring = self.in_fstring_expr;
     self.in_fstring_expr = True;
     value = self.convert(nd.value);
-    fmt_spec = cast(uni.Expr, self.convert(nd.format_spec))
-    if nd.format_spec
-    else None;
+    fmt_spec = cast(uni.Expr, self.convert(nd.format_spec)) if nd.format_spec else None;
     self.in_fstring_expr = prev_in_fstring;
     if isinstance(value, uni.Expr) {
         ret = uni.FormattedValue(

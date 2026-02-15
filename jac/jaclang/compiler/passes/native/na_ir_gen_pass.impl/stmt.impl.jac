@@ -256,9 +256,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
     if value is None {
         return;
     }
-    targets = nd.target
-    if isinstance(nd.target, (list, tuple))
-    else [(nd.target)];
+    targets = nd.target if isinstance(nd.target, (list, tuple)) else [(nd.target)];
     for target_expr in targets {
         # Handle tuple unpacking: (a, b) = expr
         if isinstance(target_expr, uni.TupleVal) {

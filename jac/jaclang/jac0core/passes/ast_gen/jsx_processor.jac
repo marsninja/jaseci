@@ -355,9 +355,7 @@ class PyJsxProcessor {
 
     """Generate Python AST for JSX text nodes."""
     def text(self: PyJsxProcessor, nd: uni.JsxText) -> list[ast3.AST] {
-        expr = self.pass_ref.sync(
-            ast3.Constant(value=nd.get_normalized_text()), nd
-        );
+        expr = self.pass_ref.sync(ast3.Constant(value=nd.get_normalized_text()), nd);
         nd.gen.py_ast = [expr];
         return nd.gen.py_ast;
     }

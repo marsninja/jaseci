@@ -3050,7 +3050,7 @@ variables
                 keywords.append(
                     self.sync(
                         ast3.keyword(
-                            arg='node',
+                            arg='nd',
                             value=cast(ast3.expr, self.sync(filt.gen.py_ast[0]))
                         )
                     )

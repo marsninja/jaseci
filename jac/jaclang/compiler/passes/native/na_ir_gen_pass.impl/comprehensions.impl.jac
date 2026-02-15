@@ -307,9 +307,7 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
     # Create new empty dict
     dict_val = self.builder.call(helpers["new"], [], name="dcompr.dict");
     # Generate nested loops for each InnerCompr
-    self._codegen_dict_compr_loops(
-        nd.compr, 0, dict_val, key_expr, val_expr, dict_key
-    );
+    self._codegen_dict_compr_loops(nd.compr, 0, dict_val, key_expr, val_expr, dict_key);
     return dict_val;
 }
 

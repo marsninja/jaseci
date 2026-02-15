@@ -752,9 +752,7 @@ impl __jacHydrateFromDom(defaultModuleName: str) -> None {
     __jacReactiveContext.hookIndex = 0;
     value = __jacReactiveContext.rootComponent();
     if value and __isObject(value) and __isFunction(value.then) {
-        value.then(
-            lambda nd: any  -> None { __jacApplyRender(renderer, rootEl, nd);}
-        ).catch(
+        value.then(lambda nd: any  -> None { __jacApplyRender(renderer, rootEl, nd);}).catch(
             lambda err: any  -> None { console.error(
                 "[Jac] Error resolving client function promise", err
             );}
