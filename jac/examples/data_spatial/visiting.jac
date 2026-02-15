@@ -1,4 +1,4 @@
-node MyNode {
+nd MyNode {
     has Name: str;
 }
 

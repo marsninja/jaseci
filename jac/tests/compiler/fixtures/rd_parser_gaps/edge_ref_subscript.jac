@@ -1,5 +1,5 @@
 # Edge reference chain with subscripted start expression
-node Person {
+nd Person {
     has name: str;
 }
 

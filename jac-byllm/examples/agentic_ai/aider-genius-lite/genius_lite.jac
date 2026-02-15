@@ -36,7 +36,7 @@ def generate_solution(task: Task) -> str by llm(method="Reason");
 def validate_code(code: str, task: Task) -> str by llm(method="Reason");
 
 # Nodes for walker traversal
-node TaskNode {
+nd TaskNode {
     has task: Task = Task(name="", type="", details="", priority=1),
         code: str = "",
         feedback: str = "",
@@ -58,7 +58,7 @@ node TaskNode {
     }
 }
 
-node SummaryNode {
+nd SummaryNode {
     has results: list[CodeResult] = [];
 
     def show_summary {

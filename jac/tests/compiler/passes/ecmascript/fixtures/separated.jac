@@ -1,6 +1,6 @@
 '''Test file for .cl file serves the client module.'''
 
-node Todo {
+nd Todo {
     has text: str;
     has done: bool = False;
 }

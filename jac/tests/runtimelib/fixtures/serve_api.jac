@@ -3,13 +3,13 @@
 cl import from "@jac/runtime" { renderJsxTree, }
 
 # Define some nodes
-node Task {
+nd Task {
     has title: str;
     has completed: bool = False;
     has priority: int = 0;
 }
 
-node User {
+nd User {
     has name: str;
     has email: str;
 }

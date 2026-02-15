@@ -2,7 +2,7 @@ walker Creator {
     can create with Root entry;
 }
 
-node node_a {
+nd node_a {
     has val: int;
 
     can make_something with Creator entry;

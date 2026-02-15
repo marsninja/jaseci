@@ -1,6 +1,6 @@
 """Test anonymous abilities with synthetic name generation."""
 
-node TestNode {
+nd TestNode {
     has name: str = "TestNode";
 
     can with entry {

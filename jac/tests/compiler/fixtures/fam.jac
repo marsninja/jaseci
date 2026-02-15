@@ -12,7 +12,7 @@ Use them to document your code
 import stuff;
 import from .activity { Activity as Actvy }
 
-node location {
+nd location {
     has x: int,
         y: int,
         name: str = True;

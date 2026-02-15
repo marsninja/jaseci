@@ -1,5 +1,5 @@
-node A {}
-node B {}
+nd A {}
+nd B {}
 
 def foo(a: A) -> None { }
 

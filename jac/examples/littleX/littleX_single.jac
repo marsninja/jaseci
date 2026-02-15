@@ -11,7 +11,7 @@ def search_tweets(query: str, tweet: str) -> int {
     return similarity;
 }
 
-node Profile {
+nd Profile {
     has username: str = "";
 
     can update with update_profile entry {
@@ -49,7 +49,7 @@ obj TweetInfo {
         comments: list;
 }
 
-node Tweet {
+nd Tweet {
     has content: str,
         embedding: list,
         created_at: str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S");
@@ -111,7 +111,7 @@ node Tweet {
     }
 }
 
-node Comment {
+nd Comment {
     has content: str;
 
     can update with update_comment entry {

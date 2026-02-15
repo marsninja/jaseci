@@ -26,7 +26,7 @@ def : priv private_function(
 }
 
 # Node for walker tests
-node Task {
+nd Task {
     has title: str;
     has completed: bool = False;
 }

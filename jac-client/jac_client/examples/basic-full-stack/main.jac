@@ -1,5 +1,5 @@
 # Todo App
-node Todo {
+nd Todo {
     has text: str,
         done: bool = False;
 }

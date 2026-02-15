@@ -1,22 +1,22 @@
 import from jaclang { JacRuntime as Jac }
 
-node A {
+nd A {
     has id: int;
 }
 
-node B {
+nd B {
     has id: int;
 }
 
-node C {
+nd C {
     has id: int;
 }
 
-node D {
+nd D {
     has id: int;
 }
 
-node E {
+nd E {
     has id: int;
 }
 

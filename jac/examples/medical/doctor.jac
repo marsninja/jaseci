@@ -1,22 +1,22 @@
-node Person {
+nd Person {
     has name: str;
 }
 
 edge has_role {}
 
-node Doctor {
+nd Doctor {
     has specialty: str,
         receivables: int = 0;
 }
 
-node Patient {
+nd Patient {
     has balance: int = 0;
 }
 
 edge is_treating {}
 edge treated_by {}
 
-node Insurance {
+nd Insurance {
     has name: str,
         fraction: float = 0.8;
 }
@@ -24,7 +24,7 @@ node Insurance {
 edge in_network_with {}
 edge has_insurance {}
 
-node Claim {
+nd Claim {
     has cost: int,
         status: str = "Processing",
         insurance_pays: int = 0;
@@ -33,7 +33,7 @@ node Claim {
 edge files_claim {}
 edge is_processed_by {}
 
-def is_connected(start: node, connection: edge, end: node) -> bool {
+def is_connected(start: nd, connection: edge, end: nd) -> bool {
     if end is None {
         return len([start->:connection:->]) > 0;
     }

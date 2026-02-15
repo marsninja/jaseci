@@ -1,6 +1,6 @@
 import random;
 
-node node_a {
+nd node_a {
     has value: int;
 }
 

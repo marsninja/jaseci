@@ -1,6 +1,6 @@
 """Test impl with event clause parsing."""
 
-node Item {
+nd Item {
     has val: int;
 }
 

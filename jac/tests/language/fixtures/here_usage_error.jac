@@ -1,4 +1,4 @@
-node MyNode {
+nd MyNode {
     has val: int;
 
     can ability1 with MyWalker entry {

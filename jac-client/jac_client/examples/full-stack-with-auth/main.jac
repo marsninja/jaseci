@@ -18,7 +18,7 @@ cl import from "@jac/runtime" {
 }
 
 # Backend - Todo Node
-node Todo {
+nd Todo {
     has text: str,
         done: bool = False;
 }

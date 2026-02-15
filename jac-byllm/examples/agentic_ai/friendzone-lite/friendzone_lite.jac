@@ -48,7 +48,7 @@ def update_memory_details(
     terminate_conversation: bool = False
 ) -> Response by llm();
 
-node session {
+nd session {
     has summary: str = "",
         when: str = "",
         who: list = [],

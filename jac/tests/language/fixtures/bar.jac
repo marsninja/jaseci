@@ -1,5 +1,5 @@
 # Define a simple node type called `Item`
-node Item {
+nd Item {
     has value: int = 0;
 }
 

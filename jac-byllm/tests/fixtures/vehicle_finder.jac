@@ -2,7 +2,7 @@ import from byllm.lib { MockLLM }
 
 glob llm: MockLLM = MockLLM(model_name="mockllm", config={"outputs": [[0, 2]]});
 
-node VehicleShowroom {
+nd VehicleShowroom {
     can show_vehicles with showroom_visitor entry {
         print("Welcome to the Vehicle Showroom! Here are the vehicles available:\n");
         visit [-->] by llm(
@@ -13,7 +13,7 @@ node VehicleShowroom {
     }
 }
 
-node Car {
+nd Car {
     has wheel_count: int = 4;
 
     can act with showroom_visitor entry {
@@ -21,7 +21,7 @@ node Car {
     }
 }
 
-node Bike {
+nd Bike {
     has wheel_count: int = 2;
 
     can act with showroom_visitor entry {
@@ -29,7 +29,7 @@ node Bike {
     }
 }
 
-node Van {
+nd Van {
     has wheel_count: int = 4;
 
     can act with showroom_visitor entry {

@@ -2,7 +2,7 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang.jac0core.archetype { Anchor }
 import from uuid { UUID }
 
-node A {
+nd A {
     has val: int;
 }
 

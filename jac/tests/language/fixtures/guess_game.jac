@@ -11,7 +11,7 @@ walker GuessGame {
     def process_guess(guess: int);
 }
 
-node turn {
+nd turn {
     can check with GuessGame entry;
 }
 

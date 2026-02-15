@@ -1,4 +1,4 @@
-node Person {
+nd Person {
     has name: str,
         age: int,
         interests: list[str] = [];

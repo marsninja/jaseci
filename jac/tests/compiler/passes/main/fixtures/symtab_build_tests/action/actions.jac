@@ -1,4 +1,4 @@
-node LLM {
+nd LLM {
     can infer with AgentNode entry {
         return "LLM's response";
     }

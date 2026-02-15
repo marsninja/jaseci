@@ -4,32 +4,32 @@ import from datetime { datetime }
 edge next_epoc {}
 edge prev_epoc {}
 
-node epoc {
+nd epoc {
     has date: datetime;
 
     def quantize { }
 }
 
-node life(epoc) {
+nd life(epoc) {
     def quantize { }
 }
 
-node year(epoc) {
+nd year(epoc) {
     def quantize { }
 }
 
-node month(epoc) {
+nd month(epoc) {
     def quantize { }
 }
 
-node week(epoc) {
+nd week(epoc) {
     def quantize { }
 }
 
-node day(epoc) {
+nd day(epoc) {
     def quantize { }
 }
 
-node item {
+nd item {
     has title: str;
 }

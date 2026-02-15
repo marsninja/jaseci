@@ -1,6 +1,6 @@
-node Bar {}
+nd Bar {}
 
-node Foo {
+nd Foo {
     def __call__()  -> Bar {
         return Bar();
     }

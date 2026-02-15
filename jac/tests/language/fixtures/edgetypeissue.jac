@@ -1,4 +1,4 @@
-node x {}
+nd x {}
 
 edge e {
     has name: str;

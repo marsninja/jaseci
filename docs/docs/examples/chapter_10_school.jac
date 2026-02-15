@@ -1,5 +1,5 @@
 # Basic node for representing teachers
-node Teacher {
+nd Teacher {
     has name: str,
         subject: str,
         years_experience: int,
@@ -7,14 +7,14 @@ node Teacher {
 }
 
 # Basic node for representing students
-node Student {
+nd Student {
     has name: str,
         age: int,
         grade_level: int,
         student_id: str;
 }
 
-node Classroom {
+nd Classroom {
     has room_number: str,
         capacity: int,
         has_projector: bool = True;

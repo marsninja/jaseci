@@ -1,4 +1,4 @@
-node c {
+nd c {
     has cc: int = 9;
 }
 
@@ -6,11 +6,11 @@ edge aaa {
     has vvv: int = 45;
 }
 
-node a {
+nd a {
     has aa: int = 1;
 }
 
-node b {
+nd b {
     has bb: int = 4;
 }
 

@@ -1,10 +1,10 @@
-node B {
+nd B {
     def __mul__(other: B) -> int {
         return 0;
     }
 }
 
-node A {
+nd A {
     def __add__(other: A) -> B {
         return B();
     }

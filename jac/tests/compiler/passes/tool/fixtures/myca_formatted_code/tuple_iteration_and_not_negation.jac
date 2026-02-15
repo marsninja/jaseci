@@ -1,4 +1,4 @@
-node n {}
+nd n {}
 
 walker test {
     can c with n entry {

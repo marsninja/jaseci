@@ -1,5 +1,5 @@
-node A {}
-node B {}
+nd A {}
+nd B {}
 
 walker build {
     can run with Root entry {

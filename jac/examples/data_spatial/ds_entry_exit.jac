@@ -1,4 +1,4 @@
-node test_node {
+nd test_node {
     has value: int;
 }
 

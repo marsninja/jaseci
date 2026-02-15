@@ -1,4 +1,4 @@
-node N {}
+nd N {}
 walker W {
     can enter with Root entry;
 }

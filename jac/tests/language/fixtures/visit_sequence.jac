@@ -1,4 +1,4 @@
-node Node {
+nd Node {
     has val: str;
 
     can entry1 with entry {

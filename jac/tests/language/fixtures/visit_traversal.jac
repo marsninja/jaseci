@@ -1,4 +1,4 @@
-node MyNode {
+nd MyNode {
     has val: int;
 
     can do with MyWalker entry {

@@ -1,6 +1,6 @@
 import from byllm.lib { MockLLM, MockToolCall }
 
-node Calculator {
+nd Calculator {
     def add(num1: int, num2: int) -> int {
         print(f"Calculator.add called with {num1}, {num2}");
         return num1 + num2;

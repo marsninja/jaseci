@@ -1,8 +1,8 @@
-node NodeA {
+nd NodeA {
     has value: int = 10;
 }
 
-node NodeC {
+nd NodeC {
     has value: int = 10;
 }
 
@@ -25,7 +25,7 @@ with entry {
     del node_3 ;
 }
 
-node A {
+nd A {
     has val: int = 0;
 }
 
@@ -51,11 +51,11 @@ with entry {
 """Bubble sort using DS Features of Jac (somparision and swapping happens in inner nodes)."""
 glob list1 = [80, 79, 60, 59, 40, 35, 19, 1];
 
-node main_node {
+nd main_node {
     has no: int = 0;
 }
 
-node inner_node {
+nd inner_node {
     has main: int = 0,
         sub: int = 0;
 }

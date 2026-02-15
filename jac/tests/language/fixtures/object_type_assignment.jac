@@ -1,4 +1,4 @@
-node A{}
+nd A{}
 
 
 with entry{
