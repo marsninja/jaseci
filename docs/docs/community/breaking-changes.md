@@ -6,6 +6,47 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 MTLLM library is now deprecated and replaced by the byLLM package. In all place where `mtllm` was used before can be replaced with `byllm`.
 
+### Test Syntax Changed from Identifiers to String Descriptions
+
+The `test` keyword now requires a **string description** instead of an identifier name. This gives tests more readable, natural-language names with spaces, punctuation, and proper casing.
+
+**Before:**
+
+```jac
+test my_calculator_add {
+    calc = Calculator();
+    assert calc.add(5) == 5;
+}
+
+test walker_visits_all_nodes {
+    root spawn MyWalker();
+    assert visited_count == 3;
+}
+```
+
+**After:**
+
+```jac
+test "my calculator add" {
+    calc = Calculator();
+    assert calc.add(5) == 5;
+}
+
+test "walker visits all nodes" {
+    root spawn MyWalker();
+    assert visited_count == 3;
+}
+```
+
+**Key Changes:**
+
+- Test names must be quoted strings: `test "description" { ... }` instead of `test name { ... }`
+- Spaces, punctuation, and mixed case are now allowed in test names
+- The string description is displayed as-is in test output (pytest, `jac test`)
+- A valid Python identifier is derived automatically for internal use (lowercased, non-alphanumeric replaced with `_`)
+
+**Migration:** Replace `test identifier_name {` with `test "identifier name" {` in all `.jac` files (convert underscores to spaces).
+
 ### CLI Dependency Commands Redesigned (0.10.0)
 
 The `jac add`, `jac install`, `jac remove`, and `jac update` commands were redesigned. Key behavioral changes:
