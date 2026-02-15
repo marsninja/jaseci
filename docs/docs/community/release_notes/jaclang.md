@@ -4,7 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.10.2 (Unreleased)
 
-- **Refactor: Consolidate JSX Whitespace Policy**: Single-sourced JSX text whitespace normalization into `JsxText.get_normalized_text()`, removing duplicated logic spread across lexer, parser, NormalizePass, and DocIRGenPass. Added `get_body_start_line()`/`get_body_end_line()` helpers to `JsxElement`, simplifying CommentInjectionPass. Fixed same-line spacing loss in JSX content (e.g., `{expr}  text`).
+- 1 Minor refactors/changes.
 
 ## jaclang 0.10.1 (Latest Release)
 
