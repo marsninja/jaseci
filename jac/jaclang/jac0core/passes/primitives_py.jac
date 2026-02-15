@@ -855,4 +855,49 @@ class PyBuiltinEmitter(BuiltinEmitter) {
     def emit_ascii(args: list[str]) -> str {
         return _fcall("ascii", args);
     }
+
+    # Type conversion builtins
+    def emit_str(args: list[str]) -> str {
+        return _fcall("str", args);
+    }
+
+    def emit_int(args: list[str]) -> str {
+        return _fcall("int", args);
+    }
+
+    def emit_float(args: list[str]) -> str {
+        return _fcall("float", args);
+    }
+
+    def emit_bool(args: list[str]) -> str {
+        return _fcall("bool", args);
+    }
+
+    def emit_list(args: list[str]) -> str {
+        return _fcall("list", args);
+    }
+
+    def emit_dict(args: list[str]) -> str {
+        return _fcall("dict", args);
+    }
+
+    def emit_set(args: list[str]) -> str {
+        return _fcall("set", args);
+    }
+
+    def emit_tuple(args: list[str]) -> str {
+        return _fcall("tuple", args);
+    }
+
+    def emit_frozenset(args: list[str]) -> str {
+        return _fcall("frozenset", args);
+    }
+
+    def emit_bytes(args: list[str]) -> str {
+        return _fcall("bytes", args);
+    }
+
+    def emit_complex(args: list[str]) -> str {
+        return _fcall("complex", args);
+    }
 }

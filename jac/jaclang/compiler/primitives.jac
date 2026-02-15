@@ -274,4 +274,16 @@ class BuiltinEmitter {
     def emit_open(args: list[str]) -> str abs;
     def emit_format(args: list[str]) -> str abs;
     def emit_ascii(args: list[str]) -> str abs;
+    # Type conversion builtins
+    def emit_str(args: list[str]) -> str abs;
+    def emit_int(args: list[str]) -> str abs;
+    def emit_float(args: list[str]) -> str abs;
+    def emit_bool(args: list[str]) -> str abs;
+    def emit_list(args: list[str]) -> str abs;
+    def emit_dict(args: list[str]) -> str abs;
+    def emit_set(args: list[str]) -> str abs;
+    def emit_tuple(args: list[str]) -> str abs;
+    def emit_frozenset(args: list[str]) -> str abs;
+    def emit_bytes(args: list[str]) -> str abs;
+    def emit_complex(args: list[str]) -> str abs;
 }

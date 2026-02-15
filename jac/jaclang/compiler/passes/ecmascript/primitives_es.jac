@@ -943,4 +943,82 @@ class ESBuiltinEmitter(BuiltinEmitter) {
     def emit_ascii(args: list[str]) -> str {
         return _rt("builtin", "ascii", args);
     }
+
+    # Type conversion builtins
+    def emit_str(args: list[str]) -> str {
+        if len(args) == 0 {
+            return '""';
+        }
+        return "String(" + args[0] + ")";
+    }
+
+    def emit_int(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "0";
+        }
+        if len(args) == 1 {
+            return "parseInt(" + args[0] + ")";
+        }
+        return "parseInt(" + args[0] + ", " + args[1] + ")";
+    }
+
+    def emit_float(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "0.0";
+        }
+        return "parseFloat(" + args[0] + ")";
+    }
+
+    def emit_bool(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "false";
+        }
+        return "Boolean(" + args[0] + ")";
+    }
+
+    def emit_list(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "[]";
+        }
+        return "Array.from(" + args[0] + ")";
+    }
+
+    def emit_dict(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "{}";
+        }
+        return "Object.fromEntries(" + args[0] + ")";
+    }
+
+    def emit_set(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "new Set()";
+        }
+        return "new Set(" + args[0] + ")";
+    }
+
+    def emit_tuple(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "Object.freeze([])";
+        }
+        return "Object.freeze(Array.from(" + args[0] + "))";
+    }
+
+    def emit_frozenset(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "Object.freeze(new Set())";
+        }
+        return "Object.freeze(new Set(" + args[0] + "))";
+    }
+
+    def emit_bytes(args: list[str]) -> str {
+        if len(args) == 0 {
+            return "new Uint8Array()";
+        }
+        return "new Uint8Array(" + args[0] + ")";
+    }
+
+    def emit_complex(args: list[str]) -> str {
+        return _rt("builtin", "complex", args);
+    }
 }
