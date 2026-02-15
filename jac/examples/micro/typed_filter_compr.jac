@@ -1,8 +1,8 @@
-nd MyObj {
+node MyObj {
     has a: int;
 }
 
-nd MyObj2 {
+node MyObj2 {
     has a: int;
 }
 

@@ -1,5 +1,5 @@
-nd user_root {}
-nd day {}
+node user_root {}
+node day {}
 
 walker update_graph {
     has user_jid: str;

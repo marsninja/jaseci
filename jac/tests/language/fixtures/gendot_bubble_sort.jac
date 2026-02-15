@@ -2,11 +2,11 @@
 
 glob list1 = [80, 79, 60, 59, 40, 35, 19, 1];
 
-nd main_node {
+node main_node {
     has no: int = 0;
 }
 
-nd inner_node {
+node inner_node {
     has main: int = 0,
         sub: int = 0;
 }

@@ -1,8 +1,8 @@
-nd Parent {
+node Parent {
     has val: int = 42;
 }
 
-nd Child(Parent) {}
+node Child(Parent) {}
 
 with entry {
     c = Child();

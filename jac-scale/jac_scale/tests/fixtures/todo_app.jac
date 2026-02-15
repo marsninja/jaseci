@@ -1,4 +1,4 @@
-nd Task {
+node Task {
     has id: int,
         title: str,
         completed: bool = False;

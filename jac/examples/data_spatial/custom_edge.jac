@@ -1,4 +1,4 @@
-nd MyNode {
+node MyNode {
     has val: int = 0;
 }
 

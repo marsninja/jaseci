@@ -1,6 +1,6 @@
 """Example of simple walker walking nodes."""
 
-nd Item {
+node Item {
     has value: int = 1;
 }
 

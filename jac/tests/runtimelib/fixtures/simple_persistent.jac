@@ -1,8 +1,8 @@
-nd a {
+node a {
     has name: str;
 }
 
-nd b {
+node b {
     has name: str;
 }
 

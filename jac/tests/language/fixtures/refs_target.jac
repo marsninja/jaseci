@@ -1,12 +1,12 @@
-nd a {
+node a {
     has val: int = 0;
 }
 
-nd b {
+node b {
     has val: int = 0;
 }
 
-nd c {
+node c {
     has val: int = 0;
 }
 

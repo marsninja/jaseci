@@ -5,8 +5,8 @@ glob result2: int = result1;  # OK
 glob result3: str = result1;  # Error: cannot assign int to str
 glob result4: str = z;
 
-nd MyNode {}
-nd AnotherNode {}
+node MyNode {}
+node AnotherNode {}
 
 with entry {
     print(result4);  # Should print 20

@@ -3,7 +3,7 @@ class Animal {}
 obj Domesticated {}
 
 @print_base_classes
-nd Pet(Animal , Domesticated) {}
+node Pet(Animal , Domesticated) {}
 
 walker Person(Animal) {}
 

@@ -1,7 +1,7 @@
 """Test module for spawn operator in both standard and reverse order."""
 
 # Server-side node and walker definitions
-nd TestNode {
+node TestNode {
     has value: int = 0;
 }
 
@@ -80,7 +80,7 @@ cl {
                     Spawn Operator Test
                 </h1>
                 <h2>
-                    Standard Order (nd spawn walker)
+                    Standard Order (node spawn walker)
                 </h2>
                 <div>
                     Result: {JSON.stringify(standardResult)}
@@ -89,7 +89,7 @@ cl {
                     Computed: {JSON.stringify(standardComputed)}
                 </div>
                 <h2>
-                    Reverse Order (walker spawn nd)
+                    Reverse Order (walker spawn node)
                 </h2>
                 <div>
                     Result: {JSON.stringify(reverseResult)}

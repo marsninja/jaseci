@@ -1,4 +1,4 @@
-nd N {}
+node N {}
 
 walker W {
     can create with Root entry {

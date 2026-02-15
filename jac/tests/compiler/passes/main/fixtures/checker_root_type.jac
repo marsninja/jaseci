@@ -1,4 +1,4 @@
-nd City {
+node City {
     has name: str;
 }
 

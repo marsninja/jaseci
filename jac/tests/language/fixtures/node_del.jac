@@ -1,4 +1,4 @@
-nd person {
+node person {
     has age: int;
 }
 

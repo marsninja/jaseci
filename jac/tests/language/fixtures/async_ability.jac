@@ -1,7 +1,7 @@
 import asyncio;
 import from typing { Coroutine }
 
-nd MyNode {
+node MyNode {
     has val: int;
 
     can foo1 with MyWalker entry {

@@ -1,9 +1,9 @@
-nd Todo {
+node Todo {
     has title: str,
         done: bool;
 }
 
-nd Item {
+node Item {
     has name: str;
 }
 

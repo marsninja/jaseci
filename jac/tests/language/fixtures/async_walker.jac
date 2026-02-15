@@ -1,7 +1,7 @@
 import time;
 import asyncio;
 import from typing { Coroutine }
-nd A {
+node A {
     has val: int;
 }
 

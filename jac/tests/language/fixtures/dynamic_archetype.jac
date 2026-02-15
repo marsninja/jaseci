@@ -1,7 +1,7 @@
 import from jaclang { JacRuntime }
 import from bar { Item }
 
-nd test_node {
+node test_node {
     has value: int;
 }
 

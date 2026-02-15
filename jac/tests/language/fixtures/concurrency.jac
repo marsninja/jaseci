@@ -1,6 +1,6 @@
 import from time { sleep }
 
-nd A {
+node A {
     has val: int = 0;
 
     can do with entry {

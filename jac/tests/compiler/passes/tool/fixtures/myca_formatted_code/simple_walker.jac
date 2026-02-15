@@ -1,4 +1,4 @@
-nd day {}
+node day {}
 edge future {}
 edge parent {}
 

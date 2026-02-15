@@ -1,6 +1,6 @@
 """Test typed context block (-> Type { ... }) parsing."""
 
-nd Item {
+node Item {
     has name: str;
 }
 

@@ -3,13 +3,13 @@ import time;
 
 glob llm = Model(model_name="gpt-4o");
 
-nd Task {
+node Task {
     has task: str = "",
         date: str = "",
         time: str = "";
 }
 
-nd TaskHandling {
+node TaskHandling {
     def get_current_time -> str {
         return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime());
     }
@@ -42,7 +42,7 @@ nd TaskHandling {
     }
 }
 
-nd EmailHandling {
+node EmailHandling {
     def write_email_content(utterance: str) -> str by llm();
     def route_and_run(utterance: str) -> str by llm(
         method="ReAct", tools=([self.write_email_content])
@@ -60,7 +60,7 @@ nd EmailHandling {
     }
 }
 
-nd GeneralChat {
+node GeneralChat {
     def chat(utterance: str) -> str by llm();
     can execute with task_manager entry {
         print("[GeneralChat Node Activated]");

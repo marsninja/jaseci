@@ -1,4 +1,4 @@
-nd Foo {
+node Foo {
     has i: int = 0;
 }
 

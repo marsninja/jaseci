@@ -1,4 +1,4 @@
-nd SomeNode {
+node SomeNode {
     has some_attr: int;
 
     can with SomeWalker entry {

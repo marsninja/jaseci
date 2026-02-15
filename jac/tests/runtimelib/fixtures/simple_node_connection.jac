@@ -1,4 +1,4 @@
-nd simple {
+node simple {
     has tag: str;
 }
 

@@ -10,7 +10,7 @@ class MyClass {
     pass
 }
 
-nd MyNode {
+node MyNode {
     has y: float = 0.0;
     pass
 }

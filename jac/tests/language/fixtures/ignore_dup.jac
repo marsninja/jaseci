@@ -8,7 +8,7 @@ walker GuessGame2 {
     can start_game with Root entry;
 }
 
-nd turn {
+node turn {
     can check with GuessGame | GuessGame2 entry;
 }
 

@@ -1,4 +1,4 @@
-nd Foo {
+node Foo {
     # We can infer the type of `bar` but the jac
     # syntax makes the type annotation a must here.
     has bar: int = 42;

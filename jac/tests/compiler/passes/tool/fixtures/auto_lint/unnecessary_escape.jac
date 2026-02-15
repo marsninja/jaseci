@@ -12,7 +12,7 @@ glob `count = 4;
 glob `data = 5;
 
 # Jac keywords used as variable names - escaping should be preserved
-glob nd = 10;
+glob `node = 10;
 glob `edge = 20;
 glob `walker = 30;
 

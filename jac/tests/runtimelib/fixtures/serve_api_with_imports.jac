@@ -10,7 +10,7 @@ import from serve_api_importable {
 }
 
 # Local node definition
-nd LocalTask {
+node LocalTask {
     has title: str;
     has done: bool = False;
 }

@@ -1,4 +1,4 @@
-nd MyNode {
+node MyNode {
     has value: int = 0;
 }
 

@@ -24,7 +24,7 @@ walker supervisor {
     }
 }
 
-nd PoemAgent {
+node PoemAgent {
     def generate_poem_for_topic(topic: str) -> str by llm();
     can create_poem with supervisor entry {
         peom = self.generate_poem_for_topic(visitor.user_input);
@@ -32,7 +32,7 @@ nd PoemAgent {
     }
 }
 
-nd MathAgent {
+node MathAgent {
     def do_math(user_message: str) -> str by llm();
     can calculate with supervisor entry {
         result = self.do_math(visitor.user_input);

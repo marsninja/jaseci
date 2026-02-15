@@ -1,6 +1,6 @@
 import from jaclang.jac0core.archetype { AccessLevel }
 
-nd A {
+node A {
     has val1: str = "NO_ACCESS";
     has val2: int = 0;
 

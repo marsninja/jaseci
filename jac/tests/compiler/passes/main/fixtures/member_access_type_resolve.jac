@@ -1,8 +1,8 @@
-nd Bar {
+node Bar {
     has baz: int;
 }
 
-nd Foo {
+node Foo {
     has bar: Bar;
 }
 

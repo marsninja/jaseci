@@ -1,4 +1,4 @@
-nd Person {
+node Person {
     has name: str,
         visited: bool = False;
 }

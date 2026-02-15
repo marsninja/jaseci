@@ -51,7 +51,7 @@ obj Pricing {
         final_price: float = 0;
 }
 
-nd Item {
+node Item {
     has core_info: CoreInfo,
         shipping: Shipping,
         discount: Discounts,

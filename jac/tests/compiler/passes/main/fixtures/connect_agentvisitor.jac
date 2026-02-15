@@ -1,8 +1,8 @@
-nd MyNode {
+node MyNode {
     has foo: str = "";
 }
 
-nd Session {
+node Session {
     can generate_result with AgentVisitor entry {
         conn = self ++> MyNode();
         other = conn ++> MyNode();

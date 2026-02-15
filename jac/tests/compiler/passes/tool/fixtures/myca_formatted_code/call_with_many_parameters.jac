@@ -1,4 +1,4 @@
-nd user_root {}
+node user_root {}
 
 walker create_user {
     has user_info: dict = {};

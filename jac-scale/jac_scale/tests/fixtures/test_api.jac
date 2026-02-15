@@ -20,13 +20,13 @@ def multiply(x: int, y: int) -> int {
 # ============================================================================
 # Test Data Models
 # ============================================================================
-nd Task {
+node Task {
     has title: str;
     has priority: int = 1;
     has completed: bool = False;
 }
 
-nd TaskList {
+node TaskList {
     has name: str = "My Tasks";
 }
 

@@ -2,11 +2,11 @@ edge MyEdge {
     has id: int;
 }
 
-nd A {
+node A {
     has val: int;
 }
 
-nd B {
+node B {
     has name: str;
 }
 

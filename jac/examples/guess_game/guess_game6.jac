@@ -18,7 +18,7 @@ walker GuessGame {
     can process_guess with turn entry;
 }
 
-nd turn {
+node turn {
     has correct_number: int = random.randint(1, 10);
 }
 

@@ -5,7 +5,7 @@ walker MyWalker {
     }
 }
 
-nd MyNode {
+node MyNode {
     can work with MyWalker entry {
         print("MyNode");
     }

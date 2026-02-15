@@ -3,7 +3,7 @@ import from datetime { datetime, timedelta }
 #
 # Basic backend walkers
 #
-nd Todo {
+node Todo {
     has text: str,
         done: bool = False;
 }
@@ -30,7 +30,7 @@ walker:pub get_server_message {
 }
 
 # Features Test - Backend Walkers
-nd TestData {
+node TestData {
     has message: str,
         count: int = 0,
         created_at: str = "";

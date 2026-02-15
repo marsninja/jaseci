@@ -28,7 +28,7 @@ edge play {
 }
 
 '''Start screen node which operate as the virtual root node'''
-nd start_screen {
+node start_screen {
     has game_started: bool = False;
 
     can intro_screen with game entry;
@@ -36,7 +36,7 @@ nd start_screen {
 }
 
 '''Level node which (should) have unique (ai generated) attributes'''
-nd level {
+node level {
     has game_level: int = 1,
         level_id: str = '1_1000',
         played: bool = False,

@@ -1,7 +1,7 @@
 import datetime;
 cl import from .littlex_fe { App }
 
-nd Profile {
+node Profile {
     has username: str = "";
 
     can update with update_profile entry {
@@ -39,7 +39,7 @@ obj TweetInfo {
         comments: list;
 }
 
-nd Tweet {
+node Tweet {
     has content: str,
         embedding: list,
         created_at: str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S");
@@ -100,7 +100,7 @@ nd Tweet {
     }
 }
 
-nd Comment {
+node Comment {
     has content: str;
 
     can update with update_comment entry {

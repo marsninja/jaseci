@@ -2,11 +2,11 @@ walker creator {
     can create with Root entry;
 }
 
-nd node_a {
+node node_a {
     has val: int;
 }
 
-nd node_b {
+node node_b {
     has val: int;
 }
 
