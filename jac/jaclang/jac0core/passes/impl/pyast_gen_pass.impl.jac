@@ -609,10 +609,29 @@ impl PyastGenPass.exit_test(self: PyastGenPass, nd: uni.Test) -> None {
                 cast(ast3.stmt, stmt)
                 for stmt in self.resolve_stmt_block(nd.body, doc=nd.doc)
             ],
-            decorator_list=[self.jaclib_obj('jac_test')],
+            decorator_list=[],
             returns=self.sync(ast3.Constant(value=None)),
             type_comment=None,
             type_params=[]
+        )
+    );
+    # Build jac_test decorator, passing description if available
+    jac_test_keywords: list = [];
+    if nd.description {
+        jac_test_keywords.append(
+            self.sync(
+                ast3.keyword(
+                    arg='description',
+                    value=self.sync(ast3.Constant(value=nd.description.lit_value))
+                )
+            )
+        );
+    }
+    func.decorator_list.append(
+        self.sync(
+            ast3.Call(
+                func=self.jaclib_obj('jac_test'), args=[], keywords=jac_test_keywords
+            )
         )
     );
     if nd.loc.mod_path.endswith('.test.jac') {
