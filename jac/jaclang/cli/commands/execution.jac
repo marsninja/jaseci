@@ -28,17 +28,21 @@ glob registry = get_registry();
             short="",
             help="Configuration profile to load (e.g. prod, staging)"
         ),
+        Arg.create(
+            "args", kind=ArgKind.REMAINDER, help="Arguments passed to the script"
+        ),
 
     ],
     examples=[
         ("jac run hello.jac", "Run a simple program"),
         ("jac run app.jac --no-cache", "Run without caching"),
         ("jac run app.jac --profile prod", "Run with production profile"),
+        ("jac run script.jac -- arg1 arg2", "Run with script arguments"),
 
     ],
     group="execution"
 )
-def run(filename: str, main: bool = True, cache: bool = True) -> int;
+def run(filename: str, main: bool = True, cache: bool = True, args: list = []) -> int;
 
 """Run the specified entrypoint function in the given .jac file."""
 @registry.command(
