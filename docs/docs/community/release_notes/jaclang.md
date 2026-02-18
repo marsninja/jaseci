@@ -26,7 +26,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: `unittest.mock.patch` Compatibility in Jac Tests**: Fixed `unittest.mock.patch` not intercepting calls in Jac test blocks.
 - **Modern Generics: `type` Aliases & Inline Type Parameters**: Added PEP 695-style `type` alias statements (`type JsonPrimitive = str | int | float | bool | None;`) and inline generic type parameters on archetypes (`obj Result[T, E = Exception] { ... }`). Supports bounded type vars (`T: Comparable`), default type values, and recursive type aliases. Compiles to native Python 3.12 `ast.TypeAlias` and `ast.TypeVar` nodes.
 - **Perf: Precompiled Bytecode for Zero Cold Start**: Ship precompiled `.jbc` bytecode per Python version (3.12, 3.13, 3.14) inside each Jac package wheel. Cold start (`jac purge && jac --help`) drops from ~29s to <1s.
-- **`jac run` Script Arguments**: `jac run` now supports passing arguments to the script via `--` separator (e.g., `jac run script.jac -- arg1 arg2`), accessible in the script through `sys.argv[1:]`.
+- **`jac run` Script Arguments**: `jac run` now passes arguments to the script using Python-like semantics - everything after the filename goes to the script (e.g., `jac run script.jac arg1 arg2`), accessible via `sys.argv[1:]`. Jac flags like `--no-cache` must come before the filename, just like `python -O script.py`.
 - 2 Minor refactors/changes.
 
 ## jaclang 0.10.2 (Latest Release)

@@ -23,7 +23,7 @@ jobs:
           pip install -e ./jac
           pip install -e ./jac-super
       - name: Precompile bytecode
-        run: jac run jac/scripts/precompile_bytecode.jac -- ./jac-super
+        run: jac run jac/scripts/precompile_bytecode.jac ./jac-super
       - name: Upload precompiled artifacts
         uses: actions/upload-artifact@v4
         with:

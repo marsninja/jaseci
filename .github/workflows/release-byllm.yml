@@ -24,7 +24,7 @@ jobs:
           pip install -e ./jac
           pip install -e ./jac-byllm
       - name: Precompile bytecode
-        run: jac run jac/scripts/precompile_bytecode.jac -- ./jac-byllm
+        run: jac run jac/scripts/precompile_bytecode.jac ./jac-byllm
       - name: Upload precompiled artifacts
         uses: actions/upload-artifact@v4
         with:
