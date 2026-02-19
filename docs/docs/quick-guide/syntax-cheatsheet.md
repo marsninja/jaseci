@@ -5,8 +5,8 @@
 # Learn Jac in Y Minutes
 # ============================================================
 # Jac is a superset of Python with graph-native programming,
-# data-spatial walkers, and brace-delimited blocks.
-# Run a file with: jac run <filename>
+# object-spatial walkers, and brace-delimited blocks.
+# Run a file with: jac <filename>
 
 # ============================================================
 # Comments
