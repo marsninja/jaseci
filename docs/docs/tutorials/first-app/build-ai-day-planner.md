@@ -214,6 +214,7 @@ root ---> Task("Buy groceries")
 
 The `++>` operator returns a list containing the newly created node. You can capture it:
 
+<!-- jac-skip -->
 ```jac
 result = root ++> Task(id="1", title="Buy groceries");
 task = result[0];  # The new Task node
@@ -253,6 +254,7 @@ Other directions work too:
 
 Use `del` to remove a node from the graph:
 
+<!-- jac-skip -->
 ```jac
 for task in [root-->](?:Task) {
     if task.id == "2" {
@@ -274,12 +276,14 @@ edge Scheduled {
 
 Connect nodes with a typed edge using `+>: EdgeType :+>`:
 
+<!-- jac-skip -->
 ```jac
 root +>: Scheduled(time="9:00am", priority=3) :+> Task(id="1", title="Morning run");
 ```
 
 You can then filter queries by edge type:
 
+<!-- jac-skip -->
 ```jac
 # Get only nodes connected via Scheduled edges
 scheduled_tasks = [root->:Scheduled:->](?:Task);
@@ -405,6 +409,7 @@ Let's look at the new patterns used here.
 
 **Lists** work like Python -- create with `[]`, access by index, iterate with `for`:
 
+<!-- jac-skip -->
 ```jac
 tasks = ["Buy groceries", "Go running", "Read a book"];
 first = tasks[0];          # "Buy groceries"
@@ -415,6 +420,7 @@ tasks.append("Cook dinner");
 
 **Dictionaries** use `{"key": value}` syntax:
 
+<!-- jac-skip -->
 ```jac
 task_data = {"id": "1", "title": "Buy groceries", "done": False};
 print(task_data["title"]);  # "Buy groceries"
@@ -423,6 +429,7 @@ task_data["done"] = True;   # Update a value
 
 **List comprehensions** build lists in a single expression:
 
+<!-- jac-skip -->
 ```jac
 # Build a list of dicts from all Task nodes
 [{"id": t.id, "title": t.title} for t in [root-->](?:Task)]
@@ -435,6 +442,7 @@ task_data["done"] = True;   # Update a value
 
 Lambdas are anonymous functions. They're essential for the frontend (Part 4), so let's introduce them now:
 
+<!-- jac-skip -->
 ```jac
 # Lambda with typed parameters
 double = lambda x: int -> int { return x * 2; };
@@ -542,6 +550,7 @@ This fetches all tasks from the server when the page loads.
 
 Lambdas handle user events inline:
 
+<!-- jac-skip -->
 ```jac
 <input
     value={task_text}
@@ -572,6 +581,7 @@ Here's the key insight: **`await add_task(text)`** calls the server function as 
 
 **`{[... for t in tasks]}`** renders a list of elements. Each item needs a unique `key` prop:
 
+<!-- jac-skip -->
 ```jac
 {[
     <div key={t.id} class="task-item">
@@ -582,6 +592,7 @@ Here's the key insight: **`await add_task(text)`** calls the server function as 
 
 **Conditional rendering** uses Jac's ternary expression inside JSX:
 
+<!-- jac-skip -->
 ```jac
 <span class={"task-title " + ("task-done" if t.done else "")}>
     {t.title}
@@ -2378,6 +2389,7 @@ The differences:
 
 Spawn it:
 
+<!-- jac-skip -->
 ```jac
 result = root spawn AddTask(title="Buy groceries");
 print(result.reports[0]);  # The reported dict
@@ -2464,6 +2476,7 @@ Both patterns work -- walker-side abilities and node-side abilities. Choose whic
 
 **`visit [-->]`** queues all connected nodes for the walker to visit next. You can also filter:
 
+<!-- jac-skip -->
 ```jac
 visit [-->](?:Task);      # Visit only Task nodes
 visit [-->] else {         # Fallback if no nodes to visit
@@ -2595,6 +2608,7 @@ The `sv` prefix means "server import" -- it lets client code reference server-si
 
 Then in the frontend methods:
 
+<!-- jac-skip -->
 ```jac
 # Function style (Parts 3-6):
 task = await add_task(task_text.strip());
