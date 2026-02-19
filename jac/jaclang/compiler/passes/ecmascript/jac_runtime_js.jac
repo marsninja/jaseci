@@ -408,6 +408,38 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     symmetric_difference_update(s, other) {
       for (const v of other) { if (s.has(v)) s.delete(v); else s.add(v); }
     },
+    union(a, b) {
+      const r = new Set(a);
+      for (const v of b) r.add(v);
+      return r;
+    },
+    intersection(a, b) {
+      const bs = b instanceof Set ? b : new Set(b);
+      const r = new Set();
+      for (const v of a) { if (bs.has(v)) r.add(v); }
+      return r;
+    },
+    difference(a, b) {
+      const bs = b instanceof Set ? b : new Set(b);
+      const r = new Set();
+      for (const v of a) { if (!bs.has(v)) r.add(v); }
+      return r;
+    },
+    symmetricDifference(a, b) {
+      const r = new Set(a);
+      for (const v of b) { if (r.has(v)) r.delete(v); else r.add(v); }
+      return r;
+    },
+    isSubsetOf(a, b) {
+      if (a.size > b.size) return false;
+      for (const v of a) { if (!b.has(v)) return false; }
+      return true;
+    },
+    isSupersetOf(a, b) { return _jac.set.isSubsetOf(b, a); },
+    isDisjointFrom(a, b) {
+      for (const v of a) { if (b.has(v)) return false; }
+      return true;
+    },
     is_proper_subset(a, b) {
       if (a.size >= b.size) return false;
       for (const v of a) { if (!b.has(v)) return false; }
