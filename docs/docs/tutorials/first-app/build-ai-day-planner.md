@@ -3373,4 +3373,4 @@ Here's a quick reference of every Jac concept covered in this tutorial:
 - **Go deeper on walkers** -- [Object-Spatial Programming](../language/osp.md) covers advanced graph patterns
 - **More AI** -- [byLLM Quickstart](../ai/quickstart.md) for standalone examples and [Agentic AI](../ai/agentic.md) for tool-using agents
 - **Examples** -- [LittleX (Twitter Clone)](../examples/littlex.md), [RAG Chatbot](../examples/rag-chatbot.md)
-- **Language Reference** -- [Full Language Reference](../../reference/language/overview.md) for complete syntax documentation
+- **Language Reference** -- [Full Language Reference](../../reference/language/index.md) for complete syntax documentation
