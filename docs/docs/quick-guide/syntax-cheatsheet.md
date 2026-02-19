@@ -1,306 +1,799 @@
 # Syntax Quick Reference
 
 ```jac
-# jac is a superset of python and contains all of its features
-# You can run code with
-# jac run <filename>
+# ============================================================
+# Learn Jac in Y Minutes
+# ============================================================
+# Jac is a superset of Python with graph-native programming,
+# data-spatial walkers, and brace-delimited blocks.
+# Run a file with: jac run <filename>
 
-# Single line comment
+# ============================================================
+# Comments
+# ============================================================
+
+# Single-line comment
+
 #*
     Multi-line
-    Comment
+    comment
 *#
 
-# Import declaration declares library packages referenced in this file.
-# Simple imports
+
+# ============================================================
+# Entry Point
+# ============================================================
+
+# Every Jac program starts from a `with entry` block.
+# You can have multiple; they run in order.
+
+with entry {
+    print("Hello, world!");
+}
+
+# Use :__main__ to run only when this is the main module
+with entry:__main__ {
+    print("Only when run directly");
+}
+
+
+# ============================================================
+# Variables & Types
+# ============================================================
+
+with entry {
+    x: int = 42;                 # Typed variable
+    name = "Jac";                # Type inferred
+    pi: float = 3.14;
+    flag: bool = True;
+    nothing: None = None;
+
+    # Jac has the same built-in types as Python:
+    # int, float, str, bool, list, tuple, set, dict, bytes, any
+}
+
+
+# ============================================================
+# Imports
+# ============================================================
+
+# Simple import
 import os;
 import sys, json;
-import time;
 
 # Import with alias
 import datetime as dt;
 
-# Import from with specific items
+# Import specific items from a module
 import from math { sqrt, pi, log as logarithm }
 
+# Relative imports
+import from .sibling { helper_func }
+import from ..parent.mod { SomeClass }
 
-# functions are defined with the def keyword and a control block
-def nextFunction {
- x = 3;     # Variable assignment.
- y = 4;
- (add, mult) = learnMultiple(x, y);       # Function returns two values.
- print(f"sum: {add} prod:{mult}");    # values can be formatted with f-strings
- learnFlowControl();
+# Include merges a module's namespace into the current scope
+include random;
+
+
+# ============================================================
+# Functions (def)
+# ============================================================
+
+# Functions use `def`, braces for body, and semicolons
+def greet(name: str) -> str {
+    return f"Hello, {name}!";
 }
 
-# same as Python, Jac supports default paremeters and multiple return values
-def learnMultiple(x: int, y: int = 5) -> (int, int) {
- return (x + y, x * y); # Return two values.
+# Default parameters and multiple return values
+def divmod_example(a: int, b: int = 2) -> tuple[int, int] {
+    return (a // b, a % b);
 }
 
-def learnFlowControl() {
- x = 9;
-
- # All control blocks require brackets, but not parentheses
- if x < 5 {
-  print("Doesn't run");
- } elif x < 10 {
-  print("Run");
- } else {
-  print("Also doesn't run");
- }
-
- # chains of if-else can be replaced with match statements
- match x {
-  case 1:
-   print("Exactly one");
-  case int() if 10 <= x < 15:
-   print("Within a range");
-  case _:
-   print("Everything else");
- }
-
- # Like if, for doesn't use parens either.
- # jac provides both indexed and range-based for loops
- for i = 10 to i <= 20 by i += 2 {
-  print(f"element: {i}");
- }
-
- for x in ["a", "b", "c"] {
-  print(f"element: {x}");
- }
-
- # while loops follow similar syntax
- a = 4;
- while a != 1{
-  a /= 2;
- }
-
- learnCollections();
- learnSpecial();
+# No-arg functions still need parentheses
+def say_hi() {
+    print("Hi!");
 }
 
-def learnCollections() {
- # lists and slicing
- fruits = ["apple", "banana", "cherry"];
- print(fruits[1]); # banana
- print(fruits[:1]); # [apple, banana]
- print(fruits[-1]); # cherry
+# Abstract function (declaration only, no body)
+def area() -> float abs;
 
- # dictionary
-    person = {
-        "name": "Alice",
-        "age": 25,
-        "city": "Seattle"
-    };
+# Function with all param types (positional-only, regular, *args, kw-only, **kwargs)
+def kitchen_sink(
+    pos_only: int,
+    /,
+    regular: str = "default",
+    *args: int,
+    kw_only: bool = True,
+    **kwargs: any
+) -> str {
+    return "ok";
+}
 
-    # Access values by key
-    print(person["name"]);  # Alice
-    print(person["age"]);   # 25
 
- # tuples are immutable lists
- point = (10,20);
-    print(point[0]);  # 10
-    print(point[1]);  # 20
+# ============================================================
+# Control Flow
+# ============================================================
 
- # tuples can be unpacked with parentheses
- (x, y) = point;
-    print(f"x={x}, y={y}");
+with entry {
+    x = 9;
 
- # list comprehensions
+    # --- if / elif / else (no parens needed, braces required) ---
+    if x < 5 {
+        print("low");
+    } elif x < 10 {
+        print("medium");
+    } else {
+        print("high");
+    }
+
+    # --- for-in loop ---
+    for item in ["a", "b", "c"] {
+        print(item);
+    }
+
+    # --- for-to-by loop (C-style iteration) ---
+    # Syntax: for VAR = START to CONDITION by STEP { ... }
+    for i = 0 to i < 10 by i += 2 {
+        print(i);   # 0, 2, 4, 6, 8
+    }
+
+    # --- while loop (with optional else) ---
+    n = 5;
+    while n > 0 {
+        n -= 1;
+    } else {
+        print("Loop completed normally");
+    }
+
+    # --- break, continue, skip ---
+    for i in range(10) {
+        if i == 3 { continue; }
+        if i == 7 { break; }
+        print(i);
+    }
+}
+
+
+# ============================================================
+# Match (Python-style pattern matching)
+# ============================================================
+
+with entry {
+    value = 10;
+    match value {
+        case 1:
+            print("one");
+        case 2 | 3:
+            print("two or three");
+        case x if x > 5:
+            print(f"big: {x}");
+        case _:
+            print("other");
+    }
+}
+
+
+# ============================================================
+# Switch (C-style, with fall-through)
+# ============================================================
+
+def check_fruit(fruit: str) {
+    switch fruit {
+        case "apple":
+            print("It's an apple");
+            break;
+        case "banana":
+        case "orange":
+            print("banana or orange (fall-through)");
+        default:
+            print("unknown fruit");
+    }
+}
+
+
+# ============================================================
+# Collections
+# ============================================================
+
+with entry {
+    # Lists
+    fruits = ["apple", "banana", "cherry"];
+    print(fruits[0]);       # apple
+    print(fruits[1:3]);     # ["banana", "cherry"]
+    print(fruits[-1]);      # cherry
+
+    # Dictionaries
+    person = {"name": "Alice", "age": 25};
+    print(person["name"]);
+
+    # Tuples (immutable)
+    point = (10, 20);
+    (x, y) = point;         # Tuple unpacking
+
+    # Sets
+    colors = {"red", "green", "blue"};
+
+    # Comprehensions
     squares = [i ** 2 for i in range(5)];
-    print(squares);  # [0, 1, 4, 9, 16]
-
-    # With condition
     evens = [i for i in range(10) if i % 2 == 0];
-    print(evens);  # [0, 2, 4, 6, 8]
+    name_map = {name: len(name) for name in ["alice", "bob"]};
 
- learnClasses();
- learnOSP();
+    # Star unpacking
+    (first, *rest) = [1, 2, 3, 4];
+    print(first);   # 1
+    print(rest);    # [2, 3, 4]
 }
 
-def learnClasses() {
 
-    # the class keyword follows default Python behavior
-    # all members are static
-    class Cat {
-        has name: str = "Unnamed";
-        def meow {
-   print(f"{self.name} says meow!");
+# ============================================================
+# Objects (obj) vs Classes (class)
+# ============================================================
+
+# `obj` is like a Python dataclass -- fields are per-instance,
+# auto-generates __init__, __eq__, __repr__, etc.
+obj Dog {
+    has name: str = "Unnamed",
+        age: int = 0;
+
+    def bark() {
+        print(f"{self.name} says Woof!");
+    }
+}
+
+# `class` follows standard Python class behavior
+class Cat {
+    has name: str = "Unnamed";
+
+    def meow() {
+        print(f"{self.name} says Meow!");
+    }
+}
+
+# Inheritance
+obj Puppy(Dog) {
+    has parent_name: str = "Unknown";
+
+    override def bark() {
+        print(f"Puppy of {self.parent_name} yips!");
+    }
+}
+
+# Generic types with type parameters
+obj Result[T, E = Exception] {
+    has value: T | None = None,
+        error: E | None = None;
+
+    def is_ok() -> bool {
+        return self.error is None;
+    }
+}
+
+
+# ============================================================
+# Has Declarations (fields)
+# ============================================================
+
+obj Example {
+    # Basic typed fields with defaults
+    has name: str,
+        count: int = 0;
+
+    # Static (class-level) field
+    static has instances: int = 0;
+
+    # Deferred initialization (set in postinit)
+    has computed: int by postinit;
+
+    def postinit() {
+        self.computed = self.count * 2;
+    }
+}
+
+
+# ============================================================
+# Access Modifiers
+# ============================================================
+
+obj Person {
+    has :pub name: str;          # Public (default)
+    has :priv ssn: str;          # Private
+    has :protect age: int;       # Protected
+}
+
+
+# ============================================================
+# Enums
+# ============================================================
+
+enum Color {
+    RED = "red",
+    GREEN = "green",
+    BLUE = "blue"
+}
+
+# Auto-valued enum members
+enum Status { PENDING, ACTIVE, DONE }
+
+with entry {
+    print(Color.RED.value);      # "red"
+    print(Status.ACTIVE.value);  # 2
+}
+
+
+# ============================================================
+# Type Aliases
+# ============================================================
+
+type JsonPrimitive = str | int | float | bool | None;
+type Json = JsonPrimitive | list[Json] | dict[str, Json];
+
+# Generic type alias
+type NumberList = list[int | float];
+
+
+# ============================================================
+# Global Variables (glob)
+# ============================================================
+
+glob MAX_SIZE: int = 100;
+glob greeting: str = "Hello";
+
+def use_global() {
+    global greeting;          # Reference module-level glob
+    greeting = "Hola";
+}
+
+
+# ============================================================
+# Impl Blocks (separate declaration from definition)
+# ============================================================
+
+obj Calculator {
+    has value: int = 0;
+
+    # Declare methods (no body)
+    def add(n: int) -> int;
+    def multiply(n: int) -> int;
+}
+
+# Define methods separately (can be in a .impl.jac file)
+impl Calculator.add(n: int) -> int {
+    self.value += n;
+    return self.value;
+}
+
+impl Calculator.multiply(n: int) -> int {
+    self.value *= n;
+    return self.value;
+}
+
+
+# ============================================================
+# Lambdas
+# ============================================================
+
+with entry {
+    # Simple lambda (untyped params, colon body)
+    add = lambda x, y: x + y;
+    print(add(3, 4));
+
+    # Typed lambda with return type
+    mul = lambda (x: int, y: int) -> int : x * y;
+    print(mul(3, 4));
+
+    # Multi-statement lambda (brace body)
+    classify = lambda (score: int) -> str {
+        if score >= 90 { return "A"; }
+        elif score >= 80 { return "B"; }
+        else { return "F"; }
+    };
+    print(classify(85));
+}
+
+
+# ============================================================
+# Pipe Operators
+# ============================================================
+
+with entry {
+    # Forward pipe: value |> function
+    "hello" |> print;
+    5 |> str |> print;
+
+    # Backward pipe: function <| value
+    print <| "world";
+
+    # Chained pipes
+    [3, 1, 2] |> sorted |> list |> print;
+}
+
+
+# ============================================================
+# Decorators
+# ============================================================
+
+@classmethod
+def my_class_method(cls: type) -> str {
+    return cls.__name__;
+}
+
+
+# ============================================================
+# Try / Except / Finally
+# ============================================================
+
+with entry {
+    try {
+        result = 10 // 0;
+    } except ZeroDivisionError as e {
+        print(f"Caught: {e}");
+    } except Exception {
+        print("Some other error");
+    } else {
+        print("No error occurred");
+    } finally {
+        print("Always runs");
+    }
+}
+
+
+# ============================================================
+# With Statement (context managers)
+# ============================================================
+
+with entry {
+    with open("file.txt") as f {
+        data = f.read();
+    }
+
+    # Multiple context managers
+    with open("a.txt") as a, open("b.txt") as b {
+        print(a.read(), b.read());
+    }
+}
+
+
+# ============================================================
+# Assert
+# ============================================================
+
+with entry {
+    x = 42;
+    assert x == 42;
+    assert x > 0, "x must be positive";
+}
+
+
+# ============================================================
+# Walrus Operator (:=)
+# ============================================================
+
+with entry {
+    # Assignment inside expressions
+    if (n := len("hello")) > 3 {
+        print(f"Long string: {n} chars");
+    }
+}
+
+
+# ============================================================
+# Test Blocks
+# ============================================================
+
+def fib(n: int) -> int {
+    if n <= 1 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+test "fibonacci base cases" {
+    assert fib(0) == 0;
+    assert fib(1) == 1;
+}
+
+test "fibonacci recursive" {
+    for i in range(2, 10) {
+        assert fib(i) == fib(i - 1) + fib(i - 2);
+    }
+}
+
+
+# ============================================================
+# Async / Await
+# ============================================================
+
+import asyncio;
+
+async def fetch_data() -> str {
+    await asyncio.sleep(1);
+    return "data";
+}
+
+async def main() {
+    result = await fetch_data();
+    print(result);
+}
+
+
+# ============================================================
+# Flow / Wait (concurrent tasks)
+# ============================================================
+
+import from time { sleep }
+
+def slow_task(n: int) -> int {
+    sleep(1);
+    return n * 2;
+}
+
+with entry {
+    # `flow` launches a concurrent task, `wait` collects results
+    task1 = flow slow_task(1);
+    task2 = flow slow_task(2);
+    task3 = flow slow_task(3);
+
+    r1 = wait task1;
+    r2 = wait task2;
+    r3 = wait task3;
+    print(r1, r2, r3);   # 2 4 6
+}
+
+
+# ============================================================
+# Null-Safe Access (?. and ?[])
+# ============================================================
+
+with entry {
+    x: list | None = None;
+    print(x?.append);      # None (no crash)
+    print(x?[0]);           # None (no crash)
+
+    y = [1, 2, 3];
+    print(y?[1]);           # 2
+    print(y?[99]);          # None (out of bounds returns None)
+}
+
+
+# ============================================================
+# Inline Python (::py::)
+# ============================================================
+
+with entry {
+    result: int = 0;
+    ::py::
+import sys
+result = sys.maxsize
+    ::py::
+    print(f"Max int: {result}");
+}
+
+
+# ============================================================
+# OBJECT SPATIAL PROGRAMMING (OSP)
+# ============================================================
+# Jac extends the type system with graph-native constructs:
+# nodes, edges, walkers, and spatial abilities.
+
+
+# ============================================================
+# Nodes and Edges
+# ============================================================
+
+# Nodes are objects that can exist in a graph
+node Person {
+    has name: str,
+        age: int;
+}
+
+# Edges connect nodes and can carry data
+edge Friendship {
+    has since: int;
+}
+
+
+# ============================================================
+# Connection Operators
+# ============================================================
+
+with entry {
+    a = Person(name="Alice", age=25);
+    b = Person(name="Bob", age=30);
+    c = Person(name="Charlie", age=28);
+
+    # --- Untyped connections ---
+    root ++> a;             # Connect root -> a
+    a ++> b;                # Connect a -> b
+    c <++ a;                # Connect a -> c (backward syntax)
+    a <++> b;               # Bidirectional a <-> b
+
+    # --- Typed connections (with edge data) ---
+    a +>: Friendship(since=2020) :+> b;
+    a +>: Friendship(since=1995) :+> c;
+
+    # --- Typed connection with field assignment ---
+    a +>: Friendship : since=2018 :+> b;
+}
+
+
+# ============================================================
+# Edge Traversal & Filters (inside [...])
+# ============================================================
+
+with entry {
+    # Traverse outgoing edges from root
+    print([root -->]);                      # All nodes via outgoing edges
+    print([root <--]);                      # All nodes via incoming edges
+    print([root <-->]);                     # All nodes via any edges
+
+    # Filter by edge type
+    print([root ->:Friendship:->]);          # Nodes connected by Friendship edges
+
+    # Filter by edge field values
+    print([root ->:Friendship:since > 2018:->]);    # Nodes with since > 2018
+
+    # Get edges themselves (not nodes)
+    print([edge root ->:Friendship:->]);    # Friendship edge objects
+}
+
+
+# ============================================================
+# Walkers
+# ============================================================
+# Walkers are objects that traverse graphs.
+# They have abilities that trigger on entry/exit of nodes.
+
+walker Greeter {
+    has greeting: str = "Hello";
+
+    # Runs when walker enters the root node
+    can greet_root with Root entry {
+        print(f"{self.greeting} from root!");
+        visit [-->];        # Move to connected nodes
+    }
+
+    # Runs when walker visits any Person node
+    can greet_person with Person entry {
+        # `here` = current node, `self` = the walker
+        print(f"{self.greeting}, {here.name}!");
+        report here.name;   # Collect a value (returned as list)
+        visit [-->];         # Continue traversal
+    }
+}
+
+with entry {
+    root ++> Person(name="Alice", age=25);
+    root ++> Person(name="Bob", age=30);
+
+    # Spawn a walker at root
+    root spawn Greeter();
+}
+
+
+# ============================================================
+# Walker Control Flow
+# ============================================================
+
+walker SearchWalker {
+    has target: str;
+
+    can search with Person entry {
+        if here.name == self.target {
+            print(f"Found {self.target}!");
+            disengage;       # Stop traversal immediately
+        }
+        report here.name;
+        visit [-->] else {
+            # Runs when there are no more outgoing nodes
+            print("Reached a dead end");
         }
     }
-
-    your_cat = Cat();
-    my_cat = Cat();
-    my_cat.name = "Shrodinger";
-
-    my_cat.meow();   # Shrodinger says meow!
-    your_cat.meow(); # Shrodinger says meow!
-
- # the obj keyword follows the behavior of Python dataclasses
-    # all members are per-instance
- obj Dog {
-  has name: str = "Unnamed";
-  has age: int = 0;
-
-  def bark {
-   print(f"{self.name} says Woof!");
-  }
- }
-    your_dog = Dog();
-    my_dog = Dog();
-    my_dog.name = "Buddy";
-    my_dog.age = 3;
-
- your_dog.bark(); # Unnamed says Woof!
- my_dog.bark();   # Buddy says Woof!
-
- # inheritance
- obj Puppy(Dog){
-  has parent: str = 0;
-  def bark { # override
-   print(f"Child of {self.parent} says Woof!");
-  }
- }
 }
 
-# Jac also supports graph relationships within the type system
-# This is called Object Spatial Programming
 
-# nodes are objs with special properties
-node Person {
-    has name: str;
-    has age: int;
-}
+# ============================================================
+# Node & Edge Abilities
+# ============================================================
+# Nodes and edges can also have abilities that trigger
+# when specific walker types visit them.
 
-def learnOSP(){
- a = Person(name="Alice",age=25);
- b = Person(name="Bob",age=30);
- c = Person(name="Charlie",age=28);
+node SecureRoom {
+    has name: str,
+        clearance: int = 0;
 
- # connection operators create edges between nodes
- a ++>  b; # forward a->b
- b <++  c; # backward c->b
- a <++> c; # bidirectional a <-> c
-
- # edges can be typed, providing additional meaning
- edge Friend {
-  has since: int;
- }
-
- a +>:Friend(since=2020):+> b;
- a +>:Friend(since=1995):+> c;
-
-
-    # edges and nodes can be queried with filters
-
-    # returns all outgoing nodes with friend edges since 2018
-    old_friend_nodes = [node a ->:Friend:since > 2018:->];
-
-    # returns all outgoing friend edges since 2018
-    old_friend_edges = [edge a->:Friend:since > 2017:->];
-
- # Walkers are objects that "walk" across nodes doing operations
- # Walkers contain automatic methods that trigger on events
- # These methods are called abilities
- walker Visitor {
-        has name: str;
-
-        # abilities follow can <name> with <type> <operation> syntax
-  # runs when walker spawns at root
-  can start with `root entry {
-   print(f"Starting!");
-   # visit moves to an adjacent node
-   visit [-->]; # [-->] corresponds to outgoing connections
-   # visit [<--]; incoming connections
-   # visit [<-->]; all connections
-  }
-
-  # runs when walker visits any person
-  can meet_person with Person entry {
-   # here refers to current node
-   # self refers to walker
-   print(f"Visiting {here.name} with walker {self.name}");
-   if here.name == "Joe" {
-    print("Found Joe");
-    disengage; # stop traversal immediately
-   }
-
-            # report returns a value without stopping exeuction
-            # all reported values are accessed as a list after traversal
-   report here.name;
-   visit [-->];
-  }
-
-  # runs when walker is done
-  can finish with exit {
-   print("Ending!");
-  }
- }
-
- # nodes can also have abilities
- node FriendlyPerson(Person) {
-  has name:str;
-  can greet with Visitor entry{
-   print(f"Welcome, visitor");
-  }
- }
-
-    f = FriendlyPerson(name="Joe",age=10);
-
-    # root is a special named node in all graphs
-    root ++> f ++> a;
-
-    # walker can then be spawned at a node in the graph
-    root spawn Visitor("Jim");
-}
-
-def learnSpecial(){
-    # lambdas create anonymous functions
-    add = lambda a: int, b: int -> int : a + b;
-    print(add(5, 3));
-
-    # walrus operator allow assignment within expressions
-    result = (y := 20) + 10;
-    print(f"y = {y}, result = {result}");
-
-    # flow/wait is jac's equivalent to async/await for concurrency
-    # in jac, these are executed in a thread pool
-    def compute(x: int, y: int) -> int {
-        print(f"Computing {x} + {y}");
-        return x + y;
+    # Triggers when any Visitor walker enters this node
+    can on_enter with Visitor entry {
+        print(f"Welcome to {self.name}");
     }
-
-    def slow_task(n: int) -> int {
-        print(f"Task {n} started");
-        time.sleep(1);
-        print(f"Task {n} done");
-        return n * 2;
-    }
-
-    task1 = flow slow_task(42);
-    task2 = flow compute(5, 10);
-    task3 = flow compute(3, 7);
-
-    result1 = wait task1;
-    result2 = wait task2;
-    result3 = wait task3;
-    print(f"Results: {result1}, {result2}, {result3}");
-    #* Output:
-    Task 42 started
-    Computing 5 + 10
-    Computing 3 + 7
-    Task 42 done
-    Results: 84, 15, 10
-    *#
 }
 
-# all programs start from the entry node
+walker Visitor {
+    has clearance: int = 0;
+
+    can visit_room with SecureRoom entry {
+        if here.clearance > self.clearance {
+            print("Access denied");
+            disengage;
+        }
+        visit [-->];
+    }
+}
+
+
+# ============================================================
+# Spawn Syntax Variants
+# ============================================================
+
 with entry {
-    # print function outputs a line to stdout
-    print("Hello world!");
+    w = Greeter(greeting="Hi");
 
-    # call some other function
-    nextFunction();
+    # Binary spawn: node spawn walker
+    root spawn w;
+
+    # Reverse: walker spawn node
+    w spawn root;
+
+    # Spawn returns reported values
+    results = root spawn Greeter();
 }
+
+
+# ============================================================
+# Async Walkers
+# ============================================================
+
+async walker AsyncCrawler {
+    has depth: int = 0;
+
+    async can crawl with Root entry {
+        print(f"Crawling at depth {self.depth}");
+        visit [-->];
+    }
+}
+
+
+# ============================================================
+# Anonymous Abilities
+# ============================================================
+# Abilities without names (auto-named by compiler)
+
+node AutoNode {
+    has val: int = 0;
+
+    can with entry {
+        print(f"Entered node with val={self.val}");
+    }
+}
+
+walker AutoWalker {
+    can with Root entry {
+        visit [-->];
+    }
+
+    can with AutoNode entry {
+        print(f"Visiting: {here.val}");
+    }
+}
+
+
+# ============================================================
+# Special Variables
+# ============================================================
+# self     -- the current object/walker
+# here     -- the current node (in walker abilities)
+# visitor  -- the visiting walker (in node/edge abilities)
+# root     -- the root node of the graph
+
+
+# ============================================================
+# Keywords Reference
+# ============================================================
+# Types:    str, int, float, bool, list, tuple, set, dict, bytes, any, type
+# Decl:     obj, class, node, edge, walker, enum, has, can, def, impl, glob, test
+# Modifiers: pub, priv, protect, static, override, abs, async
+# Control:  if, elif, else, for, to, by, while, match, switch, case, default
+# Flow:     return, yield, break, continue, raise, del, assert, skip
+# OSP:      visit, spawn, entry, exit, disengage, report, here, visitor, root
+# Async:    async, await, flow, wait
+# Logic:    and, or, not, in, is
+# Other:    import, include, from, as, try, except, finally, with, lambda,
+#           global, nonlocal, self, super, init, postinit, type
 ```
