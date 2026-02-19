@@ -4,6 +4,26 @@ By the end of this tutorial, you'll have built a full-stack AI day planner -- a 
 
 **Prerequisites:** [Installation](../../quick-guide/install.md) complete, [Hello World](../../quick-guide/hello-world.md) done.
 
+**Required Packages:** This tutorial uses **jaclang**, **jac-client**, **jac-scale**, and **byllm**. Install everything at once with:
+
+```bash
+pip install jaseci
+```
+
+Verify your versions meet the minimum requirements:
+
+```bash
+jac version
+pip show jac-client jac-scale byllm
+```
+
+| Package | Minimum Version |
+|---------|----------------|
+| jaclang | 0.10.5 |
+| jac-client | 0.2.19 |
+| jac-scale | 0.1.11 |
+| byllm | 0.4.21 |
+
 The tutorial is split into seven parts. Each builds on the last:
 
 | Part | What You'll Build | Key Concepts |
@@ -20,7 +40,7 @@ The tutorial is split into seven parts. Each builds on the last:
 
 ## Part 1: Your First Lines of Jac
 
-Jac is a programming language that compiles to Python. If you know Python, Jac will feel familiar -- but with curly braces instead of indentation, semicolons at the end of statements, and built-in support for graphs, AI, and full-stack web apps. This section covers the fundamentals.
+Jac is a programming language whose compiler can generate Python bytecode, ES JavaScript, and native binaries. The language design is based on Python, so if you know Python, Jac will feel familiar -- but with curly braces instead of indentation, semicolons at the end of statements, and built-in support for graphs, AI, and full-stack web apps. This section covers the fundamentals.
 
 **Hello, World**
 
@@ -38,7 +58,7 @@ Run it:
 jac run hello.jac
 ```
 
-`with entry { }` is Jac's program entry point -- equivalent to Python's `if __name__ == "__main__"`. Everything inside runs when the file executes.
+In Jac, any free-floating code in a module must live inside a `with entry { }` block. These blocks run when you execute a `.jac` file as a script and at the point it's imported, similar to top-level code in Python. We require this explicit demarcation because it's important to be deliberate about code that executes once on module load -- a common source of bugs in real programs. Fun fact: Python was originally designed as a replacement for bash, and its initial version didn't even have import statements. Jac slightly discourages mistakes stemming from free-floating module code by making it an intentional, visible choice in the language.
 
 **Variables and Types**
 
@@ -57,7 +77,7 @@ with entry {
 }
 ```
 
-Jac supports **f-strings** for string interpolation (just like Python), **comments** with `#`, and **block comments** with `#* ... *#`:
+Jac supports **f-strings** for string interpolation (just like Python), **comments** with `#`, and introduces **block comments** with `#* ... *#`:
 
 ```jac
 # This is a line comment
@@ -68,7 +88,7 @@ Jac supports **f-strings** for string interpolation (just like Python), **commen
 
 **Functions**
 
-Functions use the `def` keyword. Both parameters and return values need type annotations:
+Functions use the familar `def` keyword. Both parameters and return values need type annotations:
 
 ```jac
 def greet(name: str) -> str {
@@ -128,7 +148,22 @@ with entry {
 }
 ```
 
-Jac also supports **`match`/`case`** for pattern matching:
+Jac supports both **`switch`/`case`** and **`match`/`case`**. Use `switch` when you want the classic simple value matching with no fall-through and no explicit `break` needed:
+
+```jac
+def categorize(fruit: str) -> str {
+    switch fruit {
+        case "apple":
+            return "pome";
+        case "banana" | "plantain":
+            return "berry";
+        default:
+            return "unknown";
+    }
+}
+```
+
+Use `match` for Python-style structural pattern matching when you need to destructure or match complex patterns:
 
 ```jac
 def describe(value: any) -> str {
@@ -143,12 +178,58 @@ def describe(value: any) -> str {
 }
 ```
 
+**Classes and Objects**
+
+Since Jac's design is based on Python, you can use Python-style classes directly with the `class` keyword:
+
+```jac
+class Animal {
+
+    # __init__ works here too
+    def init(self: Animal, name: str, sound: str) {
+        self.name = name;
+        self.sound = sound;
+    }
+
+    def speak(self: Animal) -> str {
+        return f"{self.name} says {self.sound}!";
+    }
+}
+
+with entry {
+    dog = Animal("Rex", "Woof");
+    print(dog.speak());  # Rex says Woof!
+}
+```
+
+This works, but notice all the `self` boilerplate. Jac introduces **`obj`** as an improved alternative -- fields declared with `has` are automatically initialized (like a dataclass), and `self` is implicit in methods. For a deeper dive into why this design choice was made, see [Dataclasses: Python's Admission That Classes Are Broken (And How Jac Fixes It Properly)](https://www.mars.ninja/blog/2025/10/25/dataclasses-and-jac-objects/).
+
+```jac
+obj Animal {
+    has name: str,
+        sound: str;
+
+    def speak -> str {
+        return f"{self.name} says {self.sound}!";
+    }
+}
+
+with entry {
+    dog = Animal(name="Rex", sound="Woof");
+    print(dog.speak());  # Rex says Woof!
+}
+```
+
+With `obj`, you don't write `self` in method signatures -- it's always available inside the body. Fields listed in `has` become constructor parameters automatically, so there's no need to write an `init` method for simple cases. Throughout this tutorial, we'll use `obj` for plain data types and `node` (introduced in Part 2) for data that lives in the graph.
+
 **What You Learned**
 
 - **`with entry { }`** -- program entry point
 - **Types**: `str`, `int`, `float`, `bool`
 - **`def`** -- function declaration with typed parameters and return types
-- **Control flow**: `if` / `elif` / `else`, `for`, `while`, `match` -- all with braces
+- **Control flow**: `if` / `elif` / `else`, `for`, `while`, `switch`, `match` -- all with braces
+- **`class`** -- Python-style classes with explicit `self`
+- **`obj`** -- Jac data types with `has` fields and implicit `self`
 - **`#`** -- line comments (`#* block comments *#`)
 - **f-strings** -- string interpolation with `f"...{expr}..."`
 - **Ternary** -- `value if condition else other`
