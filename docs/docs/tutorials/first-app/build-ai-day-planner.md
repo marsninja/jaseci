@@ -22,7 +22,7 @@ The tutorial is split into seven parts. Each builds on the last:
 
 Jac is a programming language that compiles to Python. If you know Python, Jac will feel familiar -- but with curly braces instead of indentation, semicolons at the end of statements, and built-in support for graphs, AI, and full-stack web apps. This section covers the fundamentals.
 
-### Hello, World
+**Hello, World**
 
 Create a file called `hello.jac`:
 
@@ -40,7 +40,7 @@ jac run hello.jac
 
 `with entry { }` is Jac's program entry point -- equivalent to Python's `if __name__ == "__main__"`. Everything inside runs when the file executes.
 
-### Variables and Types
+**Variables and Types**
 
 Jac has four basic scalar types: `str`, `int`, `float`, and `bool`. Type annotations are required when declaring variables with explicit types:
 
@@ -66,7 +66,7 @@ Jac supports **f-strings** for string interpolation (just like Python), **commen
    block comment *#
 ```
 
-### Functions
+**Functions**
 
 Functions use the `def` keyword. Both parameters and return values need type annotations:
 
@@ -87,7 +87,7 @@ with entry {
 
 Functions that don't return a value use `-> None` (or you can omit the return type annotation entirely).
 
-### Control Flow
+**Control Flow**
 
 Jac uses curly braces `{}` for all blocks -- no significant indentation:
 
@@ -143,7 +143,7 @@ def describe(value: any) -> str {
 }
 ```
 
-### What You Learned
+**What You Learned**
 
 - **`with entry { }`** -- program entry point
 - **Types**: `str`, `int`, `float`, `bool`
@@ -159,7 +159,7 @@ def describe(value: any) -> str {
 
 Most languages store data in variables, objects, or database rows. Jac adds a powerful alternative: **nodes** that live in a **graph**. Nodes persist automatically -- no database setup, no ORM, no SQL.
 
-### What is a Node?
+**What is a Node?**
 
 A node is a data type declared with the `node` keyword. Its fields are declared with `has`:
 
@@ -173,7 +173,7 @@ node Task {
 
 This looks similar to a class, but nodes have a superpower: they can be connected to other nodes with **edges**, forming a graph. When connected to the global `root` node, they persist across server restarts -- no database needed.
 
-### The Root Node and the Graph
+**The Root Node and the Graph**
 
 Every Jac program has a built-in `root` node -- the entry point of the graph. Think of it as the top of a tree:
 
@@ -183,7 +183,7 @@ root  (starts empty)
 
 You add data by creating nodes and connecting them with edges.
 
-### Creating and Connecting Nodes
+**Creating and Connecting Nodes**
 
 The `++>` operator creates a node and connects it to an existing node with an edge:
 
@@ -220,7 +220,7 @@ task = result[0];  # The new Task node
 print(task.title);  # "Buy groceries"
 ```
 
-### Querying the Graph
+**Querying the Graph**
 
 To read nodes from the graph, use the `[-->]` syntax:
 
@@ -249,7 +249,7 @@ Other directions work too:
 - `[node<--]` -- incoming connections (backward)
 - `[node<-->]` -- both directions
 
-### Deleting Nodes
+**Deleting Nodes**
 
 Use `del` to remove a node from the graph:
 
@@ -261,7 +261,7 @@ for task in [root-->](?:Task) {
 }
 ```
 
-### Custom Edges
+**Custom Edges**
 
 So far, the edges between nodes are generic -- they just mean "connected." Jac lets you create **typed edges** with their own data:
 
@@ -290,7 +290,7 @@ urgent = [root->:Scheduled:priority>=3:->](?:Task);
 
 We won't use custom edges in the main app (default edges are sufficient for our use case), but they're powerful for modeling complex relationships -- social networks, org charts, dependency graphs, and more.
 
-### What You Learned
+**What You Learned**
 
 - **`node`** -- a persistent data type that lives in the graph
 - **`has`** -- declares fields with types and optional defaults
@@ -309,7 +309,7 @@ We won't use custom edges in the main app (default edges are sufficient for our 
 
 Time to build a real backend. You'll create HTTP endpoints that manage tasks -- without a web framework, route decorators, or serializers.
 
-### Create the Project
+**Create the Project**
 
 ```bash
 jac create day-planner --use client --skip
@@ -320,7 +320,7 @@ cd day-planner
 
 You can delete the scaffolded `main.jac` -- you'll replace it with the code below. Also create a `styles.css` file in the project root (we'll fill it in Part 4).
 
-### Imports
+**Imports**
 
 Jac can import any Python package. We need `uuid` for generating unique IDs:
 
@@ -330,7 +330,7 @@ import from uuid { uuid4 }
 
 The syntax is `import from module { names }` -- it imports `uuid4` from Python's standard library `uuid` module. You can import anything from PyPI the same way.
 
-### def:pub -- Functions as Endpoints
+**def:pub -- Functions as Endpoints**
 
 Mark a function `def:pub` and Jac automatically generates an HTTP endpoint for it:
 
@@ -352,7 +352,7 @@ No route configuration, no controllers, no request parsing. The function **is** 
 
 **Docstrings** in Jac come *before* the declaration (unlike Python where they go inside the function body). They're enclosed in triple quotes `"""..."""`.
 
-### Building the CRUD Endpoints
+**Building the CRUD Endpoints**
 
 Here are all four operations for managing tasks:
 
@@ -401,7 +401,7 @@ def:pub delete_task(id: str) -> dict {
 
 Let's look at the new patterns used here.
 
-### Collections
+**Collections**
 
 **Lists** work like Python -- create with `[]`, access by index, iterate with `for`:
 
@@ -431,7 +431,7 @@ task_data["done"] = True;   # Update a value
 [t.title for t in [root-->](?:Task) if not t.done]
 ```
 
-### Lambdas
+**Lambdas**
 
 Lambdas are anonymous functions. They're essential for the frontend (Part 4), so let's introduce them now:
 
@@ -449,7 +449,7 @@ say_hi = lambda -> str { return "hi"; };
 
 The syntax is `lambda params -> return_type { body }`. You'll see these heavily in event handlers.
 
-### Enums
+**Enums**
 
 An **enum** constrains a value to a fixed set of options:
 
@@ -459,7 +459,7 @@ enum Priority { LOW, MEDIUM, HIGH, URGENT }
 
 Access values with `Priority.HIGH` and convert to string with `str(Priority.HIGH)`. We'll use enums extensively in Part 5 for constraining AI output.
 
-### Global Variables
+**Global Variables**
 
 The `glob` keyword declares a module-level variable:
 
@@ -470,7 +470,7 @@ glob max_tasks = 100;
 
 We'll use `glob` in Part 5 to initialize the AI model.
 
-### Run It
+**Run It**
 
 You can start the server now -- the `def:pub` functions are live HTTP endpoints even without a frontend:
 
@@ -483,7 +483,7 @@ The server starts on port 8000 by default. Use `--port 3000` to pick a different
 !!! warning "Common issue"
     If you see "Address already in use", another process is on that port. Use `--port` to pick a different one, or see [Troubleshooting](../troubleshooting.md#server-wont-start-address-already-in-use).
 
-### What You Learned
+**What You Learned**
 
 - **`def:pub`** -- functions that auto-become HTTP endpoints
 - **`import from module { name }`** -- import Python (or any) packages
@@ -501,7 +501,7 @@ The server starts on port 8000 by default. Use `--port 3000` to pick a different
 
 Jac isn't just a backend language. It can render full UIs in the browser using JSX syntax -- similar to React, but without the JavaScript toolchain.
 
-### The cl Prefix
+**The cl Prefix**
 
 Code prefixed with `cl` runs in the **browser**, not on the server:
 
@@ -511,7 +511,7 @@ cl import "./styles.css";
 
 This loads a CSS file client-side. Add this line at the top of your `main.jac`, after the `uuid` import.
 
-### Building the Component
+**Building the Component**
 
 A `cl def:pub` function returning `JsxElement` is a UI component:
 
@@ -526,7 +526,7 @@ cl def:pub app -> JsxElement {
 
 **`has`** inside a component declares **reactive state**. When `tasks` or `task_text` changes, the UI automatically re-renders -- same idea as React's `useState`, but declared as simple properties.
 
-### Lifecycle Hooks
+**Lifecycle Hooks**
 
 **`can with entry`** runs when the component first mounts (like React's `useEffect` on mount):
 
@@ -538,7 +538,7 @@ cl def:pub app -> JsxElement {
 
 This fetches all tasks from the server when the page loads.
 
-### Event Handlers
+**Event Handlers**
 
 Lambdas handle user events inline:
 
@@ -554,7 +554,7 @@ Lambdas handle user events inline:
 
 Updating `task_text` triggers a re-render because it's reactive state (declared with `has`).
 
-### Transparent Server Calls
+**Transparent Server Calls**
 
 Here's the key insight: **`await add_task(text)`** calls the server function as if it were local. Because `add_task` is `def:pub`, Jac generated an HTTP endpoint on the server and a matching client stub automatically. You never write fetch calls, parse JSON, or handle HTTP status codes.
 
@@ -568,7 +568,7 @@ Here's the key insight: **`await add_task(text)`** calls the server function as 
     }
 ```
 
-### Rendering Lists and Conditionals
+**Rendering Lists and Conditionals**
 
 **`{[... for t in tasks]}`** renders a list of elements. Each item needs a unique `key` prop:
 
@@ -588,7 +588,7 @@ Here's the key insight: **`await add_task(text)`** calls the server function as 
 </span>
 ```
 
-### The Complete Frontend
+**The Complete Frontend**
 
 Add `cl import "./styles.css";` after your existing import, then add this component at the bottom of `main.jac`:
 
@@ -671,7 +671,7 @@ A few things to notice:
 - **`tasks.concat([task])`** creates a new list with the item appended
 - **`async`** marks methods that call the server (since network calls are asynchronous)
 
-### Add Styles
+**Add Styles**
 
 Now fill in `styles.css` in your project root:
 
@@ -688,7 +688,7 @@ h1 { text-align: center; margin-bottom: 24px; color: #333; }
 .count { text-align: center; color: #888; margin-top: 16px; font-size: 0.9rem; }
 ```
 
-### Run It
+**Run It**
 
 ??? note "Complete `main.jac` for Parts 1–4"
 
@@ -819,7 +819,7 @@ Open [http://localhost:8000](http://localhost:8000). You should see a clean day 
 
 That last point is important. The data persisted because nodes live in the graph database, not in memory.
 
-### What You Learned
+**What You Learned**
 
 - **`cl`** -- prefix for client-side (browser) code
 - **`cl import`** -- load CSS (or npm packages) in the browser
@@ -840,7 +840,7 @@ Your day planner works, but it's not smart. Let's add two AI features: **automat
 !!! tip "Starting fresh"
     If you have leftover data from Parts 1–4, delete the `.jac/data/` directory before running Part 5. The schema changes (adding `category` to Task) may conflict with old nodes.
 
-### Set Up Your API Key
+**Set Up Your API Key**
 
 Jac's AI features use an LLM under the hood. You need an API key from Anthropic (or another provider). Set it as an environment variable:
 
@@ -863,7 +863,7 @@ export ANTHROPIC_API_KEY="your-key-here"
 
     Jac's AI plugin wraps [LiteLLM](https://docs.litellm.ai/docs/providers), supporting OpenAI, Anthropic, Google, Azure, and many more.
 
-### Configure the LLM
+**Configure the LLM**
 
 Add the AI import and model initialization to the top of `main.jac`, right after the existing imports:
 
@@ -877,7 +877,7 @@ glob llm = Model(model_name="claude-sonnet-4-20250514");
 
 `import from byllm.lib { Model }` loads Jac's AI plugin. `glob llm = Model(...)` initializes the model at module level -- `glob` declares a global variable, as we learned in Part 3.
 
-### Enums as Output Constraints
+**Enums as Output Constraints**
 
 ```jac
 enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
@@ -885,7 +885,7 @@ enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
 
 This enum constrains the AI to return *exactly one* of these values. Without it, the LLM might return "shopping", "Shopping", "groceries", or "grocery shopping" -- all meaning the same thing. The enum eliminates that ambiguity.
 
-### by llm() -- AI Function Delegation
+**by llm() -- AI Function Delegation**
 
 Here's the key feature:
 
@@ -903,7 +903,7 @@ That's the **entire function**. There's no body -- `by llm()` tells Jac to have 
 
 The function name, parameter names, types, and docstring **are the specification**. The LLM fulfills it.
 
-### Wire It Into the Task Flow
+**Wire It Into the Task Flow**
 
 Two changes. First, add a `category` field to the `Task` node:
 
@@ -960,7 +960,7 @@ def:pub toggle_task(id: str) -> dict {
 
 `delete_task` doesn't need changes -- it doesn't return task data.
 
-### Structured Output with obj and sem
+**Structured Output with obj and sem**
 
 Now for the shopping list. We need the AI to return *structured* data -- not just a string, but a list of ingredients with quantities, units, and costs.
 
@@ -996,7 +996,7 @@ def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
 
 The LLM returns a `list[Ingredient]` -- a list of typed objects, each with name, quantity, unit, cost, and carb flag. Jac validates the structure automatically.
 
-### Shopping List Nodes and Endpoints
+**Shopping List Nodes and Endpoints**
 
 Add a node for persisting generated ingredients:
 
@@ -1066,7 +1066,7 @@ root ---> Task("Buy groceries", category="shopping")
   |-----> ShoppingItem("Soy sauce", 2tbsp, $0.50)
 ```
 
-### Update the Frontend
+**Update the Frontend**
 
 The frontend needs a two-column layout: tasks on the left, shopping list on the right. Update the component with new state, methods, and the shopping panel:
 
@@ -1219,7 +1219,7 @@ cl def:pub app -> JsxElement {
 }
 ```
 
-### Update Styles
+**Update Styles**
 
 Replace `styles.css` with the expanded version that supports the two-column layout and shopping list:
 
@@ -1253,7 +1253,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
 .generating-msg { text-align: center; padding: 20px; color: #666; }
 ```
 
-### Run It
+**Run It**
 
 ??? note "Complete `main.jac` for Parts 1–5"
 
@@ -1562,7 +1562,7 @@ Open [http://localhost:8000](http://localhost:8000). The app now has two columns
 
 The AI can only pick from the enum values you defined -- `Category` for tasks, `Unit` for ingredients. The type system constrains the LLM's output automatically.
 
-### What You Learned
+**What You Learned**
 
 - **`import from byllm.lib { Model }`** -- load the AI plugin
 - **`glob llm = Model(...)`** -- initialize an LLM at module level
@@ -1579,7 +1579,7 @@ The AI can only pick from the enum values you defined -- `Category` for tasks, `
 
 Your day planner has AI-powered task categorization and a shopping list generator, and everything persists in the graph. But right now there's no concept of users -- anyone who visits the app sees the same data. Let's add authentication and reorganize the growing codebase into multiple files.
 
-### Built-in Auth
+**Built-in Auth**
 
 Jac has built-in authentication functions for client-side code:
 
@@ -1594,7 +1594,7 @@ import from "@jac/runtime" { jacSignup, jacLogin, jacLogout, jacIsLoggedIn }
 
 No JWT handling, no session management, no token storage -- it's all built in.
 
-### Multi-File Organization
+**Multi-File Organization**
 
 As the app grows, putting everything in one file gets unwieldy. Jac supports splitting code across files with a **declaration/implementation pattern** that keeps UI and logic separate.
 
@@ -1638,7 +1638,7 @@ cl {
 
 Everything outside `cl { }` runs on the server. Everything inside runs in the browser.
 
-### Dependency-Triggered Abilities
+**Dependency-Triggered Abilities**
 
 A **dependency-triggered ability** re-runs whenever specific state changes -- like React's `useEffect` with a dependency array:
 
@@ -1653,7 +1653,7 @@ A **dependency-triggered ability** re-runs whenever specific state changes -- li
 
 When `isLoggedIn` changes from `False` to `True` (user logs in), this ability fires automatically and loads their data.
 
-### The Complete Authenticated App
+**The Complete Authenticated App**
 
 Create a new project for the authenticated version:
 
@@ -1672,7 +1672,7 @@ day-planner-auth/
 └── styles.css              # Styles
 ```
 
-### Run It
+**Run It**
 
 All the complete files are in the collapsible sections below. Create each file, then run.
 
@@ -2290,7 +2290,7 @@ Open [http://localhost:8000](http://localhost:8000). You should see a login scre
 
 Your day planner is now a **complete, fully functional application** -- authentication, AI-powered categorization, meal planning, graph persistence, and a clean multi-file architecture. All built with `def:pub` endpoints, nodes, and edges.
 
-### What You Learned
+**What You Learned**
 
 - **`jacSignup`**, **`jacLogin`**, **`jacLogout`**, **`jacIsLoggedIn`** -- built-in auth functions
 - **`import from "@jac/runtime"`** -- import Jac's built-in client-side utilities
@@ -2309,7 +2309,7 @@ Now let's learn Jac's most distinctive feature: **Object-Spatial Programming (OS
 
 This section reimplements the day planner's backend using walkers to show how OSP works. The app behavior stays the same -- this is about learning an alternative (and powerful) programming paradigm.
 
-### What is a Walker?
+**What is a Walker?**
 
 A walker is code that moves through the graph, triggering abilities as it enters each node:
 
@@ -2332,7 +2332,7 @@ The core keywords:
 - **`report`** -- send data back to whoever spawned the walker
 - **`disengage`** -- stop traversal immediately
 
-### Functions vs Walkers: Side by Side
+**Functions vs Walkers: Side by Side**
 
 Here's `add_task` as a `def:pub` function (what you already have):
 
@@ -2385,7 +2385,7 @@ print(result.reports[0]);  # The reported dict
 
 **`root spawn AddTask(title="...")`** creates a walker and starts it at root. Whatever the walker `report`s ends up in `result.reports`.
 
-### The Accumulator Pattern
+**The Accumulator Pattern**
 
 The power of walkers becomes clearer with `ListTasks` -- collecting data across multiple nodes:
 
@@ -2434,7 +2434,7 @@ The function is shorter for this simple case. But walkers shine when the graph i
 !!! warning "Common issue"
     If walker reports come back empty, make sure you have `visit [-->]` to send the walker to connected nodes, and that the node type in `with X entry` matches your graph structure.
 
-### Node Abilities
+**Node Abilities**
 
 So far, abilities have lived on the **walker** (e.g., `can collect with Task entry`). But abilities can also live on the **node** itself:
 
@@ -2460,7 +2460,7 @@ When a `ListTasks` walker visits a `Task` node, the node's `respond` ability fir
 
 Both patterns work -- walker-side abilities and node-side abilities. Choose whichever reads more clearly for your use case. Walker-side abilities are great when the logic is about the traversal. Node-side abilities are great when the logic is about the node's data.
 
-### visit and disengage
+**visit and disengage**
 
 **`visit [-->]`** queues all connected nodes for the walker to visit next. You can also filter:
 
@@ -2509,7 +2509,7 @@ walker DeleteTask {
 }
 ```
 
-### Multi-Step Traversals
+**Multi-Step Traversals**
 
 The `GenerateShoppingList` walker shows the real power of OSP -- doing two things in one traversal:
 
@@ -2578,7 +2578,7 @@ walker ClearShoppingList {
 }
 ```
 
-### Spawning Walkers from the Frontend
+**Spawning Walkers from the Frontend**
 
 In the `def:pub` version, the frontend called server functions directly with `await add_task(title)`. With walkers, the frontend **spawns** them instead.
 
@@ -2606,7 +2606,7 @@ new_task = result.reports[0];
 
 The key pattern: **`root spawn Walker(params)`** creates a walker and starts it at root. The walker traverses the graph, and whatever it `report`s ends up in `result.reports`.
 
-### walker:priv -- Per-User Data Isolation
+**walker:priv -- Per-User Data Isolation**
 
 Walkers can be marked with access modifiers:
 
@@ -2615,7 +2615,7 @@ Walkers can be marked with access modifiers:
 
 When you use `walker:priv`, the walker runs on the authenticated user's **own private root node**. User A's tasks are completely invisible to User B -- same code, isolated data, enforced by the runtime. The complete walker version below uses `:priv` on all walkers, combined with the authentication you learned in Part 6.
 
-### The Complete Walker Version
+**The Complete Walker Version**
 
 To try the walker-based version, create a new project:
 
@@ -2634,7 +2634,7 @@ day-planner-v2/
 └── styles.css              # Styles
 ```
 
-### Run It
+**Run It**
 
 All the complete files are in the collapsible sections below. Create each file, then run.
 
@@ -3308,7 +3308,7 @@ Open [http://localhost:8000](http://localhost:8000). You should see a login scre
 5. **Log out and sign up as a different user** -- you'll see a completely empty app. Each user gets their own graph.
 6. **Restart the server** -- all data persists for both users
 
-### What You Learned
+**What You Learned**
 
 This part introduced Jac's Object-Spatial Programming paradigm:
 
