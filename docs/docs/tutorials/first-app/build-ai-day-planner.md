@@ -8,13 +8,13 @@ The tutorial is split into seven parts. Each builds on the last:
 
 | Part | What You'll Build | Key Concepts |
 |------|-------------------|--------------|
-| 1 | Hello World | Syntax basics, types, functions |
-| 2 | Task data model | Nodes, graphs, root, edges |
-| 3 | Backend API | `def:pub`, imports, enums, collections |
-| 4 | Working frontend | Client-side code, JSX, reactive state |
-| 5 | AI features | `by llm()`, `obj`, `sem`, structured output |
-| 6 | Authentication | Login, signup, per-user data, multi-file |
-| 7 | Walkers & OSP | Walkers, abilities, graph traversal |
+| [1](#part-1-your-first-lines-of-jac) | [Hello World](#part-1-your-first-lines-of-jac) | Syntax basics, types, functions |
+| [2](#part-2-modeling-data-with-nodes) | [Task data model](#part-2-modeling-data-with-nodes) | Nodes, graphs, root, edges |
+| [3](#part-3-building-the-backend-api) | [Backend API](#part-3-building-the-backend-api) | `def:pub`, imports, enums, collections |
+| [4](#part-4-a-reactive-frontend) | [Working frontend](#part-4-a-reactive-frontend) | Client-side code, JSX, reactive state |
+| [5](#part-5-making-it-smart-with-ai) | [AI features](#part-5-making-it-smart-with-ai) | `by llm()`, `obj`, `sem`, structured output |
+| [6](#part-6-authentication-and-multi-file-organization) | [Authentication](#part-6-authentication-and-multi-file-organization) | Login, signup, per-user data, multi-file |
+| [7](#part-7-object-spatial-programming-with-walkers) | [Walkers & OSP](#part-7-object-spatial-programming-with-walkers) | Walkers, abilities, graph traversal |
 
 ---
 
