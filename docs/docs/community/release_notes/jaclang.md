@@ -5,7 +5,6 @@ This document provides a summary of new features, improvements, and bug fixes in
 ## jaclang 0.10.5 (Unreleased)
 
 - **Fix: `sv import` of `def:pub` Functions Generates RPC Stubs**: Fixed `sv import from module { func }` in `.cl.jac` files not generating for `def:pub` server functions.
-- **Docs: Add `sv import` to Day Planner Tutorial Part 6**: Added the missing `sv import` statement to the multi-file `def:pub` tutorial example and an explanation of why it's needed when calling server functions from `.cl.jac` files.
 
 ## jaclang 0.10.4 (Latest Release)
 
