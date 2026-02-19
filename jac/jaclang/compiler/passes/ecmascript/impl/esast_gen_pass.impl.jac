@@ -960,7 +960,15 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                         _args_strs.append(_unparser.generate(_p.value));
                     }
                 }
-                _result = _emit_fn(_ctx, _target_str, _args_strs);
+                # Static emitter methods (fromkeys, from_bytes, etc.) take
+                # (ctx, args) while instance methods take (ctx, target, args).
+                import inspect;
+                _n_params = len(inspect.signature(_emit_fn).parameters);
+                if _n_params == 2 {
+                    _result = _emit_fn(_ctx, _args_strs);
+                } else {
+                    _result = _emit_fn(_ctx, _target_str, _args_strs);
+                }
                 if _result is not None and "_jac." in str(_result) {
                     self.needs_jac_runtime = True;
                 }
