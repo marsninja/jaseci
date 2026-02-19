@@ -4,7 +4,7 @@ By the end of this tutorial, you'll have built a full-stack AI day planner -- a 
 
 **Prerequisites:** [Installation](../../quick-guide/install.md) complete, [Hello World](../../quick-guide/hello-world.md) done.
 
-The tutorial is split into six parts. Each builds on the last:
+The tutorial is split into seven parts. Each builds on the last:
 
 | Part | What You'll Build | Key Concepts |
 |------|-------------------|--------------|
@@ -13,7 +13,8 @@ The tutorial is split into six parts. Each builds on the last:
 | 3 | Backend API | `def:pub`, imports, enums, collections |
 | 4 | Working frontend | Client-side code, JSX, reactive state |
 | 5 | AI features | `by llm()`, `obj`, `sem`, structured output |
-| 6 | Walkers & auth | Walkers, abilities, authentication, multi-file |
+| 6 | Authentication | Login, signup, per-user data, multi-file |
+| 7 | Walkers & OSP | Walkers, abilities, graph traversal |
 
 ---
 
@@ -1574,17 +1575,743 @@ The AI can only pick from the enum values you defined -- `Category` for tasks, `
 
 ---
 
-## Part 6: Walkers, Abilities, and Authentication
+## Part 6: Authentication and Multi-File Organization
 
-Your day planner has AI, but there's a fundamental problem: **everyone shares the same data**. Every `def:pub` function operates on the same global `root` node. If two people use the app, they see each other's tasks.
+Your day planner has AI-powered task categorization and a shopping list generator, and everything persists in the graph. But right now there's no concept of users -- anyone who visits the app sees the same data. Let's add authentication and reorganize the growing codebase into multiple files.
 
-**Walkers** solve this. They're Jac's most distinctive feature -- code that *moves through* the graph, executing logic at each node it visits. Combined with `:priv` access control, they give each user their own isolated data space.
+### Built-in Auth
 
-This final section reimplements the day planner using walkers and adds authentication, teaching you the last major pieces of the Jac language.
+Jac has built-in authentication functions for client-side code:
+
+```jac
+import from "@jac/runtime" { jacSignup, jacLogin, jacLogout, jacIsLoggedIn }
+```
+
+- **`jacSignup(username, password)`** -- create an account (returns `{"success": True/False}`)
+- **`jacLogin(username, password)`** -- log in (returns `True` or `False`)
+- **`jacLogout()`** -- log out
+- **`jacIsLoggedIn()`** -- check login status
+
+No JWT handling, no session management, no token storage -- it's all built in.
+
+### Multi-File Organization
+
+As the app grows, putting everything in one file gets unwieldy. Jac supports splitting code across files with a **declaration/implementation pattern** that keeps UI and logic separate.
+
+**`frontend.cl.jac`** -- state, method signatures, and the render tree:
+
+```jac
+def:pub app -> JsxElement {
+    has tasks: list = [];
+
+    async def fetchTasks -> None;  # Just the signature -- no body
+    # ... more declarations ...
+
+    # ... UI rendering ...
+}
+```
+
+**`frontend.impl.jac`** -- method bodies in `impl` blocks:
+
+```jac
+impl app.fetchTasks -> None {
+    tasksLoading = True;
+    tasks = await get_tasks();
+    tasksLoading = False;
+}
+```
+
+The `.cl.jac` file focuses on what the component *looks like* and what state it has. The `.impl.jac` file focuses on what the methods *do*. It's optional -- you could keep everything in one file -- but it keeps things readable as the app grows.
+
+**`cl { }` blocks** let you embed client-side code in a server file. This is useful for the entry point:
+
+```jac
+cl {
+    import from frontend { app as ClientApp }
+
+    def:pub app -> JsxElement {
+        return
+            <ClientApp />;
+    }
+}
+```
+
+Everything outside `cl { }` runs on the server. Everything inside runs in the browser.
+
+### Dependency-Triggered Abilities
+
+A **dependency-triggered ability** re-runs whenever specific state changes -- like React's `useEffect` with a dependency array:
+
+```jac
+    can with [isLoggedIn] entry {
+        if isLoggedIn {
+            fetchTasks();
+            fetchShoppingList();
+        }
+    }
+```
+
+When `isLoggedIn` changes from `False` to `True` (user logs in), this ability fires automatically and loads their data.
+
+### The Complete Authenticated App
+
+Create a new project for the authenticated version:
+
+```bash
+jac create day-planner-auth --use client --skip
+cd day-planner-auth
+```
+
+You'll create these files:
+
+```
+day-planner-auth/
+├── main.jac                # Server: nodes, AI, endpoints, entry point
+├── frontend.cl.jac         # Client: state, UI, method declarations
+├── frontend.impl.jac       # Client: method implementations
+└── styles.css              # Styles
+```
+
+### Run It
+
+All the complete files are in the collapsible sections below. Create each file, then run.
+
+??? note "Complete `main.jac`"
+
+    ```jac
+    """AI Day Planner -- authenticated, multi-file version."""
+
+    cl {
+        import from frontend { app as ClientApp }
+
+        def:pub app -> JsxElement {
+            return
+                <ClientApp />;
+        }
+    }
+
+    import from byllm.lib { Model }
+    import from uuid { uuid4 }
+
+    glob llm = Model(model_name="claude-sonnet-4-20250514");
+
+    # --- Enums ---
+
+    enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
+
+    enum Unit { PIECE, LB, OZ, CUP, TBSP, TSP, BUNCH }
+
+    # --- AI Types ---
+
+    obj Ingredient {
+        has name: str;
+        has quantity: float;
+        has unit: Unit;
+        has cost: float;
+        has carby: bool;
+    }
+
+    sem Ingredient.cost = "Estimated cost in USD";
+    sem Ingredient.carby = "True if this ingredient is high in carbohydrates";
+
+    """Categorize a task based on its title."""
+    def categorize(title: str) -> Category by llm();
+
+    """Generate a shopping list of ingredients needed for a described meal."""
+    def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
+
+    # --- Data Nodes ---
+
+    node Task {
+        has id: str,
+            title: str,
+            done: bool = False,
+            category: str = "other";
+    }
+
+    node ShoppingItem {
+        has name: str,
+            quantity: float,
+            unit: str,
+            cost: float,
+            carby: bool;
+    }
+
+    # --- Task Endpoints ---
+
+    """Add a task with AI categorization."""
+    def:pub add_task(title: str) -> dict {
+        category = str(categorize(title)).split(".")[-1].lower();
+        task = root ++> Task(id=str(uuid4()), title=title, category=category);
+        return {
+            "id": task[0].id, "title": task[0].title,
+            "done": task[0].done, "category": task[0].category
+        };
+    }
+
+    """Get all tasks."""
+    def:pub get_tasks -> list {
+        return [
+            {"id": t.id, "title": t.title, "done": t.done, "category": t.category}
+            for t in [root-->](?:Task)
+        ];
+    }
+
+    """Toggle a task's done status."""
+    def:pub toggle_task(id: str) -> dict {
+        for task in [root-->](?:Task) {
+            if task.id == id {
+                task.done = not task.done;
+                return {
+                    "id": task.id, "title": task.title,
+                    "done": task.done, "category": task.category
+                };
+            }
+        }
+        return {};
+    }
+
+    """Delete a task."""
+    def:pub delete_task(id: str) -> dict {
+        for task in [root-->](?:Task) {
+            if task.id == id {
+                del task;
+                return {"deleted": id};
+            }
+        }
+        return {};
+    }
+
+    # --- Shopping List Endpoints ---
+
+    """Generate a shopping list from a meal description."""
+    def:pub generate_list(meal: str) -> list {
+        for item in [root-->](?:ShoppingItem) {
+            del item;
+        }
+        ingredients = generate_shopping_list(meal);
+        result: list = [];
+        for ing in ingredients {
+            data = {
+                "name": ing.name,
+                "quantity": ing.quantity,
+                "unit": str(ing.unit).split(".")[-1].lower(),
+                "cost": ing.cost,
+                "carby": ing.carby
+            };
+            root ++> ShoppingItem(
+                name=data["name"], quantity=data["quantity"],
+                unit=data["unit"], cost=data["cost"], carby=data["carby"]
+            );
+            result.append(data);
+        }
+        return result;
+    }
+
+    """Get the current shopping list."""
+    def:pub get_shopping_list -> list {
+        return [
+            {"name": s.name, "quantity": s.quantity, "unit": s.unit,
+             "cost": s.cost, "carby": s.carby}
+            for s in [root-->](?:ShoppingItem)
+        ];
+    }
+
+    """Clear the shopping list."""
+    def:pub clear_shopping_list -> dict {
+        for item in [root-->](?:ShoppingItem) {
+            del item;
+        }
+        return {"cleared": True};
+    }
+    ```
+
+??? note "Complete `frontend.cl.jac`"
+
+    ```jac
+    """AI Day Planner -- Client-Side UI."""
+
+    import from "@jac/runtime" { jacSignup, jacLogin, jacLogout, jacIsLoggedIn }
+
+    import "./styles.css";
+
+    def:pub app -> JsxElement {
+        has isLoggedIn: bool = False,
+            checkingAuth: bool = True,
+            isSignup: bool = False,
+            username: str = "",
+            password: str = "",
+            error: str = "",
+            loading: bool = False,
+            tasks: list = [],
+            taskText: str = "",
+            tasksLoading: bool = True,
+            mealText: str = "",
+            ingredients: list = [],
+            generating: bool = False;
+
+        can with entry {
+            isLoggedIn = jacIsLoggedIn();
+            checkingAuth = False;
+        }
+
+        can with [isLoggedIn] entry {
+            if isLoggedIn {
+                fetchTasks();
+                fetchShoppingList();
+            }
+        }
+
+        # Method declarations -- bodies are in frontend.impl.jac
+        async def fetchTasks -> None;
+        async def addTask -> None;
+        async def toggleTask(id: str) -> None;
+        async def deleteTask(id: str) -> None;
+        async def handleLogin -> None;
+        async def handleSignup -> None;
+        def handleLogout -> None;
+        async def handleSubmit(e: any) -> None;
+        def handleTaskKeyPress(e: any) -> None;
+        async def fetchShoppingList -> None;
+        async def generateList -> None;
+        async def clearList -> None;
+        def handleMealKeyPress(e: any) -> None;
+        def getTotal -> float;
+
+        if checkingAuth {
+            return
+                <div class="auth-loading">Loading...</div>;
+        }
+
+        if isLoggedIn {
+            totalCost = getTotal();
+            remaining = len(tasks.filter(
+                lambda t: any -> bool { return not t.done; }
+            ));
+            return
+                <div class="container">
+                    <div class="header">
+                        <div>
+                            <h1>AI Day Planner</h1>
+                            <p class="subtitle">
+                                Task management with AI-powered meal planning
+                            </p>
+                        </div>
+                        <button class="btn-signout" onClick={handleLogout}>
+                            Sign Out
+                        </button>
+                    </div>
+                    <div class="two-column">
+                        <div class="column">
+                            <h2>Today's Tasks</h2>
+                            <div class="input-row">
+                                <input
+                                    class="input"
+                                    value={taskText}
+                                    onChange={lambda e: any -> None { taskText = e.target.value; }}
+                                    onKeyPress={handleTaskKeyPress}
+                                    placeholder="What needs to be done today?"
+                                />
+                                <button
+                                    class="btn-add"
+                                    onClick={lambda -> None { addTask(); }}
+                                >
+                                    Add
+                                </button>
+                            </div>
+                            {(
+                                <div class="loading-msg">Loading tasks...</div>
+                            ) if tasksLoading else (
+                                <div>
+                                    {(
+                                        <div class="empty-msg">
+                                            No tasks yet. Add one above!
+                                        </div>
+                                    ) if len(tasks) == 0 else (
+                                        <div>
+                                            {[
+                                                <div key={t.id} class="task-item">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={t.done}
+                                                        onChange={lambda -> None { toggleTask(t.id); }}
+                                                    />
+                                                    <span class={"task-title " + ("task-done" if t.done else "")}>
+                                                        {t.title}
+                                                    </span>
+                                                    {(
+                                                        <span class="category">{t.category}</span>
+                                                    ) if t.category and t.category != "other" else None}
+                                                    <button
+                                                        class="btn-delete"
+                                                        onClick={lambda -> None { deleteTask(t.id); }}
+                                                    >
+                                                        X
+                                                    </button>
+                                                </div> for t in tasks
+                                            ]}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            <div class="count">{remaining} tasks remaining</div>
+                        </div>
+                        <div class="column">
+                            <h2>Meal Shopping List</h2>
+                            <div class="input-row">
+                                <input
+                                    class="input"
+                                    value={mealText}
+                                    onChange={lambda e: any -> None { mealText = e.target.value; }}
+                                    onKeyPress={handleMealKeyPress}
+                                    placeholder="e.g. 'chicken stir fry for 4'"
+                                />
+                                <button
+                                    class="btn-generate"
+                                    onClick={lambda -> None { generateList(); }}
+                                    disabled={generating}
+                                >
+                                    {("Generating..." if generating else "Generate")}
+                                </button>
+                            </div>
+                            {(
+                                <div class="generating-msg">Generating with AI...</div>
+                            ) if generating else (
+                                <div>
+                                    {(
+                                        <div class="empty-msg">
+                                            Enter a meal above to generate ingredients.
+                                        </div>
+                                    ) if len(ingredients) == 0 else (
+                                        <div>
+                                            {[
+                                                <div key={ing.name} class="ingredient-item">
+                                                    <div class="ing-info">
+                                                        <span class="ing-name">{ing.name}</span>
+                                                        <span class="ing-qty">
+                                                            {ing.quantity} {ing.unit}
+                                                        </span>
+                                                    </div>
+                                                    <div class="ing-meta">
+                                                        {(
+                                                            <span class="carb-badge">Carbs</span>
+                                                        ) if ing.carby else None}
+                                                        <span class="ing-cost">
+                                                            ${ing.cost.toFixed(2)}
+                                                        </span>
+                                                    </div>
+                                                </div> for ing in ingredients
+                                            ]}
+                                            <div class="shopping-footer">
+                                                <span class="total">
+                                                    Total: ${totalCost.toFixed(2)}
+                                                </span>
+                                                <button
+                                                    class="btn-clear"
+                                                    onClick={lambda -> None { clearList(); }}
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>;
+        }
+
+        return
+            <div class="auth-container">
+                <div class="auth-card">
+                    <h1 class="auth-title">AI Day Planner</h1>
+                    <p class="auth-subtitle">
+                        {("Create your account" if isSignup else "Welcome back")}
+                    </p>
+                    {(
+                        <div class="auth-error">{error}</div>
+                    ) if error else None}
+                    <form onSubmit={handleSubmit}>
+                        <div class="form-field">
+                            <label class="form-label">Username</label>
+                            <input
+                                type="text"
+                                value={username}
+                                onChange={lambda e: any -> None { username = e.target.value; }}
+                                placeholder="Enter username"
+                                class="auth-input"
+                            />
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">Password</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={lambda e: any -> None { password = e.target.value; }}
+                                placeholder="Enter password"
+                                class="auth-input"
+                            />
+                        </div>
+                        <button type="submit" disabled={loading} class="auth-submit">
+                            {(
+                                "Processing..."
+                                if loading
+                                else ("Create Account" if isSignup else "Sign In")
+                            )}
+                        </button>
+                    </form>
+                    <div class="auth-toggle">
+                        <span class="auth-toggle-text">
+                            {(
+                                "Already have an account? "
+                                if isSignup
+                                else "Don't have an account? "
+                            )}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={lambda -> None { isSignup = not isSignup; error = ""; }}
+                            class="auth-toggle-btn"
+                        >
+                            {("Sign In" if isSignup else "Sign Up")}
+                        </button>
+                    </div>
+                </div>
+            </div>;
+    }
+    ```
+
+??? note "Complete `frontend.impl.jac`"
+
+    ```jac
+    """Implementations for the Day Planner frontend."""
+
+    impl app.fetchTasks -> None {
+        tasksLoading = True;
+        tasks = await get_tasks();
+        tasksLoading = False;
+    }
+
+    impl app.addTask -> None {
+        if not taskText.strip() { return; }
+        task = await add_task(taskText.strip());
+        tasks = tasks.concat([task]);
+        taskText = "";
+    }
+
+    impl app.toggleTask(id: str) -> None {
+        await toggle_task(id);
+        tasks = tasks.map(
+            lambda t: any -> any {
+                if t.id == id {
+                    return {
+                        "id": t.id, "title": t.title,
+                        "done": not t.done, "category": t.category
+                    };
+                }
+                return t;
+            }
+        );
+    }
+
+    impl app.deleteTask(id: str) -> None {
+        await delete_task(id);
+        tasks = tasks.filter(
+            lambda t: any -> bool { return t.id != id; }
+        );
+    }
+
+    impl app.handleLogin -> None {
+        error = "";
+        if not username.strip() or not password {
+            error = "Please fill in all fields";
+            return;
+        }
+        loading = True;
+        success = await jacLogin(username, password);
+        loading = False;
+        if success {
+            isLoggedIn = True;
+            username = "";
+            password = "";
+        } else {
+            error = "Invalid username or password";
+        }
+    }
+
+    impl app.handleSignup -> None {
+        error = "";
+        if not username.strip() or not password {
+            error = "Please fill in all fields";
+            return;
+        }
+        if len(password) < 4 {
+            error = "Password must be at least 4 characters";
+            return;
+        }
+        loading = True;
+        result = await jacSignup(username, password);
+        loading = False;
+        if result["success"] {
+            isLoggedIn = True;
+            username = "";
+            password = "";
+        } else {
+            error = result["error"] if result["error"] else "Signup failed";
+        }
+    }
+
+    impl app.handleLogout -> None {
+        jacLogout();
+        isLoggedIn = False;
+        tasks = [];
+        ingredients = [];
+    }
+
+    impl app.handleSubmit(e: any) -> None {
+        e.preventDefault();
+        if isSignup { await handleSignup(); }
+        else { await handleLogin(); }
+    }
+
+    impl app.handleTaskKeyPress(e: any) -> None {
+        if e.key == "Enter" { addTask(); }
+    }
+
+    impl app.fetchShoppingList -> None {
+        ingredients = await get_shopping_list();
+    }
+
+    impl app.generateList -> None {
+        if not mealText.strip() { return; }
+        generating = True;
+        ingredients = await generate_list(mealText.strip());
+        generating = False;
+    }
+
+    impl app.clearList -> None {
+        await clear_shopping_list();
+        ingredients = [];
+        mealText = "";
+    }
+
+    impl app.handleMealKeyPress(e: any) -> None {
+        if e.key == "Enter" { generateList(); }
+    }
+
+    impl app.getTotal -> float {
+        total = 0.0;
+        for ing in ingredients {
+            total = total + ing.cost;
+        }
+        return total;
+    }
+    ```
+
+??? note "Complete `styles.css`"
+
+    ```css
+    /* Base */
+    .container { max-width: 900px; margin: 40px auto; font-family: system-ui; padding: 20px; }
+    h1 { margin: 0; color: #333; }
+    h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .subtitle { margin: 4px 0 0 0; color: #888; font-size: 0.85rem; }
+
+    /* Layout */
+    .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 700px) { .two-column { grid-template-columns: 1fr; } }
+
+    /* Inputs */
+    .input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; }
+
+    /* Buttons */
+    .btn-add { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .btn-generate { padding: 10px 16px; background: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+    .btn-generate:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-delete { background: #e53e3e; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.85rem; }
+    .btn-clear { background: #888; color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 0.85rem; }
+    .btn-signout { padding: 8px 16px; background: #f5f5f5; color: #666; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; }
+
+    /* Task Items */
+    .task-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px solid #eee; gap: 10px; }
+    .task-title { flex: 1; }
+    .task-done { text-decoration: line-through; color: #888; }
+    .category { padding: 2px 8px; background: #e8f5e9; border-radius: 12px; font-size: 0.75rem; color: #2e7d32; margin-right: 8px; }
+    .count { text-align: center; color: #888; margin-top: 12px; font-size: 0.9rem; }
+
+    /* Shopping Items */
+    .ingredient-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+    .ing-info { display: flex; flex-direction: column; gap: 2px; }
+    .ing-name { font-weight: 500; }
+    .ing-qty { color: #666; font-size: 0.85rem; }
+    .ing-meta { display: flex; align-items: center; gap: 8px; }
+    .ing-cost { color: #2196F3; font-weight: 600; }
+    .carb-badge { padding: 2px 6px; background: #fff3e0; border-radius: 12px; font-size: 0.7rem; color: #e65100; }
+    .shopping-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; margin-top: 8px; border-top: 1px solid #ddd; }
+    .total { font-weight: 700; color: #2196F3; }
+    .generating-msg { text-align: center; padding: 20px; color: #666; }
+
+    /* Status Messages */
+    .loading-msg { text-align: center; padding: 20px; color: #888; }
+    .empty-msg { text-align: center; padding: 30px; color: #888; }
+    .auth-loading { display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #888; font-family: system-ui; }
+
+    /* Auth Form */
+    .auth-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: system-ui; background: #f5f5f5; }
+    .auth-card { background: white; border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 400px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .auth-title { margin: 0 0 4px 0; text-align: center; font-size: 1.75rem; color: #333; }
+    .auth-subtitle { margin: 0 0 24px 0; text-align: center; color: #888; font-size: 0.9rem; }
+    .auth-error { margin-bottom: 16px; padding: 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #dc2626; font-size: 0.9rem; }
+    .form-field { margin-bottom: 16px; }
+    .form-label { display: block; color: #555; font-size: 0.85rem; margin-bottom: 6px; }
+    .auth-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+    .auth-submit { width: 100%; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    .auth-submit:disabled { opacity: 0.6; }
+    .auth-toggle { margin-top: 16px; text-align: center; }
+    .auth-toggle-text { color: #888; font-size: 0.9rem; }
+    .auth-toggle-btn { background: none; border: none; color: #4CAF50; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+    ```
+
+```bash
+export ANTHROPIC_API_KEY="your-key"
+jac start main.jac
+```
+
+Open [http://localhost:8000](http://localhost:8000). You should see a login screen.
+
+1. **Sign up** with any username and password
+2. **Add tasks** -- they auto-categorize just like Part 5
+3. **Try the meal planner** -- type "spaghetti bolognese for 4" and click Generate
+4. **Refresh the page** -- your data persists (it's in the graph)
+5. **Restart the server** -- all data is still there
+
+Your day planner is now a **complete, fully functional application** -- authentication, AI-powered categorization, meal planning, graph persistence, and a clean multi-file architecture. All built with `def:pub` endpoints, nodes, and edges.
+
+### What You Learned
+
+- **`jacSignup`**, **`jacLogin`**, **`jacLogout`**, **`jacIsLoggedIn`** -- built-in auth functions
+- **`import from "@jac/runtime"`** -- import Jac's built-in client-side utilities
+- **`can with [deps] entry`** -- dependency-triggered abilities (re-runs when state changes)
+- **`cl { }`** -- embed client-side code in a server file
+- **Declaration/implementation split** -- `.cl.jac` for UI, `.impl.jac` for logic
+- **`impl app.method { ... }`** -- implement declared methods in a separate file
+
+---
+
+## Part 7: Object-Spatial Programming with Walkers
+
+Your day planner is complete -- tasks persist in the graph, AI categorizes them, and you can generate shopping lists. Everything works using `def:pub` functions that directly manipulate graph nodes.
+
+Now let's learn Jac's most distinctive feature: **Object-Spatial Programming (OSP)**. OSP introduces **walkers** -- mobile units of computation that *travel through* the graph -- and **abilities** -- logic that triggers automatically when a walker arrives at a node. It's a different way of thinking about code: instead of functions that reach into data, you have agents that move to data.
+
+This section reimplements the day planner's backend using walkers to show how OSP works. The app behavior stays the same -- this is about learning an alternative (and powerful) programming paradigm.
 
 ### What is a Walker?
 
-A walker is a mobile unit of computation. Instead of calling a function that operates on data, you **spawn** a walker that **visits** nodes and triggers abilities as it enters each one:
+A walker is code that moves through the graph, triggering abilities as it enters each node:
 
 ```
 Walker: ListTasks
@@ -1595,6 +2322,8 @@ Walker: ListTasks
   |-------> [Task: "Go running"]        <- walker enters, ability fires
 ```
 
+Think of it like a robot walking through a building. At each room (node), it can look around (`here`), check its own clipboard (`self`), move to connected rooms (`visit`), and write down findings (`report`).
+
 The core keywords:
 
 - **`visit [-->]`** -- move the walker to all connected nodes
@@ -1603,9 +2332,19 @@ The core keywords:
 - **`report`** -- send data back to whoever spawned the walker
 - **`disengage`** -- stop traversal immediately
 
-### Your First Walker
+### Functions vs Walkers: Side by Side
 
-Here's `AddTask` as a walker -- compare it to the `def:pub add_task` from Part 5:
+Here's `add_task` as a `def:pub` function (what you already have):
+
+```jac
+def:pub add_task(title: str) -> dict {
+    category = str(categorize(title)).split(".")[-1].lower();
+    task = root ++> Task(id=str(uuid4()), title=title, category=category);
+    return {"id": task[0].id, "title": task[0].title, "done": task[0].done, "category": task[0].category};
+}
+```
+
+And here's the same logic as a walker:
 
 ```jac
 walker AddTask {
@@ -1628,14 +2367,14 @@ walker AddTask {
 }
 ```
 
-Line by line:
+The differences:
 
 - **`walker AddTask`** -- declares a walker (like a node, but mobile)
-- **`has title: str`** -- data the walker carries with it (a parameter you pass when spawning)
+- **`has title: str`** -- data the walker carries with it (passed when spawning)
 - **`can create with Root entry`** -- an **ability** that fires when the walker enters a `Root` node
-- **`here`** -- refers to the current node (root, in this case). This is what `root` was in `def:pub` functions
-- **`self.title`** -- accesses the walker's own properties
-- **`report { ... }`** -- sends data back to whoever spawned this walker
+- **`here`** -- the current node (what `root` was in the function version)
+- **`self.title`** -- the walker's own properties (what `title` parameter was)
+- **`report { ... }`** -- sends data back (what `return` was)
 
 Spawn it:
 
@@ -1648,7 +2387,7 @@ print(result.reports[0]);  # The reported dict
 
 ### The Accumulator Pattern
 
-`ListTasks` shows a common walker pattern -- collecting data across multiple nodes:
+The power of walkers becomes clearer with `ListTasks` -- collecting data across multiple nodes:
 
 ```jac
 walker ListTasks {
@@ -1681,6 +2420,17 @@ Three abilities work together:
 
 The walker's `has results: list = []` state **persists across the entire traversal** -- that's how it collects results from multiple nodes.
 
+Compare this to the function version:
+
+```jac
+def:pub get_tasks -> list {
+    return [{"id": t.id, "title": t.title, "done": t.done, "category": t.category}
+            for t in [root-->](?:Task)];
+}
+```
+
+The function is shorter for this simple case. But walkers shine when the graph is deeper -- imagine tasks containing subtasks containing notes. A walker naturally recurses through the whole structure with `visit [-->]` at each level.
+
 !!! warning "Common issue"
     If walker reports come back empty, make sure you have `visit [-->]` to send the walker to connected nodes, and that the node type in `with X entry` matches your graph structure.
 
@@ -1708,7 +2458,7 @@ node Task {
 
 When a `ListTasks` walker visits a `Task` node, the node's `respond` ability fires automatically. Inside a node ability, **`visitor`** refers to the visiting walker (so you can access `visitor.results`).
 
-Both patterns work -- walker-side abilities and node-side abilities. Choose whichever reads more clearly for your use case. Walker-side abilities are great when the logic is about the traversal. Node-side abilities are great when the logic is about the node.
+Both patterns work -- walker-side abilities and node-side abilities. Choose whichever reads more clearly for your use case. Walker-side abilities are great when the logic is about the traversal. Node-side abilities are great when the logic is about the node's data.
 
 ### visit and disengage
 
@@ -1759,9 +2509,9 @@ walker DeleteTask {
 }
 ```
 
-### Shopping List Walkers
+### Multi-Step Traversals
 
-The `GenerateShoppingList` walker is interesting because it does two things in one traversal:
+The `GenerateShoppingList` walker shows the real power of OSP -- doing two things in one traversal:
 
 ```jac
 walker GenerateShoppingList {
@@ -1798,6 +2548,8 @@ walker GenerateShoppingList {
 
 When `visit [-->]` runs, the walker visits all connected nodes. If any are `ShoppingItem` nodes, the `clear_old` ability fires and deletes them. Then control returns to root, where the walker generates fresh ingredients via the LLM and persists them as new nodes.
 
+Compare this to the function version where you needed an explicit loop to clear old items. The walker version expresses the same intent more declaratively: "when I encounter a ShoppingItem, delete it."
+
 The remaining shopping walkers follow familiar patterns:
 
 ```jac
@@ -1826,71 +2578,9 @@ walker ClearShoppingList {
 }
 ```
 
-### walker:priv -- Per-User Isolation
+### Spawning Walkers from the Frontend
 
-Add `:priv` and the walker requires authentication. Each user gets their **own private root node**:
-
-```jac
-walker:priv AddTask {
-    has title: str;
-
-    can create with Root entry {
-        # "here" is now this USER's private root, not the global root
-        new_task = here ++> Task(
-            id=str(uuid4()),
-            title=self.title,
-            category=str(categorize(self.title)).split(".")[-1].lower()
-        );
-        report {
-            "id": new_task[0].id, "title": new_task[0].title,
-            "done": new_task[0].done, "category": new_task[0].category
-        };
-    }
-}
-```
-
-User A's tasks are completely invisible to User B -- same code, isolated data, enforced by the runtime. Mark all seven walkers as `:priv` for the production version.
-
-### Authentication
-
-Jac has built-in auth functions. Import them in client-side code:
-
-```jac
-import from "@jac/runtime" { jacSignup, jacLogin, jacLogout, jacIsLoggedIn }
-```
-
-- **`jacSignup(username, password)`** -- create an account (returns `{"success": True/False}`)
-- **`jacLogin(username, password)`** -- log in (returns `True` or `False`)
-- **`jacLogout()`** -- log out
-- **`jacIsLoggedIn()`** -- check login status
-
-No JWT handling, no session management, no token storage -- it's all built in.
-
-### Multi-File Organization
-
-As the app grows, Jac supports splitting code across files. The **declaration/implementation pattern** keeps UI and logic separate:
-
-**`frontend.cl.jac`** -- state, method signatures, and the render tree:
-
-```jac
-def:pub app -> JsxElement {
-    has tasks: list = [];
-
-    async def fetchTasks -> None;  # Just the signature -- no body
-    # ... more declarations ...
-
-    # ... UI rendering ...
-}
-```
-
-**`frontend.impl.jac`** -- method bodies in `impl` blocks:
-
-```jac
-impl app.fetchTasks -> None {
-    result = root spawn ListTasks();
-    tasks = result.reports[0] if result.reports else [];
-}
-```
+In the `def:pub` version, the frontend called server functions directly with `await add_task(title)`. With walkers, the frontend **spawns** them instead.
 
 **`sv import`** brings server walkers into client code:
 
@@ -1903,22 +2593,31 @@ sv import from main {
 
 The `sv` prefix means "server import" -- it lets client code reference server-side walkers so it can spawn them.
 
-**Dependency-triggered abilities** re-run when specific state changes:
+Then in the frontend methods:
 
 ```jac
-    can with [isLoggedIn] entry {
-        if isLoggedIn {
-            fetchTasks();
-            fetchShoppingList();
-        }
-    }
+# Function style (Parts 3-6):
+task = await add_task(task_text.strip());
+
+# Walker style (Part 7):
+result = root spawn AddTask(title=task_text.strip());
+new_task = result.reports[0];
 ```
 
-This is like React's `useEffect` with a dependency array -- it re-runs whenever `isLoggedIn` changes.
+The key pattern: **`root spawn Walker(params)`** creates a walker and starts it at root. The walker traverses the graph, and whatever it `report`s ends up in `result.reports`.
 
-### The Complete Rewrite
+### walker:priv -- Per-User Data Isolation
 
-Create a new project for the walker-based version:
+Walkers can be marked with access modifiers:
+
+- **`walker AddTask`** -- public, anyone can spawn it
+- **`walker:priv AddTask`** -- private, requires authentication
+
+When you use `walker:priv`, the walker runs on the authenticated user's **own private root node**. User A's tasks are completely invisible to User B -- same code, isolated data, enforced by the runtime. The complete walker version below uses `:priv` on all walkers, combined with the authentication you learned in Part 6.
+
+### The Complete Walker Version
+
+To try the walker-based version, create a new project:
 
 ```bash
 jac create day-planner-v2 --use client --skip
@@ -1942,7 +2641,7 @@ All the complete files are in the collapsible sections below. Create each file, 
 ??? note "Complete `main.jac`"
 
     ```jac
-    """AI Day Planner -- walker-based, multi-user version."""
+    """AI Day Planner -- walker-based version with OSP."""
 
     cl {
         import from frontend { app as ClientApp }
@@ -2600,18 +3299,18 @@ export ANTHROPIC_API_KEY="your-key"
 jac start main.jac
 ```
 
-Open [http://localhost:8000](http://localhost:8000). You should see a login screen -- that's authentication working.
+Open [http://localhost:8000](http://localhost:8000). You should see a login screen -- that's authentication working with `walker:priv`.
 
 1. **Sign up** with any username and password
 2. **Add tasks** -- they auto-categorize just like Part 5
 3. **Try the meal planner** -- type "spaghetti bolognese for 4" and click Generate
 4. **Refresh the page** -- your data persists (it's in the graph)
-5. **Log out and sign up as a different user** -- you'll see a completely empty app. No shared data.
+5. **Log out and sign up as a different user** -- you'll see a completely empty app. Each user gets their own graph.
 6. **Restart the server** -- all data persists for both users
 
 ### What You Learned
 
-This part introduced Jac's most distinctive features:
+This part introduced Jac's Object-Spatial Programming paradigm:
 
 - **`walker`** -- mobile code that traverses the graph
 - **`can X with NodeType entry`** -- ability that fires when a walker enters a specific node type
@@ -2624,33 +3323,31 @@ This part introduced Jac's most distinctive features:
 - **`disengage`** -- stop traversal immediately
 - **`root spawn Walker()`** -- create and start a walker at a node
 - **`result.reports[0]`** -- access the walker's reported data
-- **`walker:priv`** -- per-user walker requiring authentication
-- **`jacLogin`**, **`jacSignup`**, **`jacLogout`** -- built-in auth functions
-- **`can with [deps] entry`** -- re-runs when dependencies change
+- **`walker:priv`** -- per-user walker with data isolation
 - **`sv import`** -- import server walkers into client code
-- **`impl app.method { ... }`** -- implement declared methods in a separate file
-- **Declaration/implementation split** -- `.cl.jac` for UI, `.impl.jac` for logic
 
-**When to use each pattern:**
+**When to use each approach:**
 
-| Pattern | Best For |
-|---------|----------|
-| `def:pub` functions | Simple endpoints, shared data, quick prototyping |
-| `walker:priv` | Per-user data, graph traversal, production apps |
-| Node abilities | When the logic belongs to the data, not the traversal |
-| Walker abilities | When the logic belongs to the traversal |
+| Approach | Best For |
+|----------|----------|
+| `def:pub` functions | Direct data operations, simple CRUD, quick prototyping |
+| Walkers | Graph traversal, multi-step operations, deep/recursive graphs |
+| `walker:priv` | Per-user data isolation via private root nodes |
+| Node abilities | When the logic naturally belongs to the data type |
+| Walker abilities | When the logic naturally belongs to the traversal |
 
 ---
 
 ## Summary
 
-Over six parts, you built the same app three ways -- each time adding capabilities:
+Over seven parts, you built a complete app and then reimplemented it using OSP:
 
-| Parts | Approach | What It Teaches |
-|-------|----------|-----------------|
-| 1–4 | `def:pub` + nodes | Core syntax, graph data, reactive frontend |
-| 5 | + `by llm()` | AI delegation, structured output, semantic types |
-| 6 | Walkers + auth | Graph traversal, per-user isolation, multi-file |
+| Parts | What You Built | What It Teaches |
+|-------|----------------|-----------------|
+| 1–4 | Working day planner | Core syntax, graph data, reactive frontend |
+| 5 | + AI features | AI delegation, structured output, semantic types |
+| 6 | + Auth & multi-file | Authentication, declaration/implementation split |
+| 7 | OSP reimplementation | Walkers, abilities, graph traversal |
 
 Here's a quick reference of every Jac concept covered in this tutorial:
 

@@ -6,7 +6,7 @@ In-depth tutorials organized by topic. Each tutorial takes 30-60 minutes to comp
 
 ## Start Here
 
-New to Jac? Begin with **[Build an AI Day Planner](first-app/build-ai-day-planner.md)** -- a 6-part guide that takes you from zero to a multi-user AI-powered app, teaching the full language along the way:
+New to Jac? Begin with **[Build an AI Day Planner](first-app/build-ai-day-planner.md)** -- a 7-part guide that takes you from zero to a full-stack AI-powered app, teaching the full language along the way:
 
 | Part | What You'll Build | Concepts |
 |------|-------------------|----------|
@@ -15,12 +15,13 @@ New to Jac? Begin with **[Build an AI Day Planner](first-app/build-ai-day-planne
 | 3: Backend API | HTTP endpoints | `def:pub`, imports, enums, collections |
 | 4: Reactive Frontend | Working UI | Client-side code, JSX, reactive state |
 | 5: AI Features | Smart categorization + shopping list | `by llm()`, `obj`, `sem`, structured output |
-| 6: Walkers & Auth | Multi-user production app | Walkers, abilities, authentication, multi-file |
+| 6: Authentication | Login, signup, multi-file | Auth, `impl`, declaration/implementation split |
+| 7: Walkers & OSP | Reimplementation using OSP | Walkers, abilities, graph traversal |
 
 [Start the tutorial →](first-app/build-ai-day-planner.md){ .md-button .md-button--primary }
 
 !!! note "First App vs Full-Stack Tutorials"
-    **Build an AI Day Planner** is a self-contained introduction to the full Jac language -- build one app across six parts, learning every major concept as you go. **Full-Stack Apps** (below) is a deep-dive into each concept individually. New to Jac? Start with the Day Planner. Want to understand a specific topic (routing, state, auth)? Use the Full-Stack tutorials as targeted reference.
+    **Build an AI Day Planner** is a self-contained introduction to the full Jac language -- build one app across seven parts, learning every major concept as you go. **Full-Stack Apps** (below) is a deep-dive into each concept individually. New to Jac? Start with the Day Planner. Want to understand a specific topic (routing, state, auth)? Use the Full-Stack tutorials as targeted reference.
 
 ---
 
