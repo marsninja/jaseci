@@ -50,6 +50,14 @@ obj GStar(GExpr) {
     def __repr__ -> str;
 }
 
+"""One-or-more: (A)+."""
+obj GPlus(GExpr) {
+    has inner: GExpr;
+
+    def __eq__(other: object) -> bool;
+    def __repr__ -> str;
+}
+
 """Terminal token reference."""
 obj GTok(GExpr) {
     has name: str;

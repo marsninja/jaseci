@@ -30,11 +30,9 @@ logical_not ::= "not" logical_not | compare
 
 compare ::=
     bitwise_or (
-        ("==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "is" | "not in" | "is not") (
-            ("==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "is" | "not in" | "is not")
-            bitwise_or
-        )*
-    )?
+        ("==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "is" | "not in" | "is not")
+        bitwise_or
+    )*
 
 arithmetic ::= term (("+" | "-") term)*
 
@@ -46,17 +44,15 @@ factor ::= ("~" | "-" | "+") factor | connect
 
 connect ::= atomic_pipe (connect_op atomic_pipe)*
 
-edge_op_ref_inline ::= ("-->" | "<--" | "<-->" | "->:" atom ":->"? | "<-:" atom ":<-"?)?
+edge_op_ref_inline ::= "-->" | "<--" | "<-->" | "->:" atom ":->"? | "<-:" atom ":<-"?
 
 connect_op ::=
-    (
-        "del" edge_op_ref_inline
-        | "++>"
-        | "+>:" expression (":" (expression ("=" expression)?)*)? ":+>"
-        | "<++"
-        | "<+:" expression (":" (expression ("=" expression)?)*)? (":<+" | ":+>")?
-        | "<++>"
-    )?
+    "del" edge_op_ref_inline
+    | "++>"
+    | "+>:" expression (":" (expression ("=" expression)?)*)? ":+>"
+    | "<++"
+    | "<+:" expression (":" (expression ("=" expression)?)*)? (":<+" | ":+>")?
+    | "<++>"
 
 atomic_pipe ::= atomic_pipe_back (":>" atomic_pipe_back)*
 
@@ -90,7 +86,7 @@ atomic_chain ::=
               ("," expression? ":" expression? (":" expression?)?)* "]"
               | ("," expression)* "]"
           )
-    )
+    )*
 
 call_args ::= call_arg ("," call_arg)*
 
@@ -104,90 +100,84 @@ filter_compr_inner ::= "?" (":" expression)? ","? (compare ("," compare)*)? ")"
 
 assign_compr_inner ::= "=" (NAME "=" expression ("," NAME "=" expression)*)? ")"
 
-atom_literal ::= (INT | HEX | BIN | OCT | FLOAT | BOOL | NULL | ELLIPSIS)?
+atom_literal ::= INT | HEX | BIN | OCT | FLOAT | BOOL | NULL | ELLIPSIS
 
 multistring ::= (NAME | STRING | fstring) (NAME | STRING | fstring)*
 
 builtin_type ::=
-    (
-        "str"
-        | "int"
-        | "float"
-        | "list"
-        | "tuple"
-        | "set"
-        | "dict"
-        | "bool"
-        | "bytes"
-        | "any"
-        | "type"
-    )?
+    "str"
+    | "int"
+    | "float"
+    | "list"
+    | "tuple"
+    | "set"
+    | "dict"
+    | "bool"
+    | "bytes"
+    | "any"
+    | "type"
 
 special_ref ::=
-    (
-        "self"
-        | "super"
-        | "here"
-        | "root"
-        | "visitor"
-        | "props"
-        | "init"
-        | "postinit"
-        | "node"
-        | "edge"
-        | "walker"
-        | "obj"
-        | "class"
-        | "enum"
-    )?
+    "self"
+    | "super"
+    | "here"
+    | "root"
+    | "visitor"
+    | "props"
+    | "init"
+    | "postinit"
+    | "node"
+    | "edge"
+    | "walker"
+    | "obj"
+    | "class"
+    | "enum"
 
 atom ::=
-    (
-        atom_literal
-        | multistring
-        | builtin_type
-        | special_ref
-        | (NAME | KWESC_NAME) NAME?
-        | "*" expression
-        | "**" expression
-        | "(" (
-              ")"
-              | "yield" yield_stmt ")"
-              | ("def" | "can" | "async") ability ")"
-              | expression
-                ("for" comprehension_clauses ")" | "," (expression ","?)* ")" | ")")
-          )
-        | "[" (
-              "-->"
-              | "<--"
-              | "<-->"
-              | "->:"
-              | "<-:"
-              | "->"
-              | "async"
-              | ("node" | "edge") (
-                    "-->"
-                    | "<--"
-                    | "<-->"
-                    | "->:"
-                    | "<-:"
-                    | "->"
-                    | NAME
-                    | "root"
-                    | "self"
-                    | "here"
-                    | "super"
-                    | "visitor"
-                )?
-              | (NAME | "root" | "self" | "here" | "super" | "visitor")
-                ("-->" | "<--" | "<-->" | "->:" | "<-:" | "->" | "[" ("[" | "]")?)?
-          )? (edge_ref_chain | list_or_compr)
-        | "{" dict_or_set
-        | jsx_element
-    )?
+    atom_literal
+    | multistring
+    | builtin_type
+    | special_ref
+    | (NAME | KWESC_NAME) NAME?
+    | "*" expression
+    | "**" expression
+    | "(" (
+          ")"
+          | "yield" yield_stmt ")"
+          | ("def" | "can" | "async") ability ")"
+          | expression
+            ("for" comprehension_clauses ")" | "," (expression ","?)* ")" | ")")
+      )
+    | "[" (
+          "-->"
+          | "<--"
+          | "<-->"
+          | "->:"
+          | "<-:"
+          | "->"
+          | "async"
+          | ("node" | "edge") (
+                "-->"
+                | "<--"
+                | "<-->"
+                | "->:"
+                | "<-:"
+                | "->"
+                | NAME
+                | "root"
+                | "self"
+                | "here"
+                | "super"
+                | "visitor"
+            )?
+          | (NAME | "root" | "self" | "here" | "super" | "visitor")
+            ("-->" | "<--" | "<-->" | "->:" | "<-:" | "->" | "[" ("[" | "]")?)?
+      )? (edge_ref_chain | list_or_compr)
+    | "{" dict_or_set
+    | jsx_element
 
 fstring ::=
-    ("f"" | "f'" | "f"""" | "f'''" | "rf"" | "rf'" | "rf"""")
+    ('f"' | "f'" | 'f"""' | "f'''" | 'rf"' | "rf'" | 'rf"""')
     ("{{" | "}}" | "{" expression CONV? (":" ("{" expression CONV? "}")?*)? "}")*
 
 list_or_compr ::=
@@ -258,40 +248,37 @@ jsx_element ::=
 jsx_opening_element ::= JSX_OPEN_START JSX_NAME jsx_attributes ("/>" | JSX_TAG_END)
 
 jsx_attributes ::=
-    JSX_NAME ("=" (STRING | "{" expression "}")?)? | "{" ELLIPSIS? expression "}"
+    (JSX_NAME ("=" (STRING | "{" expression "}")?)? | "{" ELLIPSIS? expression "}")*
 
 jsx_children ::= jsx_child*
 
-jsx_child ::= (JSX_TEXT jsx_child? | "{" expression "}" | jsx_element)?
+jsx_child ::= JSX_TEXT jsx_child? | "{" expression "}" | jsx_element
 
 element_stmt ::=
-    (
-        ";"
-        | "cl" (client_block | element_stmt)?
-        | "sv" (server_block | element_stmt)?
-        | "na" (native_block | element_stmt)?
-        | "type" ("pub" | "priv" | "protect")? (KWESC_NAME (("=" | "[") type_alias)?)?
-        | import_stmt
-        | archetype
-        | enum
-        | STRING test
-        | test
-        | STRING ("@" atomic_chain)* "async"*
-          (archetype | enum | impl_def | ability)
-        | STRING enum
-        | ability
-        | STRING type_alias
-        | STRING global_var
-        | global_var
-        | STRING impl_def
-        | impl_def
-        | sem_def
-        | PYNLINE
-        | STRING module_code
-        | module_code
-        | "@" ("@" atomic_chain)* "async"* (ability | enum | impl_def | archetype)
-        | "async" "async"* (ability | archetype)
-    )?
+    ";"
+    | "cl" (client_block | element_stmt)?
+    | "sv" (server_block | element_stmt)?
+    | "na" (native_block | element_stmt)?
+    | "type" ("pub" | "priv" | "protect")? (KWESC_NAME (("=" | "[") type_alias)?)?
+    | import_stmt
+    | archetype
+    | enum
+    | STRING test
+    | test
+    | STRING ("@" atomic_chain)* "async"* (archetype | enum | impl_def | ability)
+    | STRING enum
+    | ability
+    | STRING type_alias
+    | STRING global_var
+    | global_var
+    | STRING impl_def
+    | impl_def
+    | sem_def
+    | PYNLINE
+    | STRING module_code
+    | module_code
+    | "@" ("@" atomic_chain)* "async"* (ability | enum | impl_def | archetype)
+    | "async" "async"* (ability | archetype)
 
 client_block ::= "cl" ("{" element_stmt* "}" | element_stmt)
 
@@ -303,7 +290,7 @@ module_code ::= "with" ("exit" | "entry")? (":" NAME)? "{" code_block_stmts "}"
 
 code_block_stmts ::= (statement ";"?)*
 
-ctrl_stmt ::= (("break" | "continue" | "skip") ";" | "disengage" ";")?
+ctrl_stmt ::= ("break" | "continue" | "skip") ";" | "disengage" ";"
 
 statement ::=
     ";"
@@ -425,21 +412,23 @@ nonlocal_stmt ::= "nonlocal" NAME ("," NAME)* ";"
 
 assignment_with_target ::=
     (":" pipe)? (
-        "=" "="*
+        "=" (yield_stmt | expression) ("=" (yield_stmt | expression))*
         | (
-              "+="
-              | "-="
-              | "*="
-              | "/="
-              | "//="
-              | "%="
-              | "**="
-              | "@="
-              | "&="
-              | "|="
-              | "^="
-              | "<<="
-              | ">>="
+              (
+                  "+="
+                  | "-="
+                  | "*="
+                  | "/="
+                  | "//="
+                  | "%="
+                  | "**="
+                  | "@="
+                  | "&="
+                  | "|="
+                  | "^="
+                  | "<<="
+                  | ">>="
+              ) (yield_stmt | expression)
           )?
     ) ";"?
 
@@ -479,7 +468,7 @@ ability ::=
     ("@" atomic_chain)* "override"? "static"? ("async" "override"? "static"?)?
     access_tag
     ("init" | "postinit" | "root" | "super" | "self" | "props" | "here" | "visitor")?
-    ("with" | func_signature)
+    ("with" expression | func_signature)
     ("{" code_block_stmts "}" | "by" expression ";" | "abs"? ";")
 
 func_signature ::= ("(" func_params? ")")? ("->" pipe)?
@@ -513,7 +502,7 @@ global_var_assignment ::= NAME (":" pipe)? ("=" expression ("=" expression)*)?
 impl_def ::=
     ("@" atomic_chain)* "impl" impl_target_name ("." impl_target_name)* (
         "(" ("self" | ")")? func_signature (atomic_chain ("," atomic_chain)*)? ")"
-        | "with"
+        | "with" expression
         | func_signature
     )? (
         "{" ","? (
