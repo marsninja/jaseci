@@ -5,11 +5,12 @@ This document provides a summary of new features, improvements, and bug fixes in
 ## jaclang 0.10.4 (Unreleased)
 
 - **Fix: `_jac` ES Runtime Correctness**: Fixed `str.split` with `maxsplit` to keep the remainder (matching Python behavior), `dict.eq` to compare key-by-key instead of order-dependent `JSON.stringify`, and builtin dispatch (e.g., `sorted(key=lambda...)`) to correctly pass keyword arguments to the runtime.
+- **Fix: Remove Dead `abs` Prefix Modifier**: Removed the unused `abs` prefix on archetypes (`abs obj Foo { }`) from the grammar and parser. The prefix was parsed but silently discarded; archetype abstractness is computed from contained abstract abilities. The `abs` keyword remains valid only as an ability body terminator (`can foo() abs;`).
 - **ES Codegen: Expanded Primitive Coverage**: Added `bool()` with Python truthiness semantics (empty list/dict/set are falsy), `range()` builtin (supports `for i in range(n)`), `slice()` constructor, `bytearray()` constructor, dedicated `BoolEmitter` for correct `&`/`|`/`^` bool-returning bitwise ops, enhanced `format()` with format-spec support (`f`, `d`, `b`, `o`, `x`, `e`, `%`, width, alignment), and fixed `int()` to handle booleans and floats correctly via `Math.trunc(Number(x))`.
 - **Fix: Lexer Infinite Loop on Malformed JSX**: Fixed three infinite-loop scenarios where the lexer would hang forever when hitting EOF inside a non-NORMAL mode (JSX content, JSX tag, or f-string). Added a stuck detector in `tokenize()` that forces EOF when the lexer stops advancing or overshoots the source, preventing `jac run`, `jac start`, and `jac js` from hanging on malformed input (e.g., unterminated JSX like `<div>hello` with no closing tag).
 - **Fix: Bare `<` in JSX Content No Longer Hangs Lexer**: A `<` character in JSX content that does not start a valid tag (e.g., `<--`) is now consumed as text instead of causing an infinite loop. The text scanner only breaks on `<` when the next character forms a real JSX construct (`</`, `<>`, or `<` + identifier).
 - **ES Codegen: Near-Complete Primitive Test Coverage (92%)**: Added cross-backend equivalence tests for 110 additional primitive emitter interfaces (275/299 total), covering float operators, complex arithmetic, bytes methods (with full `_jac.bytes` runtime namespace), set/frozenset algebra and operators, and extra builtins. Fixed column-aware `expandtabs` for str and bytes, `complex.pow`/`complex.eq` mixed-type handling, and `ascii()` quoting to match Python semantics.
-- 2 Minor refactors/chages
+- 3 Minor refactors/chages
 
 ## jaclang 0.10.3 (Latest Release)
 
