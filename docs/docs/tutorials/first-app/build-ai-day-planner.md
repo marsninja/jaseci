@@ -268,6 +268,10 @@ graph LR
     style root fill:#f9f,stroke:#333,stroke-width:2px
 ```
 
+Any node connected to `root` (directly or through a chain of edges) is **persistent** -- it survives across requests, program runs, and server restarts. You don't configure a database or write SQL; connecting a node to `root` is the declaration that it should be saved. Nodes that are *not* reachable from `root` behave like regular objects -- they live in memory for the duration of the current execution and are then garbage collected, though you can still connect them to other nodes for utility while they exist.
+
+When your app serves multiple users, each user gets their **own isolated `root`**. User A's tasks and User B's tasks live in completely separate graphs -- same code, isolated data, enforced by the runtime. Connections *between* user graphs are possible when explicitly created, but by default each user's `root` is a private, independent entry point. We'll see this in action in [Part 6](#part-6-authentication-and-multi-file-organization) when we add authentication.
+
 You add data by creating nodes and connecting them with edges.
 
 **Creating and Connecting Nodes**
