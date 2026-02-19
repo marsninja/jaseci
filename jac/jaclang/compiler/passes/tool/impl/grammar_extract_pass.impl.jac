@@ -252,6 +252,10 @@ impl GrammarExtractPass.simplify_expr(expr: GExpr) -> GExpr {
     }
     if isinstance(expr, GStar) {
         simplified_inner = simp(self, expr.inner);
+        # GStar(GOpt(x)) → GStar(x) since * already allows zero matches
+        if isinstance(simplified_inner, GOpt) {
+            simplified_inner = simplified_inner.inner;
+        }
         # Simplify (A (B A)*)* → (A B)* — common pattern in binary operator loops
         if isinstance(simplified_inner, GSeq) and len(simplified_inner.items) == 2 {
             first = simplified_inner.items[0];
@@ -311,6 +315,48 @@ impl GrammarExtractPass.after_pass -> None {
         }
     }
     self.rules = unwrapped;
+    # Deduplicate parent-child keyword tokens.
+    # When a parent rule has `GTok(X) GRef(Y)` (e.g. from
+    # `while check(KW_EXCEPT) { parse_except_handler() }`) and the
+    # child rule Y's body starts with the same GTok(X) (from
+    # `consume_uni(KW_EXCEPT)`), the keyword appears twice in the
+    # combined grammar. Remove the duplicate from the parent.
+    rule_map: dict = {};
+    for rule in self.rules {
+        rule_map[rule.name] = rule;
+    }
+    deduped: list = [];
+    for rule in self.rules {
+        deduped.append(
+            GrammarRule(
+                name=rule.name,
+                body=self._dedup_parent_child_tokens(rule.body, rule_map)
+            )
+        );
+    }
+    self.rules = deduped;
+    # Remove error-recovery alternatives from the 'statement' rule.
+    # The parser accepts stray elif/else/except/finally/case tokens
+    # with an error message for recovery, but these are not valid syntax.
+    error_recovery_tokens: set = set(
+        ["KW_ELIF", "KW_ELSE", "KW_EXCEPT", "KW_FINALLY", "KW_CASE"]
+    );
+    cleaned: list = [];
+    for rule in self.rules {
+        if rule.name == "statement" and isinstance(rule.body, GAlt) {
+            filtered: list = [];
+            for choice in rule.body.choices {
+                if isinstance(choice, GTok) and choice.name in error_recovery_tokens {
+                    continue;
+                }
+                filtered.append(choice);
+            }
+            cleaned.append(GrammarRule(name=rule.name, body=GAlt(choices=filtered)));
+        } else {
+            cleaned.append(rule);
+        }
+    }
+    self.rules = cleaned;
 }
 
 # -------------------------------------------------------------------------
@@ -576,6 +622,117 @@ impl GrammarExtractPass.expr_contains_tok(expr: GExpr, tok_name: str) -> bool {
         return self.expr_contains_tok(expr.inner, tok_name);
     }
     return False;
+}
+
+# -------------------------------------------------------------------------
+# Post-processing: deduplicate parent-child keyword tokens
+# -------------------------------------------------------------------------
+"""Check if every path through a rule body starts with a token in tok_names.
+
+Returns True if the body always starts by consuming one of the given tokens."""
+impl GrammarExtractPass._rule_starts_with_tok(body: GExpr, tok_name: str) -> bool {
+    return self._rule_always_starts_with_one_of(body, set([tok_name]));
+}
+
+"""Check if every path through a grammar expression starts with a token in tok_set."""
+impl GrammarExtractPass._rule_always_starts_with_one_of(
+    body: GExpr, tok_set: set
+) -> bool {
+    if isinstance(body, GTok) {
+        return body.name in tok_set;
+    }
+    if isinstance(body, GSeq) and len(body.items) > 0 {
+        return self._rule_always_starts_with_one_of(body.items[0], tok_set);
+    }
+    # GAlt: every alternative must start with a token from the set
+    if isinstance(body, GAlt) {
+        if len(body.choices) == 0 {
+            return False;
+        }
+        for choice in body.choices {
+            if not self._rule_always_starts_with_one_of(choice, tok_set) {
+                return False;
+            }
+        }
+        return True;
+    }
+    return False;
+}
+
+"""Walk a grammar expression and remove duplicated parent-child tokens.
+
+When a parent has GTok(X) GRef(Y) (or GAlt of GToks before GRef) and
+rule Y starts with those same tokens, the keyword would appear twice.
+Remove the duplicate from the parent."""
+impl GrammarExtractPass._dedup_parent_child_tokens(
+    expr: GExpr, rule_map: dict
+) -> GExpr {
+    dedup = GrammarExtractPass._dedup_parent_child_tokens;
+    if isinstance(expr, GSeq) {
+        new_items: list = [];
+        i = 0;
+        while i < len(expr.items) {
+            item = expr.items[i];
+            # Check for GTok(X) or GAlt([GTok(A), GTok(B), ...]) followed by GRef(Y)
+            if i + 1 < len(expr.items) and isinstance(expr.items[i + 1], GRef) {
+                ref = expr.items[i + 1];
+                should_remove = False;
+                if ref.name in rule_map {
+                    child_body = rule_map[ref.name].body;
+                    # Single token before GRef
+                    if isinstance(item, GTok) {
+                        if self._rule_starts_with_tok(child_body, item.name) {
+                            should_remove = True;
+                        }
+                    }
+                    # GAlt of all GToks before GRef: check if child
+                    # always starts with one of those tokens
+                    elif isinstance(item, GAlt) {
+                        all_gtoks = True;
+                        tok_set: set = set();
+                        for c in item.choices {
+                            if not isinstance(c, GTok) {
+                                all_gtoks = False;
+                                break;
+                            }
+                            tok_set.add(c.name);
+                        }
+                        if all_gtoks
+                        and len(tok_set) > 0
+                        and self._rule_always_starts_with_one_of(child_body, tok_set) {
+                            should_remove = True;
+                        }
+                    }
+                }
+                if should_remove {
+                    # Skip the duplicated token(s), keep only GRef
+                    i += 1;
+                    new_items.append(dedup(self, expr.items[i], rule_map));
+                    i += 1;
+                    continue;
+                }
+            }
+            new_items.append(dedup(self, item, rule_map));
+            i += 1;
+        }
+        if len(new_items) == 1 {
+            return new_items[0];
+        }
+        return GSeq(items=new_items);
+    }
+    if isinstance(expr, GAlt) {
+        return GAlt(choices=[dedup(self, c, rule_map) for c in expr.choices]);
+    }
+    if isinstance(expr, GOpt) {
+        return GOpt(inner=dedup(self, expr.inner, rule_map));
+    }
+    if isinstance(expr, GStar) {
+        return GStar(inner=dedup(self, expr.inner, rule_map));
+    }
+    if isinstance(expr, GPlus) {
+        return GPlus(inner=dedup(self, expr.inner, rule_map));
+    }
+    return expr;
 }
 
 # -------------------------------------------------------------------------

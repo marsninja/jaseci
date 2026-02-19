@@ -80,7 +80,7 @@ atomic_chain ::=
             | "here"
             | "visitor"
         )?
-        | "(" ("?" filter_compr_inner | "=" assign_compr_inner | call_args ")")
+        | "(" (filter_compr_inner | assign_compr_inner | call_args ")")
         | "[" "?"? "[" expression? (
               ":" ":" expression? (":" expression?)?
               ("," expression? ":" expression? (":" expression?)?)* "]"
@@ -143,7 +143,7 @@ atom ::=
     | "**" expression
     | "(" (
           ")"
-          | "yield" yield_stmt ")"
+          | yield_stmt ")"
           | ("def" | "can" | "async") ability ")"
           | expression
             ("for" comprehension_clauses ")" | "," (expression ","?)* ")" | ")")
@@ -178,7 +178,7 @@ atom ::=
 
 fstring ::=
     ('f"' | "f'" | 'f"""' | "f'''" | 'rf"' | "rf'" | 'rf"""')
-    ("{{" | "}}" | "{" expression CONV? (":" ("{" expression CONV? "}")?*)? "}")*
+    ("{{" | "}}" | "{" expression CONV? (":" ("{" expression CONV? "}")*)? "}")*
 
 list_or_compr ::=
     "]" | expression ("for" comprehension_clauses "]" | ("," expression)* "]")
@@ -193,7 +193,7 @@ edge_ref_chain ::=
         | "<-:" atom (":" (compare ("," compare)*)?)? ":<-"
         | "->:" atom ":->"
     ) (
-        "(" ("?" filter_compr_inner | expression ")")
+        "(" (filter_compr_inner | expression ")")
         | (NAME | KWESC_NAME | "self" | "root" | "here" | "super") atomic_chain
     )? "]"
 
@@ -303,7 +303,7 @@ statement ::=
     | match_stmt
     | switch_stmt
     | return_stmt
-    | "yield" yield_stmt ";"
+    | yield_stmt ";"
     | ctrl_stmt
     | raise_stmt
     | assert_stmt
@@ -318,11 +318,6 @@ statement ::=
     | impl_def
     | has_stmt
     | PYNLINE
-    | "elif"
-    | "else"
-    | "except"
-    | "finally"
-    | "case"
     | "->" expression "{" code_block_stmts "}"
     | expression (assignment_with_target | ";"?)
 
@@ -342,7 +337,7 @@ for_stmt ::=
     )
 
 try_stmt ::=
-    "try" "{" code_block_stmts "}" ("except" except_handler)* else_stmt?
+    "try" "{" code_block_stmts "}" except_handler* else_stmt?
     ("finally" "{" code_block_stmts "}")?
 
 except_handler ::= "except" expression ("as" NAME)? "{" code_block_stmts "}"
@@ -351,7 +346,7 @@ with_stmt ::=
     "async"? "with" expression ("as" expression)? ("," expression ("as" expression)?)*
     "{" code_block_stmts "}"
 
-match_stmt ::= "match" expression "{" ("case" match_case)* "}"
+match_stmt ::= "match" expression "{" match_case* "}"
 
 match_case ::= "case" pattern ("if" expression)? ":" statement*
 
@@ -434,7 +429,7 @@ assignment_with_target ::=
 
 import_stmt ::=
     ("include" | "import")
-    ("from" (("." | ELLIPSIS) ELLIPSIS?*)? (STRING | ("." NAME)*)?)? (
+    ("from" (("." | ELLIPSIS) ELLIPSIS*)? (STRING | ("." NAME)*)?)? (
         "{" (("*" | "default" | NAME) ("as" NAME)?)* "}"
         | (STRING | ("." NAME)*)? ("as" NAME)?
     ) ";"
@@ -485,13 +480,13 @@ func_params ::=
 enum ::=
     ("@" atomic_chain)* "enum" access_tag NAME
     ("(" (atomic_chain ("," atomic_chain)*)? ")")?
-    ("{" (enum_member ","? (PYNLINE | "with" module_code))* "}" | ";")
+    ("{" (enum_member ","? (PYNLINE | module_code))* "}" | ";")
 
 enum_member ::= NAME ("=" expression)?
 
 test ::= "test" STRING? "{" code_block_stmts "}"
 
-switch_stmt ::= "switch" expression "{" (("case" | "default") switch_case)* "}"
+switch_stmt ::= "switch" expression "{" switch_case* "}"
 
 switch_case ::= ("default" | "case" pattern) ":" statement*
 
