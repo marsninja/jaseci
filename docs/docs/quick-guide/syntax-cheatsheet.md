@@ -294,10 +294,11 @@ obj Example {
 # Access Modifiers
 # ============================================================
 
-obj Person {
-    has :pub name: str;          # Public (default)
-    has :priv ssn: str;          # Private
-    has :protect age: int;       # Protected
+# At module level creates auth, export, and extern semantics
+obj:pub Person {
+    has:pub name: str;          # Public (default)
+    has:priv ssn: str;          # Private
+    has:protect age: int;       # Protected
 }
 
 
