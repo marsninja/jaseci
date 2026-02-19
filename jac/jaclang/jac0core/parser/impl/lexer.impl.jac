@@ -1561,6 +1561,7 @@ impl Lexer.next_token -> Token {
 impl Lexer.tokenize -> list[Token] {
     self._source_len = len(self.source);
     tokens: list[Token] = [];
+    last_pos = -1;
     while True {
         token = self.next_token();
         tokens.append(token);
@@ -1568,6 +1569,35 @@ impl Lexer.tokenize -> list[Token] {
         if token.kind == TokenKind.EOF {
             break;
         }
+        # Stuck detector: catch infinite loops when EOF is hit inside
+        # non-NORMAL modes (JSX_CONTENT, JSX_TAG, f-string) that return
+        # ERROR tokens without producing EOF or advancing the position.
+        if self.pos == last_pos or self.pos > self._source_len {
+            mode = self.current_mode();
+            self.error(
+                f"Lexer stuck at EOF in mode {mode} (pos={self.pos})",
+                self.line,
+                self.col,
+                self.pos
+            );
+            tokens.append(
+                Token(
+                    kind=TokenKind.EOF,
+                    value="",
+                    loc=SourceLoc(
+                        file_path=self.file_path,
+                        line=self.line,
+                        end_line=self.line,
+                        col_start=self.col,
+                        col_end=self.col,
+                        pos_start=self.pos,
+                        pos_end=self.pos
+                    )
+                )
+            );
+            break;
+        }
+        last_pos = self.pos;
     }
     return tokens;
 }
