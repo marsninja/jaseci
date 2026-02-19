@@ -40,7 +40,7 @@ The tutorial is split into seven parts. Each builds on the last:
 
 ## Part 1: Your First Lines of Jac
 
-Jac is a programming language whose compiler can generate Python bytecode, ES JavaScript, and native binaries. The language design is based on Python, so if you know Python, Jac will feel familiar -- but with curly braces instead of indentation, semicolons at the end of statements, and built-in support for graphs, AI, and full-stack web apps. This section covers the fundamentals.
+Jac is a programming language whose compiler can generate Python bytecode, ES JavaScript, and native binaries. The language design is based on Python, so if you know Python, Jac will feel familiar -- but with curly braces instead of indentation, semicolons at the end of statements, and built-in support for graphs, AI, and full-stack web apps. This section covers the fundamentals. **The Goal** of this section is to orient you to the syntax style of the language.
 
 **Hello, World**
 
@@ -234,32 +234,38 @@ With `obj`, you don't write `self` in method signatures -- it's always available
 - **f-strings** -- string interpolation with `f"...{expr}..."`
 - **Ternary** -- `value if condition else other`
 
+For a quick reference of all Jac syntax, see the [Syntax Cheatsheet](../../quick-guide/syntax-cheatsheet.md).
+
 ---
 
 ## Part 2: Modeling Data with Nodes
 
-Most languages store data in variables, objects, or database rows. Jac adds a powerful alternative: **nodes** that live in a **graph**. Nodes persist automatically -- no database setup, no ORM, no SQL.
+Most languages store data in variables, objects, or database rows. Jac adds a powerful alternative: **nodes** that live in a **graph**. Nodes persist automatically -- no database setup, no ORM, no SQL. **The Goal** of this section is to introduce you to the concept of graphs as a first class citizen of the language and how databases can disappear.
 
 **What is a Node?**
 
-A node is a data type declared with the `node` keyword. Its fields are declared with `has`:
+A node is an `obj` style class type declared with the `node` keyword. Its fields are similarly declared with `has`:
 
 ```jac
 node Task {
     has id: str,
         title: str,
-        done: bool = False;
+        done: bool = F  alse;
 }
 ```
 
-This looks similar to a class, but nodes have a superpower: they can be connected to other nodes with **edges**, forming a graph. When connected to the global `root` node, they persist across server restarts -- no database needed.
+This looks similar to a class, but nodes have a superpower: they can be connected to other nodes with **edges** (also `obj` style classes), forming a graph. Instead of class instance objects floating in space, these objects can have relationships that form first class graphs in the language.
+
+Beyond the more obvious utility of never needing a graph library again, there is a powerful capability that emerges when we couple this with one more abstraction the self referentail `root`.
 
 **The Root Node and the Graph**
 
 Every Jac program has a built-in `root` node -- the entry point of the graph. Think of it as the top of a tree:
 
-```
-root  (starts empty)
+```mermaid
+graph LR
+    root((root))
+    style root fill:#f9f,stroke:#333,stroke-width:2px
 ```
 
 You add data by creating nodes and connecting them with edges.
@@ -287,10 +293,12 @@ with entry {
 
 Run it with `jac run hello.jac`. Your graph now looks like:
 
-```
-root ---> Task("Buy groceries")
-  |-----> Task("Team standup at 10am")
-  |-----> Task("Go for a run")
+```mermaid
+graph LR
+    root((root)) --> T1["Task(#quot;Buy groceries#quot;)"]
+    root --> T2["Task(#quot;Team standup at 10am#quot;)"]
+    root --> T3["Task(#quot;Go for a run#quot;)"]
+    style root fill:#f9f,stroke:#333,stroke-width:2px
 ```
 
 The `++>` operator returns a list containing the newly created node. You can capture it:
@@ -1151,11 +1159,15 @@ def:pub clear_shopping_list -> dict {
 
 Notice how `generate_list` clears old shopping items before generating new ones. The graph now holds both task and shopping data:
 
-```
-root ---> Task("Buy groceries", category="shopping")
-  |-----> Task("Team standup", category="work")
-  |-----> ShoppingItem("Chicken breast", 2lb, $5.99)
-  |-----> ShoppingItem("Soy sauce", 2tbsp, $0.50)
+```mermaid
+graph LR
+    root((root)) --> T1["Task(#quot;Buy groceries#quot;, shopping)"]
+    root --> T2["Task(#quot;Team standup#quot;, work)"]
+    root --> S1["ShoppingItem(#quot;Chicken breast#quot;, 2lb, $5.99)"]
+    root --> S2["ShoppingItem(#quot;Soy sauce#quot;, 2tbsp, $0.50)"]
+    style root fill:#f9f,stroke:#333,stroke-width:2px
+    style S1 fill:#bde0fe,stroke:#333
+    style S2 fill:#bde0fe,stroke:#333
 ```
 
 **Update the Frontend**
@@ -2419,13 +2431,20 @@ This section reimplements the day planner's backend using walkers to show how OS
 
 A walker is code that moves through the graph, triggering abilities as it enters each node:
 
-```
-Walker: ListTasks
-  |
-  v
-[root] ---> [Task: "Buy groceries"]     <- walker enters, ability fires
-  |-------> [Task: "Team standup"]      <- walker enters, ability fires
-  |-------> [Task: "Go running"]        <- walker enters, ability fires
+```mermaid
+graph LR
+    W["Walker: ListTasks"] -.->|spawn| root((root))
+    root -->|visit| T1["Task: #quot;Buy groceries#quot;"]
+    root -->|visit| T2["Task: #quot;Team standup#quot;"]
+    root -->|visit| T3["Task: #quot;Go running#quot;"]
+    T1 -.-o A1(("ability fires"))
+    T2 -.-o A2(("ability fires"))
+    T3 -.-o A3(("ability fires"))
+    style W fill:#ffd166,stroke:#333,stroke-width:2px
+    style root fill:#f9f,stroke:#333,stroke-width:2px
+    style A1 fill:#06d6a0,stroke:#333
+    style A2 fill:#06d6a0,stroke:#333
+    style A3 fill:#06d6a0,stroke:#333
 ```
 
 Think of it like a robot walking through a building. At each room (node), it can look around (`here`), check its own clipboard (`self`), move to connected rooms (`visit`), and write down findings (`report`).
