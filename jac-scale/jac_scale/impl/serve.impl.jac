@@ -585,20 +585,20 @@ impl JacAPIServer.create_function_parameters(
             )
         );
     }
-    func_fields = self.introspector.introspect_callable(
-        self.get_functions()[func_name]
-    )['parameters'];
+    # Extract path parameter names from restspec path
+    func_obj = self.get_functions()[func_name];
+    restspec = func_obj.restspec if func_obj?.restspec else None;
+    spec_path = restspec.path if restspec else None;
+    path_param_names = _extract_path_param_names(spec_path);
+    func_fields = self.introspector.introspect_callable(func_obj)['parameters'];
     for field_name in func_fields {
         field_type = func_fields[field_name]['type'];
-        # Determine parameter type based on field type and method
-        if (
-            method == HTTPMethod.GET
-            and not ('UploadFile' in field_type or 'uploadfile' in field_type.lower())
-        ) {
-            param_type = ParameterType.QUERY;
+        if field_name in path_param_names {
+            param_type = ParameterType.PATH;
         } elif ('UploadFile' in field_type or 'uploadfile' in field_type.lower()) {
-            # Support UploadFile type for file uploads
             param_type = ParameterType.FILE;
+        } elif method == HTTPMethod.GET {
+            param_type = ParameterType.QUERY;
         } else {
             param_type = ParameterType.BODY;
         }
@@ -732,6 +732,11 @@ impl JacAPIServer.create_walker_parameters(
             )
         );
     }
+    # Extract path parameter names from restspec path (e.g. /items/{item_id} -> {"item_id"})
+    walker_cls = self.get_walkers()[walker_name];
+    restspec = walker_cls.restspec if walker_cls?.restspec else None;
+    spec_path = restspec.path if restspec else None;
+    path_param_names = _extract_path_param_names(spec_path);
     walker_fields = self.introspector.introspect_walker(
         self.get_walkers()[walker_name]
     )['fields'];
@@ -740,17 +745,14 @@ impl JacAPIServer.create_walker_parameters(
             continue;
         }
         field_type = walker_fields[field_name]['type'];
-        # Determine parameter type based on field type and method
-        if (field_name == '_jac_spawn_node') {
+        # Determine parameter type: path params first, then file, then query/body by method
+        if field_name == '_jac_spawn_node' or field_name in path_param_names {
             param_type = ParameterType.PATH;
-        } elif (
-            method == HTTPMethod.GET
-            and not ('UploadFile' in field_type or 'uploadfile' in field_type.lower())
-        ) {
-            param_type = ParameterType.QUERY;
         } elif ('UploadFile' in field_type or 'uploadfile' in field_type.lower()) {
             # Support UploadFile type for file uploads
             param_type = ParameterType.FILE;
+        } elif method == HTTPMethod.GET {
+            param_type = ParameterType.QUERY;
         } else {
             param_type = ParameterType.BODY;
         }
