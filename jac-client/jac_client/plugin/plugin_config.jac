@@ -9,6 +9,7 @@ configuration system, registering:
 """
 
 import os;
+import shutil;
 import subprocess;
 import json;
 import from pathlib { Path }
