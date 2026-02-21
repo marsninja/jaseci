@@ -157,7 +157,41 @@ with entry {
 }
 ```
 
-### 4 Methods
+### 4 `can` vs `def`
+
+Jac has two keywords for defining callable behavior: `def` for standard functions/methods and `can` for event-driven abilities on archetypes. Use `def` when you want explicit calling; use `can` when behavior should trigger automatically based on walker/node context.
+
+| Feature | `def` | `can` |
+|---------|-------|-------|
+| **Call style** | Called explicitly: `obj.method()` | Triggered automatically on walker entry/exit |
+| **Used in** | Any archetype, standalone functions | Walkers, nodes, edges |
+| **Syntax** | `def name(args) -> Type { }` | `can name with NodeType entry { }` |
+| **Best for** | Regular methods, utility functions, API endpoints | Graph traversal logic, event handlers |
+
+```jac
+walker ListItems {
+    has items: list = [];
+
+    # 'can' ability -- fires automatically when walker enters a Root node
+    can collect with Root entry {
+        visit [-->];
+    }
+
+    # 'can' ability -- fires on each Item node visited
+    can gather with Item entry {
+        self.items.append(here.value);
+    }
+
+    # 'can' ability -- fires when walker exits Root
+    can report_all with Root exit {
+        report self.items;
+    }
+}
+```
+
+> See [Part III: OSP](osp.md) for complete walker and ability documentation.
+
+### 5 Methods
 
 The `def` keyword declares methods on archetypes:
 
@@ -176,7 +210,7 @@ obj Calculator {
 }
 ```
 
-### 5 Static Methods
+### 6 Static Methods
 
 ```jac
 obj Counter {
@@ -194,7 +228,7 @@ obj Counter {
 }
 ```
 
-### 6 Lambda Expressions
+### 7 Lambda Expressions
 
 ```jac
 # Simple lambda (note spacing around type annotations)
@@ -226,7 +260,7 @@ glob make_adder = lambda x: int : (lambda y: int : x + y);
 glob add_five = make_adder(5);  # add_five(10) returns 15
 ```
 
-### 7 Immediately Invoked Function Expressions (IIFE)
+### 8 Immediately Invoked Function Expressions (IIFE)
 
 ```jac
 with entry {
@@ -234,7 +268,7 @@ with entry {
 }
 ```
 
-### 8 Decorators
+### 9 Decorators
 
 ```jac
 def decorator(func: any) -> any {
@@ -256,7 +290,7 @@ def another_function -> None {
 }
 ```
 
-### 9 Access Modifiers
+### 10 Access Modifiers
 
 ```jac
 # Public (default, accessible everywhere)
@@ -551,6 +585,7 @@ impl CircleService.describe -> str {
 
 - **Circular dependencies**: Forward declare to break cycles
 - **Code organization**: Keep interfaces clean
+- **UI components**: Separate render tree from method logic (`.cl.jac` + `.impl.jac`)
 - **Plugin architectures**: Define interfaces that plugins implement
 - **Large codebases**: Separate concerns across files
 - **Variant modules**: Split server, client, and native code into separate files while keeping them as one logical module
@@ -562,7 +597,7 @@ impl CircleService.describe -> str {
 **Tutorials:**
 
 - [Jac Basics](../../tutorials/language/basics.md) - Objects, functions, and syntax
-- [Testing](../../tutorials/language/testing.md) - Write tests for your code
+- [Testing](../testing.md) - Write tests for your code
 
 **Related Reference:**
 

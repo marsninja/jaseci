@@ -544,7 +544,7 @@ cl {
 
 - [Authentication](auth.md) - Add user login
 - [Routing](routing.md) - Multi-page applications
-- [Build a Todo App](todo-app.md) - Complete full-stack example with AI integration
+- [Build an AI Day Planner](../first-app/build-ai-day-planner.md) - Complete full-stack example with AI integration
 
 **Reference:**
 
