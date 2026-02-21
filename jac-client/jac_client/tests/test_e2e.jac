@@ -272,3 +272,152 @@ test "complete auth flow" {
         _stop_running_server(server, temp_dir, original_cwd);
     }
 }
+
+def _start_priv_walker_server -> tuple {
+    """Start the priv_walker_auth fixture server.
+
+    Returns (process, port, url, temp_dir, original_cwd).
+    """
+    tests_dir = os.path.dirname(__file__);
+    fixture_path = os.path.join(tests_dir, "fixtures", "priv_walker_auth");
+
+    if not os.path.isdir(fixture_path) {
+        pytest.skip("priv_walker_auth fixture directory not found");
+    }
+
+    app_name = "e2e-priv-walker-auth";
+    jac_cmd = get_jac_command();
+    env = get_env_with_npm();
+
+    temp_dir = tempfile.mkdtemp();
+    original_cwd = os.getcwd();
+    os.chdir(temp_dir);
+
+    # Create project from client template
+    create_result = run(
+        [*jac_cmd, "create", "--use", "client", app_name],
+        capture_output=True,
+        text=True,
+        env=env,
+    );
+    if create_result.returncode != 0 {
+        pytest.fail(f"jac create --use client failed: {create_result.stderr}");
+    }
+
+    project_path = os.path.join(temp_dir, app_name);
+
+    # Copy fixture files into the project
+    import shutil;
+    for entry in os.listdir(fixture_path) {
+        src = os.path.join(fixture_path, entry);
+        dst = os.path.join(project_path, entry);
+        if os.path.isdir(src) {
+            shutil.copytree(src, dst, dirs_exist_ok=True);
+        } else {
+            shutil.copy2(src, dst);
+        }
+    }
+
+    # Install npm packages
+    add_result = run(
+        [*jac_cmd, "add", "--npm"],
+        cwd=project_path,
+        capture_output=True,
+        text=True,
+        env=env,
+    );
+    if add_result.returncode != 0 {
+        pytest.fail(f"jac add --npm failed: {add_result.stderr}");
+    }
+
+    server_port = get_free_port();
+    server = Popen(
+        [*jac_cmd, "start", "-p", str(server_port)], cwd=project_path, env=env,
+    );
+
+    wait_for_port("127.0.0.1", server_port, timeout=90.0);
+    time.sleep(5);
+    return (
+        server,
+        server_port,
+        f"http://127.0.0.1:{server_port}",
+        temp_dir,
+        original_cwd
+    );
+}
+
+test "stale token auto-clears on 401 from priv walker" {
+    """Test that a stale JWT in localStorage is auto-cleared when a
+    walker:priv endpoint returns 401, redirecting the user to login.
+
+    This is the browser-level test for the auto-logout fix in
+    client_runtime.impl.jac (__jacSpawn and __jacCallFunction).
+    """(
+        server, port, url, temp_dir, original_cwd
+    ) = _start_priv_walker_server();
+    try {
+        with sync_playwright() as p {
+            browser = p.chromium.launch(headless=True);
+            context = browser.new_context();
+            page = context.new_page();
+            try {
+                # Step 1: Fresh load should show login
+                page.goto(url, wait_until="networkidle", timeout=60000);
+                page.wait_for_timeout(3000);
+                assert page.locator('#login-title:has-text("Sign In")').count() > 0 , (
+                    "Fresh load should show Sign In form"
+                );
+
+                # Step 2: Inject a stale token into localStorage
+                stale_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im5vYm9keSJ9.totally_invalid";
+                page.evaluate(
+                    f'window.localStorage.setItem("jac_token", "{stale_token}")'
+                );
+                token_before = page.evaluate(
+                    'window.localStorage.getItem("jac_token")'
+                );
+                assert token_before == stale_token , "Stale token should be in localStorage";
+
+                # Step 3: Reload - app sees token, calls priv walker, gets 401
+                # The runtime should auto-clear the token and reload
+                page.reload(wait_until="networkidle", timeout=60000);
+                page.wait_for_timeout(5000);
+
+                # Step 4: Verify token was cleared and login screen is shown
+                token_after = page.evaluate('window.localStorage.getItem("jac_token")');
+                assert token_after is None or token_after == "" , (
+                    f"Token should be cleared after 401, but got: {token_after}"
+                );
+
+                has_login = page.locator('#login-title:has-text("Sign In")').count() > 0;
+                has_loading_stuck = page.locator('#notes-loading').count() > 0;
+                assert has_login , "Should show login screen after 401 auto-logout";
+                assert not has_loading_stuck , (
+                    "Should NOT be stuck on 'Loading notes...' after 401"
+                );
+
+                # Step 5: Verify normal auth flow still works
+                page.locator('#toggle-auth').click();
+                page.wait_for_timeout(500);
+                username = f"e2e_401_{int(time.time())}";
+                page.locator('#username-input').fill(username);
+                page.locator('#password-input').fill("test_pass_123");
+                page.locator('#submit-btn').click();
+                page.wait_for_timeout(3000);
+
+                # Should now be in the main app
+                assert page.locator('h1:has-text("Private Notes")').count() > 0 , (
+                    "After signup, should see Private Notes"
+                );
+                assert page.locator('#notes-list').count() > 0 , (
+                    "Notes list should be rendered (not stuck loading)"
+                );
+            } finally {
+                context.close();
+                browser.close();
+            }
+        }
+    } finally {
+        _stop_running_server(server, temp_dir, original_cwd);
+    }
+}

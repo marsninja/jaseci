@@ -1887,3 +1887,200 @@ test "diagnostics syntax error in console" {
         }
     }
 }
+
+test "priv walker returns 401 for stale token" {
+    """Test that walker:priv endpoints return 401 for invalid/expired tokens.
+
+    This verifies the server-side half of the auto-logout flow:
+    when a client sends a stale JWT to a priv endpoint, the server must
+    respond with HTTP 401 so the client runtime can detect it and
+    auto-clear the token.
+    """
+    print("[DEBUG] Starting test_priv_walker_returns_401_for_stale_token");
+
+    tests_dir = os.path.dirname(__file__);
+    fixture_path = os.path.join(tests_dir, "fixtures", "priv_walker_auth");
+
+    assert os.path.isdir(fixture_path) , "priv_walker_auth fixture missing";
+
+    app_name = "e2e-priv-walker-401";
+    jac_cmd = get_jac_command();
+    env = get_env_with_npm();
+
+    with tempfile.TemporaryDirectory() as temp_dir {
+        original_cwd = os.getcwd();
+        try {
+            os.chdir(temp_dir);
+
+            # Create a client app and copy the fixture into it
+            process = Popen(
+                [*jac_cmd, "create", "--use", "client", app_name],
+                stdin=PIPE,
+                stdout=PIPE,
+                stderr=PIPE,
+                text=True,
+                env=env,
+            );
+            (stdout, stderr) = process.communicate();
+            if process.returncode != 0 and "unrecognized arguments: --use" in stderr {
+                pytest.fail(
+                    "Test failed: installed `jac` CLI does not support `create --use client`."
+                );
+            }
+            assert process.returncode == 0 , (
+                f"jac create --use client failed\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}\n"
+            );
+
+            project_path = os.path.join(temp_dir, app_name);
+            assert os.path.isdir(project_path);
+
+            # Copy fixture files into the project
+            for entry in os.listdir(fixture_path) {
+                src = os.path.join(fixture_path, entry);
+                dst = os.path.join(project_path, entry);
+                if os.path.isdir(src) {
+                    shutil.copytree(src, dst, dirs_exist_ok=True);
+                } else {
+                    shutil.copy2(src, dst);
+                }
+            }
+
+            # Install npm packages
+            jac_add_result = run(
+                [*jac_cmd, "add", "--npm"],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                env=env,
+            );
+            if jac_add_result.returncode != 0 {
+                pytest.fail(
+                    f"jac add --npm failed\nSTDOUT:\n{jac_add_result.stdout}\n"
+                    f"STDERR:\n{jac_add_result.stderr}\n"
+                );
+            }
+
+            # Start the server
+            server: Popen | None = None;
+            server_port = get_free_port();
+            try {
+                print(f"[DEBUG] Starting server on port {server_port}");
+                server = Popen(
+                    [*jac_cmd, "start", "main.jac", "-p", str(server_port)],
+                    cwd=project_path,
+                    env=env,
+                );
+
+                wait_for_port("127.0.0.1", server_port, timeout=90.0);
+                _wait_for_endpoint(
+                    f"http://127.0.0.1:{server_port}",
+                    timeout=120.0,
+                    poll_interval=2.0,
+                    request_timeout=30.0,
+                );
+                print(f"[DEBUG] Server ready on port {server_port}");
+
+                # 1. Register a user to get a valid token
+                register_payload = {
+                    "username": "test_401_user",
+                    "password": "test_password_123",
+
+                };
+                req_register = Request(
+                    f"http://127.0.0.1:{server_port}/user/register",
+                    data=json.dumps(register_payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                );
+                with urlopen(req_register, timeout=20) as resp_register {
+                    register_body = json.loads(resp_register.read().decode("utf-8"));
+                    valid_token = register_body["data"]["token"];
+                    print(f"[DEBUG] Registered user, token: {valid_token[:20]}...");
+                }
+
+                # 2. Valid token should succeed on priv walker
+                req_valid = Request(
+                    f"http://127.0.0.1:{server_port}/walker/get_notes",
+                    data=json.dumps({}).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {valid_token}",
+
+                    },
+                    method="POST",
+                );
+                with urlopen(req_valid, timeout=20) as resp_valid {
+                    assert resp_valid.status == 200 , (
+                        f"Valid token should get 200, got {resp_valid.status}"
+                    );
+                    print("[DEBUG] Valid token -> 200 OK (pass)");
+                }
+
+                # 3. Stale/invalid token should get 401
+                stale_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im5vYm9keSJ9.invalid_signature";
+                req_stale = Request(
+                    f"http://127.0.0.1:{server_port}/walker/get_notes",
+                    data=json.dumps({}).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {stale_token}",
+
+                    },
+                    method="POST",
+                );
+                try {
+                    with urlopen(req_stale, timeout=20) as resp_stale {
+                        pytest.fail(
+                            f"Stale token should NOT succeed, got {resp_stale.status}"
+                        );
+                    }
+                } except HTTPError as http_err {
+                    print(f"[DEBUG] Stale token -> {http_err.code} (expected 401)");
+                    http_err.close();
+                    assert http_err.code == 401 , (
+                        f"Expected 401 for stale token, got {http_err.code}"
+                    );
+                }
+
+                # 4. No token at all should also get 401 on priv walker
+                req_no_token = Request(
+                    f"http://127.0.0.1:{server_port}/walker/get_notes",
+                    data=json.dumps({}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                );
+                try {
+                    with urlopen(req_no_token, timeout=20) as resp_no_token {
+                        pytest.fail(
+                            f"No token should NOT succeed, got {resp_no_token.status}"
+                        );
+                    }
+                } except HTTPError as http_err {
+                    print(f"[DEBUG] No token -> {http_err.code} (expected 401)");
+                    http_err.close();
+                    assert http_err.code == 401 , (
+                        f"Expected 401 for no token, got {http_err.code}"
+                    );
+                }
+
+                print("[DEBUG] All 401 tests passed!");
+            } finally {
+                if server is not None {
+                    print("[DEBUG] Terminating server process");
+                    server.terminate();
+                    try {
+                        server.wait(timeout=15);
+                    } except Exception {
+                        server.kill();
+                        server.wait(timeout=5);
+                    }
+                    time.sleep(1);
+                    gc.collect();
+                }
+            }
+        } finally {
+            os.chdir(original_cwd);
+            gc.collect();
+        }
+    }
+}

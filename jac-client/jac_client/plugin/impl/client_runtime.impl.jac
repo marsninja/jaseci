@@ -67,6 +67,11 @@ impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
         url, {"method": "POST", "headers": headers, "body": JSON.stringify(fields)}
     );
     if not response.ok {
+        if response.status == 401 {
+            __removeLocalStorage("jac_token");
+            window.location.reload();
+            return {};
+        }
         error_text = await response.text();
         walker_name = f"{left}/{right}" if right else left;
         raise Exception(f"Walker {walker_name} failed: {error_text}") ;
@@ -91,6 +96,11 @@ impl __jacCallFunction(function_name: str, args: dict = {}) -> any {
         {"method": "POST", "headers": headers, "body": JSON.stringify(args)}
     );
     if not response.ok {
+        if response.status == 401 {
+            __removeLocalStorage("jac_token");
+            window.location.reload();
+            return None;
+        }
         error_text = await response.text();
         raise Exception(f"Function {function_name} failed: {error_text}") ;
     }
