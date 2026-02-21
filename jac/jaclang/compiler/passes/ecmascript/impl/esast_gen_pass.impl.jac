@@ -2772,10 +2772,32 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     body.extend(self.imports);
     # Include stubs for def:pub functions imported via sv import
     body.extend(self.sv_import_stubs);
+    # Collect import source paths already present to avoid duplicates
+    # when impl modules re-inject the same import (e.g. __jacCallFunction).
+    seen_imports: set[str] = set();
+    for imp in self.imports {
+        if (isinstance(imp.source, es.Literal) and isinstance(imp.source.value, str)) {
+            seen_imports.add(imp.source.value);
+        }
+    }
     for mod in nd.impl_mod {
         if (mod.gen.es_ast and isinstance(mod.gen.es_ast, es.Program)) {
             for import_decl in mod.gen.es_ast.body {
                 if isinstance(import_decl, es.ImportDeclaration) {
+                    src_val = (
+                        import_decl.source.value
+                        if (
+                            isinstance(import_decl.source, es.Literal)
+                            and isinstance(import_decl.source.value, str)
+                        )
+                        else None
+                    );
+                    if (src_val is not None and src_val in seen_imports) {
+                        continue;
+                    }
+                    if src_val is not None {
+                        seen_imports.add(src_val);
+                    }
                     body.append(import_decl);
                 }
             }

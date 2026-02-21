@@ -4,6 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.10.6 (Unreleased)
 
+- **Fix: Duplicate `__jacCallFunction` Import in `.cl.jac` with `.impl.jac`**: Fixed the ES codegen emitting duplicate `import { __jacCallFunction } from "@jac/runtime"` when both a `.cl.jac` file and its `.impl.jac` annex use `sv import`. Child module imports are now deduplicated by source path during merge.
 - **Variant Module Annexing (`.sv.jac`, `.cl.jac`, `.na.jac`)**: A module can now be split across variant files that are automatically discovered, compiled, and merged. Given `main.jac`, any sibling `main.sv.jac`, `main.cl.jac`, or `main.na.jac` files are annexed as variant modules with their respective code contexts (SERVER, CLIENT, NATIVE).
 - **Fix: Bare Impl Files Not Matched to Variant Modules**: Fixed `discover_annex_files` rejecting bare annex files (e.g., `foo.impl.jac`) when the source is a variant (e.g., `foo.cl.jac`) with no plain `foo.jac` head. Bare annex files now match any variant source unless a bare `.jac` head exists that would claim them.
 - **Fix: Bare-Dot Relative Import (`from . import x`) Not Resolved**: Fixed `import from . { x }` silently resolving to `UnknownType`. The import path is now computed directly from the current file's directory, ensuring sibling modules are correctly found and type-checked.
