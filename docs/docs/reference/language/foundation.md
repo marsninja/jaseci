@@ -513,6 +513,18 @@ def example() {
 }
 ```
 
+??? example "Try it: Literals and collections"
+    ```jac
+    with entry {
+        name = "Jac";
+        nums = [1, 2, 3, 4, 5];
+        info = {"language": name, "version": "0.10"};
+        evens = [x for x in nums if x % 2 == 0];
+        print(f"{name} evens: {evens}");
+        print(f"Info: {info}");
+    }
+    ```
+
 ---
 
 ## Variables and Scope
@@ -1184,17 +1196,33 @@ When the `byllm` plugin is installed, `by` enables LLM delegation:
 
 ```jac
 # Function implementation delegated to LLM
-"""Summarize the given text."""
 def summarize(text: str) -> str by llm();
+sem summarize = "Summarize the given text in 2-3 sentences";
 
-"""Translate text to French."""
 def translate(text: str) -> str by llm(model_name="gpt-4");
+sem translate = "Translate the given text to French";
 
 with entry {
-    # Expression processed by LLM
     result = summarize("Hello world");
 }
 ```
+
+Use the **`sem` keyword** to attach semantic descriptions to functions, parameters, and fields. These descriptions are included in the compiler-generated prompt, giving the LLM additional context beyond what it can infer from names and types:
+
+```jac
+obj Ingredient {
+    has name: str;
+    has cost: float;
+}
+sem Ingredient.cost = "Estimated cost in USD";
+
+def plan_shopping(recipe: str) -> list[Ingredient] by llm();
+sem plan_shopping = "Generate a shopping list for the given recipe";
+sem plan_shopping.recipe = "A description of the meal to prepare";
+```
+
+!!! tip
+    Always use `sem` to provide context for `by llm()` functions. Docstrings are for human documentation and are not included in compiler-generated prompts.
 
 See [Part V: AI Integration](ai-integration.md) for detailed LLM usage.
 
@@ -1284,6 +1312,19 @@ def example() {
     value = user_input or fallback;     # Use fallback if input is falsy
 }
 ```
+
+??? example "Try it: Operators"
+    ```jac
+    with entry {
+        x = 10;
+        y = 3;
+        print(f"{x} + {y} = {x + y}");
+        print(f"{x} ** {y} = {x ** y}");
+        print(f"{x} > {y} = {x > y}");
+        print(f"not False = {not False}");
+        print(f"{x} in [1,5,10] = {x in [1, 5, 10]}");
+    }
+    ```
 
 ---
 
@@ -1705,6 +1746,29 @@ def example() {
 }
 ```
 
+??? example "Try it: Control flow and generators"
+    ```jac
+    def fizzbuzz(n: int) -> str {
+        if n % 15 == 0 { return "FizzBuzz"; }
+        elif n % 3 == 0 { return "Fizz"; }
+        elif n % 5 == 0 { return "Buzz"; }
+        return str(n);
+    }
+
+    can countdown(n: int) -> Generator[int] {
+        while n > 0 {
+            yield n;
+            n -= 1;
+        }
+    }
+
+    with entry {
+        results = [fizzbuzz(i) for i in range(1, 16)];
+        print(results);
+        print([x for x in countdown(5)]);
+    }
+    ```
+
 ---
 
 ## Learn More
@@ -1712,7 +1776,7 @@ def example() {
 **Tutorials:**
 
 - [Jac Basics](../../tutorials/language/basics.md) - Step-by-step introduction to Jac syntax
-- [Hello World](../../quick-guide/hello-world.md) - Your first Jac program
+- [Installation](../../quick-guide/install.md) - Setup and your first Jac program
 
 **Related Reference:**
 
