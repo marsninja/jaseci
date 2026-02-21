@@ -10,14 +10,15 @@ nav:
 
   - Get Started:
       - Welcome: "quick-guide/index.md"
-      - Installation and First Run: "quick-guide/install.md"
+      - Installation: "quick-guide/install.md"
       - Core Concepts: "quick-guide/what-makes-jac-different.md"
-      - Build an AI Day Planner: "tutorials/first-app/build-ai-day-planner.md"
+      - Learn by Building - AI Day Planner: "tutorials/first-app/build-ai-day-planner.md"
       - Syntax Cheatsheet: "quick-guide/syntax-cheatsheet.md"
       - Jac vs Traditional Stack: "quick-guide/jac-vs-traditional-stack.md"
       - FAQ: "quick-guide/faq.md"
 
   - Full Documentation:
+      - Overview: "full-docs-guide.md"
       - Core Language:
           - Jac Basics: "tutorials/language/basics.md"
           - Foundation Reference: "reference/language/foundation.md"
