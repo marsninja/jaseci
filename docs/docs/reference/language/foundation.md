@@ -136,10 +136,14 @@ my_project/
 
 | Extension | Purpose |
 |-----------|---------|
-| `.jac` | Universal Jac code |
-| `.sv.jac` | Server-side only |
-| `.cl.jac` | Client-side only |
-| `.impl.jac` | Implementation file |
+| `.jac` | Universal Jac code (head module) |
+| `.sv.jac` | Server-variant code |
+| `.cl.jac` | Client-variant code |
+| `.na.jac` | Native-variant code |
+| `.impl.jac` | Implementation file (annex) |
+| `.test.jac` | Test file (annex) |
+
+Files sharing the same base name form a single logical module. For example, `mymod.jac`, `mymod.sv.jac`, `mymod.cl.jac`, `mymod.impl.jac`, and `mymod.test.jac` are all part of the `mymod` module. Variant files (`.sv.jac`, `.cl.jac`, `.na.jac`) are automatically discovered and merged during compilation -- see [Variant Modules](functions-objects.md#variant-modules) for details.
 
 ### 4 Editor Setup
 
