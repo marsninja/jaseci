@@ -474,6 +474,7 @@ finally:
 
 **Jac:**
 
+<!-- jac-skip -->
 ```jac
 try {
     result = divide(10, 0);
