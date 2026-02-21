@@ -477,12 +477,83 @@ impl Calculator.multiply {
 }
 ```
 
-### 4 When to Use Implementations
+### 4 Variant Modules
+
+A single logical module can be split across *variant files* that target different execution contexts. Variant suffixes are `.sv.jac` (server), `.cl.jac` (client), and `.na.jac` (native). All files sharing the same base name are automatically discovered and compiled together.
+
+**Head module precedence:** `.jac` > `.sv.jac` > `.cl.jac` > `.na.jac`. The highest-precedence file that exists on disk becomes the *head module*; all lower-precedence variants are attached as variant annexes. If no plain `.jac` file exists, the next available variant acts as head.
+
+```
+mymod/
+├── mymod.jac            # Head module (declarations + entry)
+├── mymod.sv.jac         # Server variant (extra server-only declarations)
+├── mymod.cl.jac         # Client variant (extra client-only declarations)
+├── mymod.impl.jac       # Head implementations (can also impl variant decls)
+├── impl/
+│   └── mymod.sv.impl.jac   # Server variant impl (from shared folder)
+└── mymod.test.jac       # Tests
+```
+
+Each variant gets its own symbol table during parsing. The compiler then connects declarations and implementations across all variants:
+
+- Impl files match their variant automatically (e.g., `mymod.sv.impl.jac` provides bodies for declarations in `mymod.sv.jac`).
+- A head impl file (`mymod.impl.jac`) can provide implementations for declarations in *any* variant (cross-variant matching).
+- Impl files can live in the same directory or in an `impl/` subdirectory.
+
+**mymod.jac:**
+
+```jac
+obj Circle {
+    has radius: float;
+    def area -> float;
+}
+```
+
+**mymod.sv.jac:**
+
+```jac
+obj CircleService {
+    has name: str;
+    def describe -> str;
+}
+```
+
+**mymod.cl.jac:**
+
+```jac
+obj Display {
+    has label: str;
+    def render -> str;
+}
+```
+
+**mymod.impl.jac** (cross-variant -- provides impls for both head and client variant):
+
+```jac
+impl Circle.area -> float {
+    return 3.14159 * self.radius * self.radius;
+}
+
+impl Display.render -> str {
+    return "Displaying: " + self.label;
+}
+```
+
+**impl/mymod.sv.impl.jac** (server variant impl from shared folder):
+
+```jac
+impl CircleService.describe -> str {
+    return "Service: " + self.name;
+}
+```
+
+### 5 When to Use Implementations
 
 - **Circular dependencies**: Forward declare to break cycles
 - **Code organization**: Keep interfaces clean
 - **Plugin architectures**: Define interfaces that plugins implement
 - **Large codebases**: Separate concerns across files
+- **Variant modules**: Split server, client, and native code into separate files while keeping them as one logical module
 
 ---
 
