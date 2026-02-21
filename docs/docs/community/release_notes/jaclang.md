@@ -2,8 +2,20 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.10.4 (Unreleased)
+## jaclang 0.10.6 (Unreleased)
 
+- **Fix: Bare-Dot Relative Import (`from . import x`) Not Resolved**: Fixed `import from . { x }` silently resolving to `UnknownType`. The import path is now computed directly from the current file's directory, ensuring sibling modules are correctly found and type-checked.
+- **Fix:**: update the jac-check command to print the file names of the files that failed to have clean error message.
+
+## jaclang 0.10.5 (Latest Release)
+
+- **Fix: `sv import` of `def:pub` Functions Generates RPC Stubs**: Fixed `sv import from module { func }` in `.cl.jac` files not generating for `def:pub` server functions.
+- **Fix: Type Narrowing Infinite Loop on Large Files**: Fixed `jac check` hanging indefinitely on large `.jac` files (e.g. standalone `.impl.jac` modules). The backward CFG walk in `_compute_narrowed_at` had no depth bound, causing combinatorial explosion when the module-level CFG contained hundreds of basic blocks. Added a depth limit to the walk; narrowing beyond the limit conservatively returns the declared type.
+
+## jaclang 0.10.4
+
+- **`jac check/lint --ignore` Multi-Arg & Wildcard Support**: Enhanced `--ignore` flag to accept multiple space-separated patterns (`--ignore dir1 dir2 dir3`) instead of comma-separated strings. Added wildcard support using glob patterns (e.g., `--ignore "jac-*" test`) for flexible directory matching.
+- **CI: Type Check All Jac Files**: Updated CI workflow to run `jac check` on all `.jac` files (excluding test fixtures and error cases) in preparation for removing `.jacignore`.
 - **Fix: `_jac` ES Runtime Correctness**: Fixed `str.split` with `maxsplit` to keep the remainder (matching Python behavior), `dict.eq` to compare key-by-key instead of order-dependent `JSON.stringify`, and builtin dispatch (e.g., `sorted(key=lambda...)`) to correctly pass keyword arguments to the runtime.
 - **Fix: Remove Dead `abs` Prefix Modifier**: Removed the unused `abs` prefix on archetypes (`abs obj Foo { }`) from the grammar and parser. The prefix was parsed but silently discarded; archetype abstractness is computed from contained abstract abilities. The `abs` keyword remains valid only as an ability body terminator (`can foo() abs;`).
 - **ES Codegen: Expanded Primitive Coverage**: Added `bool()` with Python truthiness semantics (empty list/dict/set are falsy), `range()` builtin (supports `for i in range(n)`), `slice()` constructor, `bytearray()` constructor, dedicated `BoolEmitter` for correct `&`/`|`/`^` bool-returning bitwise ops, enhanced `format()` with format-spec support (`f`, `d`, `b`, `o`, `x`, `e`, `%`, width, alignment), and fixed `int()` to handle booleans and floats correctly via `Math.trunc(Number(x))`.
@@ -12,7 +24,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **ES Codegen: Near-Complete Primitive Test Coverage (92%)**: Added cross-backend equivalence tests for 110 additional primitive emitter interfaces (275/299 total), covering float operators, complex arithmetic, bytes methods (with full `_jac.bytes` runtime namespace), set/frozenset algebra and operators, and extra builtins. Fixed column-aware `expandtabs` for str and bytes, `complex.pow`/`complex.eq` mixed-type handling, and `ascii()` quoting to match Python semantics.
 - 3 Minor refactors/chages
 
-## jaclang 0.10.3 (Latest Release)
+## jaclang 0.10.3
 
 - **Fix: Type Narrowing in Loops**: Fixed type narrowing loss in loops and also improved CFG accuracy.
 - **Fix: Config Discovery from Target File Path**: Fixed `jac start` commands to discover `jac.toml` from the target file's directory instead of the current working directory when using absolute/relative paths.
