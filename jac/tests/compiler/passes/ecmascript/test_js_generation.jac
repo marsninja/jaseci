@@ -686,6 +686,28 @@ test "separated defpub generates rpc stubs" {
     assert_balanced_syntax(js_code, fixture);
 }
 
+test "cl.jac with impl.jac does not duplicate __jacCallFunction import" {
+    # When a .cl.jac file has a separate .impl.jac file, both the main pass
+    # and the child pass for the impl module may independently inject
+    # __jacCallFunction from @jac/runtime. The import must appear only once.
+    fixture = "defpub_impl_dedup.cl.jac";
+    js_code = compile_fixture_to_js(fixture, FIXTURES);
+
+    # The import must be present
+    import_line = 'import { __jacCallFunction } from "@jac/runtime";';
+    assert import_line in js_code , (
+        "__jacCallFunction import from @jac/runtime is required"
+    );
+
+    # It must appear exactly once (no duplicates)
+    import_count = js_code.count(import_line);
+    assert import_count == 1 , (
+        f"Expected exactly 1 __jacCallFunction import, found {import_count}"
+    );
+
+    assert_balanced_syntax(js_code, fixture);
+}
+
 test "lexer does not treat comparison lt as jsx tag" {
     # BUG: `i<points` in a for-loop causes the lexer to enter JSX_TAG
     # mode because `<` followed by an alpha char is always treated as a
