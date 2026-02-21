@@ -63,6 +63,11 @@ def discover_annex_files(source_path: str, suffix: str = '.impl.jac') -> list[st
             break;
         }
     }
+    # When the source is a variant (.sv/.cl/.na) and no bare .jac head
+    # exists, bare annex files (no variant suffix) belong to this variant.
+    bare_head_exists = (
+        src_variant is not None and (src.parent / (base + '.jac')).is_file()
+    );
     mod_folder = src.parent / (base + suffix[:-4]);
     shared_folder = suffix[1:-4];
     dirs = [src.parent, mod_folder, (src.parent / shared_folder)];
@@ -87,10 +92,17 @@ def discover_annex_files(source_path: str, suffix: str = '.impl.jac') -> list[st
                     break;
                 }
             }
-            # Only include if variant contexts match (both None, or same).
-            if (annex_variant == src_variant) {
-                results.append(str(f));
+            # Variant-suffixed annex: must match the source variant exactly.
+            # Bare annex (no variant): matches any source, UNLESS a bare
+            # .jac head exists that would claim it instead.
+            if annex_variant is not None {
+                if (annex_variant != src_variant) {
+                    continue;
+                }
+            } elif (src_variant is not None and bare_head_exists) {
+                continue;
             }
+            results.append(str(f));
         }
     }
     return results;
