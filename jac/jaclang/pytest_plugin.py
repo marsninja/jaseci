@@ -151,6 +151,11 @@ def _ensure_test_package(base_dir: str) -> str:
     pkg.__spec__.submodule_search_locations = [real_dir]
     sys.modules[pkg_name] = pkg
 
+    # Ensure the test directory is on sys.path so that absolute imports of
+    # sibling packages (e.g. ``from fixtures import ...``) resolve correctly.
+    if real_dir not in sys.path:
+        sys.path.insert(0, real_dir)
+
     return pkg_name
 
 

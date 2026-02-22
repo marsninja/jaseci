@@ -625,7 +625,7 @@ test "all in one app endpoints" {
                     # 4. Verify reader returns deterministic responses
                     #    (proves the cache can safely serve repeated reads)
                     print("[DEBUG] Testing reader determinism (3 identical calls)");
-                    reader_responses: list[dict] = [];
+                    reader_reports: list = [];
                     for _i in range(3) {
                         req_r = Request(
                             f"http://127.0.0.1:{server_port}/walker/get_server_message",
@@ -637,17 +637,15 @@ test "all in one app endpoints" {
                             body = json.loads(
                                 resp_r.read().decode("utf-8", errors="ignore")
                             );
-                            # Strip per-invocation ids before comparing
-                            body.pop("_jac_id", None);
-                            reader_responses.append(body);
+                            # Compare only reports (deterministic data);
+                            # result contains per-invocation walker ids.
+                            reader_reports.append(body.get("reports"));
                         }
                     }
                     assert (
-                        reader_responses[0] == reader_responses[1] == reader_responses[
-                            2
-                        ]
+                        reader_reports[0] == reader_reports[1] == reader_reports[2]
                     ) , (
-                        "Reader endpoint must return identical responses "
+                        "Reader endpoint must return identical reports "
                         "(proves client cache can safely serve repeated reads)"
                     );
                     print(
