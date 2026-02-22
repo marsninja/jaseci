@@ -14,6 +14,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Refactor: Native Jac Generics in Primitives**: Replaced Python-style `Generic[(V, C)]` with native Jac bracket syntax `[V, C]` across all emitter classes in `primitives.jac` and removed unused `TypeVar`/`Generic` imports.
 - **Fix: `jac format` Misplaces Comments Around Generic Type Params**: Fixed `jac format` moving section comments (e.g., `# === String Types ===`) into the `[V, C]` brackets of the preceding class. The parser was generating synthetic comma tokens between type parameters with incorrect source locations; `parse_type_params` now preserves the real comma tokens from the source.
 - 4 Minor refactors/chages
+- **Native Codegen: Expanded Primitive Coverage**: Added 17 new LLVM IR emitter implementations across 6 emitters: IntEmitter (`conjugate`, `bit_length`, `bit_count`), FloatEmitter (`conjugate`, `is_integer`, `op_floordiv`), StrEmitter (`title`, `rfind`, `ljust`, `rjust`, `zfill`), SetEmitter (`clear`, `discard`, `copy`), ListEmitter (`extend`, `insert`), and BuiltinEmitter (`bool`). Fixed string comparison operators (`<`, `>`, `<=`, `>=`) via `strcmp` and added float floor division (`fdiv` + `floor`). Fixed `rfind` infinite loop on empty substring. 108/299 implemented (36%), 105/299 tested (35%).
 - **Fix: Walker `result.reports` in CLI Mode**: Fixed `report` keyword not populating `result.reports` when running walkers via `jac run` or `jac test`.
 
 ## jaclang 0.10.5 (Latest Release)
