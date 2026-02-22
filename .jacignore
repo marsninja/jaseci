@@ -284,3 +284,5 @@ checker_bare_dot_import.jac
 prim_str_extra.jac
 prim_dict_methods.jac
 banners.jac
+prim_float_cmp.jac
+prim_builtins_extra.jac
