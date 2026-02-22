@@ -625,7 +625,7 @@ test "all in one app endpoints" {
                     # 4. Verify reader returns deterministic responses
                     #    (proves the cache can safely serve repeated reads)
                     print("[DEBUG] Testing reader determinism (3 identical calls)");
-                    reader_responses: list[str] = [];
+                    reader_responses: list[dict] = [];
                     for _i in range(3) {
                         req_r = Request(
                             f"http://127.0.0.1:{server_port}/walker/get_server_message",
@@ -634,9 +634,12 @@ test "all in one app endpoints" {
                             method="POST",
                         );
                         with urlopen(req_r, timeout=20) as resp_r {
-                            reader_responses.append(
+                            body = json.loads(
                                 resp_r.read().decode("utf-8", errors="ignore")
                             );
+                            # Strip per-invocation ids before comparing
+                            body.pop("_jac_id", None);
+                            reader_responses.append(body);
                         }
                     }
                     assert (

@@ -228,8 +228,11 @@ test "mtruntime without mtir info" {
 }
 
 test "python lib mode fixture" {
+    _tests_dir = os.path.dirname(os.path.abspath(__file__));
+    if _tests_dir not in sys.path {
+        sys.path.insert(0, _tests_dir);
+    }
     import from fixtures { python_lib_mode }
-
     assert hasattr(python_lib_mode, "Person");
     assert hasattr(python_lib_mode, "get_person_info");
     assert hasattr(python_lib_mode, "llm");
