@@ -12,6 +12,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix:**: update the jac-check command to print the file names of the files that failed to have clean error message.
 - **ES Codegen: Near-Complete Primitive Test Coverage (92%)**: Added cross-backend equivalence tests for 110 additional primitive emitter interfaces (275/299 total), covering float operators, complex arithmetic, bytes methods (with full `_jac.bytes` runtime namespace), set/frozenset algebra and operators, and extra builtins. Fixed column-aware `expandtabs` for str and bytes, `complex.pow`/`complex.eq` mixed-type handling, and `ascii()` quoting to match Python semantics.
 - **Refactor: Native Jac Generics in Primitives**: Replaced Python-style `Generic[(V, C)]` with native Jac bracket syntax `[V, C]` across all emitter classes in `primitives.jac` and removed unused `TypeVar`/`Generic` imports.
+- **Fix: `jac format` Misplaces Comments Around Generic Type Params**: Fixed `jac format` moving section comments (e.g., `# === String Types ===`) into the `[V, C]` brackets of the preceding class. The parser was generating synthetic comma tokens between type parameters with incorrect source locations; `parse_type_params` now preserves the real comma tokens from the source.
 - 4 Minor refactors/chages
 - **Fix: Walker `result.reports` in CLI Mode**: Fixed `report` keyword not populating `result.reports` when running walkers via `jac run` or `jac test`.
 
