@@ -119,6 +119,12 @@ impl DeclImplMatchPass.connect_impls(
             valid_decl.sym_tab.names_in_scope
         );
         valid_decl.sym_tab.names_in_scope = sym.decl.name_of.sym_tab.names_in_scope;
+        # Fix local vars in impl that shadow typed variables from the
+        # declaration's parent scope chain. During SymTabBuildPass, impl
+        # blocks aren't yet linked to their declarations, so assignments
+        # like `tasks = tasks + [task]` create untyped local var symbols
+        # that shadow `has tasks: list` from the parent scope.
+        self._fix_shadowed_parent_symbols(sym.decl.name_of, valid_decl);
         self._resolve_impl_body_symbols(sym.decl.name_of);
     }
     for source_scope in source_sym_tab.kid_scope {
@@ -197,6 +203,47 @@ impl DeclImplMatchPass._resolve_impl_body_symbols(
         chain = trailer_node.as_attr_list;
         if (chain and (chain[0].sym is None) and trailer_node.sym_tab) {
             trailer_node.sym_tab.chain_use_lookup(chain);
+        }
+    }
+}
+
+"""Fix local vars in impl that shadow typed variables from the declaration's parent scope."""
+impl DeclImplMatchPass._fix_shadowed_parent_symbols(
+    self: DeclImplMatchPass, impl_def: uni.ImplDef, valid_decl: uni.AstImplNeedingNode
+) -> None {
+    import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
+    if not (valid_decl.sym_tab and valid_decl.sym_tab.parent_scope) {
+        return;
+    }
+    parent_scope = valid_decl.sym_tab.parent_scope;
+    merged = impl_def.sym_tab.names_in_scope;
+    names_to_fix: list[str] = [];
+    for (name, sym) in merged.items() {
+        # Check if this is a local var created by SymTabBuildPass (bare Name, no type info)
+        if (
+            sym.decl
+            and sym.decl.name_of
+            and isinstance(sym.decl.name_of, uni.Name)
+            and not isinstance(sym.decl.name_of, (uni.HasVar, uni.ParamVar))
+        ) {
+            # Check if the parent scope chain has a properly-typed version
+            parent_sym = parent_scope.lookup(name, deep=True, incl_inner_scope=False);
+            if (parent_sym and SymTabBuildPass._outer_has_type_annotation(parent_sym)) {
+                names_to_fix.append(name);
+            }
+        }
+    }
+    for name in names_to_fix {
+        parent_sym = parent_scope.lookup(name, deep=True, incl_inner_scope=False);
+        if parent_sym {
+            merged[name] = parent_sym;
+            # Re-link any Name nodes in the impl body that reference this symbol
+            for name_node in impl_def.get_all_sub_nodes(uni.Name) {
+                if ((name_node.value == name) and (name_node.sym is not None)) {
+                    name_node.sym = parent_sym;
+                    parent_sym.add_use(name_node.name_spec);
+                }
+            }
         }
     }
 }
