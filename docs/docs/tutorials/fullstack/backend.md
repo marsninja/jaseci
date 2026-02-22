@@ -215,7 +215,7 @@ cl {
             if new_title.trim() {
                 result = root spawn add_task(title=new_title.trim());
                 if result.reports and result.reports.length > 0 {
-                    tasks = tasks.concat([result.reports[0]]);
+                    tasks = tasks + [result.reports[0]];
                 }
                 new_title = "";
             }
@@ -485,7 +485,7 @@ cl {
             if input_text.trim() {
                 result = root spawn add_task(title=input_text.trim());
                 if result.reports and result.reports.length > 0 {
-                    tasks = tasks.concat([result.reports[0]]);
+                    tasks = tasks + [result.reports[0]];
                 }
                 input_text = "";
             }

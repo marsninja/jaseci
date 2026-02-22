@@ -60,7 +60,7 @@ cl {
 
         async def add -> None {
             todo = await add_todo("New");
-            items = items.concat([todo]);
+            items = items + [todo];
         }
 
         return <div>

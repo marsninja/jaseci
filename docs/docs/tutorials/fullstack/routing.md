@@ -594,7 +594,7 @@ cl {
         # Parse query parameters from location.search
         searchParams = URLSearchParams(location.search);
         query = searchParams.get("q") or "";
-        page = parseInt(searchParams.get("page") or "1");
+        page = int(searchParams.get("page") or "1");
 
         def updatePage(newPage: int) -> None {
             navigate(f"/search?q={query}&page={newPage}");
