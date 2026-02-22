@@ -496,12 +496,31 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     # String methods (on any target expression whose type is i8*)
     if method_name in (
         "strip",
+        "lstrip",
+        "rstrip",
         "split",
         "upper",
         "lower",
+        "capitalize",
+        "casefold",
+        "swapcase",
         "find",
+        "count",
         "startswith",
-        "endswith"
+        "endswith",
+        "replace",
+        "removeprefix",
+        "removesuffix",
+        "isalpha",
+        "isdigit",
+        "isalnum",
+        "isspace",
+        "islower",
+        "isupper",
+        "isascii",
+        "isdecimal",
+        "isnumeric",
+        "isprintable"
     ) {
         str_val = self._codegen_expr(trailer.target);
         if str_val is not None and str_val.type == ir.IntType(8).as_pointer() {

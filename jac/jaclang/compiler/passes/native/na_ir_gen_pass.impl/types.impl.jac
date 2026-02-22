@@ -252,6 +252,10 @@ impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {
             "!=", val, ir.Constant(val.type, 0.0), name="tobool"
         );
     }
+    if isinstance(val.type, ir.PointerType) {
+        null_ptr = ir.Constant(val.type, None);
+        return self.builder.icmp_unsigned("!=", val, null_ptr, name="tobool");
+    }
     return val;
 }
 

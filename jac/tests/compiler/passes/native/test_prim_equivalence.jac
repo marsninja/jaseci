@@ -173,3 +173,24 @@ test "dict methods match across backends" {
     na_result = run_native_function(eng, "dict_methods_na");
     compare_results(py_result, na_result, "dict_methods");
 }
+
+test "string advanced methods match across backends" {
+    py_result = run_py_fixture("prim_str_advanced", "str_advanced_py");
+    (eng, _) = compile_native("prim_str_advanced.jac");
+    na_result = run_native_function(eng, "str_advanced_na");
+    compare_results(py_result, na_result, "str_advanced");
+}
+
+test "float comparisons match across backends" {
+    py_result = run_py_fixture("prim_float_cmp", "float_cmp_py");
+    (eng, _) = compile_native("prim_float_cmp.jac");
+    na_result = run_native_function(eng, "float_cmp_na");
+    compare_results(py_result, na_result, "float_cmp");
+}
+
+test "extra builtin functions match across backends" {
+    py_result = run_py_fixture("prim_builtins_extra", "builtins_extra_py");
+    (eng, _) = compile_native("prim_builtins_extra.jac");
+    na_result = run_native_function(eng, "builtins_extra_na");
+    compare_results(py_result, na_result, "builtins_extra");
+}
