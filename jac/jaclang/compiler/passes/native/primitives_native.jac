@@ -1249,7 +1249,137 @@ class NativeStrEmitter(StrEmitter[
     def emit_expandtabs(
         self, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
     ) -> (ir.Value | None) {
-        return None;
+        # expandtabs(tabsize=8): replace tabs with spaces to next tab stop
+        p = ctx.pass_ref;
+        b = p.builder;
+        i8 = ir.IntType(8);
+        i8p = i8.as_pointer();
+        i64 = ir.IntType(64);
+        zero = ir.Constant(i64, 0);
+        one = ir.Constant(i64, 1);
+        strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
+        gc_malloc = p._get_or_declare_extern("GC_malloc", i8p, [i64]);
+        slen = b.call(strlen_fn, [target], name="et.len");
+        # tabsize: default 8 if no args
+        if args {
+            tabsize = args[0];
+        } else {
+            tabsize = ir.Constant(i64, 8);
+        }
+        # Worst case allocation: every char is a tab → slen * max(tabsize, 1) + 1
+        ts_or_one = b.select(
+            b.icmp_unsigned("==", tabsize, zero), one, tabsize, name="et.ts1"
+        );
+        worst = b.mul(slen, ts_or_one, name="et.worst");
+        alloc_sz = b.add(worst, one, name="et.alloc");
+        buf = b.call(gc_malloc, [alloc_sz], name="et.buf");
+        func = b.basic_block.function;
+        entry_bb = b.basic_block;
+        loop_bb = func.append_basic_block(name="et.loop");
+        check_tab = func.append_basic_block(name="et.check.tab");
+        do_tab = func.append_basic_block(name="et.do.tab");
+        tab_loop = func.append_basic_block(name="et.tab.loop");
+        tab_write = func.append_basic_block(name="et.tab.write");
+        tab_done = func.append_basic_block(name="et.tab.done");
+        check_nl = func.append_basic_block(name="et.check.nl");
+        do_nl = func.append_basic_block(name="et.do.nl");
+        do_char = func.append_basic_block(name="et.do.char");
+        next_bb = func.append_basic_block(name="et.next");
+        done_bb = func.append_basic_block(name="et.done");
+        b.branch(loop_bb);
+        # Main loop header with phi nodes
+        b.position_at_start(loop_bb);
+        si = b.phi(i64, name="et.si");
+        di = b.phi(i64, name="et.di");
+        col = b.phi(i64, name="et.col");
+        si.add_incoming(zero, entry_bb);
+        di.add_incoming(zero, entry_bb);
+        col.add_incoming(zero, entry_bb);
+        # Load current char
+        cp = b.gep(target, [si], name="et.cp");
+        ch = b.load(cp, name="et.ch");
+        is_end = b.icmp_unsigned("==", ch, ir.Constant(i8, 0), name="et.end");
+        b.cbranch(is_end, done_bb, check_tab);
+        # Check if tab char (0x09)
+        b.position_at_start(check_tab);
+        is_tab = b.icmp_unsigned("==", ch, ir.Constant(i8, 9), name="et.istab");
+        b.cbranch(is_tab, do_tab, check_nl);
+        # Tab: calculate spaces = tabsize - (col % tabsize), min 1
+        b.position_at_start(do_tab);
+        is_ts_zero = b.icmp_unsigned("==", tabsize, zero, name="et.ts0");
+        # If tabsize==0, spaces=0; else spaces = tabsize - (col % tabsize)
+        col_mod = b.urem(col, ts_or_one, name="et.colmod");
+        spaces_calc = b.sub(tabsize, col_mod, name="et.spcalc");
+        spaces = b.select(is_ts_zero, zero, spaces_calc, name="et.spaces");
+        b.branch(tab_loop);
+        # Tab fill loop
+        b.position_at_start(tab_loop);
+        ti = b.phi(i64, name="et.ti");
+        di_t = b.phi(i64, name="et.di.t");
+        ti.add_incoming(zero, do_tab);
+        di_t.add_incoming(di, do_tab);
+        ti_done = b.icmp_unsigned(">=", ti, spaces, name="et.tidone");
+        b.cbranch(ti_done, tab_done, tab_write);
+        # Write one space
+        b.position_at_start(tab_write);
+        dp = b.gep(buf, [di_t], name="et.dp.tw");
+        b.store(ir.Constant(i8, 32), dp);
+        next_ti = b.add(ti, one, name="et.nti");
+        next_di_t = b.add(di_t, one, name="et.ndi.t");
+        ti.add_incoming(next_ti, tab_write);
+        di_t.add_incoming(next_di_t, tab_write);
+        b.branch(tab_loop);
+        # After tab fill
+        b.position_at_start(tab_done);
+        new_col_tab = b.add(col, spaces, name="et.col.tab");
+        next_si_tab = b.add(si, one, name="et.si.tab");
+        b.branch(next_bb);
+        # Check newline/carriage return
+        b.position_at_start(check_nl);
+        is_nl = b.icmp_unsigned("==", ch, ir.Constant(i8, 10), name="et.isnl");
+        is_cr = b.icmp_unsigned("==", ch, ir.Constant(i8, 13), name="et.iscr");
+        is_line_end = b.or_(is_nl, is_cr, name="et.isle");
+        b.cbranch(is_line_end, do_nl, do_char);
+        # Newline: copy char, reset column to 0
+        b.position_at_start(do_nl);
+        dp_nl = b.gep(buf, [di], name="et.dp.nl");
+        b.store(ch, dp_nl);
+        next_di_nl = b.add(di, one, name="et.ndi.nl");
+        next_si_nl = b.add(si, one, name="et.si.nl");
+        b.branch(next_bb);
+        # Normal char: copy and increment column
+        b.position_at_start(do_char);
+        dp_ch = b.gep(buf, [di], name="et.dp.ch");
+        b.store(ch, dp_ch);
+        next_di_ch = b.add(di, one, name="et.ndi.ch");
+        next_col_ch = b.add(col, one, name="et.col.ch");
+        next_si_ch = b.add(si, one, name="et.si.ch");
+        b.branch(next_bb);
+        # Merge block for next iteration
+        b.position_at_start(next_bb);
+        new_si = b.phi(i64, name="et.new.si");
+        new_di = b.phi(i64, name="et.new.di");
+        new_col = b.phi(i64, name="et.new.col");
+        new_si.add_incoming(next_si_tab, tab_done);
+        new_si.add_incoming(next_si_nl, do_nl);
+        new_si.add_incoming(next_si_ch, do_char);
+        new_di.add_incoming(di_t, tab_done);
+        new_di.add_incoming(next_di_nl, do_nl);
+        new_di.add_incoming(next_di_ch, do_char);
+        new_col.add_incoming(new_col_tab, tab_done);
+        new_col.add_incoming(zero, do_nl);
+        new_col.add_incoming(next_col_ch, do_char);
+        b.branch(loop_bb);
+        si.add_incoming(new_si, next_bb);
+        di.add_incoming(new_di, next_bb);
+        col.add_incoming(new_col, next_bb);
+        # Done: null-terminate
+        b.position_at_start(done_bb);
+        done_di = b.phi(i64, name="et.done.di");
+        done_di.add_incoming(di, loop_bb);
+        null_p = b.gep(buf, [done_di], name="et.null");
+        b.store(ir.Constant(i8, 0), null_p);
+        return buf;
     }
 
     # Character tests
@@ -2496,7 +2626,84 @@ class NativeSetEmitter(SetEmitter[(ir.Value, NativeEmitCtx)]) {
     def emit_remove(
         self, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
     ) -> (ir.Value | None) {
-        return None;
+        # remove: like discard but raises KeyError if element not found
+        if not args {
+            return None;
+        }
+        p = ctx.pass_ref;
+        helpers = p.set_helpers.get(ctx.type_key);
+        if helpers is None {
+            return None;
+        }
+        b = p.builder;
+        i32 = ir.IntType(32);
+        i64 = ir.IntType(64);
+        elem_type = helpers["elem_type"];
+        search_val = p._coerce_type(args[0], elem_type);
+        len_ptr = b.gep(
+            target, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="srem.len.ptr"
+        );
+        elems_ptr = b.gep(
+            target, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="srem.elems.ptr"
+        );
+        set_len = b.load(len_ptr, name="srem.len");
+        elems_arr = b.load(elems_ptr, name="srem.elems");
+        func = b.basic_block.function;
+        entry_bb = b.basic_block;
+        loop_bb = func.append_basic_block(name="srem.loop");
+        check_bb = func.append_basic_block(name="srem.check");
+        notfound_bb = func.append_basic_block(name="srem.notfound");
+        found_bb = func.append_basic_block(name="srem.found");
+        shift_bb = func.append_basic_block(name="srem.shift");
+        shift_body = func.append_basic_block(name="srem.shift.body");
+        shift_done = func.append_basic_block(name="srem.shift.done");
+        done_bb = func.append_basic_block(name="srem.done");
+        b.branch(loop_bb);
+        # Search loop
+        b.position_at_start(loop_bb);
+        idx = b.phi(i64, name="srem.idx");
+        idx.add_incoming(ir.Constant(i64, 0), entry_bb);
+        at_end = b.icmp_unsigned(">=", idx, set_len, name="srem.atend");
+        b.cbranch(at_end, notfound_bb, check_bb);
+        b.position_at_start(check_bb);
+        ep = b.gep(elems_arr, [idx], name="srem.ep");
+        ev = b.load(ep, name="srem.ev");
+        if isinstance(elem_type, ir.IntType) {
+            eq = b.icmp_signed("==", ev, search_val, name="srem.eq");
+        } else {
+            eq = b.icmp_unsigned("==", ev, search_val, name="srem.eq");
+        }
+        next_idx = b.add(idx, ir.Constant(i64, 1), name="srem.next");
+        b.cbranch(eq, found_bb, loop_bb);
+        idx.add_incoming(next_idx, check_bb);
+        # Not found: raise KeyError
+        b.position_at_start(notfound_bb);
+        p._emit_runtime_raise(
+            ir.Constant(ir.IntType(1), 1), "KeyError", "element not in set"
+        );
+        b.branch(done_bb);
+        # Found: shift remaining elements left
+        b.position_at_start(found_bb);
+        new_len = b.sub(set_len, ir.Constant(i64, 1), name="srem.newlen");
+        b.store(new_len, len_ptr);
+        b.branch(shift_bb);
+        b.position_at_start(shift_bb);
+        si = b.phi(i64, name="srem.si");
+        si.add_incoming(idx, found_bb);
+        si_end = b.icmp_unsigned(">=", si, new_len, name="srem.siend");
+        b.cbranch(si_end, shift_done, shift_body);
+        b.position_at_start(shift_body);
+        next_si = b.add(si, ir.Constant(i64, 1), name="srem.nsi");
+        src_p = b.gep(elems_arr, [next_si], name="srem.srcp");
+        sv = b.load(src_p, name="srem.sv");
+        dst_p = b.gep(elems_arr, [si], name="srem.dstp");
+        b.store(sv, dst_p);
+        si.add_incoming(next_si, shift_body);
+        b.branch(shift_bb);
+        b.position_at_start(shift_done);
+        b.branch(done_bb);
+        b.position_at_start(done_bb);
+        return ir.Constant(i64, 0);
     }
 
     def emit_discard(
@@ -2577,7 +2784,34 @@ class NativeSetEmitter(SetEmitter[(ir.Value, NativeEmitCtx)]) {
     def emit_pop(
         self, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
     ) -> (ir.Value | None) {
-        return None;
+        # pop: remove and return an arbitrary element, raise KeyError if empty
+        p = ctx.pass_ref;
+        helpers = p.set_helpers.get(ctx.type_key);
+        if helpers is None {
+            return None;
+        }
+        b = p.builder;
+        i32 = ir.IntType(32);
+        i64 = ir.IntType(64);
+        len_ptr = b.gep(
+            target, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="spop.len.ptr"
+        );
+        elems_ptr = b.gep(
+            target, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="spop.elems.ptr"
+        );
+        set_len = b.load(len_ptr, name="spop.len");
+        # Raise KeyError if empty
+        is_empty = b.icmp_unsigned(
+            "==", set_len, ir.Constant(i64, 0), name="spop.empty"
+        );
+        p._emit_runtime_raise(is_empty, "KeyError", "pop from an empty set");
+        # Pop last element (arbitrary choice, O(1))
+        new_len = b.sub(set_len, ir.Constant(i64, 1), name="spop.newlen");
+        elems_arr = b.load(elems_ptr, name="spop.elems");
+        last_ep = b.gep(elems_arr, [new_len], name="spop.last.ptr");
+        last_val = b.load(last_ep, name="spop.last.val");
+        b.store(new_len, len_ptr);
+        return last_val;
     }
 
     def emit_clear(

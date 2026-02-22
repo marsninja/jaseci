@@ -264,3 +264,24 @@ test "dict copy and clear match across backends" {
     na_result = run_native_function(eng, "dict_copy_na");
     compare_results(py_result, na_result, "dict_copy");
 }
+
+test "string operators match across backends" {
+    py_result = run_py_fixture("prim_str_ops", "str_ops_py");
+    (eng, _) = compile_native("prim_str_ops.jac");
+    na_result = run_native_function(eng, "str_ops_na");
+    compare_results(py_result, na_result, "str_ops");
+}
+
+test "list operators match across backends" {
+    py_result = run_py_fixture("prim_list_ops", "list_ops_py");
+    (eng, _) = compile_native("prim_list_ops.jac");
+    na_result = run_native_function(eng, "list_ops_na");
+    compare_results(py_result, na_result, "list_ops");
+}
+
+test "set remove and pop match across backends" {
+    py_result = run_py_fixture("prim_set_ops", "set_ops_py");
+    (eng, _) = compile_native("prim_set_ops.jac");
+    na_result = run_native_function(eng, "set_ops_na");
+    compare_results(py_result, na_result, "set_ops");
+}

@@ -591,7 +591,8 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         "istitle",
         "index",
         "rindex",
-        "center"
+        "center",
+        "expandtabs"
     ) {
         str_val = self._codegen_expr(trailer.target);
         if str_val is not None and str_val.type == ir.IntType(8).as_pointer() {
