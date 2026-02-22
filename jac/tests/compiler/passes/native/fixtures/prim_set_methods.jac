@@ -69,12 +69,9 @@ na {
         s3: set[int] = {10, 20, 30};
         s3.discard(20);
         s3_disc_len: int = len(s3);
-        s3_has_10: int = 0;
-        if 10 in s3 { s3_has_10 = 1; }
-        s3_has_20: int = 0;
-        if 20 in s3 { s3_has_20 = 1; }
-        s3_has_30: int = 0;
-        if 30 in s3 { s3_has_30 = 1; }
+        s3_has_10 = 1 if 10 in s3 else 0;
+        s3_has_20 = 1 if 20 in s3 else 0;
+        s3_has_30 = 1 if 30 in s3 else 0;
         s3.discard(99);
         s3_disc2_len: int = len(s3);
 
@@ -82,10 +79,8 @@ na {
         s4: set[int] = {10, 20, 30};
         s5: set[int] = s4.copy();
         s5_len: int = len(s5);
-        s5_has_10: int = 0;
-        if 10 in s5 { s5_has_10 = 1; }
-        s5_has_20: int = 0;
-        if 20 in s5 { s5_has_20 = 1; }
+        s5_has_10 = 1 if 10 in s5 else 0;
+        s5_has_20 = 1 if 20 in s5 else 0;
 
         return {
             "s1_len": s1_len,
