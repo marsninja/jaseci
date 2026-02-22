@@ -2,7 +2,7 @@
 
 By the end of this tutorial, you'll have built a full-stack AI day planner -- a single application that lets you manage daily tasks (auto-categorized by AI) and generate meal shopping lists from natural language descriptions. Along the way, you'll learn every major feature of the Jac programming language.
 
-**Prerequisites:** [Installation](../../quick-guide/install.md) complete, [Hello World](../../quick-guide/hello-world.md) done.
+**Prerequisites:** [Installation](../../quick-guide/install.md) complete.
 
 **Required Packages:** This tutorial uses **jaclang**, **jac-client**, **jac-scale**, and **byllm**. Install everything at once with:
 
@@ -347,15 +347,15 @@ with entry {
 
     # Filter by type -- keep only Dogs
     dogs = pets(?:Dog);
-    print(dogs);  # [Rex, Buddy]
+    print(dogs);  # [Dog(name='Rex', age=5), Dog(name='Buddy', age=2)]
 
     # Filter by field condition
     young = pets(?age < 4);
-    print(young);  # [Whiskers, Buddy]
+    print(young);  # [Cat(name='Whiskers', age=3), Dog(name='Buddy', age=2)]
 
     # Combined type + field filter
     young_dogs = pets(?:Dog, age < 4);
-    print(young_dogs);  # [Buddy]
+    print(young_dogs);  # [Dog(name='Buddy', age=2)]
 }
 ```
 
@@ -499,11 +499,8 @@ That single function is now:
 
 - A server-side function you can call from Jac code
 - An HTTP endpoint that clients can call over the network
-- Auto-documented with the docstring
 
 No route configuration, no controllers, no request parsing. The function **is** the API.
-
-**Docstrings** in Jac come *before* the declaration (unlike Python where they go inside the function body). They're enclosed in triple quotes `"""..."""`.
 
 **Building the CRUD Endpoints**
 
@@ -597,6 +594,10 @@ jac start main.jac
 
 The server starts on port 8000 by default. Use `--port 3000` to pick a different port.
 
+Open [http://localhost:8000/docs](http://localhost:8000/docs) to see Swagger UI with all your endpoints listed. You can test each one interactively -- expand an endpoint, click "Try it out", fill in the parameters, and hit "Execute." This is a great way to verify your backend works before building a frontend.
+
+You can also visit [http://localhost:8000/graph](http://localhost:8000/graph) to see a visual representation of the data graph attached to `root`. Right now it will be empty, but once you add tasks (try it from the Swagger UI!), you'll see them appear as nodes connected to `root`.
+
 !!! info "`jac` vs `jac start`"
     In Parts 1-2 we used `jac <file>` to run scripts. `jac start <file>` launches a web server that serves `def:pub` endpoints and any frontend components. Use `jac` for scripts, `jac start` for web apps.
 
@@ -607,7 +608,6 @@ The server starts on port 8000 by default. Use `--port 3000` to pick a different
 
 - **`def:pub`** -- functions that auto-become HTTP endpoints
 - **`import from module { name }`** -- import Python (or any) packages
-- **`"""..."""`** -- docstrings (placed before the declaration)
 - **List comprehensions** -- `[expr for x in list]` and `[expr for x in list if cond]`
 - **Dictionaries** -- `{"key": value}` for structured data
 - **`jac start`** -- run the web server
@@ -686,7 +686,7 @@ Here's a key insight: **`await add_task(text)`** calls the server function as if
     async def add_new_task -> None {
         if task_text.strip() {
             task = await add_task(task_text.strip());
-            tasks = tasks.concat([task]);
+            tasks = tasks + [task];
             task_text = "";
         }
     }
@@ -730,7 +730,7 @@ cl def:pub app -> JsxElement {
     async def add_new_task -> None {
         if task_text.strip() {
             task = await add_task(task_text.strip());
-            tasks = tasks.concat([task]);
+            tasks = tasks + [task];
             task_text = "";
         }
     }
@@ -777,27 +777,26 @@ cl def:pub app -> JsxElement {
     async def add_new_task -> None {
         if task_text.strip() {
             task = await add_task(task_text.strip());
-            tasks = tasks.concat([task]);
+            tasks = tasks + [task];
             task_text = "";
         }
     }
 
     async def toggle(id: str) -> None {
         await toggle_task(id);
-        tasks = tasks.map(
-            lambda t: any -> any {
-                return {"id": t.id, "title": t.title, "done": not t.done}
-                if t.id == id else t;
-            }
-        );
+        tasks = [
+            {"id": t.id, "title": t.title, "done": not t.done}
+            if t.id == id else t
+            for t in tasks
+        ];
     }
 
     async def remove(id: str) -> None {
         await delete_task(id);
-        tasks = tasks.filter(lambda t: any -> bool { return t.id != id; });
+        tasks = [t for t in tasks if t.id != id];
     }
 
-    remaining = len(tasks.filter(lambda t: any -> bool { return not t.done; }));
+    remaining = len([t for t in tasks if not t.done]);
 
     return
         <div class="container">
@@ -839,9 +838,9 @@ cl def:pub app -> JsxElement {
 
 A few things to notice:
 
-- **`tasks.map(lambda ...)`** transforms each item in the list (like JavaScript's `.map()`)
-- **`tasks.filter(lambda ...)`** keeps only matching items
-- **`tasks.concat([task])`** creates a new list with the item appended
+- **List comprehensions** transform and filter lists inline (e.g., `[expr for t in tasks]`, `[t for t in tasks if cond]`)
+- **Conditional comprehensions** update matching items (e.g., `[updated if t.id == id else t for t in tasks]`)
+- **`tasks + [task]`** creates a new list with the item appended
 - **`async`** marks methods that call the server (since network calls are asynchronous)
 
 **Add Styles**
@@ -919,27 +918,26 @@ h1 { text-align: center; margin-bottom: 24px; color: #333; }
         async def add_new_task -> None {
             if task_text.strip() {
                 task = await add_task(task_text.strip());
-                tasks = tasks.concat([task]);
+                tasks = tasks + [task];
                 task_text = "";
             }
         }
 
         async def toggle(id: str) -> None {
             await toggle_task(id);
-            tasks = tasks.map(
-                lambda t: any -> any {
-                    return {"id": t.id, "title": t.title, "done": not t.done}
-                    if t.id == id else t;
-                }
-            );
+            tasks = [
+                {"id": t.id, "title": t.title, "done": not t.done}
+                if t.id == id else t
+                for t in tasks
+            ];
         }
 
         async def remove(id: str) -> None {
             await delete_task(id);
-            tasks = tasks.filter(lambda t: any -> bool { return t.id != id; });
+            tasks = [t for t in tasks if t.id != id];
         }
 
-        remaining = len(tasks.filter(lambda t: any -> bool { return not t.done; }));
+        remaining = len([t for t in tasks if not t.done]);
 
         return
             <div class="container">
@@ -992,6 +990,9 @@ Open [http://localhost:8000](http://localhost:8000). You should see a clean day 
 
 That last point is important. The data persisted because nodes live in the graph database, not in memory.
 
+!!! tip "Visualize the graph"
+    Visit [http://localhost:8000/graph](http://localhost:8000/graph) to see your tasks as nodes connected to `root`. This visual view updates live as you add, toggle, and delete tasks.
+
 **What You Learned**
 
 - **`cl`** -- prefix for client-side (browser) code
@@ -1003,7 +1004,7 @@ That last point is important. The data persisted because nodes live in the graph
 - **`await func()`** -- transparent server calls from the client (no HTTP code)
 - **`async`** -- marks functions that perform asynchronous operations
 - **JSX syntax** -- `{expression}`, `{[... for x in list]}`, event handlers with lambdas
-- **`.map()`, `.filter()`, `.concat()`** -- list operations for immutable state updates
+- **List comprehensions and `+` operator** -- `[expr for x in list]`, `[x for x in list if cond]`, and `list + [item]` for immutable state updates
 
 !!! example "Try It Yourself"
     Add a "Clear All" button below the task count that deletes every task. You'll need a new `def:pub clear_all_tasks` endpoint on the server and an `async` method in the component that calls it and resets the `tasks` list.
@@ -1069,8 +1070,8 @@ This enum constrains the AI to return *exactly one* of these values. Without it,
 Here's the key feature:
 
 ```jac
-"""Categorize a task based on its title."""
 def categorize(title: str) -> Category by llm();
+sem categorize = "Categorize a task based on its title";
 ```
 
 That's the **entire function**. There's no body -- `by llm()` tells Jac to have the LLM generate the return value. The compiler extracts meaning from:
@@ -1078,9 +1079,12 @@ That's the **entire function**. There's no body -- `by llm()` tells Jac to have 
 - The **function name** -- `categorize` tells the LLM what to do
 - The **parameter names and types** -- `title: str` is what the LLM receives
 - The **return type** -- `Category` constrains output to one of the enum values
-- The **docstring** -- additional context for the LLM
+- The **`sem` hint** -- additional context for the LLM
 
-The function name, parameter names, types, and docstring **are the specification**. The LLM fulfills it.
+The function name, parameter names, types, and `sem` hint **are the specification**. The LLM fulfills it.
+
+!!! info "`sem` vs docstrings"
+    Use **`sem`** to provide semantic context for any declaration that the LLM needs to understand. While docstrings describe code for humans (and auto-generate API docs), `sem` is specifically designed to guide the LLM compiler. Always prefer `sem` for `by llm()` functions and their parameters.
 
 **Wire It Into the Task Flow**
 
@@ -1169,8 +1173,8 @@ Without `sem`, `cost: float` is ambiguous (cost in what currency? per unit or to
 Now the AI function:
 
 ```jac
-"""Generate a shopping list of ingredients needed for a described meal."""
 def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
+sem generate_shopping_list = "Generate a shopping list of ingredients needed for a described meal";
 ```
 
 The LLM returns a `list[Ingredient]` -- a list of typed objects, each with name, quantity, unit, cost, and carb flag. Jac validates the structure automatically.
@@ -1267,27 +1271,26 @@ cl def:pub app -> JsxElement {
     async def add_new_task -> None {
         if task_text.strip() {
             task = await add_task(task_text.strip());
-            tasks = tasks.concat([task]);
+            tasks = tasks + [task];
             task_text = "";
         }
     }
 
     async def toggle(id: str) -> None {
         await toggle_task(id);
-        tasks = tasks.map(
-            lambda t: any -> any {
-                return {
-                    "id": t.id, "title": t.title,
-                    "done": not t.done, "category": t.category
-                }
-                if t.id == id else t;
+        tasks = [
+            {
+                "id": t.id, "title": t.title,
+                "done": not t.done, "category": t.category
             }
-        );
+            if t.id == id else t
+            for t in tasks
+        ];
     }
 
     async def remove(id: str) -> None {
         await delete_task(id);
-        tasks = tasks.filter(lambda t: any -> bool { return t.id != id; });
+        tasks = [t for t in tasks if t.id != id];
     }
 
     async def generate_meal_list -> None {
@@ -1304,7 +1307,7 @@ cl def:pub app -> JsxElement {
         meal_text = "";
     }
 
-    remaining = len(tasks.filter(lambda t: any -> bool { return not t.done; }));
+    remaining = len([t for t in tasks if not t.done]);
     total_cost = 0.0;
     for ing in ingredients { total_cost = total_cost + ing.cost; }
 
@@ -1464,11 +1467,11 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
     sem Ingredient.cost = "Estimated cost in USD";
     sem Ingredient.carby = "True if this ingredient is high in carbohydrates";
 
-    """Categorize a task based on its title."""
     def categorize(title: str) -> Category by llm();
+    sem categorize = "Categorize a task based on its title";
 
-    """Generate a shopping list of ingredients needed for a described meal."""
     def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
+    sem generate_shopping_list = "Generate a shopping list of ingredients needed for a described meal";
 
     # --- Data Nodes ---
 
@@ -1592,27 +1595,26 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
         async def add_new_task -> None {
             if task_text.strip() {
                 task = await add_task(task_text.strip());
-                tasks = tasks.concat([task]);
+                tasks = tasks + [task];
                 task_text = "";
             }
         }
 
         async def toggle(id: str) -> None {
             await toggle_task(id);
-            tasks = tasks.map(
-                lambda t: any -> any {
-                    return {
-                        "id": t.id, "title": t.title,
-                        "done": not t.done, "category": t.category
-                    }
-                    if t.id == id else t;
+            tasks = [
+                {
+                    "id": t.id, "title": t.title,
+                    "done": not t.done, "category": t.category
                 }
-            );
+                if t.id == id else t
+                for t in tasks
+            ];
         }
 
         async def remove(id: str) -> None {
             await delete_task(id);
-            tasks = tasks.filter(lambda t: any -> bool { return t.id != id; });
+            tasks = [t for t in tasks if t.id != id];
         }
 
         async def generate_meal_list -> None {
@@ -1629,7 +1631,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
             meal_text = "";
         }
 
-        remaining = len(tasks.filter(lambda t: any -> bool { return not t.done; }));
+        remaining = len([t for t in tasks if not t.done]);
         total_cost = 0.0;
         for ing in ingredients { total_cost = total_cost + ing.cost; }
 
@@ -1742,6 +1744,9 @@ Open [http://localhost:8000](http://localhost:8000). The app now has two columns
 5. **Restart the server** -- everything persists (both tasks and shopping list)
 
 The AI can only pick from the enum values you defined -- `Category` for tasks, `Unit` for ingredients. The type system constrains the LLM's output automatically.
+
+!!! tip "Visualize the graph"
+    Visit [http://localhost:8000/graph](http://localhost:8000/graph) to see both `Task` and `ShoppingItem` nodes connected to `root`. After generating a shopping list, you'll see the graph grow with ingredient nodes alongside your tasks.
 
 **What You Learned**
 
@@ -1917,11 +1922,11 @@ All the complete files are in the collapsible sections below. Create each file, 
     sem Ingredient.cost = "Estimated cost in USD";
     sem Ingredient.carby = "True if this ingredient is high in carbohydrates";
 
-    """Categorize a task based on its title."""
     def categorize(title: str) -> Category by llm();
+    sem categorize = "Categorize a task based on its title";
 
-    """Generate a shopping list of ingredients needed for a described meal."""
     def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
+    sem generate_shopping_list = "Generate a shopping list of ingredients needed for a described meal";
 
     # --- Data Nodes ---
 
@@ -2093,9 +2098,7 @@ All the complete files are in the collapsible sections below. Create each file, 
 
         if isLoggedIn {
             totalCost = getTotal();
-            remaining = len(tasks.filter(
-                lambda t: any -> bool { return not t.done; }
-            ));
+            remaining = len([t for t in tasks if not t.done]);
             return
                 <div class="container">
                     <div class="header">
@@ -2304,30 +2307,25 @@ All the complete files are in the collapsible sections below. Create each file, 
     impl app.addTask -> None {
         if not taskText.strip() { return; }
         task = await add_task(taskText.strip());
-        tasks = tasks.concat([task]);
+        tasks = tasks + [task];
         taskText = "";
     }
 
     impl app.toggleTask(id: str) -> None {
         await toggle_task(id);
-        tasks = tasks.map(
-            lambda t: any -> any {
-                if t.id == id {
-                    return {
-                        "id": t.id, "title": t.title,
-                        "done": not t.done, "category": t.category
-                    };
-                }
-                return t;
+        tasks = [
+            {
+                "id": t.id, "title": t.title,
+                "done": not t.done, "category": t.category
             }
-        );
+            if t.id == id else t
+            for t in tasks
+        ];
     }
 
     impl app.deleteTask(id: str) -> None {
         await delete_task(id);
-        tasks = tasks.filter(
-            lambda t: any -> bool { return t.id != id; }
-        );
+        tasks = [t for t in tasks if t.id != id];
     }
 
     impl app.handleLogin -> None {
@@ -2497,6 +2495,9 @@ Open [http://localhost:8000](http://localhost:8000). You should see a login scre
 4. **Refresh the page** -- your data persists (it's in the graph)
 5. **Log out and sign up as a different user** -- you'll see a completely empty app. Each user gets their own graph thanks to `def:priv`.
 6. **Restart the server** -- all data persists for both users
+
+!!! tip "Visualize per-user graphs"
+    Visit [http://localhost:8000/graph](http://localhost:8000/graph) to see the graph for the currently logged-in user. Log in as different users and compare -- each has their own isolated graph with their own `root`, tasks, and shopping items.
 
 Your day planner is now a **complete, fully functional application** -- authentication, per-user data isolation, AI-powered categorization, meal planning, graph persistence, and a clean multi-file architecture. All built with `def:priv` endpoints, nodes, and edges.
 
@@ -2900,11 +2901,11 @@ All the complete files are in the collapsible sections below. Create each file, 
     sem Ingredient.cost = "Estimated cost in USD";
     sem Ingredient.carby = "True if this ingredient is high in carbohydrates";
 
-    """Categorize a task based on its title."""
     def categorize(title: str) -> Category by llm();
+    sem categorize = "Categorize a task based on its title";
 
-    """Generate a shopping list of ingredients needed for a described meal."""
     def generate_shopping_list(meal_description: str) -> list[Ingredient] by llm();
+    sem generate_shopping_list = "Generate a shopping list of ingredients needed for a described meal";
 
     # --- Data Nodes ---
 
@@ -3119,9 +3120,7 @@ All the complete files are in the collapsible sections below. Create each file, 
 
         if isLoggedIn {
             totalCost = getTotal();
-            remaining = len(tasks.filter(
-                lambda t: any -> bool { return not t.done; }
-            ));
+            remaining = len([t for t in tasks if not t.done]);
             return
                 <div class="container">
                     <div class="header">
@@ -3332,35 +3331,30 @@ All the complete files are in the collapsible sections below. Create each file, 
         if not taskText.strip() { return; }
         response = root spawn AddTask(title=taskText);
         newTask = response.reports[0];
-        tasks = tasks.concat([{
+        tasks = tasks + [{
             "id": newTask.id,
             "title": newTask.title,
             "done": newTask.done,
             "category": newTask.category
-        }]);
+        }];
         taskText = "";
     }
 
     impl app.toggleTask(id: str) -> None {
         root spawn ToggleTask(task_id=id);
-        tasks = tasks.map(
-            lambda t: any -> any {
-                if t.id == id {
-                    return {
-                        "id": t.id, "title": t.title,
-                        "done": not t.done, "category": t.category
-                    };
-                }
-                return t;
+        tasks = [
+            {
+                "id": t.id, "title": t.title,
+                "done": not t.done, "category": t.category
             }
-        );
+            if t.id == id else t
+            for t in tasks
+        ];
     }
 
     impl app.deleteTask(id: str) -> None {
         root spawn DeleteTask(task_id=id);
-        tasks = tasks.filter(
-            lambda t: any -> bool { return t.id != id; }
-        );
+        tasks = [t for t in tasks if t.id != id];
     }
 
     impl app.handleLogin -> None {
@@ -3533,6 +3527,9 @@ Open [http://localhost:8000](http://localhost:8000). You should see a login scre
 5. **Log out and sign up as a different user** -- you'll see a completely empty app. Each user gets their own graph.
 6. **Restart the server** -- all data persists for both users
 
+!!! tip "Visualize the graph"
+    Visit [http://localhost:8000/graph](http://localhost:8000/graph) to see how walkers operate on the same graph structure as the function-based version. The nodes and edges are identical -- only the code that traverses them changed.
+
 **What You Learned**
 
 This part introduced Jac's Object-Spatial Programming paradigm:
@@ -3584,7 +3581,7 @@ Here's a quick reference of every Jac concept covered in this tutorial:
 
 **Graph:** `root`, `++>` (create + connect), `+>: Edge :+>` (typed edge), `[root-->]` (query), `(?:Type)` (filter), `del` (delete)
 
-**Functions:** `def`, `def:pub`, `def:priv`, `by llm()`, `lambda`, `async`/`await`, docstrings
+**Functions:** `def`, `def:pub`, `def:priv`, `by llm()`, `lambda`, `async`/`await`
 
 **Walkers:** `walker`, `walker:priv`, `can with Type entry/exit`, `visit`, `here`, `self`, `visitor`, `report`, `disengage`, `spawn`
 
@@ -3602,4 +3599,4 @@ Here's a quick reference of every Jac concept covered in this tutorial:
 - **Go deeper on walkers** -- [Object-Spatial Programming](../language/osp.md) covers advanced graph patterns
 - **More AI** -- [byLLM Quickstart](../ai/quickstart.md) for standalone examples and [Agentic AI](../ai/agentic.md) for tool-using agents
 - **Examples** -- [LittleX (Twitter Clone)](../examples/littlex.md), [RAG Chatbot](../examples/rag-chatbot.md)
-- **Language Reference** -- [Full Language Reference](../../reference/language/index.md) for complete syntax documentation
+- **Language Reference** -- [Full Language Reference](../../reference/language/foundation.md) for complete syntax documentation
