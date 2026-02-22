@@ -12,7 +12,7 @@ nav:
       - Welcome: "quick-guide/index.md"
       - Installation: "quick-guide/install.md"
       - Core Concepts: "quick-guide/what-makes-jac-different.md"
-      - Learn by Building - AI Day Planner: "tutorials/first-app/build-ai-day-planner.md"
+      - Build to Learn - AI Day Planner: "tutorials/first-app/build-ai-day-planner.md"
       - Syntax Cheatsheet: "quick-guide/syntax-cheatsheet.md"
       - Jac vs Traditional Stack: "quick-guide/jac-vs-traditional-stack.md"
       - FAQ: "quick-guide/faq.md"
@@ -82,7 +82,6 @@ nav:
           - jac-scale: "community/release_notes/jac-scale.md"
           - "(Deprecated) jac-cloud": "community/release_notes/jac-cloud.md"
       - Internals:
-          - Contributing Guide: "community/internals/contrib.md"
           - Import Patterns: "community/internals/jac_import_patterns.md"
           - UniIR Nodes: "community/internals/uniir_node.md"
 
@@ -240,7 +239,6 @@ plugins:
         learn/jac-ref/appendices.md: reference/language/appendices.md
 
         # Contributor Hub redirects
-        internals/contrib.md: community/contributing.md
         communityhub/breaking_changes.md: community/breaking-changes.md
         communityhub/release_notes/jaclang.md: community/release_notes/jaclang.md
         communityhub/release_notes/byllm.md: community/release_notes/byllm.md
