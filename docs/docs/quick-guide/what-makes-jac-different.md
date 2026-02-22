@@ -90,10 +90,12 @@ node Task {
     has done: bool = False;
 }
 
-# Create tasks and connect them to root
-root ++> Task(title="Buy groceries");
-root ++> Task(title="Team standup at 10am");
-root ++> Task(title="Go for a run");
+with entry {
+    # Create tasks and connect them to root
+    root ++> Task(title="Buy groceries");
+    root ++> Task(title="Team standup at 10am");
+    root ++> Task(title="Go for a run");
+}
 ```
 
 The `++>` operator creates a node and connects it to an existing node with an edge. Your graph now looks like:
@@ -116,14 +118,16 @@ When your app serves multiple users, each user gets their **own isolated `root`*
 The `[-->]` syntax gives you a list of connected nodes, and Jac's filter comprehensions `(?...)` let you narrow the results:
 
 ```jac
-# Get all nodes connected from root as a list
-everything = [root-->];
+with entry {
+    # Get all nodes connected from root as a list
+    everything = [root-->];
 
-# Filter by node type
-tasks = [root-->](?:Task);
+    # Filter by node type
+    tasks = [root-->](?:Task);
 
-# Filter by field value
-pending = [root-->](?:Task, done == False);
+    # Filter by field value
+    pending = [root-->](?:Task, done == False);
+}
 ```
 
 Edges can also be **typed** with their own data, modeling relationships like schedules, dependencies, or social connections:
@@ -134,10 +138,12 @@ edge Scheduled {
     has priority: int = 1;
 }
 
-root +>: Scheduled(time="9:00am", priority=3) :+> Task(title="Morning run");
+with entry {
+    root +>: Scheduled(time="9:00am", priority=3) :+> Task(title="Morning run");
 
-# Query through typed edges
-urgent = [root->:Scheduled:priority>=3:->](?:Task);
+    # Query through typed edges
+    urgent = [root->:Scheduled:priority>=3:->](?:Task);
+}
 ```
 
 The key insight: instead of designing database tables and writing queries, you declare nodes and connect them. The graph **is** your data model, and `root` is the entry point. The runtime takes care of the rest.
