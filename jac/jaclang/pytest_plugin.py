@@ -13,9 +13,12 @@ tests with zero configuration.
 
 from __future__ import annotations
 
+import importlib
+import importlib.machinery
 import os
 import sys
 import tempfile
+import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import FunctionTestCase
@@ -107,6 +110,51 @@ def _fresh_jac_state(*, clear_modules: bool = True):
 
 
 # ---------------------------------------------------------------------------
+# Synthetic namespace packages for relative import support
+# ---------------------------------------------------------------------------
+
+_test_packages: dict[str, str] = {}
+_test_pkg_counter = 0
+
+
+def _ensure_test_package(base_dir: str) -> str:
+    """Create a synthetic namespace package so relative imports work.
+
+    When a ``.jac`` test file uses ``import from .sibling { ... }``, the
+    compiled Python code contains ``from .sibling import ...`` which
+    requires the module to have a non-empty ``__package__``.  By importing
+    the test module as a child of a namespace package whose ``__path__``
+    points at the test directory, Python resolves the relative import
+    against sibling ``.jac`` files correctly.
+
+    Returns the package name registered in ``sys.modules``.
+    """
+    global _test_pkg_counter
+    real_dir = os.path.realpath(base_dir)
+
+    # Reuse existing package name if we've seen this directory before.
+    pkg_name = _test_packages.get(real_dir)
+    if pkg_name and pkg_name in sys.modules:
+        return pkg_name
+
+    if not pkg_name:
+        pkg_name = f"_jac_test_pkg_{_test_pkg_counter}"
+        _test_pkg_counter += 1
+        _test_packages[real_dir] = pkg_name
+
+    pkg = types.ModuleType(pkg_name)
+    pkg.__path__ = [real_dir]
+    pkg.__package__ = pkg_name
+    pkg.__spec__ = importlib.machinery.ModuleSpec(
+        pkg_name, loader=None, is_package=True
+    )
+    pkg.__spec__.submodule_search_locations = [real_dir]
+    sys.modules[pkg_name] = pkg
+
+    return pkg_name
+
+
+# ---------------------------------------------------------------------------
 # Collector
 # ---------------------------------------------------------------------------
 
@@ -115,7 +163,6 @@ class JacFile(pytest.File):
     """Collector that imports a ``.jac`` file and yields its ``test`` blocks."""
 
     def collect(self) -> list[JacTestItem]:  # noqa: C901
-        from jaclang.jac0core.runtime import JacRuntimeInterface
         from jaclang.runtimelib.test import JacTestCheck
 
         _ensure_jac_runtime()
@@ -147,11 +194,14 @@ class JacFile(pytest.File):
             base_dir = str(Path(filepath).parent)
             mod_name = Path(filepath).stem
 
+            # Import the test module under a synthetic namespace package so
+            # that relative imports (``from .sibling import ...``) resolve
+            # against sibling .jac files in the same directory.
+            pkg_name = _ensure_test_package(base_dir)
+            qualified_name = f"{pkg_name}.{mod_name}"
+
             try:
-                JacRuntimeInterface.jac_import(
-                    target=mod_name,
-                    base_path=base_dir,
-                )
+                importlib.import_module(qualified_name)
             except Exception:
                 # Import failure -- nothing to collect from this file.
                 return []
