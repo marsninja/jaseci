@@ -1,32 +1,46 @@
 # Primitive Emitter Coverage: ES vs Native
 
-Updated 2026-02-21 from `primitives.jac` interface analysis.
+Updated 2026-02-22 from `primitives.jac` interface analysis.
 
 ## Side-by-Side Summary
 
 | Emitter | Interface | ES Impl | ES Tested | Native Impl* | Native Tested |
 |---------|:-:|:-:|:-:|:-:|:-:|
-| **IntEmitter** | 21 | 21 (100%) | **21 (100%)** | 14 (67%) | 14 (67%) |
+| **IntEmitter** | 21 | 21 (100%) | **21 (100%)** | **17 (81%)** | **17 (81%)** |
 | **BoolEmitter** | 3 | 3 (100%) | **3 (100%)** | 0 (0%) | 0 (0%) |
-| **FloatEmitter** | 20 | 20 (100%) | 18 (90%) | 14 (70%) | **14 (70%)** |
+| **FloatEmitter** | 20 | 20 (100%) | 18 (90%) | **17 (85%)** | **17 (85%)** |
 | **ComplexEmitter** | 10 | 10 (100%) | 9 (90%) | 0 (0%) | 0 (0%) |
-| **StrEmitter** | 55 | 55 (100%) | **55 (100%)** | **33 (60%)** | **29 (53%)** |
+| **StrEmitter** | 55 | 55 (100%) | **55 (100%)** | **38 (69%)** | **38 (69%)** |
 | **BytesEmitter** | 32 | 32 (100%) | **32 (100%)** | 0 (0%) | 0 (0%) |
-| **ListEmitter** | 22 | 22 (100%) | **22 (100%)** | **7 (32%)** | **5 (23%)** |
+| **ListEmitter** | 22 | 22 (100%) | **22 (100%)** | **9 (41%)** | **7 (32%)** |
 | **DictEmitter** | 16 | 16 (100%) | **16 (100%)** | 5 (31%) | 5 (31%) |
-| **SetEmitter** | 31 | 31 (100%) | **31 (100%)** | 1 (3%) | 1 (3%) |
+| **SetEmitter** | 31 | 31 (100%) | **31 (100%)** | **4 (13%)** | **4 (13%)** |
 | **FrozensetEmitter** | 18 | 18 (100%) | 17 (94%) | 0 (0%) | 0 (0%) |
 | **TupleEmitter** | 11 | 11 (100%) | **11 (100%)** | 0 (0%) | 0 (0%) |
 | **RangeEmitter** | 5 | 5 (100%) | **5 (100%)** | 0 (0%) | 0 (0%) |
-| **BuiltinEmitter** | 55 | 55 (100%) | 35 (64%) | **17 (31%)** | **16 (29%)** |
-| **TOTAL** | **299** | **299 (100%)** | **275 (92%)** | **91 (30%)** | **84 (28%)** |
+| **BuiltinEmitter** | 55 | 55 (100%) | 35 (64%) | **18 (33%)** | **17 (31%)** |
+| **TOTAL** | **299** | **299 (100%)** | **275 (92%)** | **108 (36%)** | **105 (35%)** |
 
 *\*Native "Impl" = emitter LLVM IR + inline codegen in pass impl files combined*
 
 **10 emitters at 100% ES test coverage** (Int, Bool, Str, Bytes, List, Dict, Set, Tuple, Range, plus Float/Complex at 90%).
 Remaining 24 untested ES are mostly BuiltinEmitter I/O and implementation-specific functions that can't be tested cross-backend (print, input, open, type, id, hash, repr, vars, dir, etc.).
 
-### Recent Native Improvements (2026-02-21)
+### Recent Native Improvements (2026-02-22)
+
+Native pathway grew from **30% → 36%** implemented (91 → 108 operations) and **28% → 35%** tested (84 → 105 operations). Key changes:
+
+- **IntEmitter**: 14 → 17 impl (+conjugate, bit_length, bit_count); all tested
+- **FloatEmitter**: 14 → 17 impl (+conjugate, is_integer, op_floordiv); all tested
+- **StrEmitter**: 33 → 38 impl (+title, rfind, ljust, rjust, zfill); string comparison ops (lt/gt/le/ge) now tested; 29 → 38 tested
+- **SetEmitter**: 1 → 4 impl (+clear, discard, copy); all tested
+- **ListEmitter**: 7 → 9 impl (+extend, insert); 5 → 7 tested
+- **BuiltinEmitter**: 17 → 18 impl (+bool); 16 → 17 tested
+- **Bug fix**: `emit_rfind` empty substring handling (was infinite loop, now returns string length per Python semantics)
+
+New test fixtures: `prim_int_methods.jac`, `prim_float_methods.jac`, `prim_str_cmp.jac`, `prim_str_extra.jac`, `prim_set_methods.jac`, `prim_list_extra.jac`, `prim_bool_conv.jac`.
+
+### Previous Native Improvements (2026-02-21)
 
 Native pathway grew from **22% → 30%** implemented (66 → 91 operations) and **17% → 28%** tested (52 → 84 operations). Key changes:
 
@@ -372,23 +386,23 @@ All 5 interfaces tested. **Coverage: 5/5 (100%)**
 
 ## Native Pathway Detail
 
-### IntEmitter -- 14/21 (67%) impl, 14 tested
+### IntEmitter -- 17/21 (81%) impl, 17 tested
 
-All via inline codegen in `na_ir_gen_pass`:
-`op_add`, `op_sub`, `op_mul`, `op_truediv`, `op_floordiv`, `op_mod`, `op_pow`,
+Inline codegen: `op_add`, `op_sub`, `op_mul`, `op_truediv`, `op_floordiv`, `op_mod`, `op_pow`,
 `op_and`, `op_or`, `op_xor`, `op_lshift`, `op_rshift`, `op_eq`, `op_ne`, `op_neg`.
+Emitter: `conjugate` (returns self), `bit_length` (loop shift-right), `bit_count` (popcount loop).
 
-Not implemented: `bit_length`, `bit_count`, `to_bytes`, `as_integer_ratio`, `conjugate`, `from_bytes`.
+Not implemented: `to_bytes`, `as_integer_ratio`, `from_bytes`.
 
-### FloatEmitter -- 14/20 (70%) impl, 14 tested
+### FloatEmitter -- 17/20 (85%) impl, 17 tested
 
-All via inline codegen:
-`op_add`, `op_sub`, `op_mul`, `op_truediv`, `op_mod`, `op_pow`,
+Inline codegen: `op_add`, `op_sub`, `op_mul`, `op_truediv`, `op_floordiv` (fdiv+floor), `op_mod`, `op_pow`,
 `op_eq`, `op_ne`, `op_lt`, `op_gt`, `op_le`, `op_ge`, `op_neg`, `op_pos`.
+Emitter: `conjugate` (returns self), `is_integer` (fptosi+sitofp roundtrip comparison).
 
-Not implemented: `is_integer`, `as_integer_ratio`, `conjugate`, `hex`, `fromhex`, `op_floordiv`.
+Not implemented: `as_integer_ratio`, `hex`, `fromhex`.
 
-### StrEmitter -- 33/55 (60%) impl, 29 tested
+### StrEmitter -- 38/55 (69%) impl, 38 tested
 
 | Interface | Impl | Tested | Source |
 |-----------|------|--------|--------|
@@ -397,17 +411,22 @@ Not implemented: `is_integer`, `as_integer_ratio`, `conjugate`, `hex`, `fromhex`
 | `capitalize` | Emitter (toupper first + tolower rest) | Yes | prim_str_advanced |
 | `casefold` | Emitter (`_emit_case_transform("tolower")`) | Yes | prim_str_advanced |
 | `swapcase` | Emitter (per-char upper/lower swap) | Yes | prim_str_advanced |
+| `title` | Emitter (word-boundary toupper/tolower loop) | Yes | prim_str_extra |
 | `strip` | Emitter (`_codegen_str_strip`) | Yes | prim_str_methods |
 | `lstrip` | Emitter (isspace forward scan) | Yes | prim_str_advanced |
 | `rstrip` | Emitter (isspace backward scan) | Yes | prim_str_advanced |
 | `removeprefix` | Emitter (strncmp + offset copy) | Yes | prim_str_advanced |
 | `removesuffix` | Emitter (strcmp + truncated copy) | Yes | prim_str_advanced |
 | `find` | Emitter (strstr + ptr arithmetic) | Yes | prim_str_methods |
+| `rfind` | Emitter (strstr loop tracking last match) | Yes | prim_str_extra |
 | `count` | Emitter (strstr loop) | Yes | prim_str_advanced |
 | `startswith` | Emitter (strlen + strncmp) | Yes | prim_str_methods |
 | `endswith` | Emitter (strlen + strcmp at offset) | Yes | prim_str_methods |
 | `replace` | Emitter (strstr loop + memcpy) | Yes | prim_str_advanced |
 | `split` | Emitter (partial: with separator only) | Yes | prim_str_methods |
+| `ljust` | Emitter (strlen + memcpy + memset pad) | Yes | prim_str_extra |
+| `rjust` | Emitter (memset pad + memcpy) | Yes | prim_str_extra |
+| `zfill` | Emitter (zero-pad with sign handling) | Yes | prim_str_extra |
 | `isalpha` | Emitter (`_emit_char_test("isalpha")`) | Yes | prim_str_advanced |
 | `isdigit` | Emitter (`_emit_char_test("isdigit")`) | Yes | prim_str_advanced |
 | `isalnum` | Emitter (`_emit_char_test("isalnum")`) | Yes | prim_str_advanced |
@@ -421,14 +440,14 @@ Not implemented: `is_integer`, `as_integer_ratio`, `conjugate`, `hex`, `fromhex`
 | `op_add` (+) | Inline (strlen + memcpy) | Yes | prim_str_methods |
 | `op_eq` (==) | Inline (strcmp) | Yes | prim_str_methods |
 | `op_ne` (!=) | Inline (strcmp) | Yes | prim_str_methods |
-| `op_lt` (<) | Inline (strcmp) | No | -- |
-| `op_gt` (>) | Inline (strcmp) | No | -- |
-| `op_le` (<=) | Inline (strcmp) | No | -- |
-| `op_ge` (>=) | Inline (strcmp) | No | -- |
+| `op_lt` (<) | Inline (strcmp) | Yes | prim_str_cmp |
+| `op_gt` (>) | Inline (strcmp) | Yes | prim_str_cmp |
+| `op_le` (<=) | Inline (strcmp) | Yes | prim_str_cmp |
+| `op_ge` (>=) | Inline (strcmp) | Yes | prim_str_cmp |
 
-Not implemented (22): `title`, `rfind`, `index`, `rindex`, `rsplit`, `splitlines`, `join`, `partition`, `rpartition`, `format`, `format_map`, `center`, `ljust`, `rjust`, `zfill`, `expandtabs`, `isidentifier`, `istitle`, `encode`, `translate`, `maketrans`, `op_mul`, `op_mod`, `op_contains`.
+Not implemented (17): `index`, `rindex`, `rsplit`, `splitlines`, `join`, `partition`, `rpartition`, `format`, `format_map`, `center`, `expandtabs`, `isidentifier`, `istitle`, `encode`, `translate`, `maketrans`, `op_mul`, `op_mod`, `op_contains`.
 
-### ListEmitter -- 7/22 (32%) impl, 5 tested
+### ListEmitter -- 9/22 (41%) impl, 7 tested
 
 | Interface | Impl | Tested |
 |-----------|------|--------|
@@ -439,18 +458,27 @@ Not implemented (22): `title`, `rfind`, `index`, `rindex`, `rsplit`, `splitlines
 | `count` | Emitter (matching element loop) | Yes |
 | `reverse` | Emitter (two-pointer swap) | Yes |
 | `copy` | Emitter (alloc + copy loop) | No |
+| `extend` | Emitter (iterate source + append each) | Yes |
+| `insert` | Emitter (shift right + set at index) | Yes |
 
-Not implemented (15): `extend`, `insert`, `remove`, `sort`, `op_add`, `op_mul`, `op_eq`, `op_ne`, `op_lt`, `op_gt`, `op_le`, `op_ge`, `op_contains`, `op_iadd`, `op_imul`.
+Not implemented (13): `remove`, `sort`, `op_add`, `op_mul`, `op_eq`, `op_ne`, `op_lt`, `op_gt`, `op_le`, `op_ge`, `op_contains`, `op_iadd`, `op_imul`.
 
 ### DictEmitter -- 5/16 (31%) impl, 5 tested
 
 Inline codegen: `len`, `set` (dict[key]=val), `get` (dict[key]), iteration (for k in dict), `contains` (in).
 
-### SetEmitter -- 1/31 (3%) impl, 1 tested
+### SetEmitter -- 4/31 (13%) impl, 4 tested
 
-Emitter: `add`. Inline: `contains` (in), `len`.
+| Interface | Impl | Tested |
+|-----------|------|--------|
+| `add` | Emitter (helpers["add"]) | Yes |
+| `clear` | Emitter (set length = 0) | Yes |
+| `discard` | Emitter (linear scan + shift left) | Yes |
+| `copy` | Emitter (new set + iterate add) | Yes |
 
-### BuiltinEmitter -- 17/55 (31%) impl, 16 tested
+Inline: `contains` (in), `len`.
+
+### BuiltinEmitter -- 18/55 (33%) impl, 17 tested
 
 | Interface | Impl | Tested | Source |
 |-----------|------|--------|--------|
@@ -467,12 +495,13 @@ Emitter: `add`. Inline: `contains` (in), `len`.
 | `bin` | Emitter (bit extraction + reverse) | Yes | prim_builtins_extra |
 | `round` | Emitter (C round() + fptosi) | Yes | prim_builtins_extra |
 | `float` | Emitter (strtod / sitofp) | Yes | prim_builtins_extra |
+| `bool` | Emitter (int!=0, float!=0.0, strlen!=0) | Yes | prim_bool_conv |
 | `len` | Inline (type-specific dispatch) | Yes | prim_builtins |
 | `print` | Inline (printf) | No | N/A (I/O) |
 | `input` | Inline (fgets + strip) | No | N/A (I/O) |
 | `open` | Inline (fopen wrapper) | No | N/A (I/O) |
 
-Not implemented (38): `sum`, `sorted`, `reversed`, `enumerate`, `zip`, `map`, `filter`, `any`, `all`, `isinstance`, `issubclass`, `type`, `id`, `hash`, `repr`, `divmod`, `iter`, `next`, `callable`, `getattr`, `setattr`, `hasattr`, `delattr`, `vars`, `dir`, `format`, `ascii`, `bool`, `list`, `dict`, `set`, `tuple`, `frozenset`, `bytes`, `complex`, `range`, `slice`, `bytearray`.
+Not implemented (37): `sum`, `sorted`, `reversed`, `enumerate`, `zip`, `map`, `filter`, `any`, `all`, `isinstance`, `issubclass`, `type`, `id`, `hash`, `repr`, `divmod`, `iter`, `next`, `callable`, `getattr`, `setattr`, `hasattr`, `delattr`, `vars`, `dir`, `format`, `ascii`, `list`, `dict`, `set`, `tuple`, `frozenset`, `bytes`, `complex`, `range`, `slice`, `bytearray`.
 
 ---
 
@@ -483,4 +512,4 @@ Not implemented (38): `sum`, `sorted`, `reversed`, `enumerate`, `zip`, `map`, `f
 3. **24 untested interfaces**: 20 are BuiltinEmitter N/A (I/O, impl-specific), 2 float hex/fromhex, 1 complex pos, 1 frozenset
 4. **Effective coverage** (excluding N/A): ~99% of testable interfaces
 5. **Runtime improvements**: Added complete `bytes` namespace (40+ functions), fixed `expandtabs` (column-aware), fixed `complex.pow`/`eq` (mixed-type handling), fixed `ascii` (Python-style quoting)
-6. **Native pathway**: 30% implemented (91/299), 28% tested (84/299) -- up from 22%/17%, with StrEmitter now at 60% and all float ops tested
+6. **Native pathway**: 36% implemented (108/299), 35% tested (105/299) -- up from 30%/28%, with IntEmitter at 81%, FloatEmitter at 85%, StrEmitter at 69%
