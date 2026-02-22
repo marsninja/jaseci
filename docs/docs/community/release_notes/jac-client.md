@@ -5,7 +5,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 ## jac-client 0.2.20 (Unreleased)
 
 - **Automatic Endpoint Caching**: The client runtime now automatically caches responses from reader endpoints (walkers and server functions) and invalidates caches when writer endpoints are called, using compiler-provided `endpoint_effects` metadata. Includes an LRU cache (500 entries, 60s TTL), request deduplication for concurrent identical calls, and automatic cache clearing on auth state changes. No manual `jacInvalidate()` or cache annotations needed.
-- 2 minor refactor/change.
+- 3 minor refactor/change.
 
 ## jac-client 0.2.19 (Latest Release)
 

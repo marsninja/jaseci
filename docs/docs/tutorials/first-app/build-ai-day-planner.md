@@ -686,7 +686,7 @@ Here's a key insight: **`await add_task(text)`** calls the server function as if
     async def add_new_task -> None {
         if task_text.strip() {
             task = await add_task(task_text.strip());
-            tasks = tasks.concat([task]);
+            tasks = tasks + [task];
             task_text = "";
         }
     }
@@ -730,7 +730,7 @@ cl def:pub app -> JsxElement {
     async def add_new_task -> None {
         if task_text.strip() {
             task = await add_task(task_text.strip());
-            tasks = tasks.concat([task]);
+            tasks = tasks + [task];
             task_text = "";
         }
     }
@@ -777,7 +777,7 @@ cl def:pub app -> JsxElement {
     async def add_new_task -> None {
         if task_text.strip() {
             task = await add_task(task_text.strip());
-            tasks = tasks.concat([task]);
+            tasks = tasks + [task];
             task_text = "";
         }
     }
@@ -841,7 +841,7 @@ A few things to notice:
 
 - **`tasks.map(lambda ...)`** transforms each item in the list (like JavaScript's `.map()`)
 - **`tasks.filter(lambda ...)`** keeps only matching items
-- **`tasks.concat([task])`** creates a new list with the item appended
+- **`tasks + [task]`** creates a new list with the item appended
 - **`async`** marks methods that call the server (since network calls are asynchronous)
 
 **Add Styles**
@@ -919,7 +919,7 @@ h1 { text-align: center; margin-bottom: 24px; color: #333; }
         async def add_new_task -> None {
             if task_text.strip() {
                 task = await add_task(task_text.strip());
-                tasks = tasks.concat([task]);
+                tasks = tasks + [task];
                 task_text = "";
             }
         }
@@ -1006,7 +1006,7 @@ That last point is important. The data persisted because nodes live in the graph
 - **`await func()`** -- transparent server calls from the client (no HTTP code)
 - **`async`** -- marks functions that perform asynchronous operations
 - **JSX syntax** -- `{expression}`, `{[... for x in list]}`, event handlers with lambdas
-- **`.map()`, `.filter()`, `.concat()`** -- list operations for immutable state updates
+- **`.map()`, `.filter()`, `+` operator** -- list operations for immutable state updates
 
 !!! example "Try It Yourself"
     Add a "Clear All" button below the task count that deletes every task. You'll need a new `def:pub clear_all_tasks` endpoint on the server and an `async` method in the component that calls it and resets the `tasks` list.
@@ -1273,7 +1273,7 @@ cl def:pub app -> JsxElement {
     async def add_new_task -> None {
         if task_text.strip() {
             task = await add_task(task_text.strip());
-            tasks = tasks.concat([task]);
+            tasks = tasks + [task];
             task_text = "";
         }
     }
@@ -1598,7 +1598,7 @@ h2 { margin: 0 0 16px 0; font-size: 1.2rem; color: #444; }
         async def add_new_task -> None {
             if task_text.strip() {
                 task = await add_task(task_text.strip());
-                tasks = tasks.concat([task]);
+                tasks = tasks + [task];
                 task_text = "";
             }
         }
@@ -2313,7 +2313,7 @@ All the complete files are in the collapsible sections below. Create each file, 
     impl app.addTask -> None {
         if not taskText.strip() { return; }
         task = await add_task(taskText.strip());
-        tasks = tasks.concat([task]);
+        tasks = tasks + [task];
         taskText = "";
     }
 
@@ -3344,12 +3344,12 @@ All the complete files are in the collapsible sections below. Create each file, 
         if not taskText.strip() { return; }
         response = root spawn AddTask(title=taskText);
         newTask = response.reports[0];
-        tasks = tasks.concat([{
+        tasks = tasks + [{
             "id": newTask.id,
             "title": newTask.title,
             "done": newTask.done,
             "category": newTask.category
-        }]);
+        }];
         taskText = "";
     }
 
