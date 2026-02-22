@@ -13,6 +13,7 @@ tests with zero configuration.
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import importlib.machinery
 import os
@@ -151,12 +152,29 @@ def _ensure_test_package(base_dir: str) -> str:
     pkg.__spec__.submodule_search_locations = [real_dir]
     sys.modules[pkg_name] = pkg
 
-    # Ensure the test directory is on sys.path so that absolute imports of
-    # sibling packages (e.g. ``from fixtures import ...``) resolve correctly.
-    if real_dir not in sys.path:
-        sys.path.insert(0, real_dir)
-
     return pkg_name
+
+
+@contextlib.contextmanager
+def _scoped_syspath(directory: str):
+    """Temporarily prepend *directory* to ``sys.path``.
+
+    This mirrors pytest's own ``--import-mode=prepend`` behaviour: the test
+    directory is on ``sys.path`` while the test module is being imported /
+    executed so that absolute imports of sibling packages (e.g.
+    ``from fixtures import ...``) resolve correctly.  The entry is removed
+    afterwards to avoid polluting ``sys.path`` for unrelated test files.
+    """
+    real_dir = os.path.realpath(directory)
+    already_present = real_dir in sys.path
+    if not already_present:
+        sys.path.insert(0, real_dir)
+    try:
+        yield
+    finally:
+        if not already_present:
+            with contextlib.suppress(ValueError):
+                sys.path.remove(real_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +224,8 @@ class JacFile(pytest.File):
             qualified_name = f"{pkg_name}.{mod_name}"
 
             try:
-                importlib.import_module(qualified_name)
+                with _scoped_syspath(base_dir):
+                    importlib.import_module(qualified_name)
             except Exception:
                 # Import failure -- nothing to collect from this file.
                 return []
@@ -262,9 +281,15 @@ class JacTestItem(pytest.Item):
         so that ``unittest.mock.patch("pkg.mod.func")`` resolves to the same
         module object whose ``__globals__`` dict is referenced by the code
         under test.  Module-level cleanup happens once at collection time.
+
+        The test directory is temporarily added to ``sys.path`` (scoped) so
+        that imports inside test functions (e.g. ``from fixtures import ...``)
+        resolve against sibling packages without permanently polluting the
+        path for other test files.
         """
         _fresh_jac_state(clear_modules=False)
-        self._test_case.runTest()
+        with _scoped_syspath(str(self.path.parent)):
+            self._test_case.runTest()
 
     def repr_failure(self, excinfo: pytest.ExceptionInfo[BaseException]) -> str:
         return str(excinfo.getrepr())
