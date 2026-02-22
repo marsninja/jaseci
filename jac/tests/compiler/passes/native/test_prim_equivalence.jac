@@ -285,3 +285,31 @@ test "set remove and pop match across backends" {
     na_result = run_native_function(eng, "set_ops_na");
     compare_results(py_result, na_result, "set_ops");
 }
+
+test "dict extra methods match across backends" {
+    py_result = run_py_fixture("prim_dict_extra", "dict_extra_py");
+    (eng, _) = compile_native("prim_dict_extra.jac");
+    na_result = run_native_function(eng, "dict_extra_na");
+    compare_results(py_result, na_result, "dict_extra");
+}
+
+test "set algebra matches across backends" {
+    py_result = run_py_fixture("prim_set_algebra", "set_algebra_py");
+    (eng, _) = compile_native("prim_set_algebra.jac");
+    na_result = run_native_function(eng, "set_algebra_na");
+    compare_results(py_result, na_result, "set_algebra");
+}
+
+test "string join matches across backends" {
+    py_result = run_py_fixture("prim_str_join", "str_join_py");
+    (eng, _) = compile_native("prim_str_join.jac");
+    na_result = run_native_function(eng, "str_join_na");
+    compare_results(py_result, na_result, "str_join");
+}
+
+test "list sort matches across backends" {
+    py_result = run_py_fixture("prim_list_sort", "list_sort_py");
+    (eng, _) = compile_native("prim_list_sort.jac");
+    na_result = run_native_function(eng, "list_sort_na");
+    compare_results(py_result, na_result, "list_sort");
+}
