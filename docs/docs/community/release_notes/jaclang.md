@@ -11,6 +11,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: Bare-Dot Relative Import (`from . import x`) Not Resolved**: Fixed `import from . { x }` silently resolving to `UnknownType`. The import path is now computed directly from the current file's directory, ensuring sibling modules are correctly found and type-checked.
 - **Fix:**: update the jac-check command to print the file names of the files that failed to have clean error message.
 - **ES Codegen: Near-Complete Primitive Test Coverage (92%)**: Added cross-backend equivalence tests for 110 additional primitive emitter interfaces (275/299 total), covering float operators, complex arithmetic, bytes methods (with full `_jac.bytes` runtime namespace), set/frozenset algebra and operators, and extra builtins. Fixed column-aware `expandtabs` for str and bytes, `complex.pow`/`complex.eq` mixed-type handling, and `ascii()` quoting to match Python semantics.
+- **Refactor: Native Jac Generics in Primitives**: Replaced Python-style `Generic[(V, C)]` with native Jac bracket syntax `[V, C]` across all emitter classes in `primitives.jac` and removed unused `TypeVar`/`Generic` imports.
 - 4 Minor refactors/chages
 - **Fix: Walker `result.reports` in CLI Mode**: Fixed `report` keyword not populating `result.reports` when running walkers via `jac run` or `jac test`.
 
