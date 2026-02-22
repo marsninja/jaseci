@@ -243,3 +243,24 @@ test "bool conversion matches across backends" {
     na_result = run_native_function(eng, "bool_conv_na");
     compare_results(py_result, na_result, "bool_conv");
 }
+
+test "string index methods match across backends" {
+    py_result = run_py_fixture("prim_str_index", "str_index_py");
+    (eng, _) = compile_native("prim_str_index.jac");
+    na_result = run_native_function(eng, "str_index_na");
+    compare_results(py_result, na_result, "str_index");
+}
+
+test "list remove matches across backends" {
+    py_result = run_py_fixture("prim_list_remove", "list_remove_py");
+    (eng, _) = compile_native("prim_list_remove.jac");
+    na_result = run_native_function(eng, "list_remove_na");
+    compare_results(py_result, na_result, "list_remove");
+}
+
+test "dict copy and clear match across backends" {
+    py_result = run_py_fixture("prim_dict_copy", "dict_copy_py");
+    (eng, _) = compile_native("prim_dict_copy.jac");
+    na_result = run_native_function(eng, "dict_copy_na");
+    compare_results(py_result, na_result, "dict_copy");
+}
