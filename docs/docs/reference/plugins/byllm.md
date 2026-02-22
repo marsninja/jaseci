@@ -81,52 +81,49 @@ glob llm = Model(
 byLLM uses [LiteLLM](https://docs.litellm.ai/docs/providers) for model integration, providing access to 100+ providers.
 
 === "OpenAI"
-    ```jac
-    import from byllm.lib { Model }
-
-    glob llm = Model(model_name="gpt-4o");
+    ```toml
+    [plugins.byllm.model]
+    default_model = "gpt-4o"
     ```
     ```bash
     export OPENAI_API_KEY="sk-..."
     ```
 
 === "Anthropic"
-    ```jac
-    import from byllm.lib { Model }
-
-    glob llm = Model(model_name="claude-sonnet-4-6");
+    ```toml
+    [plugins.byllm.model]
+    default_model = "claude-sonnet-4-6"
     ```
     ```bash
     export ANTHROPIC_API_KEY="sk-ant-..."
     ```
 
 === "Google Gemini"
-    ```jac
-    import from byllm.lib { Model }
-
-    glob llm = Model(model_name="gemini/gemini-2.0-flash");
+    ```toml
+    [plugins.byllm.model]
+    default_model = "gemini/gemini-2.0-flash"
     ```
     ```bash
     export GOOGLE_API_KEY="..."
     ```
 
 === "Ollama (Local)"
-    ```jac
-    import from byllm.lib { Model }
-
-    glob llm = Model(model_name="ollama/llama3:70b");
+    ```toml
+    [plugins.byllm.model]
+    default_model = "ollama/llama3:70b"
     ```
     No API key needed - runs locally. See [Ollama](https://ollama.ai/).
 
 === "HuggingFace"
-    ```jac
-    import from byllm.lib { Model }
-
-    glob llm = Model(model_name="huggingface/meta-llama/Llama-3.3-70B-Instruct");
+    ```toml
+    [plugins.byllm.model]
+    default_model = "huggingface/meta-llama/Llama-3.3-70B-Instruct"
     ```
     ```bash
     export HUGGINGFACE_API_KEY="hf_..."
     ```
+
+You can also override per-file with `glob llm = Model(...)` (see [Custom Model (Override)](#custom-model-override)).
 
 **Provider Model Name Formats:**
 
@@ -471,9 +468,7 @@ byLLM supports image and video inputs through the `Image` and `Video` types. The
 Import and use the `Image` type for image inputs:
 
 ```jac
-import from byllm.lib { Model, Image }
-
-glob llm = Model(model_name="gpt-4o");
+import from byllm.lib { Image }
 
 """Describe what you see in this image."""
 def describe_image(img: Image) -> str by llm();
@@ -528,9 +523,7 @@ with entry {
 Image inputs combine with all return types -- primitives, enums, objects, and lists:
 
 ```jac
-import from byllm.lib { Model, Image }
-
-glob llm = Model(model_name="gpt-4o");
+import from byllm.lib { Image }
 
 obj LineItem {
     has description: str;
@@ -563,9 +556,7 @@ with entry {
 The `Video` type processes videos by extracting frames at a configurable rate:
 
 ```jac
-import from byllm.lib { Model, Video }
-
-glob llm = Model(model_name="gpt-4o");
+import from byllm.lib { Video }
 
 """Describe what happens in this video."""
 def explain_video(video: Video) -> str by llm();
@@ -592,9 +583,7 @@ Lower `fps` values extract fewer frames, reducing token usage. Higher values pro
 #### Structured Output from Videos
 
 ```jac
-import from byllm.lib { Model, Video }
-
-glob llm = Model(model_name="gpt-4o");
+import from byllm.lib { Video }
 
 obj VideoAnalysis {
     has summary: str;
@@ -612,9 +601,7 @@ def analyze_video(video: Video) -> VideoAnalysis by llm();
 Image and video inputs work with tool calling:
 
 ```jac
-import from byllm.lib { Model, Image }
-
-glob llm = Model(model_name="gpt-4o");
+import from byllm.lib { Image }
 
 """Search for products matching the description."""
 def search_products(query: str) -> list[str] {
@@ -839,10 +826,7 @@ byLLM validates that responses match the declared return type, coercing when pos
 ??? example "Resume Parser"
 
     ```jac
-    import from byllm.lib { Model }
     import from typing { Optional }
-
-    glob llm = Model(model_name="gpt-4o-mini");
 
     obj Education {
         has degree: str;
@@ -1048,9 +1032,7 @@ Implement AI features in Jac and import seamlessly into Python:
 
 === "ai.jac"
     ```jac
-    import from byllm.lib { Model, Image }
-
-    glob llm = Model(model_name="gpt-4o");
+    import from byllm.lib { Image }
 
     obj Person {
         has full_name: str;
