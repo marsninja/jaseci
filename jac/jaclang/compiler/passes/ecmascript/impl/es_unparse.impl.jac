@@ -313,6 +313,9 @@ impl JSCodeGenerator.gen_arrow_function_expression(
     }
     if nd.expression {
         body = self.generate(nd.body);
+        if isinstance(nd.body, es.ObjectExpression) {
+            body = f"({body})";
+        }
         return f"{async_str}{params} => {body}";
     } else {
         body = self.generate(nd.body);
