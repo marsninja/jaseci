@@ -9,6 +9,10 @@ import unittest.mock;
 
 import pytest;
 import yaml;
+
+glob _byllm_tests_dir = os.path.dirname(os.path.abspath(__file__)),
+     _byllm_path_setup = sys.path.insert(0, _byllm_tests_dir);
+
 import from fixtures { python_lib_mode }
 
 import byllm.llm as _byllm_llm_mod;
