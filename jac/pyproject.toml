@@ -17,7 +17,7 @@ keywords = [
 ]
 requires-python = ">=3.12"
 dependencies = ["llvmlite>=0.43.0"]
-# Note: lark, interegular, pluggy, pygls are vendored
+# Note: lark, pygls are vendored; pluggy replaced by jaclang/plugin.py
 
 [project.urls]
 Repository = "https://github.com/Jaseci-Labs/jaseci"
