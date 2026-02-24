@@ -367,6 +367,17 @@ See [Kubernetes Secrets](../plugins/jac-scale.md#kubernetes-secrets) for details
 
 See also [jac-scale Webhooks](../plugins/jac-scale.md#webhooks) and [Kubernetes Deployment](../plugins/jac-scale.md#kubernetes-deployment) for more options.
 
+**Import Path Aliases (jac-client):**
+
+```toml
+[plugins.client.paths]
+"@components/*" = "./components/*"
+"@utils/*" = "./utils/*"
+"@shared" = "./shared/index"
+```
+
+Defines custom import aliases applied to Vite `resolve.alias`, TypeScript `compilerOptions.paths`, and the Jac module resolver. See [jac-client Import Path Aliases](../plugins/jac-client.md#import-path-aliases) for details.
+
 **NPM Registry Configuration (jac-client):**
 
 ```toml

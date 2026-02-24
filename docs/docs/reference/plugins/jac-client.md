@@ -1087,6 +1087,11 @@ cl_route_prefix = "/cl"       # Client route prefix
 [plugins.client]
 enabled = true
 
+# Import path aliases
+[plugins.client.paths]
+"@components/*" = "./components/*"
+"@utils/*" = "./utils/*"
+
 [plugins.client.configs.tailwind]
 # Generates tailwind.config.js
 content = ["./src/**/*.{jac,tsx,jsx}"]
@@ -1141,6 +1146,35 @@ _authToken = "${NODE_AUTH_TOKEN}"
 The `${NODE_AUTH_TOKEN}` syntax is resolved via the existing jac.toml environment variable interpolation. If the variable is not set at config load time, it passes through as a literal `${NODE_AUTH_TOKEN}` in the generated `.npmrc`, which npm and bun also resolve natively.
 
 The generated `.npmrc` is placed in `.jac/client/configs/` and is automatically applied when Jac installs dependencies (e.g., via `jac add --npm`, `jac start`, or `jac build`).
+
+### Import Path Aliases
+
+The `[plugins.client.paths]` section lets you define custom import path aliases. Aliases are automatically applied to the generated Vite `resolve.alias` and TypeScript `compilerOptions.paths`, so both bundling and IDE autocompletion work out of the box.
+
+```toml
+[plugins.client.paths]
+"@components/*" = "./components/*"
+"@utils/*" = "./utils/*"
+"@shared" = "./shared/index"
+```
+
+With the above config, you can use aliases in your `.cl.jac` or `cl {}` code:
+
+```jac
+cl {
+    import from "@components/Button" { Button }
+    import from "@utils/format" { formatDate }
+    import from "@shared" { constants }
+}
+```
+
+| Feature | How It's Applied |
+|---------|-----------------|
+| **Vite** | Added to `resolve.alias` in `vite.config.js` - resolves `@components/Button` to `./components/Button` at build time |
+| **TypeScript** | Added to `compilerOptions.paths` in `tsconfig.json` with `baseUrl: "."` - enables IDE autocompletion and type checking |
+| **Module resolver** | The Jac compiler resolves aliases during compilation, so `import from "@components/Button"` finds the correct file |
+
+**Wildcard patterns** (`@alias/*` -> `./path/*`) match any sub-path under the prefix. **Exact patterns** (`@alias` -> `./path`) match only the alias itself.
 
 ---
 
