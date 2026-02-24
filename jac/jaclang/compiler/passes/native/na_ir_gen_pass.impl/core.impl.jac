@@ -33,6 +33,10 @@ impl NaIRGenPass.init(
     self.extern_funcs: dict[(str, ir.Function)] = {};
     # C library extern function names (from import from "lib" { def ...; })
     self.clib_extern_names: set[str] = set();
+    # C library struct names (value-type structs declared in clib import blocks)
+    self.clib_struct_names: set[str] = set();
+    # ABI-coerced integer types for small clib structs (struct_name → ir.IntType)
+    self.clib_struct_abi_types: dict[str, ir.Type] = {};
     # Enum support (Phase 1)
     self.enum_values: dict[(str, ir.Constant)] = {};
     self.enum_types: dict[(str, ir.IntType)] = {};
@@ -192,7 +196,55 @@ impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
                 }
             }
         }
-        # Forward-declare all abilities (functions) in the clib declarations
+        # Three-pass processing of clib declarations:
+        # Pass 1: Register struct types (opaque, for forward refs)
+        for decl in stmt.clib_decls {
+            if isinstance(decl, uni.Archetype) {
+                arch_name = decl.name.value if decl.name else None;
+                if arch_name is not None {
+                    struct_type = self.llvm_module.context.get_identified_type(
+                        arch_name
+                    );
+                    self.struct_types[arch_name] = struct_type;
+                    self.clib_struct_names.add(arch_name);
+                    self.has_native_code = True;
+                }
+            }
+        }
+        # Pass 1.5: Define struct bodies (field layout)
+        for decl in stmt.clib_decls {
+            if isinstance(decl, uni.Archetype) {
+                arch_name = decl.name.value if decl.name else None;
+                if arch_name is not None and arch_name in self.struct_types {
+                    self._codegen_archetype(decl);
+                    # Compute ABI integer type for small structs (C ABI coercion)
+                    stype = self.struct_types[arch_name];
+                    if stype?.elements and stype.elements {
+                        total_bits = 0;
+                        all_int = True;
+                        for elem in stype.elements {
+                            if isinstance(elem, ir.IntType) {
+                                total_bits += elem.width;
+                            } else {
+                                all_int = False;
+                                break;
+                            }
+                        }
+                        if all_int and 0 < total_bits <= 64 {
+                            # Round up to nearest power-of-2 byte size
+                            abi_bits = 8;
+                            while abi_bits < total_bits {
+                                abi_bits *= 2;
+                            }
+                            self.clib_struct_abi_types[arch_name] = ir.IntType(
+                                abi_bits
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        # Pass 2: Forward-declare extern functions (with value types for clib structs)
         for decl in stmt.clib_decls {
             if isinstance(decl, uni.Ability) {
                 fn_name = decl.name_ref.sym_name if decl.name_ref else None;
@@ -203,7 +255,7 @@ impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
                     );
                     continue;
                 }
-                self._maybe_declare_ability(decl);
+                self._declare_clib_ability(decl);
                 if fn_name {
                     self.clib_extern_names.add(fn_name);
                 }
