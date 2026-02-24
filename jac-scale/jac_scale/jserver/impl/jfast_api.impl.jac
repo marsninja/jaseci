@@ -1,3 +1,5 @@
+import logging;
+
 """Helper function to convert TransportResponse to JSONResponse (similar to HTTPTransport.send)."""
 def _convert_transport_response_to_json_response(
     transport_response: TransportResponse
@@ -53,13 +55,59 @@ def _convert_transport_response_to_json_response(
     return JSONResponse(status_code=status, content=response_body);
 }
 
+"""Custom logging handler that routes logs to jac-super console."""
+class ConsoleLogHandler(logging.Handler) {
+    """A logging handler that forwards log messages to jac-super's console."""
+    def emit(self: ConsoleLogHandler, record: logging.LogRecord) -> None {
+        import from jaclang.cli.console { console }
+        message = self.format(record);
+        console.print(f"  {message}");
+    }
+}
+
 """Run the FastAPI server using Uvicorn."""
 impl JFastApiServer.run_server(
     self: JFastApiServer, host: str = '0.0.0.0', port: int = 8000
 ) -> None {
     app = self.create_server();
-    # Suppress INFO logs to avoid duplicate server messages (we show our own JAC DEV SERVER banner)
-    uvicorn.run(app, host=host, port=port, log_level="warning");
+    # Create custom handler for console logging
+    console_handler = ConsoleLogHandler();
+    console_handler.setFormatter(logging.Formatter("%(message)s"));
+    # Suppress startup logs but route access logs through jac-super console
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {"format": "%(message)s"},
+            "access": {"format": "%(message)s"},
+
+        },
+        "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr"
+            },
+            "access": {"()": lambda : console_handler },
+
+        },
+        "loggers": {
+            "uvicorn": {
+                "handlers": ["default"],
+                "level": "WARNING",
+                "propagate": False
+            },
+            "uvicorn.error": {"level": "WARNING", "propagate": False},
+            "uvicorn.access": {
+                "handlers": ["access"],
+                "level": "INFO",
+                "propagate": False
+            },
+
+        },
+
+    };
+    uvicorn.run(app, host=host, port=port, log_config=log_config);
 }
 
 """Get the underlying FastAPI application instance."""
@@ -118,11 +166,112 @@ impl JFastApiServer._get_python_type(
         'number': float,
         'bool': bool,
         'boolean': bool,
-        'list': <>list,
-        'dict': <>dict,
-        'object': <>dict
+        'list': `list,
+        'dict': `dict,
+        'object': `dict
     };
     return type_mapping.get(type_string.lower(), str);
+}
+
+"""Implementation of PATH parameter handler."""
+impl PathParameterHandler.generate_param_string(param: APIParameter) -> str {
+    type_name = self.get_type_name(param);
+    description = param.description or '';
+    return f"{param.name}: {type_name} = Path(..., description='{description}')";
+}
+
+"""Implementation of QUERY parameter handler."""
+impl QueryParameterHandler.generate_param_string(param: APIParameter) -> str {
+    type_name = self.get_type_name(param);
+    description = param.description or '';
+    if param.required {
+        return f"{param.name}: {type_name} = Query(..., description='{description}')";
+    } elif (param.default is None) {
+        return f"{param.name}: Optional[{type_name}] = Query(description='{description}')";
+    } else {
+        return f"{param.name}: Optional[{type_name}] = Query({repr(param.default)}, description='{description}')";
+    }
+}
+
+"""Implementation of HEADER parameter handler."""
+impl HeaderParameterHandler.generate_param_string(param: APIParameter) -> str {
+    type_name = self.get_type_name(param);
+    description = param.description or '';
+    if param.required {
+        return f"{param.name}: {type_name} = Header(..., description='{description}')";
+    } elif (param.default is None) {
+        return f"{param.name}: Optional[{type_name}] = Header(default=None, description='{description}')";
+    } else {
+        return f"{param.name}: Optional[{type_name}] = Header({repr(param.default)}, description='{description}')";
+    }
+}
+
+"""Implementation of FILE parameter handler."""
+impl FileParameterHandler.generate_param_string(param: APIParameter) -> str {
+    description = param.description or '';
+    is_multiple = 'list' in param.data_type.lower();
+    if is_multiple {
+        if param.required {
+            return f"{param.name}: List[UploadFile] = File(..., description='{description}')";
+        } else {
+            return f"{param.name}: Optional[List[UploadFile]] = File(default=None, description='{description}')";
+        }
+    } else {
+        if param.required {
+            return f"{param.name}: UploadFile = File(..., description='{description}')";
+        } else {
+            return f"{param.name}: Optional[UploadFile] = File(default=None, description='{description}')";
+        }
+    }
+}
+
+"""Implementation of Form BODY parameter handler."""
+impl FormBodyParameterHandler.generate_param_string(param: APIParameter) -> str {
+    type_name = self.get_type_name(param);
+    description = param.description or '';
+    if param.required {
+        return f"{param.name}: {type_name} = Form(..., description='{description}')";
+    } elif (param.default is None) {
+        return f"{param.name}: Optional[{type_name}] = Form(default=None, description='{description}')";
+    } else {
+        return f"{param.name}: Optional[{type_name}] = Form(default={repr(
+            param.default
+        )}, description='{description}')";
+    }
+}
+
+"""Implementation of JSON BODY parameter handler - generate Pydantic model."""
+impl JSONBodyParameterHandler.generate_body_model -> (type[BaseModel] | None) {
+    model_fields: dict[(str, Any)] = {};
+    for param in self.body_params {
+        if not param.name {
+            continue;
+        }
+        param_type = self.type_converter._get_python_type(param.data_type);
+        description = param.description or '';
+        if param.required {
+            model_fields[param.name] = (
+                param_type,
+                Field(..., description=description)
+            );
+        } else {
+            if (param.default is None) {
+                model_fields[param.name] = (
+                    (param_type | None),
+                    Field(description=description)
+                );
+            } else {
+                model_fields[param.name] = (
+                    (param_type | None),
+                    Field(param.default, description=description)
+                );
+            }
+        }
+    }
+    if model_fields {
+        return create_model('RequestBody', **model_fields);
+    }
+    return None;
 }
 
 """Create the actual endpoint function with parameter injection."""
@@ -133,17 +282,26 @@ impl JFastApiServer._create_endpoint_function(
     dependencies: list[Any]
 ) -> Callable[..., Any] {
     sig = inspect.signature(callback);
-    accepts_kwargs = <>any(
+    accepts_kwargs = any(
         (p.kind == inspect.Parameter.VAR_KEYWORD) for p in sig.parameters.values()
     );
+    needs_request_no_params = 'request' in sig.parameters;
     if not parameters {
         if accepts_kwargs {
             if inspect.iscoroutinefunction(callback) {
-                async def async_endpoint_wrapper(request: Request) -> EndpointResponse {
+                async def async_endpoint_wrapper(
+                    __jac_request__: Request
+                ) -> EndpointResponse {
                     import from jaclang.runtimelib.transport { TransportResponse }
                     try {
-                        query_params = <>dict(request.query_params);
-                        result = await callback(**query_params);
+                        query_params = dict(__jac_request__.query_params);
+                        if needs_request_no_params {
+                            result = await callback(
+                                **{'request': __jac_request__, ** query_params}
+                            );
+                        } else {
+                            result = await callback(**query_params);
+                        }
                         # Automatically convert TransportResponse to JSONResponse (like HTTPTransport.send)
                         if isinstance(result, TransportResponse) {
                             return _convert_transport_response_to_json_response(result);
@@ -155,11 +313,17 @@ impl JFastApiServer._create_endpoint_function(
                 }
                 return async_endpoint_wrapper;
             } else {
-                def sync_endpoint_wrapper(request: Request) -> EndpointResponse {
+                def sync_endpoint_wrapper(__jac_request__: Request) -> EndpointResponse {
                     import from jaclang.runtimelib.transport { TransportResponse }
                     try {
-                        query_params = <>dict(request.query_params);
-                        result = callback(**query_params);
+                        query_params = dict(__jac_request__.query_params);
+                        if needs_request_no_params {
+                            result = callback(
+                                **{'request': __jac_request__, ** query_params}
+                            );
+                        } else {
+                            result = callback(**query_params);
+                        }
                         # Automatically convert TransportResponse to JSONResponse (like HTTPTransport.send)
                         if isinstance(result, TransportResponse) {
                             return _convert_transport_response_to_json_response(result);
@@ -172,41 +336,79 @@ impl JFastApiServer._create_endpoint_function(
                 return sync_endpoint_wrapper;
             }
         } elif inspect.iscoroutinefunction(callback) {
-            async def async_endpoint_wrapper__1 -> EndpointResponse {
-                import from jaclang.runtimelib.transport { TransportResponse }
-                try {
-                    result = await callback();
-                    # Automatically convert TransportResponse to JSONResponse (like HTTPTransport.send)
-                    if isinstance(result, TransportResponse) {
-                        return _convert_transport_response_to_json_response(result);
+            if needs_request_no_params {
+                async def async_endpoint_wrapper__1(
+                    __jac_request__: Request
+                ) -> EndpointResponse {
+                    import from jaclang.runtimelib.transport { TransportResponse }
+                    try {
+                        result = await callback(**{'request': __jac_request__});
+                        # Automatically convert TransportResponse to JSONResponse (like HTTPTransport.send)
+                        if isinstance(result, TransportResponse) {
+                            return _convert_transport_response_to_json_response(result);
+                        }
+                        return result;
+                    } except Exception as e {
+                        raise e from HTTPException(status_code=500, detail=str(e)) ;
                     }
-                    return result;
-                } except Exception as e {
-                    raise e from HTTPException(status_code=500, detail=str(e)) ;
+                }
+            } else {
+                async def async_endpoint_wrapper__1 -> EndpointResponse {
+                    import from jaclang.runtimelib.transport { TransportResponse }
+                    try {
+                        result = await callback();
+                        # Automatically convert TransportResponse to JSONResponse (like HTTPTransport.send)
+                        if isinstance(result, TransportResponse) {
+                            return _convert_transport_response_to_json_response(result);
+                        }
+                        return result;
+                    } except Exception as e {
+                        raise e from HTTPException(status_code=500, detail=str(e)) ;
+                    }
                 }
             }
             return async_endpoint_wrapper__1;
         } else {
-            def sync_endpoint_wrapper__1 -> EndpointResponse {
-                import from jaclang.runtimelib.transport { TransportResponse }
-                try {
-                    result = callback();
-                    # Automatically convert TransportResponse to JSONResponse (like HTTPTransport.send)
-                    if isinstance(result, TransportResponse) {
-                        return _convert_transport_response_to_json_response(result);
+            if needs_request_no_params {
+                def sync_endpoint_wrapper__1(
+                    __jac_request__: Request
+                ) -> EndpointResponse {
+                    import from jaclang.runtimelib.transport { TransportResponse }
+                    try {
+                        result = callback(**{'request': __jac_request__});
+                        # Automatically convert TransportResponse to JSONResponse (like HTTPTransport.send)
+                        if isinstance(result, TransportResponse) {
+                            return _convert_transport_response_to_json_response(result);
+                        }
+                        return result;
+                    } except Exception as e {
+                        raise e from HTTPException(status_code=500, detail=str(e)) ;
                     }
-                    return result;
-                } except Exception as e {
-                    raise e from HTTPException(status_code=500, detail=str(e)) ;
+                }
+            } else {
+                def sync_endpoint_wrapper__1 -> EndpointResponse {
+                    import from jaclang.runtimelib.transport { TransportResponse }
+                    try {
+                        result = callback();
+                        # Automatically convert TransportResponse to JSONResponse (like HTTPTransport.send)
+                        if isinstance(result, TransportResponse) {
+                            return _convert_transport_response_to_json_response(result);
+                        }
+                        return result;
+                    } except Exception as e {
+                        raise e from HTTPException(status_code=500, detail=str(e)) ;
+                    }
                 }
             }
             return sync_endpoint_wrapper__1;
         }
     }
+    # Group parameters by type
     body_params: list[APIParameter] = [];
     path_params: list[APIParameter] = [];
     query_params: list[APIParameter] = [];
     header_params: list[APIParameter] = [];
+    file_params: list[APIParameter] = [];
     for param in parameters {
         param_location = param.type;
         if (param_location == ParameterType.BODY) {
@@ -217,99 +419,75 @@ impl JFastApiServer._create_endpoint_function(
             query_params.append(param);
         } elif (param_location == ParameterType.HEADER) {
             header_params.append(param);
+        } elif (param_location == ParameterType.FILE) {
+            file_params.append(param);
         }
     }
+    # Initialize parameter strings and mapping
     param_strs: list[str] = [];
     param_mapping: dict[(str, str)] = {};
     needs_request = 'request' in sig.parameters;
     if accepts_kwargs {
-        param_strs.append('request: Request');
-        param_mapping['__request__'] = 'request';
+        param_strs.append('__jac_request__: Request');
+        param_mapping['__request__'] = '__jac_request__';
+        # If the callback also explicitly accepts a request parameter, map it
+        if needs_request {
+            param_mapping['request'] = '__jac_request__';
+        }
     } elif needs_request {
-        param_strs.append('request: Request');
-        param_mapping['request'] = 'request';
+        param_strs.append('__jac_request__: Request');
+        param_mapping['request'] = '__jac_request__';
     }
+    # Create handler map
+    has_file_params = len(file_params) > 0;
+    handler_map: dict[(ParameterType, ParameterHandler)] = {
+        ParameterType.PATH: PathParameterHandler(type_converter=self),
+        ParameterType.QUERY: QueryParameterHandler(type_converter=self),
+        ParameterType.HEADER: HeaderParameterHandler(type_converter=self),
+        ParameterType.FILE: FileParameterHandler(type_converter=self)
+    };
+    # Handle body parameters using appropriate handler
     body_model: (type[BaseModel] | None) = None;
     if (len(body_params) >= 1) {
-        model_fields: dict[(str, Any)] = {};
-        for param in body_params {
-            param_name = param.name;
-            if not param_name {
-                continue;
-            }
-            param_type = self._get_python_type(param.data_type);
-            required = param.required;
-            description = param.description;
-            if required {
-                model_fields[param_name] = (
-                    param_type,
-                    Field(..., description=description)
-                );
-            } else {
-                default_value = param.default;
-                if (default_value is None) {
-                    model_fields[param_name] = (
-                        (param_type | None),
-                        Field(description=description)
-                    );
-                } else {
-                    model_fields[param_name] = (
-                        (param_type | None),
-                        Field(default_value, description=description)
-                    );
+        if has_file_params {
+            # Use Form handler when files are present (multipart/form-data)
+            form_handler = FormBodyParameterHandler(type_converter=self);
+            for param in body_params {
+                if param.name {
+                    param_str = form_handler.generate_param_string(param);
+                    param_strs.append(param_str);
+                    param_mapping[param.name] = param.name;
                 }
             }
-        }
-        if model_fields {
-            body_model = create_model('RequestBody', **model_fields);
-            param_strs.append('body_data: RequestBody');
-            param_mapping['body_data'] = 'body_data';
+        } else {
+            # Use JSON body handler (Pydantic model)
+            json_handler = JSONBodyParameterHandler(
+                type_converter=self, body_params=body_params
+            );
+            body_model = json_handler.generate_body_model();
+            if body_model {
+                param_strs.append('body_data: RequestBody');
+                param_mapping['body_data'] = 'body_data';
+            }
         }
     }
-    param_type_mapping = [
+    # Process other parameter types using their handlers
+    param_groups = [
         (path_params, ParameterType.PATH),
         (query_params, ParameterType.QUERY),
-        (header_params, ParameterType.HEADER)
+        (header_params, ParameterType.HEADER),
+        (file_params, ParameterType.FILE)
     ];
-    for (param_list, param_type_enum) in param_type_mapping {
-        for param in param_list {
-            param_name = param.name;
-            if not param_name {
-                continue;
-            }
-            param_type_str = param.data_type;
-            required = param.required;
-            default_value = param.default;
-            description = param.description;
-            actual_type = self._get_python_type(param_type_str);
-            type_name = actual_type.__name__;
-            if (param_type_enum == ParameterType.PATH) {
-                param_str = f"{param_name}: {type_name} = Path(..., description='{description}')";
-            } elif (param_type_enum == ParameterType.QUERY) {
-                if required {
-                    param_str = f"{param_name}: {type_name} = Query(..., description='{description}')";
-                } elif (default_value is None) {
-                    param_str = f"{param_name}: Optional[{type_name}] = Query(description='{description}')";
-                } else {
-                    param_str = f"{param_name}: Optional[{type_name}] = Query({repr(
-                        default_value
-                    )}, description='{description}')";
+    for (param_list, param_type) in param_groups {
+        handler = handler_map.get(param_type);
+        if handler {
+            for param in param_list {
+                if param.name {
+                    param_str = handler.generate_param_string(param);
+                    param_strs.append(param_str);
+                    param_mapping[param.name] = param.name;
                 }
-            } elif (param_type_enum == ParameterType.HEADER) {
-                if required {
-                    param_str = f"{param_name}: {type_name} = Header(..., description='{description}')";
-                } elif (default_value is None) {
-                    param_str = f"{param_name}: Optional[{type_name}] = Header(default=None, description='{description}')";
-                } else {
-                    param_str = f"{param_name}: Optional[{type_name}] = Header({repr(
-                        default_value
-                    )}, description='{description}')";
-                }
-            } else {
-                continue;
             }
-            param_strs.append(param_str);
-            param_mapping[param_name] = param_name;
         }
     }
     params = ', '.join(param_strs);
@@ -325,12 +503,14 @@ impl JFastApiServer._create_endpoint_function(
         }
         for name in param_mapping {
             if (name not in ('body_data', '__request__')) {
-                callback_args_lines.append(f"        callback_args['{name}'] = {name}");
+                callback_args_lines.append(
+                    f"        callback_args['{name}'] = {param_mapping[name]}"
+                );
             }
         }
     } else {
         callback_args_lines = [
-            f"        callback_args['{name}'] = {name}"
+            f"        callback_args['{name}'] = {param_mapping[name]}"
             for name in param_mapping
             if (name != '__request__')
         ];
@@ -347,7 +527,7 @@ impl JFastApiServer._create_endpoint_function(
         extra_query_params_code = f"""
         # Extract additional query parameters not explicitly declared
         declared_params = set({declared_params_str})
-        for key, value in request.query_params.items():
+        for key, value in __jac_request__.query_params.items():
             if key not in declared_params:
                 callback_args[key] = value
 """;
@@ -388,18 +568,22 @@ def endpoint_wrapper({params}):
         'Path': Path,
         'Body': Body,
         'Header': Header,
+        'File': File,
+        'Form': Form,
+        'UploadFile': UploadFile,
         'Request': Request,
         'Optional': Optional,
         'Field': Field,
         'create_model': create_model,
-        'Dict': <>dict,
+        'Dict': `dict,
+        'List': `list,
         'Any': Any,
         'int': int,
         'str': str,
         'float': float,
         'bool': bool,
-        'list': <>list,
-        'dict': <>dict,
+        'list': `list,
+        'dict': `dict,
         'TransportResponse': TransportResponse,
         '_convert_transport_response_to_json_response': _convert_transport_response_to_json_response,
         'isinstance': isinstance
@@ -453,7 +637,7 @@ impl JFastApiServer._create_fastapi_route(
         return_type = hints.get('return');
         if (
             return_type
-            and isinstance(return_type, <>type)
+            and isinstance(return_type, type)
             and issubclass(return_type, Response)
         ) {
             route_kwargs['response_class'] = return_type;

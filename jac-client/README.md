@@ -38,7 +38,7 @@ Visit `http://localhost:8000` to see your app! (The `app` component is served at
 
 You can also access the app at `http://localhost:8000/cl/app`.
 
-> **Note**: The `--npm` flag creates a client-side project with an organized folder structure. Without `--npm`, `jac create` creates a standard Jac project.
+> **Note**: The `--use client` flag creates a client-side project with an organized folder structure. Without it, `jac create` creates a standard Jac project.
 
 ---
 
@@ -64,7 +64,7 @@ For detailed guides and tutorials, see the **[docs folder](jac_client/docs/)**:
 cl import from react { useEffect }
 
 cl {
-    def Counter() -> any {
+    def Counter() -> JsxElement {
         # useState is automatically available - no import needed!
         [count, setCount] = useState(0);
 
@@ -82,7 +82,7 @@ cl {
         </div>;
     }
 
-    def app() -> any {
+    def app() -> JsxElement {
         return Counter();
     }
 }
@@ -95,7 +95,7 @@ cl {
 ```jac
 # useState is auto-injected, only import useEffect
 cl import from react { useEffect }
-cl import from '@jac-client/utils' { jacSpawn }
+cl import from '@jac/runtime' { jacSpawn }
 
 # Backend: Jac nodes and walkers
 node Todo {
@@ -105,21 +105,21 @@ node Todo {
 
 walker create_todo {
     has text: str;
-    can create with `root entry {
+    can create with Root entry {
         new_todo = here ++> Todo(text=self.text);
         report new_todo;
     }
 }
 
 walker read_todos {
-    can read with `root entry {
-        visit [-->(`?Todo)];
+    can read with Root entry {
+        visit [-->(?:Todo)];
     }
 }
 
 # Frontend: React component
 cl {
-    def app() -> any {
+    def app() -> JsxElement {
         # useState is automatically available - no import needed!
         [todos, setTodos] = useState([]);
 
@@ -146,7 +146,7 @@ cl {
 ## Requirements
 
 - Python: 3.12+
-- Node.js: For npm and Vite
+- Bun: For package management and Vite bundling ([install](https://bun.sh))
 - Jac Language: `jaclang` (installed automatically)
 
 ---

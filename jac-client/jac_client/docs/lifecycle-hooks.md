@@ -54,7 +54,7 @@ The `useState` hook lets you add state to your components.
 cl import from react { useState }
 
 cl {
-    def Counter() -> any {
+    def Counter() -> JsxElement {
         [count, setCount] = useState(0);
 
         return <div>
@@ -82,7 +82,7 @@ cl {
 cl import from react { useState }
 
 cl {
-    def TodoApp() -> any {
+    def TodoApp() -> JsxElement {
         [todos, setTodos] = useState([]);
         [inputValue, setInputValue] = useState("");
         [filter, setFilter] = useState("all");
@@ -102,11 +102,11 @@ The `useEffect` hook lets you perform side effects in your components. It provid
 cl import from react { useState, useEffect }
 
 cl {
-    def MyComponent() -> any {
+    def MyComponent() -> JsxElement {
         [data, setData] = useState(None);
 
         useEffect(lambda -> None {
-            console.log("Component mounted!");
+            print("Component mounted!");
             # Load initial data
             async def loadData() -> None {
                 result = await jacSpawn("get_data", "", {});
@@ -135,11 +135,11 @@ cl {
 cl import from react { useState, useEffect }
 
 cl {
-    def Counter() -> any {
+    def Counter() -> JsxElement {
         [count, setCount] = useState(0);
 
         useEffect(lambda -> None {
-            console.log("Count changed to:", count);
+            print("Count changed to:", count);
             document.title = "Count: " + str(count);
         }, [count]);  # Run when count changes
 
@@ -161,11 +161,11 @@ cl {
 cl import from react { useEffect }
 
 cl {
-    def TimerComponent() -> any {
+    def TimerComponent() -> JsxElement {
         useEffect(lambda -> any {
             # Setup
             intervalId = setInterval(lambda -> None {
-                console.log("Timer tick");
+                print("Timer tick");
             }, 1000);
 
             # Cleanup function (returned from useEffect)
@@ -189,10 +189,10 @@ The most common use case is loading data when a component mounts:
 
 ```jac
 cl import from react { useState, useEffect }
-cl import from '@jac-client/utils' { jacSpawn }
+cl import from '@jac/runtime' { jacSpawn }
 
 cl {
-    def TodoApp() -> any {
+    def TodoApp() -> JsxElement {
         [todos, setTodos] = useState([]);
         [loading, setLoading] = useState(True);
 
@@ -202,7 +202,7 @@ cl {
 
                 # Fetch todos from backend
                 result = await jacSpawn("read_todos", "", {});
-                console.log(result);
+                print(result);
                 setTodos(result.reports);
                 setLoading(False);
             }
@@ -230,7 +230,7 @@ Set up event listeners with proper cleanup:
 cl import from react { useState, useEffect }
 
 cl {
-    def WindowResizeHandler() -> any {
+    def WindowResizeHandler() -> JsxElement {
         [width, setWidth] = useState(0);
         [height, setHeight] = useState(0);
 
@@ -265,10 +265,10 @@ Load user-specific data when a component mounts:
 
 ```jac
 cl import from react { useState, useEffect }
-cl import from '@jac-client/utils' { jacSpawn }
+cl import from '@jac/runtime' { jacSpawn }
 
 cl {
-    def ProfileView() -> any {
+    def ProfileView() -> JsxElement {
         [profile, setProfile] = useState(None);
         [loading, setLoading] = useState(True);
 
@@ -311,7 +311,7 @@ Initialize external libraries or APIs:
 cl import from react { useEffect }
 
 cl {
-    def ChartComponent() -> any {
+    def ChartComponent() -> JsxElement {
         useEffect(lambda -> any {
             # Initialize chart library
             chart = new Chart("myChart", {
@@ -339,7 +339,7 @@ Focus an input field when a component mounts:
 cl import from react { useEffect }
 
 cl {
-    def SearchBar() -> any {
+    def SearchBar() -> JsxElement {
         useEffect(lambda -> None {
             # Focus search input on mount
             inputEl = document.getElementById("search-input");
@@ -365,10 +365,10 @@ cl {
 
 ```jac
 cl import from react { useState, useEffect }
-cl import from '@jac-client/utils' { jacSpawn }
+cl import from '@jac/runtime' { jacSpawn }
 
 cl {
-    def app() -> any {
+    def app() -> JsxElement {
         [todos, setTodos] = useState([]);
         [inputValue, setInputValue] = useState("");
         [filter, setFilter] = useState("all");
@@ -376,7 +376,7 @@ cl {
         useEffect(lambda -> None {
             async def loadTodos() -> None {
                 todos = await jacSpawn("read_todos","",{});
-                console.log(todos);
+                print(todos);
                 setTodos(todos.reports);
             }
             loadTodos();
@@ -391,7 +391,7 @@ cl {
                 "done": False
             };
             await jacSpawn("create_todo","", {"text": inputValue.trim()});
-            newTodos = todos.concat([newTodo]);
+            newTodos = todos + [newTodo];
             setTodos(newTodos);
             setInputValue("");
         }
@@ -479,10 +479,10 @@ cl {
 
 ```jac
 cl import from react { useState, useEffect }
-cl import from '@jac-client/utils' { jacSpawn }
+cl import from '@jac/runtime' { jacSpawn }
 
 cl {
-    def Dashboard() -> any {
+    def Dashboard() -> JsxElement {
         [stats, setStats] = useState(None);
         [activity, setActivity] = useState([]);
         [loading, setLoading] = useState(True);
@@ -524,7 +524,7 @@ Proper cleanup when component unmounts:
 cl import from react { useState, useEffect }
 
 cl {
-    def TimerComponent() -> any {
+    def TimerComponent() -> JsxElement {
         [seconds, setSeconds] = useState(0);
 
         useEffect(lambda -> any {
@@ -560,12 +560,12 @@ useEffect(lambda -> None {
 
 #  Good: Specify dependencies
 useEffect(lambda -> None {
-    console.log("Count changed:", count);
+    print("Count changed:", count);
 }, [count]);
 
 #  Warning: No dependency array runs on every render
 useEffect(lambda -> None {
-    console.log("Runs on every render!");
+    print("Runs on every render!");
 });
 ```
 
@@ -581,7 +581,7 @@ useEffect(lambda -> None {
             data = await jacSpawn("get_data", "", {});
             setData(data);
         } except Exception as err {
-            console.error("Error loading data:", err);
+            print("Error loading data:", err);
             setError(err);
         }
     }
@@ -614,7 +614,7 @@ Show loading indicators while data is being fetched:
 
 ```jac
 #  Good: Clear loading states
-def Component() -> any {
+def Component() -> JsxElement {
     [data, setData] = useState(None);
     [loading, setLoading] = useState(True);
     [error, setError] = useState(None);
@@ -646,7 +646,7 @@ Each effect should have a single responsibility:
 
 ```jac
 #  Good: Separate effects for separate concerns
-def Component() -> any {
+def Component() -> JsxElement {
     useEffect(lambda -> None {
         loadData();  # Data loading
     }, []);
@@ -711,7 +711,7 @@ The `onMount()` hook was a Jac-specific hook for running code once when a compon
 
 ```jac
 # Legacy approach - use useEffect instead
-def Component() -> any {
+def Component() -> JsxElement {
     onMount(lambda -> None {
         loadData();
     });
@@ -723,7 +723,7 @@ def Component() -> any {
 
 ```jac
 # Modern approach with React hooks
-def Component() -> any {
+def Component() -> JsxElement {
     useEffect(lambda -> None {
         loadData();
     }, []);
@@ -739,7 +739,7 @@ The `createState()` hook was a Jac-specific state management solution:
 # Legacy approach - use useState instead
 [state, setState] = createState({"count": 0});
 
-def Component() -> any {
+def Component() -> JsxElement {
     s = state();
     return <div>{s.count}</div>;
 }
@@ -749,7 +749,7 @@ def Component() -> any {
 
 ```jac
 # Modern approach with React hooks
-def Component() -> any {
+def Component() -> JsxElement {
     [count, setCount] = useState(0);
     return <div>{count}</div>;
 }
@@ -764,7 +764,7 @@ These were Signal-based reactive primitives from Jac:
 [count, setCount] = createSignal(0);
 
 createEffect(lambda -> None {
-    console.log("Count:", count());
+    print("Count:", count());
 });
 ```
 
@@ -775,6 +775,6 @@ createEffect(lambda -> None {
 [count, setCount] = useState(0);
 
 useEffect(lambda -> None {
-    console.log("Count:", count);
+    print("Count:", count);
 }, [count]);
 ```

@@ -18,7 +18,7 @@ cl import from react {
     useState,
     useEffect
 }
-cl import from "@jac-client/utils" {
+cl import from "@jac/runtime" {
     Router,
     Routes,
     Route,
@@ -41,15 +41,15 @@ node Todo {
 walker create_todo {
     has text: str;
 
-    can create with `root entry {
+    can create with Root entry {
         new_todo = here ++> Todo(text=self.text);
         report new_todo ;
     }
 }
 
 walker read_todos {
-    can read with `root entry {
-        visit [-->(`?Todo)];
+    can read with Root entry {
+        visit [-->(?:Todo)];
     }
 
     can report_todos with Todo entry {
@@ -67,7 +67,7 @@ walker toggle_todo {
 # Frontend Components
 cl {
     # Navigation
-    def Navigation()  -> any {
+    def Navigation()  -> JsxElement {
         isLoggedIn = jacIsLoggedIn();
         navigate = useNavigate();
 
@@ -152,7 +152,7 @@ cl {
     }
 
     # Login Page
-    def LoginPage()  -> any {
+    def LoginPage()  -> JsxElement {
         [username, setUsername] = useState("");
         [password, setPassword] = useState("");
         [error, setError] = useState("");
@@ -278,7 +278,7 @@ cl {
     }
 
     # Signup Page
-    def SignupPage()  -> any {
+    def SignupPage()  -> JsxElement {
         [username, setUsername] = useState("");
         [password, setPassword] = useState("");
         [error, setError] = useState("");
@@ -404,7 +404,7 @@ cl {
     }
 
     # Todos Page (Protected)
-    def TodosPage()  -> any {
+    def TodosPage()  -> JsxElement {
         # Check if user is logged in, redirect if not
         if not jacIsLoggedIn() {
             return <Navigate to="/login" />;
@@ -429,7 +429,7 @@ cl {
                 return;
             }
             result = root spawn create_todo(text=input.trim());
-            setTodos(todos.concat([result.reports[0][0]]));
+            setTodos(todos + [result.reports[0][0]]);
             setInput("");
         }
 
@@ -649,7 +649,7 @@ cl {
     }
 
     # Home/Landing Page - auto-redirect
-    def HomePage()  -> any {
+    def HomePage()  -> JsxElement {
         if jacIsLoggedIn() {
             return <Navigate to="/todos" />;
         }
@@ -657,7 +657,7 @@ cl {
     }
 
     # Main App with React Router
-    def:pub app()  -> any {
+    def:pub app()  -> JsxElement {
         return <Router>
             <div
                 style={{"fontFamily": "system-ui, sans-serif"}}

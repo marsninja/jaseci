@@ -22,18 +22,22 @@ obj ResolvedDependency {
 """Manages installation of dependencies for Jac projects."""
 obj DependencyInstaller {
     has config: JacConfig | None = None,
-        packages_dir: Path | None = None,
+        venv_dir: Path | None = None,
         verbose: bool = False;
 
     def postinit -> None;
-    def ensure_packages_dir -> None;
+    def ensure_venv -> None;
     def _run_pip(args: list[str]) -> tuple[int, str, str];
-    def install_all(include_dev: bool = False) -> bool;
-    def install_package(name: str, version: str = "") -> bool;
-    def install_git_package(name: str, git_url: str, branch: str = "") -> bool;
+    def _make_pip_spec(name: str, version: str) -> str;
+    def _make_git_spec(name: str, git_url: str, branch: str = "") -> str;
+    def get_pip_package_specs(include_dev: bool = False) -> list[str];
+    def get_git_package_specs -> list[str];
+    def install_package(specs: list[str]) -> bool;
     def uninstall_package(name: str) -> bool;
     def is_installed(name: str) -> bool;
+    def get_installed_version(name: str) -> str | None;
     def list_installed -> list[str];
+    def get_installed_version(name: str) -> str | None;
 }
 
 """Resolves dependencies and their transitive dependencies."""
@@ -45,8 +49,10 @@ obj DependencyResolver {
     def resolve(include_dev: bool = False) -> list[ResolvedDependency];
 }
 
-def add_packages_to_path(config: JacConfig | None = None) -> None;
+def get_venv_site_packages(venv_dir: Path) -> Path;
 
-def remove_packages_from_path(config: JacConfig | None = None) -> None;
+def add_venv_to_path(config: JacConfig | None = None) -> None;
 
-def is_packages_in_path(config: JacConfig | None = None) -> bool;
+def remove_venv_from_path(config: JacConfig | None = None) -> None;
+
+def is_venv_in_path(config: JacConfig | None = None) -> bool;

@@ -46,7 +46,7 @@ Open `main.jac` in your code editor and replace everything with this:
 
 ```jac
 cl {
-    def:pub app() -> any {
+    def:pub app() -> JsxElement {
         return <div>
             <h1>Hello, Jac!</h1>
             <p>My first full-stack app</p>
@@ -110,7 +110,7 @@ Think of it like this:
 This is your **main entry point** - the function that Jac calls first.
 
 ```jac
-def:pub app() -> any {
+def:pub app() -> JsxElement {
     return <div>...</div>;
 }
 ```
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     run_app()
 
 # Jac
-def:pub app() -> any {
+def:pub app() -> JsxElement {
     # Start here
 }
 ```
@@ -184,10 +184,10 @@ It's like running a Flask/FastAPI server, but it ALSO compiles and serves your R
 
 ### Hot Module Replacement (HMR)
 
-For faster development, use `--watch` mode:
+For faster development, use `--dev` mode:
 
 ```bash
-jac start main.jac --watch
+jac start main.jac --dev
 ```
 
 With HMR enabled:
@@ -262,7 +262,7 @@ Then visit `http://localhost:8080/cl/app`
 **Best solution**: Use HMR mode for automatic reloading:
 
 ```bash
-jac start main.jac --watch
+jac start main.jac --dev
 ```
 
 **Alternative** (if not using HMR):
@@ -279,7 +279,7 @@ Before moving on, try changing the text:
 
 ```jac
 cl {
-    def:pub app() -> any {
+    def:pub app() -> JsxElement {
         return <div>
             <h1>My Todo App</h1>
             <p>Built with Jac</p>

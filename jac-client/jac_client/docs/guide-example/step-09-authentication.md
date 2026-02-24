@@ -15,7 +15,7 @@ Add these imports at the top of your `cl` block:
 ```jac
 # Note: useState is auto-injected, only useEffect needs explicit import
 cl import from react {useEffect}
-cl import from "@jac-client/utils" {
+cl import from "@jac/runtime" {
     jacLogin,
     jacSignup,
     jacLogout,
@@ -34,7 +34,7 @@ cl {
 Add this component:
 
 ```jac
-def LoginPage() -> any {
+def LoginPage() -> JsxElement {
     [username, setUsername] = useState("");
     [password, setPassword] = useState("");
     [error, setError] = useState("");
@@ -50,7 +50,7 @@ def LoginPage() -> any {
 
         success = await jacLogin(username, password);
         if success {
-            console.log("Login successful!");
+            print("Login successful!");
         } else {
             setError("Invalid credentials");
         }
@@ -153,7 +153,7 @@ def LoginPage() -> any {
 Add this component:
 
 ```jac
-def SignupPage() -> any {
+def SignupPage() -> JsxElement {
     [username, setUsername] = useState("");
     [password, setPassword] = useState("");
     [error, setError] = useState("");
@@ -169,7 +169,7 @@ def SignupPage() -> any {
 
         result = await jacSignup(username, password);
         if result["success"] {
-            console.log("Signup successful!");
+            print("Signup successful!");
         } else {
             setError(result["error"] if result["error"] else "Signup failed");
         }
@@ -272,7 +272,7 @@ def SignupPage() -> any {
 For now, update your `app()` function to show the login page:
 
 ```jac
-def:pub app() -> any {
+def:pub app() -> JsxElement {
     return <LoginPage />;
 }
 ```
@@ -282,7 +282,7 @@ def:pub app() -> any {
 Change it to show signup:
 
 ```jac
-def:pub app() -> any {
+def:pub app() -> JsxElement {
     return <SignupPage />;
 }
 ```
@@ -295,7 +295,7 @@ Now let's make the todo page require login. Rename your current `app` function t
 
 ```jac
 # Rename app to TodosPage
-def TodosPage() -> any {
+def TodosPage() -> JsxElement {
     # Check if user is logged in
     if not jacIsLoggedIn() {
         return <div style={{"padding": "20px"}}>
@@ -465,7 +465,7 @@ setError("");
 ### Conditional Rendering for Auth
 
 ```jac
-def TodosPage() -> any {
+def TodosPage() -> JsxElement {
     if not jacIsLoggedIn() {
         return <div>Please login</div>;
     }
@@ -486,8 +486,8 @@ When you add authentication to walkers:
 ```jac
 walker read_todos {
     # No special code needed - Jac handles it!
-    can read with `root entry {
-        visit [-->(`?Todo)];
+    can read with Root entry {
+        visit [-->(?:Todo)];
     }
 }
 ```
@@ -572,7 +572,7 @@ await jacLogin("alice", "password123");
 Try adding a "Remember me" message:
 
 ```jac
-def LoginPage() -> any {
+def LoginPage() -> JsxElement {
     [username, setUsername] = useState("");
     [password, setPassword] = useState("");
 

@@ -4,8 +4,8 @@ Provides type evaluation logic for unary, binary, augmented assignment and terna
 PyrightReference: packages/pyright-internal/src/analyzer/operations.ts
 """
 import from typing { TYPE_CHECKING }
-import jaclang.pycore.unitree as uni;
-import from jaclang.pycore.constant { Tokens as Tok }
+import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.constant { Tokens as Tok }
 import from . { types as jtypes }
 
 with entry {
@@ -92,6 +92,9 @@ def get_type_of_binary_operation(
 ) -> jtypes.TypeBase {
     left_type = evaluator.get_type_of_expression(expr.left);
     right_type = evaluator.get_type_of_expression(expr.right);
+    if left_type.is_any_type() or right_type.is_any_type() {
+        return jtypes.UnknownType();
+    }
     # Boolean operations
     if (
         (expr.op in (Tok.KW_IS, Tok.KW_ISN, Tok.KW_IN, Tok.KW_NIN))
@@ -161,28 +164,63 @@ def get_type_of_binary_operation(
 
     # Connection operations
     if isinstance(expr.op, (uni.ConnectOp, uni.DisconnectOp)) {
+        def is_node_type_instance(t: jtypes.TypeBase) -> bool {
+            return (
+                isinstance(t, jtypes.ClassType)
+                and t.is_node_type()
+                and t.is_instance()
+            );
+        }
+        # Check whether a type is a valid node operand for connections.
+        # Accepts: node instances, UnionType where all members are node instances,
+        # AnyType, and UnknownType (not enough info to diagnose).
+        def is_valid_node_operand(t: jtypes.TypeBase) -> bool {
+            if t.is_any_type() or isinstance(t, jtypes.UnknownType) {
+                return True;
+            }
+            if is_node_type_instance(t) {
+                return True;
+            }
+            if isinstance(t, jtypes.UnionType) {
+                return all(is_valid_node_operand(m) for m in t.types);
+            }
+            return False;
+        }
         # TODO: In strict mode, UnknownType, AnyType, TypeVarType, and object should be errors
-        if (
-            not left_type.is_any_type()
-            and (
-                not isinstance(left_type, jtypes.ClassType)
-                or not left_type.is_node_type()
-                or not left_type.is_instance()
-            )
-        ) {
+        if not is_valid_node_operand(left_type) {
             evaluator.add_diagnostic(
                 expr.left, 'Connection left operand must be a node instance'
             );
         }
-        # TODO: In strict mode, UnknownType, AnyType, TypeVarType, and object should be errors
-        if (
-            not right_type.is_any_type()
-            and (
-                not isinstance(right_type, jtypes.ClassType)
-                or not right_type.is_node_type()
-                or not right_type.is_instance()
-            )
-        ) {
+        # Check if right operand is a valid node operand or a collection of node instances
+        def is_valid_right_operand(t: jtypes.TypeBase) -> bool {
+            if is_valid_node_operand(t) {
+                return True;
+            }
+            if not isinstance(t, jtypes.ClassType) {
+                return False;
+            }
+            # Collection of node instances (list, tuple, set, frozenset)
+            if (
+                t.is_builtin()
+                and t.shared.class_name in ("list", "tuple", "set", "frozenset")
+            ) {
+                # If type_args are available, check them
+                if (t.private.type_args is not None and len(t.private.type_args) > 0) {
+                    elem_type = t.private.type_args[0];
+                    if is_valid_node_operand(elem_type) {
+                        return True;
+                    }
+                } else {
+                    # Unparameterized collection - allow it since element type
+                    # inference for list literals is not yet implemented (TODO).
+                    # In strict mode, this should be an error.
+                    return True;
+                }
+            }
+            return False;
+        }
+        if not is_valid_right_operand(right_type) {
             evaluator.add_diagnostic(
                 expr.right, 'Connection right operand must be a node instance'
             );
@@ -191,8 +229,12 @@ def get_type_of_binary_operation(
             if expr.op.conn_type {
                 conn_type = evaluator.get_type_of_expression(expr.op.conn_type);
                 if (
-                    not isinstance(conn_type, jtypes.ClassType)
-                    or not conn_type.is_edge_type()
+                    not conn_type.is_any_type()
+                    and not isinstance(conn_type, jtypes.UnknownType)
+                    and (
+                        not isinstance(conn_type, jtypes.ClassType)
+                        or not conn_type.is_edge_type()
+                    )
                 ) {
                     evaluator.add_diagnostic(
                         expr.op.conn_type, 'Connection type must be an edge instance'

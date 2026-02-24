@@ -21,38 +21,27 @@ Welcome to the Todo App example! This guide will walk you through building a ful
 
 ### Prerequisites
 
-Before installing Jac client, you need to have **Node.js** installed on your system.
+Before installing Jac client, you need to have **Bun** installed on your system.
 
-#### Installing Node.js
+#### Installing Bun
 
-**For Linux users:**
+Visit [https://bun.sh](https://bun.sh) and follow the installation instructions:
 
-Visit [https://nodejs.org/en/download](https://nodejs.org/en/download) and follow the instructions to install Node.js using **nvm** (Node Version Manager) with **npm**.
-
-Select:
-
-- **Platform**: Linux
-- **Package Manager**: nvm
-- **Package**: npm
-
-Then follow the installation commands provided on that page.
-
-**For macOS users:**
-
-Download and install Node.js from [https://nodejs.org/en/download](https://nodejs.org/en/download) by selecting your operating system.
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
 
 **Verify Installation:**
 
-After installation, verify Node.js and npm are installed correctly:
+After installation, verify Bun is installed correctly:
 
 ```bash
-node -v
-npm -v
+bun --version
 ```
 
 ### Installation
 
-Once Node.js is installed, install the Jac client package:
+Once Bun is installed, install the Jac client package:
 
 ```bash
 pip install jac-client
@@ -72,7 +61,7 @@ This command will:
 - Set up an organized project structure
 - Create a starter `main.jac` file with a sample component
 - Include a sample TypeScript component
-- **Automatically install npm packages** in the `.jac/client/` directory
+- **Automatically install packages** in the `.jac/client/` directory
 
 #### Skipping Package Installation
 
@@ -85,7 +74,7 @@ jac create --use client --skip todo-app
 **When to use `--skip`:**
 
 - You want to manually control when packages are installed
-- You're setting up the project in an environment without npm/Node.js initially
+- You're setting up the project in an environment without Bun initially
 - You want to customize the package.json before installation
 
 **Note:** If you use `--skip`, you'll need to install packages manually later using:
@@ -94,7 +83,7 @@ jac create --use client --skip todo-app
 jac add --npm <package-name>
 ```
 
-Or you can manually run `npm install` in the `.jac/client/configs/` directory after the project is created.
+Or you can manually run `bun install` in the `.jac/client/` directory after the project is created.
 
 **What gets created:**
 
@@ -126,10 +115,10 @@ You can access your app at `http://localhost:8000`
 
 ### Hot Module Replacement (HMR)
 
-For faster development with live reloading, use `--watch` mode:
+For faster development with live reloading, use `--dev` mode:
 
 ```bash
-jac start main.jac --watch
+jac start main.jac --dev
 ```
 
 This enables Hot Module Replacement, which automatically reloads your code when you make changes:
@@ -161,7 +150,7 @@ Inside your `cl` block, define a function called `app()`:
 # The 'has' keyword automatically creates reactive state with useState under the hood.
 
 cl {
-    def app() -> any {
+    def app() -> JsxElement {
         has count: int = 0;
         return <div>
             <h1>Hello, World!</h1>
@@ -190,7 +179,7 @@ cl {
 cl import from react { useEffect }
 
 cl {
-    def TodoList(todos: list) -> any {
+    def TodoList(todos: list) -> JsxElement {
         return <ul>
             {todos.map(lambda todo: any -> any {
                 return <li key={todo._jac_id}>{todo.text}</li>;
@@ -198,7 +187,7 @@ cl {
         </ul>;
     }
 
-    def:pub app() -> any {
+    def:pub app() -> JsxElement {
         has todos: list = [];
 
         useEffect(lambda -> None {
@@ -227,7 +216,7 @@ Components in Jac are functions that return JSX (JavaScript XML). They're simila
 
 ```jac
 cl {
-    def MyComponent() -> any {
+    def MyComponent() -> JsxElement {
         return <div>
             <h1>Hello from Jac!</h1>
         </div>;
@@ -240,7 +229,7 @@ cl {
 Components can accept parameters (props):
 
 ```jac
-def TodoItem(item: dict) -> any {
+def TodoItem(item: dict) -> JsxElement {
     return <li key={item.id}>
         <span>{item.text}</span>
         <button onClick={lambda -> None { removeTodo(item.id); }}>
@@ -260,7 +249,7 @@ def TodoItem(item: dict) -> any {
 ### Example: TodoItem Component
 
 ```jac
-def TodoItem(item: dict) -> any {
+def TodoItem(item: dict) -> JsxElement {
     return <li key={item.id} style={{
         "display": "flex",
         "gap": "12px",
@@ -305,12 +294,12 @@ Jac simplifies state management with the `has` keyword, which automatically uses
 cl import from react { useEffect }
 
 cl {
-    def Counter() -> any {
+    def Counter() -> JsxElement {
         # The 'has' keyword creates reactive state (auto-injects useState)
         has count: int = 0;
 
         useEffect(lambda -> None {
-            console.log("Count changed:", count);
+            print("Count changed:", count);
         }, [count]);
 
         return <div>
@@ -349,7 +338,7 @@ Here's a complete example showing state management in a todo app:
 cl import from react { useEffect }
 
 cl {
-    def app() -> any {
+    def app() -> JsxElement {
         # Reactive state using 'has' - no useState import needed!
         has todos: list = [];
         has input: str = "";
@@ -369,7 +358,7 @@ cl {
             if not input.trim() { return; }
             response = root spawn create_todo(text=input.trim());
             new_todo = response.reports[0][0];
-            todos = todos.concat([new_todo]);
+            todos = todos + [new_todo];
             input = "";
         }
 
@@ -417,9 +406,9 @@ Event handling in Jac works just like React, but with Jac's lambda syntax.
 ### Basic Event Handlers
 
 ```jac
-def Button() -> any {
+def Button() -> JsxElement {
     return <button onClick={lambda -> None {
-        console.log("Button clicked!");
+        print("Button clicked!");
     }}>
         Click Me
     </button>;
@@ -429,7 +418,7 @@ def Button() -> any {
 ### Event Handlers with Event Object
 
 ```jac
-def InputField() -> any {
+def InputField() -> JsxElement {
     # 'has' creates reactive state - useState is auto-injected
     has value: str = "";
 
@@ -437,7 +426,7 @@ def InputField() -> any {
         type="text"
         value={value}
         onChange={lambda e: any -> None {
-            console.log("Input value:", e.target.value);
+            print("Input value:", e.target.value);
             value = e.target.value;
         }}
     />;
@@ -447,7 +436,7 @@ def InputField() -> any {
 ### Form Submission
 
 ```jac
-def TodoForm() -> any {
+def TodoForm() -> JsxElement {
     return <form onSubmit={onAddTodo}>
         <input id="todo-input" type="text" />
         <button type="submit">Add Todo</button>
@@ -480,7 +469,7 @@ async def onAddTodo(e: any) -> None {
 ### Advanced: Conditional Event Handlers
 
 ```jac
-def FilterButton(filterType: str, currentFilter: str, onFilterChange: any) -> any {
+def FilterButton(filterType: str, currentFilter: str, onFilterChange: any) -> JsxElement {
     isActive = currentFilter == filterType;
 
     return <button
@@ -564,7 +553,7 @@ node Todo {
 # Walker: Create a new todo
 walker create_todo {
     has text: str;
-    can create with `root entry {
+    can create with Root entry {
         new_todo = here ++> Todo(text=self.text);
         report new_todo;
     }
@@ -580,8 +569,8 @@ walker toggle_todo {
 
 # Walker: Read all todos
 walker read_todos {
-    can read with `root entry {
-        visit [-->(`?Todo)];
+    can read with Root entry {
+        visit [-->(?:Todo)];
     }
 
     can report_todos with exit {
@@ -611,7 +600,7 @@ async def onAddTodo(e: any) -> None {
         "text": new_todo.text,
         "done": new_todo.done
     };
-    setTodoState({"items": s.items.concat([newItem])});
+    setTodoState({"items": s.items + [newItem]});
 }
 ```
 
@@ -620,7 +609,7 @@ async def onAddTodo(e: any) -> None {
 ```jac
 walker create_todo {
     has text: str;
-    can create with `root entry {
+    can create with Root entry {
         # 'text' comes from the walker parameter
         new_todo = here ++> Todo(text=self.text);
         report new_todo;
@@ -682,7 +671,7 @@ node Todo {
 
 walker create_todo {
     has text: str;
-    can create with `root entry {
+    can create with Root entry {
         new_todo = here ++> Todo(text=self.text);
         report new_todo;
     }
@@ -694,7 +683,7 @@ walker create_todo {
 # Note: No need to import useState - it's auto-injected when using 'has' keyword
 
 cl {
-    def app() -> any {
+    def app() -> JsxElement {
         # Reactive state with 'has' - useState is auto-injected by the compiler
         has todos: list = [];
         has input: str = "";
@@ -704,7 +693,7 @@ cl {
             if not input.trim() { return; }
             response = root spawn create_todo(text=input.trim());
             new_todo = response.reports[0][0];
-            todos = todos.concat([new_todo]);
+            todos = todos + [new_todo];
             input = "";
         }
 
@@ -750,6 +739,9 @@ Then visit `http://localhost:8000` in your browser.
 
 Ready to dive deeper? Explore these advanced topics:
 
+- **[Multi-Target Builds](multi-targets/intro.md)**: Build for web, desktop, and more from a single codebase
+  - [Web Target](multi-targets/web-target.md): Web builds in detail
+  - [Desktop Target](multi-targets/desktop-target.md): Desktop builds in detail
 - **[Routing](routing.md)**: Build multi-page apps with declarative routing (`<Router>`, `<Routes>`, `<Route>`)
 - **[Lifecycle Hooks](lifecycle-hooks.md)**: Use `onMount()` and React hooks for initialization logic
 - **[Advanced State](advanced-state.md)**: Manage complex state with React hooks and context

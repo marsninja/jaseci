@@ -19,9 +19,11 @@ impl JacClientConfig.get_plugin_name(self: JacClientConfig) -> str {
 """Get default configuration structure for client."""
 impl JacClientConfig.get_default_config(self: JacClientConfig) -> dict[str, Any] {
     return {
+        'api': {'base_url': ''},
         'vite': {
             'plugins': [],
             'lib_imports': [],
+            'define': {},  # Custom define values (env vars, constants)
             'build': {},
             'server': {},
             'resolve': {}
@@ -29,6 +31,7 @@ impl JacClientConfig.get_default_config(self: JacClientConfig) -> dict[str, Any]
         'ts': {'compilerOptions': {}, 'include': [], 'exclude': []},
         'configs': {},  # Generic config file generation: { "postcss": {...}, "tailwind": {...} }
         'paths': {},  # Import path aliases: { "@components/*": "./components/*" }
+        'npm': {},  # NPM registry config: { "scoped_registries": {...}, "auth": {...} }
         'package': {
             'name': '',
             'version': '1.0.0',
@@ -61,10 +64,12 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, Any] {
     else {};
     # Build user config in the expected internal format
     user_config: dict[str, Any] = {
+        'api': client_config.get('api', {}),
         'vite': client_config.get('vite', {}),
         'ts': client_config.get('ts', {}),
         'configs': client_config.get('configs', {}),
         'paths': client_config.get('paths', {}),
+        'npm': client_config.get('npm', {}),
         'package': {
             'name': jac_config.project.name,
             'version': jac_config.project.version,
@@ -83,6 +88,12 @@ impl JacClientConfig.get_package_config(self: JacClientConfig) -> dict[str, Any]
     return config.get('package', {});
 }
 
+"""Get API configuration (base_url for backend)."""
+impl JacClientConfig.get_api_config(self: JacClientConfig) -> dict[str, Any] {
+    config = self.load();
+    return config.get('api', {});
+}
+
 """Get Vite-specific configuration."""
 impl JacClientConfig.get_vite_config(self: JacClientConfig) -> dict[str, Any] {
     config = self.load();
@@ -99,6 +110,12 @@ impl JacClientConfig.get_ts_config(self: JacClientConfig) -> dict[str, Any] {
 impl JacClientConfig.get_configs(self: JacClientConfig) -> dict[str, Any] {
     config = self.load();
     return config.get('configs', {});
+}
+
+"""Get npm registry configuration for .npmrc generation."""
+impl JacClientConfig.get_npm_config(self: JacClientConfig) -> dict[str, Any] {
+    config = self.load();
+    return config.get('npm', {});
 }
 
 """Save configuration back to jac.toml using core JacConfig."""

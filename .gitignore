@@ -7,10 +7,10 @@ db.sqlite3
 media
 migrations
 venv
-__jac_gen__/
 .jac/
 *.jir
 *.jbc
+_precompiled/
 _planning/
 
 # Distribution / packaging
@@ -74,3 +74,5 @@ node_modules
 
 # Claude Code local instructions
 CLAUDE.local.md
+
+jactastic/**

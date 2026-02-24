@@ -42,14 +42,14 @@ cl import from react {useEffect}
 cl {
     # ... (keep all your components from step 6)
 
-    def:pub app() -> any {
+    def:pub app() -> JsxElement {
         [todos, setTodos] = useState([]);
         [input, setInput] = useState("");
         [filter, setFilter] = useState("all");
 
         # Run once when component mounts
         useEffect(lambda -> None {
-            console.log("App loaded!");
+            print("App loaded!");
         }, []);
 
         # ... rest of your code
@@ -69,7 +69,7 @@ cl import from react {useEffect}
 cl {
     # ... (keep all components)
 
-    def:pub app() -> any {
+    def:pub app() -> JsxElement {
         [todos, setTodos] = useState([]);
         [input, setInput] = useState("");
         [filter, setFilter] = useState("all");
@@ -107,7 +107,7 @@ cl import from react {useEffect}
 cl {
     # ... (keep all components)
 
-    def:pub app() -> any {
+    def:pub app() -> JsxElement {
         [todos, setTodos] = useState([]);
         [input, setInput] = useState("");
         [filter, setFilter] = useState("all");
@@ -115,7 +115,7 @@ cl {
 
         # Load todos
         useEffect(lambda -> None {
-            console.log("Loading todos...");
+            print("Loading todos...");
 
             # Simulate loading delay
             setTimeout(lambda -> None {
@@ -185,7 +185,7 @@ class TodoApp:
         self.load_from_database()  # Side effect: reads from DB
 
 # Jac
-def:pub app() -> any {
+def:pub app() -> JsxElement {
     useEffect(lambda -> None {
         # Load data
     }, []);
@@ -211,7 +211,7 @@ useEffect(lambda -> None {
 
 ```jac
 useEffect(lambda -> None {
-    console.log("Component mounted!");
+    print("Component mounted!");
 }, []);  # Empty array = run once
 ```
 
@@ -219,7 +219,7 @@ useEffect(lambda -> None {
 
 ```jac
 useEffect(lambda -> None {
-    console.log("Todos changed!");
+    print("Todos changed!");
 }, [todos]);  # Run whenever todos changes
 ```
 
@@ -227,7 +227,7 @@ useEffect(lambda -> None {
 
 ```jac
 useEffect(lambda -> None {
-    console.log("Component rendered!");
+    print("Component rendered!");
 });  # No array = run always (be careful!)
 ```
 
@@ -236,7 +236,7 @@ useEffect(lambda -> None {
 You can use multiple `useEffect` hooks for different purposes:
 
 ```jac
-def:pub app() -> any {
+def:pub app() -> JsxElement {
     [todos, setTodos] = useState([]);
 
     # Effect 1: Load data once
@@ -254,7 +254,7 @@ def:pub app() -> any {
 
     # Effect 3: Log count changes
     useEffect(lambda -> None {
-        console.log("Todo count:", todos.length);
+        print("Todo count:", todos.length);
     }, [todos.length]);
 }
 ```
@@ -353,7 +353,7 @@ useEffect(lambda -> None {
 ```jac
 useEffect(lambda -> None {
     timerId = setInterval(lambda -> None {
-        console.log("Tick");
+        print("Tick");
     }, 1000);
 
     # Return cleanup function
@@ -396,12 +396,12 @@ useEffect(lambda -> None {
 ```jac
 #  Wrong - runs on every render
 useEffect(lambda -> None {
-    console.log(todos);
+    print(todos);
 });
 
 #  Correct - runs only when todos change
 useEffect(lambda -> None {
-    console.log(todos);
+    print(todos);
 }, [todos]);
 ```
 
@@ -412,12 +412,12 @@ useEffect(lambda -> None {
 ```jac
 #  Wrong - missing todos dependency
 useEffect(lambda -> None {
-    console.log(todos.length);
+    print(todos.length);
 }, []);
 
 #  Correct - includes todos
 useEffect(lambda -> None {
-    console.log(todos.length);
+    print(todos.length);
 }, [todos]);
 ```
 

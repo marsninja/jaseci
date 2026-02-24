@@ -11,7 +11,7 @@ import from pickle { dumps, loads }
 import from typing { cast }
 import from uuid { UUID }
 
-import from jaclang.pycore.archetype { Anchor, NodeAnchor, Root }
+import from jaclang.jac0core.archetype { Anchor, NodeAnchor, Root }
 
 glob logger = logging.getLogger(__name__);
 
@@ -53,7 +53,7 @@ impl VolatileMemory.close -> None {
 }
 
 """Check if an anchor is in memory."""
-impl VolatileMemory.has(id: UUID) -> bool {
+impl VolatileMemory.`has(id: UUID) -> bool {
     return id in self.__mem__;
 }
 
@@ -257,7 +257,7 @@ impl SqliteMemory.close -> None {
 }
 
 """Check if an anchor is in memory or database."""
-impl SqliteMemory.has(id: UUID) -> bool {
+impl SqliteMemory.`has(id: UUID) -> bool {
     if id in self.__mem__ {
         return True;
     }
@@ -355,6 +355,7 @@ impl SqliteMemory.sync -> None {
             stored = loads(row[0]) if row else None;
 
             if stored {
+                changed = False;
                 # Handle edge updates (CONNECT access)
                 if (
                     isinstance(stored, NodeAnchor)
@@ -369,20 +370,33 @@ impl SqliteMemory.sync -> None {
                         continue;
                     }
                     stored.edges = anchor.edges;
+                    changed = True;
                 }
                 # Handle access/archetype updates (WRITE access)
-                if Jac.check_write_access(anchor) {
-                    if hash(dumps(stored.access)) != hash(dumps(anchor.access)) {
+                # Only check write access when there are actual changes
+                access_changed = hash(dumps(stored.access)) != hash(
+                    dumps(anchor.access)
+                );
+                archetype_changed = hash(dumps(stored.archetype)) != hash(
+                    dumps(anchor.archetype)
+                );
+                if (access_changed or archetype_changed)
+                and Jac.check_write_access(anchor) {
+                    if access_changed {
                         stored.access = anchor.access;
                     }
-                    if hash(dumps(stored.archetype)) != hash(dumps(anchor.archetype)) {
+                    if archetype_changed {
                         stored.archetype = anchor.archetype;
                     }
+                    changed = True;
                 }
-                self.__conn__.execute(
-                    "INSERT OR REPLACE INTO anchors (id, data) VALUES (?, ?)",
-                    (key, dumps(stored))
-                );
+                # Only write to database if something actually changed
+                if changed {
+                    self.__conn__.execute(
+                        "INSERT OR REPLACE INTO anchors (id, data) VALUES (?, ?)",
+                        (key, dumps(stored))
+                    );
+                }
             } elif not (
                 isinstance(anchor, NodeAnchor)
                 and not isinstance(anchor.archetype, Root)
@@ -531,7 +545,7 @@ impl TieredMemory.close -> None {
 }
 
 """Check if anchor exists in any tier."""
-impl TieredMemory.has(id: UUID) -> bool {
+impl TieredMemory.`has(id: UUID) -> bool {
     # Check L1 first
     if id in self.__mem__ {
         return True;
@@ -541,7 +555,7 @@ impl TieredMemory.has(id: UUID) -> bool {
         return True;
     }
     # Check L3 persistence
-    if self.l3 and self.l3.has(id) {
+    if self.l3 and self.l3.`has(id) {
         return True;
     }
     return False;

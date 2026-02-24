@@ -141,7 +141,7 @@ with entry {
 
 import from typing { Any, Awaitable, Callable, Coroutine, Optional, ParamSpec, TypeVar }
 
-import from jaclang.pycore.constant {
+import from jaclang.jac0core.constant {
     JacSemTokenModifier as SemTokMod,
     JacSemTokenType as SemTokType,
 }
@@ -256,7 +256,7 @@ def x3() {
 }
 
 class HH {
-    def test() -> Optional[str] {
+    def `test() -> Optional[str] {
         a = """!
 hello
 hru
@@ -346,7 +346,7 @@ async def type_check(self: JacLangServer, file_path: str) -> None {
     await asyncio.to_thread(self.debounce_timers[file_path].join);
 }
 
-cl import from jac:client_runtime {
+cl import from "@jac/runtime" {
     jacLogin,
     jacLogout,
     jacSignup,
@@ -373,7 +373,7 @@ cl {
     }
 
     # UI Components - Render a single tweet card
-    def TweetCard(tweet: ClientTweet) -> any {
+    def TweetCard(tweet: ClientTweet) -> JsxElement {
         return
             <div
                 class="tweet-card"
@@ -392,7 +392,7 @@ cl {
                 </div>
                 # Random comment
                 <div class="tweet-content" style={{"marginBottom": "12px"}}>
-                    {tweet.content} # Another andom comment
+                    {tweet.content}  # Another andom comment
                 </div>
                 <div class="tweet-actions" style={{"display": "flex", "gap": "15px"}}>
                     <button
@@ -409,7 +409,7 @@ cl {
     }
 
     # UI Components - Render a single tweet card
-    def TweetCard2(tweet: ClientTweet) -> any {
+    def TweetCard2(tweet: ClientTweet) -> JsxElement {
         return
             <div class="tweet-actions" style={{"display": "flex", "gap": "15px"}}>
                 <button style={{"padding": "5px 10px"}}>
@@ -419,7 +419,7 @@ cl {
     }
 
     # UI Components - Render a single tweet card
-    def TweetCard3(tweet: ClientTweet) -> any {
+    def TweetCard3(tweet: ClientTweet) -> JsxElement {
         return (
             <div class="tweet-actions" style={{"display": "flex", "gap": "15px"}}>
                 <button style={{"padding": "5px 10px"}}>
@@ -472,7 +472,7 @@ def x(
 }
 
 with entry {
-    visit [-->(`?Year:year==self.target_day.year)];
+    visit [-->(?:Year, year==self.target_day.year)];
 }
 
 # Match statement comment preservation

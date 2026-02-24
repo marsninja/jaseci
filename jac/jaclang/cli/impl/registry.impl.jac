@@ -1,6 +1,7 @@
 """Implementation of command registry."""
 
 import argparse;
+import from jaclang.cli.banners { JAC_GITHUB_URL }
 
 # ===============================================================================
 # CommandRegistry Implementation
@@ -13,7 +14,7 @@ impl CommandRegistry.init -> None {
     self.parser = argparse.ArgumentParser(
         prog='jac',
         description='Jac Programming Language CLI',
-        epilog='For more information, visit: https://github.com/Jaseci-Labs/jaseci',
+        epilog=f'For more information, visit: {JAC_GITHUB_URL}',
         formatter_class=argparse.RawDescriptionHelpFormatter
     );
     self.parser.add_argument(
@@ -177,7 +178,7 @@ impl CommandRegistry._apply_pending_extensions(name: str) -> None {
         }
     }
     # Clear pending extensions for this command
-    del self._pending_extensions[name] ;
+    del self._pending_extensions[name];
 }
 
 """Build argparse subparser for a command."""
@@ -251,13 +252,27 @@ impl CommandRegistry._add_argument(parser: argparse.ArgumentParser, arg: Arg) ->
         }
         parser.add_argument(arg.name, **kwargs);
     } elif arg.kind == ArgKind.MULTI {
-        # Multiple positional arguments
-        kwargs["nargs"] = "+";
-        if arg.default is not None {
-            kwargs["default"] = arg.default;
+        # Multiple arguments
+        if arg.name in ("paths", "packages", "names") {
+            # Positional multiple arguments
+            kwargs["nargs"] = "+";
+            if arg.default is not None {
+                kwargs["default"] = arg.default;
+                kwargs["nargs"] = "*";
+            }
+            parser.add_argument(arg.name, **kwargs);
+        } else {
+            # Optional multiple arguments (--ignore dir1 dir2 dir3)
             kwargs["nargs"] = "*";
+            if arg.default is not None {
+                kwargs["default"] = arg.default;
+            }
+            if arg.short {
+                parser.add_argument(f"-{arg.short}", f"--{arg.name}", **kwargs);
+            } else {
+                parser.add_argument(f"--{arg.name}", **kwargs);
+            }
         }
-        parser.add_argument(arg.name, **kwargs);
     } elif arg.kind == ArgKind.REMAINDER {
         # Remaining arguments
         kwargs["nargs"] = argparse.REMAINDER;

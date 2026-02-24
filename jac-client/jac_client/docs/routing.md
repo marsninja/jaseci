@@ -41,17 +41,17 @@ Routing allows you to create multi-page applications where different URLs displa
 - **Declarative Syntax**: Define routes using JSX components
 - **URL Parameters**: Dynamic routes with params like `/user/:id`
 - **Browser History**: Back/forward buttons work automatically
-- **Hash-based URLs**: Uses `#/path` for maximum compatibility
+- **Clean URLs**: Uses standard paths like `/about`, `/user/123`
 - **Battle-tested**: Built on industry-standard routing technology
 
 ---
 
 ## Getting Started
 
-Import routing components from `@jac-client/utils`:
+Import routing components from `@jac/runtime`:
 
 ```jac
-cl import from "@jac-client/utils" {
+cl import from "@jac/runtime" {
     Router,
     Routes,
     Route,
@@ -85,27 +85,27 @@ cl import from "@jac-client/utils" {
 
 ```jac
 cl import from react { useEffect }
-cl import from "@jac-client/utils" { Router, Routes, Route, Link }
+cl import from "@jac/runtime" { Router, Routes, Route, Link }
 
 # Note: useState is auto-injected when using `has` variables
 
 cl {
     # Page Components
-    def Home() -> any {
+    def Home() -> JsxElement {
         return <div>
             <h1> Home Page</h1>
             <p>Welcome to the home page!</p>
         </div>;
     }
 
-    def About() -> any {
+    def About() -> JsxElement {
         return <div>
             <h1>ℹ About Page</h1>
             <p>Learn more about our application.</p>
         </div>;
     }
 
-    def Contact() -> any {
+    def Contact() -> JsxElement {
         return <div>
             <h1> Contact Page</h1>
             <p>Email: contact@example.com</p>
@@ -113,7 +113,7 @@ cl {
     }
 
     # Main App with React Router
-    def app() -> any {
+    def app() -> JsxElement {
         return <Router>
             <div>
                 <nav>
@@ -140,13 +140,13 @@ cl {
 2. **`<Routes>`** contains all your route definitions
 3. **`<Route>`** maps a URL path to an element (note: `element={<Component />}`)
 4. **`<Link>`** creates clickable navigation links
-5. URLs will be hash-based: `#/`, `#/about`, `#/contact`
+5. URLs use clean paths: `/`, `/about`, `/contact`
 
 **Key Points:**
 
 - Use `element={<Home />}` to render components
 - No configuration needed - just wrap and go
-- Hash-based URLs work everywhere
+- Clean URLs with browser history support
 
 ---
 
@@ -164,10 +164,10 @@ The `<Router>` component is the top-level container for your app:
 
 **Features:**
 
-- Hash-based URLs (e.g., `#/about`, `#/contact`)
+- Clean URLs (e.g., `/about`, `/contact`)
 - No props needed - it just works!
 - Manages routing state automatically
-- Works in any environment
+- Server-side catch-all serves the SPA for direct navigation and page refreshes
 
 ### Routes Component
 
@@ -227,10 +227,10 @@ The `<Link>` component creates clickable navigation links:
 ### Basic Navigation
 
 ```jac
-cl import from "@jac-client/utils" { Router, Routes, Route, Link }
+cl import from "@jac/runtime" { Router, Routes, Route, Link }
 
 cl {
-    def Navigation() -> any {
+    def Navigation() -> JsxElement {
         return <nav style={{"padding": "1rem", "backgroundColor": "#f0f0f0"}}>
             <Link to="/">Home</Link>
             {" | "}
@@ -245,10 +245,10 @@ cl {
 ### Active Link Styling with useLocation
 
 ```jac
-cl import from "@jac-client/utils" { Link, useLocation }
+cl import from "@jac/runtime" { Link, useLocation }
 
 cl {
-    def Navigation() -> any {
+    def Navigation() -> JsxElement {
         location = useLocation();
 
         def linkStyle(path: str) -> dict {
@@ -287,10 +287,10 @@ cl {
 For programmatic navigation (e.g., after form submission), use the `useNavigate()` hook:
 
 ```jac
-cl import from "@jac-client/utils" { useNavigate }
+cl import from "@jac/runtime" { useNavigate }
 
 cl {
-    def LoginForm() -> any {
+    def LoginForm() -> JsxElement {
         [username, setUsername] = useState("");
         [password, setPassword] = useState("");
         navigate = useNavigate();
@@ -345,10 +345,10 @@ cl {
 Access dynamic URL parameters using the `useParams()` hook:
 
 ```jac
-cl import from "@jac-client/utils" { useParams, Link }
+cl import from "@jac/runtime" { useParams, Link }
 
 cl {
-    def UserProfile() -> any {
+    def UserProfile() -> JsxElement {
         params = useParams();
         userId = params.id;
 
@@ -359,7 +359,7 @@ cl {
         </div>;
     }
 
-    def app() -> any {
+    def app() -> JsxElement {
         return <Router>
             <Routes>
                 <Route path="/" element={<Home />} />
@@ -383,10 +383,10 @@ cl {
 Access the current location object using `useLocation()`:
 
 ```jac
-cl import from "@jac-client/utils" { useLocation }
+cl import from "@jac/runtime" { useLocation }
 
 cl {
-    def CurrentPath() -> any {
+    def CurrentPath() -> JsxElement {
         location = useLocation();
 
         return <div>
@@ -412,10 +412,10 @@ cl {
 Use the `<Navigate>` component to protect routes that require authentication:
 
 ```jac
-cl import from "@jac-client/utils" { Navigate, useNavigate }
+cl import from "@jac/runtime" { Navigate, useNavigate }
 
 cl {
-    def Dashboard() -> any {
+    def Dashboard() -> JsxElement {
         # Check if user is logged in
         if not jacIsLoggedIn() {
             return <Navigate to="/login" />;
@@ -428,7 +428,7 @@ cl {
         </div>;
     }
 
-    def LoginPage() -> any {
+    def LoginPage() -> JsxElement {
         navigate = useNavigate();
 
         async def handleLogin(e: any) -> None {
@@ -449,7 +449,7 @@ cl {
         </form>;
     }
 
-    def app() -> any {
+    def app() -> JsxElement {
         return <Router>
             <Routes>
                 <Route path="/" element={<HomePage />} />
@@ -476,12 +476,12 @@ cl {
 
 ```jac
 cl import from react { useEffect }
-cl import from "@jac-client/utils" { Router, Routes, Route, Link, useLocation }
+cl import from "@jac/runtime" { Router, Routes, Route, Link, useLocation }
 
 # Note: useState is auto-injected when using `has` variables
 
 cl {
-    def Navigation() -> any {
+    def Navigation() -> JsxElement {
         location = useLocation();
 
         def linkStyle(path: str) -> dict {
@@ -503,28 +503,28 @@ cl {
         </nav>;
     }
 
-    def Home() -> any {
+    def Home() -> JsxElement {
         return <div>
             <h1> Home Page</h1>
             <p>Welcome to the home page!</p>
         </div>;
     }
 
-    def About() -> any {
+    def About() -> JsxElement {
         return <div>
             <h1>ℹ About Page</h1>
             <p>Learn more about our application.</p>
         </div>;
     }
 
-    def Contact() -> any {
+    def Contact() -> JsxElement {
         return <div>
             <h1> Contact Page</h1>
             <p>Email: contact@example.com</p>
         </div>;
     }
 
-    def app() -> any {
+    def app() -> JsxElement {
         return <Router>
             <div>
                 <Navigation />
@@ -544,10 +544,10 @@ cl {
 ### Example 2: App with URL Parameters
 
 ```jac
-cl import from "@jac-client/utils" { Router, Routes, Route, Link, useParams }
+cl import from "@jac/runtime" { Router, Routes, Route, Link, useParams }
 
 cl {
-    def UserList() -> any {
+    def UserList() -> JsxElement {
         users = ["Alice", "Bob", "Charlie"];
 
         return <div>
@@ -560,7 +560,7 @@ cl {
         </div>;
     }
 
-    def UserProfile() -> any {
+    def UserProfile() -> JsxElement {
         params = useParams();
         username = params.id;
 
@@ -571,7 +571,7 @@ cl {
         </div>;
     }
 
-    def app() -> any {
+    def app() -> JsxElement {
         return <Router>
             <Routes>
                 <Route path="/" element={<UserList />} />
@@ -599,7 +599,7 @@ cl {
 ### 2. **Import All Needed Components**
 
 ```jac
-cl import from "@jac-client/utils" {
+cl import from "@jac/runtime" {
     Router,
     Routes,
     Route,
@@ -615,7 +615,7 @@ cl import from "@jac-client/utils" {
 
 ```jac
 #  CORRECT - Use useNavigate hook
-def MyComponent() -> any {
+def MyComponent() -> JsxElement {
     navigate = useNavigate();
     navigate("/dashboard");
 }
@@ -628,7 +628,7 @@ navigate("/dashboard");
 
 ```jac
 #  CORRECT - Check auth in component
-def ProtectedPage() -> any {
+def ProtectedPage() -> JsxElement {
     if not jacIsLoggedIn() {
         return <Navigate to="/login" />;
     }
@@ -653,7 +653,7 @@ def ProtectedPage() -> any {
 <Route path="/user/:id" element={<UserProfile />} />
 
 # Access parameter in component
-def UserProfile() -> any {
+def UserProfile() -> JsxElement {
     params = useParams();
     userId = params.id;
     return <div>User: {userId}</div>;
@@ -663,7 +663,7 @@ def UserProfile() -> any {
 ### 7. **Active Link Styling**
 
 ```jac
-def Navigation() -> any {
+def Navigation() -> JsxElement {
     location = useLocation();
 
     def isActive(path: str) -> bool {
@@ -686,7 +686,7 @@ def Navigation() -> any {
 ## Summary
 
 - **Simple & Declarative**: Use `<Router>`, `<Routes>`, `<Route>` components
-- **Hash-based URLs**: Uses `#/path` for maximum compatibility
+- **Clean URLs**: Uses standard paths like `/about`, `/user/123`
 - **Modern Hooks**: `useNavigate()`, `useLocation()`, `useParams()`
 - **Protected Routes**: Use `<Navigate>` component for redirects
 - **URL Parameters**: Dynamic routes with `:param` syntax
@@ -694,3 +694,11 @@ def Navigation() -> any {
 - **Production-ready**: Battle-tested routing for real applications
 
 Routing in Jac is simple, powerful, and production-ready!
+
+> **Note for static deployments**: When deploying a Jac app as a static site (via `jac build --target web`), your hosting provider must be configured to serve `index.html` for all paths (SPA fallback). For example:
+>
+> - **Netlify**: Add a `_redirects` file with `/* /index.html 200`
+> - **Vercel**: Add a `rewrites` rule in `vercel.json`
+> - **Nginx**: Use `try_files $uri /index.html`
+>
+> When using `jac start`, the server handles this automatically.
