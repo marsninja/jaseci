@@ -311,7 +311,6 @@ impl format(
             console.error(f"File '{file_path}' does not exist.");
             return (False, False, 0);
         }
-        console.print(f"  Formatting {file_path}...");
         try {
             prog = JacProgram.jac_file_formatter(str(path_obj), auto_lint=lintfix);
             if prog.mod.main.has_syntax_errors {
