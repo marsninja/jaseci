@@ -313,7 +313,7 @@ impl format(
         }
         try {
             prog = JacProgram.jac_file_formatter(str(path_obj), auto_lint=lintfix);
-            if prog.mod.main.has_syntax_errors {
+            if prog.errors_had {
                 for error in prog.errors_had {
                     console.error(f"{error}");
                 }
