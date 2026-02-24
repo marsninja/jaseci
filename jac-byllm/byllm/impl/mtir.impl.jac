@@ -163,7 +163,7 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
             "Streaming responses are only supported for str return types."
         ) ;
     }
-    if len(tools) > 0 or (return_type and return_type is not str) {
+    if len(tools) > 0 {
         finish_tool = Tool.make_finish_tool(return_type or str);
         tools.append(finish_tool);
     }
