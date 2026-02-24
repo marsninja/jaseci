@@ -11,6 +11,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: `jac format` Unicode Error on Windows**: Fixed `'charmap' codec can't encode character` error when formatting files with emojis or non-ASCII text on Windows.
 - **Remove Vendored pluggy and interegular**: Replaced the vendored `pluggy` library (~1,700 lines) with a lightweight custom plugin system (`jaclang/plugin.py`, ~200 lines) that provides the same hook spec/impl/dispatch API. Removed the unused vendored `interegular` library (~2,200 lines).
 - **Enhanced jac check output**: The `jac check` command now provides a more detailed and user-friendly output format, including file progress, failure details, and timing information.
+- **LSP: ReadWriteLock for Concurrent Queries**: Replaced the single `RLock` in the language server with a writer-priority `ReadWriteLock`, allowing hover, completion, go-to-definition, and other read operations to run concurrently without blocking on type checking. Also fixed several race conditions where shared state (`mod.hub`, `sem_managers`) was accessed without any lock.
 - 2 Minor refactor
 
 ## jaclang 0.11.0 (Latest Release)
