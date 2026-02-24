@@ -1090,7 +1090,42 @@ enabled = true
 [plugins.client.configs.tailwind]
 # Generates tailwind.config.js
 content = ["./src/**/*.{jac,tsx,jsx}"]
+
+# Private/scoped npm registries
+[plugins.client.npm.scoped_registries]
+"@mycompany" = "https://npm.pkg.github.com"
+
+[plugins.client.npm.auth."//npm.pkg.github.com/"]
+_authToken = "${NODE_AUTH_TOKEN}"
 ```
+
+### NPM Registry Configuration
+
+The `[plugins.client.npm]` section configures custom npm registries and authentication for private or scoped packages. This generates an `.npmrc` file automatically during dependency installation, eliminating the need to manage `.npmrc` files manually.
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `scoped_registries` | `dict` | Maps npm scopes to registry URLs |
+| `auth` | `dict` | Registry authentication tokens |
+
+**Scoped registries** map `@scope` prefixes to custom registry URLs:
+
+```toml
+[plugins.client.npm.scoped_registries]
+"@mycompany" = "https://npm.pkg.github.com"
+"@internal" = "https://registry.internal.example.com"
+```
+
+**Auth tokens** configure authentication for each registry. Use environment variables to avoid committing secrets:
+
+```toml
+[plugins.client.npm.auth."//npm.pkg.github.com/"]
+_authToken = "${NODE_AUTH_TOKEN}"
+```
+
+The `${NODE_AUTH_TOKEN}` syntax is resolved via the existing jac.toml environment variable interpolation. If the variable is not set at config load time, it passes through as a literal `${NODE_AUTH_TOKEN}` in the generated `.npmrc`, which npm and bun also resolve natively.
+
+The generated `.npmrc` is placed in `.jac/client/configs/` and is automatically copied into `.jac/client/` during `bun install`, then cleaned up afterward.
 
 ---
 
@@ -1122,6 +1157,8 @@ npm dependencies can also be declared in `jac.toml`:
 lodash = "^4.17.21"
 axios = "^1.6.0"
 ```
+
+For private packages from custom registries, see [NPM Registry Configuration](#npm-registry-configuration) above.
 
 ### jac build
 
