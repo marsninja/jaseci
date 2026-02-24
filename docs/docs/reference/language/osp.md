@@ -428,6 +428,7 @@ walker MyWalker {
     }
     can collect with Item entry {
         report here.value;
+        visit [-->];
     }
 }
 
@@ -715,7 +716,7 @@ walker:priv DeleteWithChildren {
 | `allroots()` | Get all root references |
 | `save(node)` | Persist node to storage |
 | `commit()` | Commit pending changes |
-| `printgraph(root)` | Print graph for debugging |
+| `printgraph(root)` | Print graph structure to stdout (output depends on graph size; may require logging configuration to see results) |
 
 ```jac
 node Person { has name: str; }
@@ -761,6 +762,10 @@ Walker traversal uses recursive post-order exit execution. Entry abilities execu
 node Step { has label: str; }
 
 walker Logger {
+    can start with Root entry {
+        visit [-->];  # Begin traversal from root
+    }
+
     can enter with Step entry {
         print(f"ENTER: {here.label}");
         visit [-->];
@@ -771,7 +776,9 @@ walker Logger {
     }
 }
 
-# For a chain: A → B → C
+# Setup: root -> A -> B -> C
+# root spawn Logger();
+#
 # Output:
 #   ENTER: A
 #   ENTER: B

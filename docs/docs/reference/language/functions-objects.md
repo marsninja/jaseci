@@ -309,7 +309,7 @@ def:protect _protected_func -> None { }
         return f"Hello, {name}!";
     }
 
-    can add(a: int, b: int) -> int {
+    def add(a: int, b: int) -> int {
         return a + b;
     }
 
@@ -320,7 +320,7 @@ def:protect _protected_func -> None { }
     with entry {
         print(greet("World"));
         print(add(3, 4));
-        print(apply(lambda x, y: int -> x * y, 5, 6));
+        print(apply(lambda x, y: int {x * y;}, 5, 6));
     }
     ```
 
@@ -464,7 +464,7 @@ obj Account {
         has name: str,
             sound: str;
 
-        can speak -> str {
+        def speak() -> str {
             return f"{self.name} says {self.sound}!";
         }
     }
@@ -472,7 +472,7 @@ obj Account {
     obj Dog(Animal) {
         has breed: str;
 
-        can speak -> str {
+        def speak() -> str {
             return f"{self.name} the {self.breed} says {self.sound}!";
         }
     }

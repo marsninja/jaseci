@@ -322,13 +322,18 @@ obj MyClass {
 
 ### Inline Expression
 
-The `by llm` operator can also be used as an inline expression without a function declaration:
+!!! warning "Not Yet Implemented"
+    The inline `by llm` expression syntax is planned but not yet available. Use a function declaration instead:
 
-```jac
-with entry {
-    response = "Explain quantum computing in simple terms" by llm;
-}
-```
+    ```jac
+    # Instead of: response = "prompt" by llm;
+    # Use:
+    def explain(topic: str) -> str by llm();
+
+    with entry {
+        response = explain("quantum computing");
+    }
+    ```
 
 ---
 
@@ -432,7 +437,8 @@ with entry {
 
 ```jac
 # With temperature control
-def generate_story(prompt: str) -> str by llm(temperature=1.5);
+# Note: Max temperature varies by provider (Anthropic: 0.0-1.0, OpenAI: 0.0-2.0)
+def generate_story(prompt: str) -> str by llm(temperature=0.9);
 def extract_facts(text: str) -> str by llm(temperature=0.0);
 
 # With max tokens
