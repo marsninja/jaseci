@@ -1828,6 +1828,7 @@ The native backend supports:
 
 Import C shared libraries directly in native Jac code:
 
+<!-- jac-skip -->
 ```jac
 # compute.na.jac
 import from "libm" {
@@ -1844,6 +1845,7 @@ with entry {
 
 C structs can be declared inside library import blocks and used as normal Jac objects with automatic value-type coercion at call boundaries:
 
+<!-- jac-skip -->
 ```jac
 import from "libgraphics" {
     obj Color {

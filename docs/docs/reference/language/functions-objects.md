@@ -637,6 +637,7 @@ Native variant files compile to LLVM IR and execute via JIT (MCJIT). Code in `.n
 
 Native code can import C shared libraries using the `import from` syntax with a library path and extern function declarations, either at the top level of a `.na.jac` file or inside a `na {}` block:
 
+<!-- jac-skip -->
 ```jac
 # math_native.na.jac
 import from "/usr/lib/libm.so.6" {
@@ -655,6 +656,7 @@ Declarations inside the braces are body-less function signatures that become LLV
 
 **Example -- calling raylib from Jac:**
 
+<!-- jac-skip -->
 ```jac
 # game.na.jac
 import from "libraylib.so" {

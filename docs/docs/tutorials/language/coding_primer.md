@@ -2146,9 +2146,13 @@ with entry {
     root ++> charlie;
     root ++> dana;
 
-    alice <++>:Friendship(since=2020, strength=8):<++> bob;
-    bob <++>:Friendship(since=2021, strength=6):<++> charlie;
-    alice <++>:Friendship(since=2019, strength=9):<++> dana;
+    # Bidirectional friendships (two directed edges per pair)
+    alice +>:Friendship(since=2020, strength=8):+> bob;
+    bob +>:Friendship(since=2020, strength=8):+> alice;
+    bob +>:Friendship(since=2021, strength=6):+> charlie;
+    charlie +>:Friendship(since=2021, strength=6):+> bob;
+    alice +>:Friendship(since=2019, strength=9):+> dana;
+    dana +>:Friendship(since=2019, strength=9):+> alice;
 
     # Find friend recommendations for Bob
     recommender = FriendRecommender();
