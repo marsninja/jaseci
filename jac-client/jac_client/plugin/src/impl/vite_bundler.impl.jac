@@ -372,13 +372,14 @@ impl ViteBundler._generate_vite_config_content(
     # Get user-defined path aliases for Vite resolve.alias
     paths_config = self.config_loader.get_paths_config();
     user_aliases_lines: list[str] = [];
+    q = '"';
     for (alias_pattern, target_path) in paths_config.items() {
         # Strip trailing /* for Vite (it handles directory mapping differently)
         alias_key = alias_pattern.rstrip('/*');
         # Strip leading ./ and trailing /* from target
         target_clean = target_path.lstrip('./').rstrip('/*');
         user_aliases_lines.append(
-            f'        "{alias_key}": path.resolve(projectRoot, "{target_clean}"),'
+            f'        {q}{alias_key}{q}: path.resolve(projectRoot, {q}{target_clean}{q}),'
         );
     }
     user_aliases_str = '\n' + '\n'.join(user_aliases_lines)
