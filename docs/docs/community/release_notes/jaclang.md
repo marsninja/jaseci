@@ -4,6 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.11.1 (Unreleased)
 
+- **Import Path Alias Resolution**: The module resolver now supports path aliases configured in `[plugins.client.paths]` in `jac.toml`. Aliases like `@components/Button` are resolved to their filesystem paths before standard module lookup, enabling cleaner imports in client-side Jac code.
 - **Fix: `jac format` Unicode Error on Windows**: Fixed `'charmap' codec can't encode character` error when formatting files with emojis or non-ASCII text on Windows.
 - **Remove Vendored pluggy and interegular**: Replaced the vendored `pluggy` library (~1,700 lines) with a lightweight custom plugin system (`jaclang/plugin.py`, ~200 lines) that provides the same hook spec/impl/dispatch API. Removed the unused vendored `interegular` library (~2,200 lines).
 - 2 Minor refactor
