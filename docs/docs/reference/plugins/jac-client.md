@@ -1140,7 +1140,7 @@ _authToken = "${NODE_AUTH_TOKEN}"
 
 The `${NODE_AUTH_TOKEN}` syntax is resolved via the existing jac.toml environment variable interpolation. If the variable is not set at config load time, it passes through as a literal `${NODE_AUTH_TOKEN}` in the generated `.npmrc`, which npm and bun also resolve natively.
 
-The generated `.npmrc` is placed in `.jac/client/configs/` and is automatically copied into `.jac/client/` during `bun install`, then cleaned up afterward.
+The generated `.npmrc` is placed in `.jac/client/configs/` and is automatically applied when Jac installs dependencies (e.g., via `jac add --npm`, `jac start`, or `jac build`). You do not need to run `bun install` directly.
 
 ---
 
