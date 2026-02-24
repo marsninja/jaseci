@@ -1351,7 +1351,80 @@ description = "My awesome Jac app"
 
 ---
 
+## Automatic Endpoint Caching
+
+The client runtime automatically caches responses from reader endpoints and invalidates caches when writer endpoints are called. This uses compiler-provided `endpoint_effects` metadata -- no manual cache annotations or `jacInvalidate()` calls needed.
+
+**How it works:**
+
+1. The compiler classifies each walker/function endpoint as a **reader** (no side effects) or **writer** (modifies state)
+2. Reader responses are stored in an LRU cache (500 entries, 60-second TTL)
+3. Concurrent identical requests are deduplicated (only one network call)
+4. When a writer endpoint is called, all cached reader responses are automatically invalidated
+5. Auth state changes (login/logout) clear the entire cache
+
+This means spawning the same walker twice in quick succession only makes one API call, and creating/updating data automatically refreshes any cached reads.
+
+---
+
+## BrowserRouter (Clean URLs)
+
+jac-client uses `BrowserRouter` for client-side routing, producing clean URLs like `/about` and `/users/123` instead of hash-based URLs like `#/about`.
+
+For this to work in production, your server must return the SPA HTML for all non-API routes. When using `jac start`, this is handled automatically -- the server's catch-all route serves the SPA HTML for extensionless paths, excluding API prefixes (`cl/`, `walker/`, `function/`, `user/`, `static/`).
+
+The Vite dev server is configured with `appType: 'spa'` for history API fallback during development.
+
+---
+
+## Build Error Diagnostics
+
+When client builds fail, jac-client displays structured error diagnostics instead of raw Vite/Rollup output. Errors include:
+
+- **Error codes** (`JAC_CLIENT_001`, `JAC_CLIENT_003`, etc.)
+- **Source snippets** pointing to the original `.jac` file location
+- **Actionable hints** and quick fix commands
+
+| Code | Issue | Example Fix |
+|------|-------|-------------|
+| `JAC_CLIENT_001` | Missing npm dependency | `jac add --npm <package>` |
+| `JAC_CLIENT_003` | Syntax error in client code | Check source snippet |
+| `JAC_CLIENT_004` | Unresolved import | Verify import path |
+
+To see raw error output alongside formatted diagnostics, set `debug = true` under `[plugins.client]` in `jac.toml` or set the `JAC_DEBUG=1` environment variable.
+
+> **Note:** Debug mode is enabled by default for a better development experience. For production deployments, set `debug = false` in `jac.toml`.
+
+---
+
+## Build-Time Constants
+
+Define global variables that are replaced at compile time using the `[plugins.client.vite.define]` section in `jac.toml`:
+
+```toml
+[plugins.client.vite.define]
+"globalThis.API_URL" = "\"https://api.example.com\""
+"globalThis.FEATURE_ENABLED" = true
+"globalThis.BUILD_VERSION" = "\"1.2.3\""
+```
+
+These values are inlined by Vite during bundling. String values must be double-quoted (JSON-encoded). Access them in client code:
+
+```jac
+cl {
+    def:pub Footer() -> JsxElement {
+        return <p>Version: {globalThis.BUILD_VERSION}</p>;
+    }
+}
+```
+
+---
+
 ## Development Server
+
+### Prerequisites
+
+jac-client uses [Bun](https://bun.sh/) for package management and JavaScript bundling. If Bun is not installed, the CLI prompts you to install it automatically.
 
 ### Start Server
 
