@@ -813,6 +813,16 @@ impl ViteBundler.create_npmrc(self: ViteBundler) -> Optional[Path] {
     configs_dir.mkdir(parents=True, exist_ok=True);
     npmrc_path = configs_dir / '.npmrc';
     lines: list[str] = [];
+    # Process global settings: { "registry" = "...", "always-auth" = true }
+    known_keys = {'scoped_registries','auth','settings'};
+    settings = npm_config.get('settings', {});
+    for (key, value) in settings.items() {
+        if isinstance(value, bool) {
+            lines.append(f"{key}={str(value).lower()}");
+        } else {
+            lines.append(f"{key}={value}");
+        }
+    }
     # Process scoped registries: { "@scope" = "https://registry.url" }
     scoped_registries = npm_config.get('scoped_registries', {});
     for (scope, registry_url) in scoped_registries.items() {

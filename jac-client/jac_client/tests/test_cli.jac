@@ -895,7 +895,7 @@ test "npmrc from jac toml" {
             os.chdir(temp_dir);
 
             # Create jac.toml with npm scoped registry and auth config
-            toml_content = '[project]\nname = "test-npmrc"\nversion = "1.0.0"\ndescription = "Test project"\nentry-point = "main.jac"\n\n[plugins.client.npm.scoped_registries]\n"@mycompany" = "https://npm.pkg.github.com"\n"@myorg" = "https://registry.example.com"\n\n[plugins.client.npm.auth."//npm.pkg.github.com/"]\n_authToken = "${NODE_AUTH_TOKEN}"\n';
+            toml_content = '[project]\nname = "test-npmrc"\nversion = "1.0.0"\ndescription = "Test project"\nentry-point = "main.jac"\n\n[plugins.client.npm.settings]\nregistry = "https://registry.example.com"\nalways-auth = true\nstrict-ssl = false\n\n[plugins.client.npm.scoped_registries]\n"@mycompany" = "https://npm.pkg.github.com"\n"@myorg" = "https://registry.example.com"\n\n[plugins.client.npm.auth."//npm.pkg.github.com/"]\n_authToken = "${NODE_AUTH_TOKEN}"\n';
             config_path = os.path.join(temp_dir, "jac.toml");
             with open(config_path, "w") as f {
                 f.write(toml_content);
@@ -916,6 +916,11 @@ test "npmrc from jac toml" {
             with open(expected_npmrc) as f {
                 npmrc_content = f.read();
             }
+
+            # Verify global settings appear first
+            assert "registry=https://registry.example.com" in npmrc_content;
+            assert "always-auth=true" in npmrc_content;
+            assert "strict-ssl=false" in npmrc_content;
 
             # Verify scoped registry entries
             assert "@mycompany:registry=https://npm.pkg.github.com" in npmrc_content;

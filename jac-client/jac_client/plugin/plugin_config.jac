@@ -80,8 +80,13 @@ class JacClientPluginConfig {
                 "npm": {
                     "type": "dict",
                     "default": {},
-                    "description": "NPM registry configuration for .npmrc generation. Supports 'scoped_registries' for scope-to-registry mappings and 'auth' for registry authentication tokens.",
+                    "description": "NPM registry configuration for .npmrc generation. Supports 'settings' for global options, 'scoped_registries' for scope-to-registry mappings, and 'auth' for registry authentication tokens.",
                     "nested": {
+                        "settings": {
+                            "type": "dict",
+                            "default": {},
+                            "description": "Global .npmrc settings as key-value pairs (e.g., registry, always-auth, strict-ssl, proxy)"
+                        },
                         "scoped_registries": {
                             "type": "dict",
                             "default": {},

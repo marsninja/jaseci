@@ -1097,6 +1097,10 @@ content = ["./src/**/*.{jac,tsx,jsx}"]
 
 [plugins.client.npm.auth."//npm.pkg.github.com/"]
 _authToken = "${NODE_AUTH_TOKEN}"
+
+# Global npm settings
+[plugins.client.npm.settings]
+always-auth = true
 ```
 
 ### NPM Registry Configuration
@@ -1105,8 +1109,19 @@ The `[plugins.client.npm]` section configures custom npm registries and authenti
 
 | Key | Type | Description |
 |-----|------|-------------|
+| `settings` | `dict` | Global `.npmrc` key-value settings (registry, always-auth, strict-ssl, proxy, etc.) |
 | `scoped_registries` | `dict` | Maps npm scopes to registry URLs |
 | `auth` | `dict` | Registry authentication tokens |
+
+**Global settings** emit arbitrary `.npmrc` key-value pairs:
+
+```toml
+[plugins.client.npm.settings]
+registry = "https://registry.internal.example.com"
+always-auth = true
+strict-ssl = false
+proxy = "http://proxy.company.com:8080"
+```
 
 **Scoped registries** map `@scope` prefixes to custom registry URLs:
 
