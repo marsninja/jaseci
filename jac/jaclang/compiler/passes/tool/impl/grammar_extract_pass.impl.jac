@@ -357,6 +357,35 @@ impl GrammarExtractPass.after_pass -> None {
         }
     }
     self.rules = cleaned;
+    # Remove unreachable rules (defined but never referenced from module)
+    reachable: set = set();
+    reachable_map: dict = {};
+    for rule in self.rules {
+        reachable_map[rule.name] = rule;
+    }
+    worklist: list = ["module"];
+    while len(worklist) > 0 {
+        name = worklist.pop();
+        if name in reachable {
+            continue;
+        }
+        reachable.add(name);
+        if name in reachable_map {
+            refs = self._collect_refs(reachable_map[name].body);
+            for ref_name in refs {
+                if ref_name not in reachable {
+                    worklist.append(ref_name);
+                }
+            }
+        }
+    }
+    reachable_rules: list = [];
+    for rule in self.rules {
+        if rule.name in reachable {
+            reachable_rules.append(rule);
+        }
+    }
+    self.rules = reachable_rules;
 }
 
 # -------------------------------------------------------------------------
@@ -405,10 +434,87 @@ impl GrammarExtractPass.get_impl_target_names(nd: uni.ImplDef) -> list {
 }
 
 # -------------------------------------------------------------------------
+# Savepoint detection helpers
+# -------------------------------------------------------------------------
+"""Check if expression is self.pos attribute access."""
+impl GrammarExtractPass._is_self_pos_access(expr: uni.Expr) -> bool {
+    if isinstance(expr, uni.AtomTrailer) and expr.is_attr {
+        method = self.get_self_method(expr);
+        if method == "pos" {
+            return True;
+        }
+    }
+    return False;
+}
+
+"""Detect savepoint pattern and return the delegated parse call.
+
+Scans stmts for: save = self.pos; ...; self.pos = save; return self.parse_X();
+Returns GRef for the parse_X call, or None if no savepoint pattern found."""
+impl GrammarExtractPass._extract_savepoint_delegation(stmts: list) -> GExpr | None {
+    if len(stmts) == 0 {
+        return None;
+    }
+    first = stmts[0];
+    if not isinstance(first, uni.Assignment) {
+        return None;
+    }
+    if first.value is None or not self._is_self_pos_access(first.value) {
+        return None;
+    }
+    # Found savepoint save. Recursively search remaining stmts
+    # for return self.parse_X() (the real delegation after restore)
+    return self._find_post_restore_delegation(stmts[1:]);
+}
+
+"""Recursively search statements for parse delegation after pos restore."""
+impl GrammarExtractPass._find_post_restore_delegation(stmts: list) -> GExpr | None {
+    for stmt in stmts {
+        if isinstance(stmt, uni.ReturnStmt) and stmt.expr is not None {
+            call = self.get_call_from_expr(stmt.expr);
+            if call is not None {
+                method = self.get_self_method(call.target);
+                if method is not None and method.startswith("parse_") {
+                    return GRef(name=method[6:]);
+                }
+            }
+        }
+        # Recurse into if-body and else-body
+        if isinstance(stmt, (uni.IfStmt, uni.ElseIf)) {
+            result = self._find_post_restore_delegation(list(stmt.body));
+            if result is not None {
+                return result;
+            }
+            if stmt.else_body is not None {
+                if isinstance(stmt.else_body, uni.ElseStmt) {
+                    result = self._find_post_restore_delegation(
+                        list(stmt.else_body.body)
+                    );
+                    if result is not None {
+                        return result;
+                    }
+                } elif isinstance(stmt.else_body, (uni.ElseIf, uni.IfStmt)) {
+                    result = self._find_post_restore_delegation([stmt.else_body]);
+                    if result is not None {
+                        return result;
+                    }
+                }
+            }
+        }
+    }
+    return None;
+}
+
+# -------------------------------------------------------------------------
 # Body extraction
 # -------------------------------------------------------------------------
 """Extract grammar from a list of statements."""
 impl GrammarExtractPass.extract_from_stmts(stmts: list) -> GExpr | None {
+    # Detect savepoint scanning: save = self.pos; ...; self.pos = save; return parse_X()
+    savepoint_result = self._extract_savepoint_delegation(stmts);
+    if savepoint_result is not None {
+        return savepoint_result;
+    }
     parts: list = [];
     alt_branches: list = [];
     i = 0;
@@ -624,6 +730,25 @@ impl GrammarExtractPass.expr_contains_tok(expr: GExpr, tok_name: str) -> bool {
     return False;
 }
 
+"""Collect all GRef names from a grammar expression."""
+impl GrammarExtractPass._collect_refs(body: GExpr) -> set {
+    refs: set = set();
+    if isinstance(body, GRef) {
+        refs.add(body.name);
+    } elif isinstance(body, GSeq) {
+        for item in body.items {
+            refs.update(self._collect_refs(item));
+        }
+    } elif isinstance(body, GAlt) {
+        for c in body.choices {
+            refs.update(self._collect_refs(c));
+        }
+    } elif isinstance(body, (GOpt, GStar, GPlus)) {
+        refs.update(self._collect_refs(body.inner));
+    }
+    return refs;
+}
+
 # -------------------------------------------------------------------------
 # Post-processing: deduplicate parent-child keyword tokens
 # -------------------------------------------------------------------------
@@ -642,7 +767,18 @@ impl GrammarExtractPass._rule_always_starts_with_one_of(
         return body.name in tok_set;
     }
     if isinstance(body, GSeq) and len(body.items) > 0 {
-        return self._rule_always_starts_with_one_of(body.items[0], tok_set);
+        first = body.items[0];
+        # If first item is optional, check both paths:
+        # 1. Optional present: inner starts with tok_set
+        # 2. Optional absent: next item starts with tok_set
+        if isinstance(first, GOpt) and len(body.items) > 1 {
+            opt_starts = self._rule_always_starts_with_one_of(first.inner, tok_set);
+            rest_starts = self._rule_always_starts_with_one_of(body.items[1], tok_set);
+            if opt_starts and rest_starts {
+                return True;
+            }
+        }
+        return self._rule_always_starts_with_one_of(first, tok_set);
     }
     # GAlt: every alternative must start with a token from the set
     if isinstance(body, GAlt) {
@@ -655,6 +791,44 @@ impl GrammarExtractPass._rule_always_starts_with_one_of(
             }
         }
         return True;
+    }
+    return False;
+}
+
+"""Check if a grammar expression starts with any token in tok_set.
+
+Follows GSeq first items and skips GOpt prefixes. Used for guard token
+suppression in collect_elif_chain where we need to check if the body
+already consumes the tokens the guard is checking for."""
+impl GrammarExtractPass._body_starts_with_any_tok(body: GExpr, tok_set: set) -> bool {
+    if isinstance(body, GTok) {
+        return body.name in tok_set;
+    }
+    if isinstance(body, GSeq) and len(body.items) > 0 {
+        first = body.items[0];
+        if self._body_starts_with_any_tok(first, tok_set) {
+            return True;
+        }
+        # If first item is optional, also check the second item
+        if isinstance(first, GOpt) and len(body.items) > 1 {
+            return self._body_starts_with_any_tok(body.items[1], tok_set);
+        }
+        return False;
+    }
+    if isinstance(body, GAlt) {
+        # At least one alternative starts with a guard token
+        for choice in body.choices {
+            if self._body_starts_with_any_tok(choice, tok_set) {
+                return True;
+            }
+        }
+        return False;
+    }
+    if isinstance(body, GOpt) {
+        return self._body_starts_with_any_tok(body.inner, tok_set);
+    }
+    if isinstance(body, GStar) {
+        return self._body_starts_with_any_tok(body.inner, tok_set);
     }
     return False;
 }
@@ -684,6 +858,12 @@ impl GrammarExtractPass._dedup_parent_child_tokens(
                         if self._rule_starts_with_tok(child_body, item.name) {
                             should_remove = True;
                         }
+                        # Also check GStar/GPlus inner (guard ensures 1+ iteration)
+                        elif isinstance(child_body, (GStar, GPlus)) {
+                            if self._rule_starts_with_tok(child_body.inner, item.name) {
+                                should_remove = True;
+                            }
+                        }
                     }
                     # GAlt of all GToks before GRef: check if child
                     # always starts with one of those tokens
@@ -697,10 +877,20 @@ impl GrammarExtractPass._dedup_parent_child_tokens(
                             }
                             tok_set.add(c.name);
                         }
-                        if all_gtoks
-                        and len(tok_set) > 0
-                        and self._rule_always_starts_with_one_of(child_body, tok_set) {
-                            should_remove = True;
+                        if all_gtoks and len(tok_set) > 0 {
+                            if self._rule_always_starts_with_one_of(
+                                child_body, tok_set
+                            ) {
+                                should_remove = True;
+                            }
+                            # Also check GStar/GPlus inner
+                            elif isinstance(child_body, (GStar, GPlus)) {
+                                if self._rule_always_starts_with_one_of(
+                                    child_body.inner, tok_set
+                                ) {
+                                    should_remove = True;
+                                }
+                            }
                         }
                     }
                 }
@@ -1046,8 +1236,28 @@ impl GrammarExtractPass.collect_elif_chain(stmt: uni.IfStmt) -> list {
                             }
                         }
                     }
+                    # Also check if body already starts with guard tokens
+                    body_starts_with_guard = False;
+                    if tok_expr is not None {
+                        guard_tok_set: set = set();
+                        if isinstance(tok_expr, GTok) {
+                            guard_tok_set.add(tok_expr.name);
+                        } elif isinstance(tok_expr, GAlt) {
+                            for gc in tok_expr.choices {
+                                if isinstance(gc, GTok) {
+                                    guard_tok_set.add(gc.name);
+                                }
+                            }
+                        }
+                        if len(guard_tok_set) > 0 and branch_body is not None {
+                            body_starts_with_guard = self._body_starts_with_any_tok(
+                                branch_body, guard_tok_set
+                            );
+                        }
+                    }
                     if (isinstance(branch_body, GRef) and len(list(cur.body)) == 1)
-                    or star_has_all_tokens {
+                    or star_has_all_tokens
+                    or body_starts_with_guard {
                         branches.append(branch_body);
                     } else {
                         branches.append(GSeq(items=[tok_expr, branch_body]));
@@ -1383,6 +1593,10 @@ impl GrammarExtractPass.find_break_none_check(stmts: list) -> tuple | None {
 # -------------------------------------------------------------------------
 """Analyze condition. Returns (method_name, [token_names]) or None."""
 impl GrammarExtractPass.analyze_condition(cond: uni.Expr) -> tuple | None {
+    # Unwrap parenthesized expressions (AtomUnit wraps inner expr in parens)
+    if isinstance(cond, uni.AtomUnit) and cond.value is not None {
+        return self.analyze_condition(cond.value);
+    }
     if isinstance(cond, uni.FuncCall) {
         method = self.get_self_method(cond.target);
         if method in (
@@ -1394,6 +1608,14 @@ impl GrammarExtractPass.analyze_condition(cond: uni.Expr) -> tuple | None {
         ) {
             tokens = self.get_token_args(cond);
             return (method, tokens);
+        }
+        # check_name() checks for NAME or KWESC_NAME tokens
+        if method == "check_name" {
+            return ("check", ["NAME", "KWESC_NAME"]);
+        }
+        # is_keyword_token() checks if current token is a keyword used as name
+        if method == "is_keyword_token" {
+            return ("check", ["NAME"]);
         }
     }
     # Handle peek().kind == TokenKind.X or peek().kind in [...] comparisons
@@ -1452,6 +1674,27 @@ impl GrammarExtractPass.analyze_condition(cond: uni.Expr) -> tuple | None {
                             if found_method is None {
                                 found_method = m;
                             }
+                        } elif m == "check_name" {
+                            all_toks.extend(["NAME", "KWESC_NAME"]);
+                            if found_method is None {
+                                found_method = "check";
+                            }
+                        } elif m == "is_keyword_token" {
+                            all_toks.append("NAME");
+                            if found_method is None {
+                                found_method = "check";
+                            }
+                        }
+                        # Recurse into nested expr (e.g. (A and B) or C)
+                    } elif isinstance(
+                        val, (uni.BoolExpr, uni.BinaryExpr, uni.AtomUnit)
+                    ) {
+                        nested = self.analyze_condition(val);
+                        if nested is not None {
+                            all_toks.extend(nested[1]);
+                            if found_method is None {
+                                found_method = nested[0];
+                            }
                         }
                     }
                 }
@@ -1482,6 +1725,50 @@ impl GrammarExtractPass.analyze_condition(cond: uni.Expr) -> tuple | None {
     }
     if isinstance(cond, uni.BinaryExpr) {
         if cond?.op and cond.op?.value {
+            if cond.op.value in ("or", "||") {
+                # For OR: collect tokens from both sides
+                all_toks2: list = [];
+                found_method2: str | None = None;
+                for side in [cond.left, cond.right] {
+                    if isinstance(side, uni.FuncCall) {
+                        m = self.get_self_method(side.target);
+                        if m in (
+                            "check",
+                            "check_any",
+                            "check_peek",
+                            "check_peek_any",
+                            "match_tok"
+                        ) {
+                            tks = self.get_token_args(side);
+                            all_toks2.extend(tks);
+                            if found_method2 is None {
+                                found_method2 = m;
+                            }
+                        } elif m == "check_name" {
+                            all_toks2.extend(["NAME", "KWESC_NAME"]);
+                            if found_method2 is None {
+                                found_method2 = "check";
+                            }
+                        } elif m == "is_keyword_token" {
+                            all_toks2.append("NAME");
+                            if found_method2 is None {
+                                found_method2 = "check";
+                            }
+                        }
+                    } else {
+                        nested = self.analyze_condition(side);
+                        if nested is not None {
+                            all_toks2.extend(nested[1]);
+                            if found_method2 is None {
+                                found_method2 = nested[0];
+                            }
+                        }
+                    }
+                }
+                if found_method2 is not None and len(all_toks2) > 0 {
+                    return (found_method2, all_toks2);
+                }
+            }
             if cond.op.value in ("and", "&&") {
                 left = cond.left;
                 if isinstance(left, uni.FuncCall) {

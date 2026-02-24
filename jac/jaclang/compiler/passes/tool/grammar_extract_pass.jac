@@ -121,10 +121,16 @@ obj GrammarExtractPass(UniPass) {
     def has_early_return(stmts: list) -> bool;
     def is_negated_check_condition(cond: uni.Expr) -> bool;
     def expr_contains_tok(expr: GExpr, tok_name: str) -> bool;
+    def _collect_refs(body: GExpr) -> set;
     # Post-processing helpers
     def _dedup_parent_child_tokens(expr: GExpr, rule_map: dict) -> GExpr;
     def _rule_starts_with_tok(body: GExpr, tok_name: str) -> bool;
     def _rule_always_starts_with_one_of(body: GExpr, tok_set: set) -> bool;
+    def _body_starts_with_any_tok(body: GExpr, tok_set: set) -> bool;
+    # Savepoint detection
+    def _is_self_pos_access(expr: uni.Expr) -> bool;
+    def _extract_savepoint_delegation(stmts: list) -> GExpr | None;
+    def _find_post_restore_delegation(stmts: list) -> GExpr | None;
     # AST helpers
     def extract_token_kind(expr: uni.Expr) -> str | None;
     def get_self_method(nd: uni.Expr) -> str | None;
