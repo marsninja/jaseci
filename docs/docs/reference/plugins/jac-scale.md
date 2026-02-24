@@ -25,27 +25,25 @@ jac start app.jac
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--port` | Server port | 8000 |
-| `--host` | Bind address | 0.0.0.0 |
-| `--workers` | Number of workers | 1 |
-| `--dev` | Hot Module Replacement (with jac-client) | false |
-| `--reload` | Hot reload on changes | false |
-| `--no-client` | Skip client bundling (API only) | false |
-| `--faux` | Print generated API docs only (no server) | false |
-| `--scale` | Deploy to Kubernetes | false |
+| `--port` `-p` | Server port | 8000 |
+| `--main` `-m` | Treat as `__main__` | false |
+| `--faux` `-f` | Print generated API docs only (no server) | false |
+| `--dev` `-d` | Enable HMR (Hot Module Replacement) mode | false |
+| `--api_port` `-a` | Separate API port for HMR mode (0=same as port) | 0 |
+| `--no_client` `-n` | Skip client bundling/serving (API only) | false |
+| `--profile` | Configuration profile to load (e.g. prod, staging) | - |
+| `--client` | Client build target for dev server (web, desktop, pwa) | - |
+| `--scale` | Deploy to a target platform instead of running locally | false |
 | `--build` `-b` | Build and push Docker image (with --scale) | false |
-| `--experimental` `-e` | Install from repo instead of PyPI (with --scale) | false |
-| `--target` | Deployment target (kubernetes, aws, gcp) | kubernetes |
-| `--registry` | Image registry (dockerhub, ecr, gcr) | dockerhub |
+| `--experimental` `-e` | Use experimental mode (install from repo instead of PyPI) | false |
+| `--target` `-t` | Deployment target (kubernetes, aws, gcp) | kubernetes |
+| `--registry` `-r` | Image registry (dockerhub, ecr, gcr) | dockerhub |
 
 ### Examples
 
 ```bash
 # Custom port
 jac start app.jac --port 3000
-
-# Multiple workers
-jac start app.jac --workers 4
 
 # Development with HMR (requires jac-client)
 jac start app.jac --dev
@@ -56,8 +54,8 @@ jac start app.jac --dev --no-client
 # Preview generated API endpoints without starting
 jac start app.jac --faux
 
-# Production
-jac start app.jac --host 0.0.0.0 --port 8000 --workers 4
+# Production with profile
+jac start app.jac --port 8000 --profile prod
 ```
 
 ### Default Persistence
@@ -414,7 +412,7 @@ walker :pub health_check {
     can check with Root entry { report {"status": "ok"}; }
 }
 
-# Private -- not exposed as endpoint (internal only)
+# Private -- requires authentication, per-user isolated
 walker :priv internal_process {
     can run with Root entry { }
 }
@@ -428,7 +426,7 @@ Walkers have three access levels when served as API endpoints:
 |--------|-------------|
 | Public (`:pub`) | Accessible without authentication |
 | Protected (default) | Requires JWT authentication |
-| Private (`:priv`) | Only accessible by directly defined walkers (not imported) |
+| Private (`:priv`) | Requires JWT authentication; per-user isolated (each user operates on their own graph) |
 
 ### Permission Functions Reference
 

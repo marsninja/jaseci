@@ -1032,7 +1032,7 @@ import from byllm.lib { Model }
 glob llm = Model(
     model_name="gpt-4o",
     api_key="your_litellm_virtual_key",
-    proxy_url="http://localhost:8000"
+    config={"api_base": "http://localhost:8000"}
 );
 ```
 
@@ -1042,7 +1042,7 @@ from byllm.lib import Model
 llm = Model(
     model_name="gpt-4o",
     api_key="your_litellm_virtual_key",
-    proxy_url="http://localhost:8000"
+    config={"api_base": "http://localhost:8000"}
 )
 ```
 
@@ -1052,7 +1052,7 @@ llm = Model(
 |-----------|-------------|
 | `model_name` | The model to use (must be configured in LiteLLM proxy) |
 | `api_key` | LiteLLM virtual key or master key (not the provider API key) |
-| `proxy_url` | URL of your LiteLLM proxy server |
+| `config` | Configuration dict; set `api_base` to the URL of your LiteLLM proxy server (also accepts `base_url` or `host` as aliases) |
 
 For virtual key generation, see [LiteLLM Virtual Keys](https://docs.litellm.ai/docs/proxy/virtual_keys).
 

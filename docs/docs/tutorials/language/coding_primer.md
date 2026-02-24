@@ -1943,6 +1943,10 @@ node Person {
 }
 
 walker Visitor {
+    can start with Root entry {
+        visit [-->];
+    }
+
     # Walker's perspective: "When I visit a Person"
     can meet with Person entry {
         print(f"Visitor says: Hello, {here.name}!");
@@ -1975,6 +1979,10 @@ node Person {
 }
 
 walker AgeCollector {
+    can start with Root entry {
+        visit [-->];
+    }
+
     can collect with Person entry {
         report here.age;  # Send age back
         visit [-->];      # Continue walking
@@ -1989,7 +1997,7 @@ with entry {
     root ++> alice ++> bob ++> charlie;
 
     ages = root spawn AgeCollector();
-    print(f"Collected ages: {ages}");  # [25, 30, 28]
+    print(f"Collected ages: {ages.reports}");  # [25, 30, 28]
 }
 ```
 
@@ -2090,16 +2098,19 @@ walker FriendRecommender {
 walker InterestMatcher {
     has target_interest: str;
     has matches: list = [];
+    has visited: list = [];
 
     can start with Root entry {
         visit [-->];
     }
 
     can find with User entry {
-        if self.target_interest in here.interests {
-            self.matches.append(here.username);
+        if here not in self.visited {
+            self.visited.append(here);
+            if self.target_interest in here.interests {
+                self.matches.append(here.username);
+            }
         }
-        visit [-->];
     }
 }
 
@@ -2135,9 +2146,9 @@ with entry {
     root ++> charlie;
     root ++> dana;
 
-    alice +>:Friendship(since=2020, strength=8):+> bob;
-    bob +>:Friendship(since=2021, strength=6):+> charlie;
-    alice +>:Friendship(since=2019, strength=9):+> dana;
+    alice <++>:Friendship(since=2020, strength=8):<++> bob;
+    bob <++>:Friendship(since=2021, strength=6):<++> charlie;
+    alice <++>:Friendship(since=2019, strength=9):<++> dana;
 
     # Find friend recommendations for Bob
     recommender = FriendRecommender();
@@ -2228,7 +2239,7 @@ with entry {
     alice +>:Friend:+> charlie;
 
     friends = root spawn FindFriends();
-    print(f"Found friends: {friends}");
+    print(f"Found friends: {friends.reports}");
 }
 ```
 
@@ -2310,11 +2321,11 @@ with entry {
     dave = Person(name="Dave", birth_year=1950);
     eve = Person(name="Eve", birth_year=1952);
 
-    # Build family tree (children point to parents)
-    alice +>:Parent:+> bob;
-    alice +>:Parent:+> carol;
-    bob +>:Parent:+> dave;
-    bob +>:Parent:+> eve;
+    # Build family tree (parents point to children)
+    bob +>:Parent:+> alice;
+    carol +>:Parent:+> alice;
+    dave +>:Parent:+> bob;
+    eve +>:Parent:+> bob;
 
     # Find ancestors
     root ++> alice;

@@ -320,7 +320,7 @@ def:protect _protected_func -> None { }
     with entry {
         print(greet("World"));
         print(add(3, 4));
-        print(apply(lambda x, y: int {x * y;}, 5, 6));
+        print(apply(lambda x: int, y: int -> int { return x * y; }, 5, 6));
     }
     ```
 
@@ -339,13 +339,8 @@ obj Person {
     has name: str;
     has age: int;
 
-    def init(name: str, age: int) {
-        self.name = name;
-        self.age = age;
-    }
-
     def postinit() -> None {
-        # Called after init completes
+        # Called after the auto-generated init completes
         print(f"Created {self.name}");
     }
 

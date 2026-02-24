@@ -384,6 +384,10 @@ node DataNode {
 }
 
 walker DataCollector {
+    can start with Root entry {
+        visit [-->];
+    }
+
     can collect with DataNode entry {
         report here.value;  # Continues execution
         visit [-->];
@@ -445,7 +449,6 @@ with entry {
     result = root spawn MyWalker(param=10);
 
     # Access results
-    print(result.returns);  # Return value
     print(result.reports);  # All reported values
 }
 ```
@@ -1082,7 +1085,7 @@ walker:priv SearchItems {
 
 ```
 walker:priv GetTree {
-    can build_tree(node: any) -> dict {
+    def build_tree(node: any) -> dict {
         children = [];
         for child in [node -->] {
             children.append(self.build_tree(child));
