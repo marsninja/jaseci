@@ -264,11 +264,29 @@ impl NaIRGenPass._coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value {
     if val.type == target_type {
         return val;
     }
+    # Int → Double (f64)
     if isinstance(val.type, ir.IntType) and isinstance(target_type, ir.DoubleType) {
         return self.builder.sitofp(val, target_type, name="cast");
     }
+    # Int → Float (f32)
+    if isinstance(val.type, ir.IntType) and isinstance(target_type, ir.FloatType) {
+        return self.builder.sitofp(val, target_type, name="cast.f32");
+    }
+    # Double (f64) → Int
     if isinstance(val.type, ir.DoubleType) and isinstance(target_type, ir.IntType) {
         return self.builder.fptosi(val, target_type, name="cast");
+    }
+    # Float (f32) → Int
+    if isinstance(val.type, ir.FloatType) and isinstance(target_type, ir.IntType) {
+        return self.builder.fptosi(val, target_type, name="cast.i");
+    }
+    # Double (f64) → Float (f32)
+    if isinstance(val.type, ir.DoubleType) and isinstance(target_type, ir.FloatType) {
+        return self.builder.fptrunc(val, target_type, name="fptrunc");
+    }
+    # Float (f32) → Double (f64)
+    if isinstance(val.type, ir.FloatType) and isinstance(target_type, ir.DoubleType) {
+        return self.builder.fpext(val, target_type, name="fpext");
     }
     # Pointer-to-pointer bitcast (e.g., different struct pointer types)
     if isinstance(val.type, ir.PointerType) and isinstance(target_type, ir.PointerType) {

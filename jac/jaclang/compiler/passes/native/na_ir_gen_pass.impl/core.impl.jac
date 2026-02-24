@@ -12,11 +12,27 @@ impl NaIRGenPass.init(
         "int": ir.IntType(64),
         "float": ir.DoubleType(),
         "bool": ir.IntType(1),
-        "str": ir.IntType(8).as_pointer()
+        "str": ir.IntType(8).as_pointer(),
+        # Fixed-width C-compatible integer types
+        "i8": ir.IntType(8),
+        "u8": ir.IntType(8),
+        "i16": ir.IntType(16),
+        "u16": ir.IntType(16),
+        "i32": ir.IntType(32),
+        "u32": ir.IntType(32),
+        "i64": ir.IntType(64),
+        "u64": ir.IntType(64),
+        # Fixed-width C-compatible float types
+        "f32": ir.FloatType(),
+        "f64": ir.DoubleType(),
+        # C void pointer (opaque handle)
+        "c_void": ir.IntType(8).as_pointer()
     };
     self._fmt_strings: dict[(str, ir.GlobalVariable)] = {};
     # External function cache (Phase 0)
     self.extern_funcs: dict[(str, ir.Function)] = {};
+    # C library extern function names (from import from "lib" { def ...; })
+    self.clib_extern_names: set[str] = set();
     # Enum support (Phase 1)
     self.enum_values: dict[(str, ir.Constant)] = {};
     self.enum_types: dict[(str, ir.IntType)] = {};
@@ -84,6 +100,8 @@ impl NaIRGenPass.init(
 # ─── Main Pass Logic ─────────────────────────────────────────
 """Forward-declare, codegen native abilities/entries, and store the LLVM module."""
 impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
+    # Process C library imports: import from "libname" { def ...; }
+    self._process_clib_imports(self.ir_in);
     # Phase 0: Forward declarations (enums, archetypes, free functions, globals)
     self._register_enums(self.ir_in);
     self._register_globals(self.ir_in);
@@ -131,6 +149,72 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         self.ir_in.gen.llvm_ir = self.llvm_module;
     }
     return self.ir_in;
+}
+
+# ─── C Library Import Processing ──────────────────────────────
+"""Process import from "libname" { def ...; } statements.
+
+Extracts library paths for loading and forward-declares
+extern symbols from the clib declarations.
+"""
+impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
+    # Collect imports from top-level and inside na {} blocks
+    imports: list = [];
+    for stmt in module.body {
+        if isinstance(stmt, uni.Import) {
+            imports.append(stmt);
+        } elif isinstance(stmt, uni.NativeBlock) {
+            for inner in stmt.body {
+                if isinstance(inner, uni.Import) {
+                    imports.append(inner);
+                }
+            }
+        }
+    }
+    for stmt in imports {
+        if not stmt.clib_decls {
+            continue;
+        }
+        # Extract library path from from_loc
+        if stmt.from_loc is not None and stmt.from_loc.path {
+            for path_part in stmt.from_loc.path {
+                if isinstance(path_part, uni.String) {
+                    raw = path_part.value;
+                    # Strip quotes
+                    if (len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'") {
+                        raw = raw[1:-1];
+                    }
+                    # Store library path for NativeCompilePass to load
+                    if not self?._clib_paths {
+                        self._clib_paths: list[str] = [];
+                    }
+                    self._clib_paths.append(raw);
+                }
+            }
+        }
+        # Forward-declare all abilities (functions) in the clib declarations
+        for decl in stmt.clib_decls {
+            if isinstance(decl, uni.Ability) {
+                fn_name = decl.name_ref.sym_name if decl.name_ref else None;
+                if decl.body is not None {
+                    self.log_error(
+                        f"C library import declaration '{fn_name}' "
+                        "must not have a body"
+                    );
+                    continue;
+                }
+                self._maybe_declare_ability(decl);
+                if fn_name {
+                    self.clib_extern_names.add(fn_name);
+                }
+            }
+        }
+        # Store clib paths on module gen for compile pass
+        if self?._clib_paths and self._clib_paths {
+            module.gen._clib_paths = self._clib_paths;
+            self.has_native_code = True;
+        }
+    }
 }
 
 # ─── Primitive Emitter Dispatch ────────────────────────────────

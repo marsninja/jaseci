@@ -1374,3 +1374,38 @@ test "llvmir ir has function definitions" {
     assert 'define i64 @"negate"' in llvm_ir_str;
     assert 'define double @"float_add"' in llvm_ir_str;
 }
+
+# --- TestCLibImportSyntax ---
+test "clib import produces extern declares" {
+    prog = JacProgram();
+    ir = prog.compile(str(os.path.join(FIXTURES, "clib_import.na.jac")));
+    assert not prog.errors_had , f"Errors: {prog.errors_had}";
+    assert ir.gen.llvm_ir is not None , "No LLVM IR generated";
+    llvm_ir_str = str(ir.gen.llvm_ir);
+    # Extern C functions should be 'declare' (no body), not 'define'
+    assert 'declare double @"sqrt"' in llvm_ir_str;
+    assert 'declare double @"pow"' in llvm_ir_str;
+    assert 'define double @"sqrt"' not in llvm_ir_str;
+    assert 'define double @"pow"' not in llvm_ir_str;
+    # Native Jac function should be 'define' (has body)
+    assert 'define double @"hypotenuse"' in llvm_ir_str;
+    # Library path should be stored for the compile pass
+    assert ir.gen._clib_paths is not None;
+    assert "/usr/lib/libm.so.6" in ir.gen._clib_paths;
+}
+
+test "clib import inside na block" {
+    prog = JacProgram();
+    ir = prog.compile(str(os.path.join(FIXTURES, "clib_import_na_block.jac")));
+    assert not prog.errors_had , f"Errors: {prog.errors_had}";
+    assert ir.gen.llvm_ir is not None , "No LLVM IR generated";
+    llvm_ir_str = str(ir.gen.llvm_ir);
+    # Extern C functions from na {} block should be 'declare'
+    assert 'declare double @"ceil"' in llvm_ir_str;
+    assert 'declare double @"floor"' in llvm_ir_str;
+    # Native Jac function should be 'define'
+    assert 'define double @"round_up"' in llvm_ir_str;
+    # Library path should be stored
+    assert ir.gen._clib_paths is not None;
+    assert "/usr/lib/libm.so.6" in ir.gen._clib_paths;
+}

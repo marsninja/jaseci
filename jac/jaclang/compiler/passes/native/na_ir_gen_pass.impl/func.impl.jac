@@ -57,6 +57,11 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     if func is None {
         return;
     }
+    # C library externs: keep as LLVM 'declare' (no body).
+    # MCJIT resolves them from loaded shared libraries.
+    if name in self.clib_extern_names {
+        return;
+    }
     # Create entry block
     block = func.append_basic_block(name="entry");
     self.builder = ir.IRBuilder(block);
