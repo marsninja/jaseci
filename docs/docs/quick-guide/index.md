@@ -17,7 +17,11 @@ def categorize(title: str) -> Category
     by llm();
 
 def:pub get_todos -> list {
-    return [{"title": t.title, "category": categorize(t.title)}
+    if not [root-->](?:Todo) {
+        root ++> Todo(title="Buy groceries");
+        root ++> Todo(title="Finish report");
+    }
+    return [{"title": t.title, "category": str(categorize(t.title)).split(".")[-1]}
             for t in [root-->](?:Todo)];
 }
 
@@ -30,6 +34,38 @@ cl def:pub app() -> JsxElement {
 ```
 
 This single file defines a persistent data model, an AI-powered categorizer, a REST API, and a React frontend. No database setup. No prompt engineering. No separate frontend project. Just Jac.
+
+??? info "You can actaully run this example"
+    Save the code above as `main.jac`, then create a `jac.toml` in the same directory:
+
+    ```toml
+    [project]
+    name = "my-app"
+
+    [dependencies.npm]
+    jac-client-node = "1.0.4"
+
+    [dependencies.npm.dev]
+    "@jac-client/dev-deps" = "1.0.0"
+
+    [serve]
+    base_route_app = "app"
+
+    [plugins.client]
+
+    [plugins.byllm.model]
+    default_model = "claude-sonnet-4-20250514"
+    ```
+
+    Install Jac, set your API key, and run:
+
+    ```bash
+    pip install jaseci
+    export ANTHROPIC_API_KEY="your-key-here"
+    jac start main.jac
+    ```
+
+    Open [http://localhost:8000](http://localhost:8000) to see it running. Jac supports any [LiteLLM-compatible model](https://docs.litellm.ai/docs/providers) -- use `gemini/gemini-2.5-flash` for a free alternative or `ollama/llama3.2:1b` for local models.
 
 ---
 
@@ -53,7 +89,7 @@ This philosophy rests on three pillars.
 
     Write frontend, backend, and native code in a single language. Jac's **codespace** system lets you target the server (`sv`), browser (`cl`), or native binary (`na`) from the same file. The compiler handles interop -- HTTP calls, serialization, type sharing -- so you never write glue code.
 
-    [:octicons-arrow-right-24: How Codespaces Work](what-makes-jac-different.md#1-how-can-one-language-target-frontends-backends-and-native-binaries-at-the-same-time) · [:octicons-arrow-right-24: Full-Stack Reference](../reference/language/full-stack.md) · [:octicons-arrow-right-24: See Jac vs a Traditional Stack](jac-vs-traditional-stack.md)
+    [:octicons-arrow-right-24: How Codespaces Work](what-makes-jac-different.md#1-how-can-one-language-target-frontends-backends-and-native-binaries-at-the-same-time) · [:octicons-arrow-right-24: Full-Stack Reference](../reference/plugins/jac-client.md) · [:octicons-arrow-right-24: See Jac vs a Traditional Stack](jac-vs-traditional-stack.md)
 
 - :material-robot:{ .lg .middle } **AI Native**
 
@@ -61,7 +97,7 @@ This philosophy rests on three pillars.
 
     Integrate LLMs at the language level with `by llm()` -- the compiler extracts semantics from your function names, types, and `sem` annotations to construct prompts automatically. First-class graphs and walkers give you an expressive agentic programming model where AI agents traverse structured state spaces with tool-calling built in.
 
-    [:octicons-arrow-right-24: How by/sem Work](what-makes-jac-different.md#3-how-does-jac-abstract-away-the-laborious-task-of-promptcontext-engineering-for-ai-and-turn-it-into-a-compilerruntime-problem) · [:octicons-arrow-right-24: AI Integration Reference](../reference/language/ai-integration.md) · [:octicons-arrow-right-24: Agentic Patterns](../reference/language/ai-integration.md#agentic-ai-patterns)
+    [:octicons-arrow-right-24: How by/sem Work](what-makes-jac-different.md#3-how-does-jac-abstract-away-the-laborious-task-of-promptcontext-engineering-for-ai-and-turn-it-into-a-compilerruntime-problem) · [:octicons-arrow-right-24: AI Integration Reference](../reference/plugins/byllm.md) · [:octicons-arrow-right-24: Agentic Patterns](../reference/plugins/byllm.md#agentic-ai-patterns)
 
 - :material-cloud-outline:{ .lg .middle } **Scale Native**
 
@@ -69,7 +105,7 @@ This philosophy rests on three pillars.
 
     Your code doesn't change when you move from laptop to cloud. Declare `node` types and connect them to `root` -- the runtime handles persistence automatically. Run `jac start --scale` and your app deploys to Kubernetes with Redis, MongoDB, load balancing, and health checks provisioned for you. Zero DevOps.
 
-    [:octicons-arrow-right-24: How Persistence Works](what-makes-jac-different.md#2-how-does-jac-fully-abstract-away-database-organization-and-interactions-and-the-complexity-of-multiuser-persistent-data) · [:octicons-arrow-right-24: Deployment Reference](../reference/language/deployment.md) · [:octicons-arrow-right-24: jac-scale Plugin](../reference/plugins/jac-scale.md)
+    [:octicons-arrow-right-24: How Persistence Works](what-makes-jac-different.md#2-how-does-jac-fully-abstract-away-database-organization-and-interactions-and-the-complexity-of-multiuser-persistent-data) · [:octicons-arrow-right-24: Deployment Reference](../reference/plugins/jac-scale.md) · [:octicons-arrow-right-24: jac-scale Plugin](../reference/plugins/jac-scale.md)
 
 </div>
 
