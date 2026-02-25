@@ -143,6 +143,7 @@ As a module grows beyond the inline threshold, the next natural step is to split
 
 **`command.jac`** -- declarations only:
 
+<!-- jac-skip -->
 ```jac
 """CLI command model and argument definitions."""
 
@@ -175,6 +176,7 @@ obj Command {
 
 **`impl/command.impl.jac`** -- all logic:
 
+<!-- jac-skip -->
 ```jac
 impl Arg.create(name: str, ...) -> Arg {
     # ... construction logic
@@ -342,6 +344,7 @@ obj NaIRGenPass(Transform) {
 
 Each impl file then handles one domain. Here, for instance, is how the tuple-related methods are isolated:
 
+<!-- jac-skip -->
 ```jac
 # tuples.impl.jac
 """Tuple codegen and unpacking."""
@@ -404,6 +407,7 @@ Its impl file ([`impl/estree.impl.jac`](https://github.com/Jaseci-Labs/jaseci/bl
 
 **[`constructs.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/jac0core/constructs.jac)** -- A 35-line re-export barrel:
 
+<!-- jac-skip -->
 ```jac
 """Core constructs for Jac Language - re-exports."""
 
@@ -472,6 +476,7 @@ Let us conclude with a set of best practices distilled from the compiler codebas
 
 Here is a concrete example from [`cli/commands/impl/execution.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands/impl/execution.impl.jac):
 
+<!-- jac-skip -->
 ```jac
 # Private helpers alongside impls
 
