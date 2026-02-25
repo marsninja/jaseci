@@ -6,7 +6,7 @@ impl SemanticAnalysisPass.enter_archetype(
     def inform_from_walker(nd: uni.UniNode) -> None {
         for i in nd.get_all_sub_nodes(uni.VisitStmt) + nd.get_all_sub_nodes(
             uni.DisengageStmt
-        ) + nd.get_all_sub_nodes(uni.EdgeOpRef) + nd.get_all_sub_nodes(
+        ) + nd.get_all_sub_nodes(uni.ReportStmt) + nd.get_all_sub_nodes(uni.EdgeOpRef) + nd.get_all_sub_nodes(
             uni.EventSignature
         ) + nd.get_all_sub_nodes(uni.TypedCtxBlock) {
             i.from_walker = True;
@@ -27,6 +27,19 @@ impl SemanticAnalysisPass.enter_archetype(
 impl SemanticAnalysisPass._check_archetype(
     self: SemanticAnalysisPass, nd: uni.Archetype
 ) -> None {
+    # Warn about 'has' inside 'class' (doesn't auto-generate constructor like obj)
+    if (nd.arch_type.name == Tok.KW_CLASS) and isinstance(nd.body, Sequence) {
+        for stmnt in nd.body {
+            if isinstance(stmnt, uni.ArchHas) {
+                self.log_warning(
+                    "'has' inside 'class' does not auto-generate a constructor. "
+                    "Use 'obj' instead for auto-generated constructors, or define __init__.",
+                    node_override=stmnt
+                );
+                break;  # One warning per class is enough
+            }
+        }
+    }
     if ((nd.arch_type.name != Tok.KW_CLASS) and isinstance(nd.body, Sequence)) {
         found_default_init = False;
         for stmnt in nd.body {
@@ -140,6 +153,139 @@ impl SemanticAnalysisPass._change_atom_trailer_ctx(
         last.name_spec.py_ctx_func = ast3.Store;
         if isinstance(last.name_spec, uni.AstSymbolNode) {
             last.name_spec.py_ctx_func = ast3.Store;
+        }
+    }
+}
+
+"""Warn about missing return type annotations on functions."""
+impl SemanticAnalysisPass.enter_ability(
+    self: SemanticAnalysisPass, nd: uni.Ability
+) -> None {
+    if (
+        isinstance(nd.signature, uni.FuncSignature)
+        and nd.signature.return_type is None
+        and nd.body is not None
+        and not nd.is_abstract
+    ) {
+        # Skip __init__, postinit, and other special methods
+        if isinstance(nd.name_ref, uni.SpecialVarRef) {
+            return;
+        }
+        self.log_warning(
+            "Function has no return type annotation. Consider adding '-> Type'.",
+            node_override=nd.name_ref or nd
+        );
+    }
+}
+
+"""Warn about potential missing f-string prefix."""
+impl SemanticAnalysisPass.exit_string(
+    self: SemanticAnalysisPass, nd: uni.String
+) -> None {
+    val = nd.value;
+    # Skip f-strings (already have interpolation)
+    if val.startswith("f'") or val.startswith('f"') {
+        return;
+    }
+    # Check for {identifier} patterns that suggest missing f-string prefix
+    if re.search(r'\{[a-zA-Z_]\w*\}', val) {
+        # Extract first matched name for the message
+        m = re.search(r'\{([a-zA-Z_]\w*)\}', val);
+        if m {
+            var_name = m.group(1);
+            self.log_warning(
+                f"String contains '{{{var_name}}}' but is not an f-string. Did you mean to add an 'f' prefix?",
+                node_override=nd
+            );
+        }
+    }
+}
+
+"""Warn when await is used outside an async function."""
+impl SemanticAnalysisPass.enter_await_expr(
+    self: SemanticAnalysisPass, nd: uni.AwaitExpr
+) -> None {
+    parent_ability = nd.find_parent_of_type(uni.Ability);
+    if parent_ability is not None and not parent_ability.is_async {
+        self.log_warning(
+            "'await' used outside an 'async' function. Add 'async' keyword: async def ... or async can ...",
+            node_override=nd
+        );
+    }
+}
+
+"""Warn when a function returns JsxElement but is missing the 'cl' prefix."""
+impl SemanticAnalysisPass.exit_ability(
+    self: SemanticAnalysisPass, nd: uni.Ability
+) -> None {
+    if (
+        isinstance(nd.signature, uni.FuncSignature)
+        and nd.signature.return_type is not None
+        and nd.body is not None
+    ) {
+        # Check if return type mentions JsxElement
+        ret_type = nd.signature.return_type;
+        ret_str = getattr(ret_type, 'sym_name', None)
+        or str(getattr(ret_type, 'value', ''));
+        if ret_str == "JsxElement" and nd.code_context != uni.CodeContext.CLIENT {
+            self.log_warning(
+                "Function returns 'JsxElement' but is not marked as client code. Add 'cl' prefix: cl def:pub ...",
+                node_override=nd.name_ref or nd
+            );
+        }
+    }
+}
+
+"""Warn about string literals passed to event handler JSX attributes."""
+impl SemanticAnalysisPass.exit_jsx_normal_attribute(
+    self: SemanticAnalysisPass, nd: uni.JsxNormalAttribute
+) -> None {
+    # Check if attribute name starts with 'on' (event handler pattern)
+    attr_name = getattr(nd.name, 'value', "");
+    if (
+        attr_name.startswith("on")
+        and len(attr_name) > 2
+        and nd.value is not None
+        and isinstance(nd.value, uni.String)
+    ) {
+        self.log_warning(
+            f"Event handler '{attr_name}' received a string literal. Use a JSX expression instead: {attr_name}={{...}}",
+            node_override=nd
+        );
+    }
+}
+
+"""Warn about wrong type names like 'string' instead of 'str'."""
+impl SemanticAnalysisPass.enter_sub_tag(
+    self: SemanticAnalysisPass, nd: uni.SubTag
+) -> None {
+    # Only check type annotation SubTags
+    if not isinstance(nd.tag, uni.Expr) {
+        return;
+    }
+    type_map: dict = {
+        "string": "str",
+        "String": "str",
+        "integer": "int",
+        "Integer": "int",
+        "boolean": "bool",
+        "Boolean": "bool",
+        "double": "float",
+        "Double": "float",
+        "float64": "float",
+        "int64": "int",
+        "char": "str"
+    };
+    # Check if the type expression is a simple name that matches a wrong type
+    if isinstance(nd.tag, uni.AtomExpr) {
+        type_name = getattr(nd.tag, 'sym_name', None)
+        or str(getattr(nd.tag, 'value', ''));
+        if type_name in type_map {
+            correct = type_map[type_name];
+            self.log_warning(
+                f"'{type_name}' is not a built-in type. Did you mean '{correct}'?",
+                node_override=nd.tag
+            );
         }
     }
 }

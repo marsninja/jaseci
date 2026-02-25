@@ -1973,6 +1973,7 @@ impl DeleteStmt.py_ast_targets(self: DeleteStmt) -> list[ast3.AST] {
 impl ReportStmt.init(self: ReportStmt, expr: Expr, kid: Sequence[UniNode]) -> None {
     self.expr = expr;
     UniNode.init(self, kid=kid);
+    WalkerStmtOnlyNode.init(self);
     CodeBlockStmt.init(self);
 }
 

@@ -41,20 +41,31 @@ Uses OpenAI client if proxy mode is enabled, otherwise uses LiteLLM.
 If _http_client is provided in config, uses direct HTTP requests.
 """
 impl Model.model_call_no_stream(params: dict) -> dict {
-    if self.http_client {
-        response = self.model_call_http(
-            url=self.api_base,
-            token=self.api_key,
-            payload=params,
-            ca_bundle=self.config.get("ca_bundle", None),
-        );
-    } elif self.proxy {
-        client = OpenAI(base_url=self.api_base, api_key=self.api_key or None);
-        response = client.chat.completions.create(**params);
-    } else {
-        response = litellm.completion(api_key=self.api_key or None, **params);
+    try {
+        if self.http_client {
+            response = self.model_call_http(
+                url=self.api_base,
+                token=self.api_key,
+                payload=params,
+                ca_bundle=self.config.get("ca_bundle", None),
+            );
+        } elif self.proxy {
+            client = OpenAI(base_url=self.api_base, api_key=self.api_key or None);
+            response = client.chat.completions.create(**params);
+        } else {
+            response = litellm.completion(api_key=self.api_key or None, **params);
+        }
+        return response;
+    } except Exception as e {
+        err_name = type(e).__name__;
+        if "AuthenticationError" in err_name or "AuthError" in err_name {
+            raise RuntimeError(
+                "LLM API authentication failed. Check that your API key environment "
+                "variable is set correctly (e.g. OPENAI_API_KEY, ANTHROPIC_API_KEY)."
+            ) from None ;
+        }
+        raise ;
     }
-    return response;
 }
 
 """Make a direct model call with streaming.
@@ -63,15 +74,26 @@ Uses OpenAI client if proxy mode is enabled, otherwise uses LiteLLM.
 Returns a generator that yields response chunks.
 """
 impl Model.model_call_with_stream(params: dict) {
-    if self.proxy {
-        client = OpenAI(base_url=self.api_base, api_key=self.api_key or None);
-        response = client.chat.completions.create(stream=True, **params);
-    } else {
-        response = litellm.completion(
-            stream=True, api_key=self.api_key or None, **params
-        );
+    try {
+        if self.proxy {
+            client = OpenAI(base_url=self.api_base, api_key=self.api_key or None);
+            response = client.chat.completions.create(stream=True, **params);
+        } else {
+            response = litellm.completion(
+                stream=True, api_key=self.api_key or None, **params
+            );
+        }
+        return response;
+    } except Exception as e {
+        err_name = type(e).__name__;
+        if "AuthenticationError" in err_name or "AuthError" in err_name {
+            raise RuntimeError(
+                "LLM API authentication failed. Check that your API key environment "
+                "variable is set correctly (e.g. OPENAI_API_KEY, ANTHROPIC_API_KEY)."
+            ) from None ;
+        }
+        raise ;
     }
-    return response;
 }
 
 """Make a direct HTTP request to LLM endpoint.

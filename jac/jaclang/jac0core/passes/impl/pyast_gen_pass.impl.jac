@@ -1860,6 +1860,12 @@ impl PyastGenPass.exit_delete_stmt(self: PyastGenPass, nd: uni.DeleteStmt) -> No
 }
 
 impl PyastGenPass.exit_report_stmt(self: PyastGenPass, nd: uni.ReportStmt) -> None {
+    if not nd.from_walker {
+        self.log_warning(
+            "'report' used outside a walker context. Use 'print()' instead.",
+            node_override=nd
+        );
+    }
     nd.gen.py_ast = [
         self.sync(
             ast3.Expr(
@@ -1910,6 +1916,13 @@ impl PyastGenPass.exit_yield_expr(self: PyastGenPass, nd: uni.YieldExpr) -> None
 }
 
 impl PyastGenPass.exit_visit_stmt(self: PyastGenPass, nd: uni.VisitStmt) -> None {
+    if not nd.from_walker {
+        self.log_error(
+            "'visit' can only be used inside a walker ability.", node_override=nd
+        );
+        nd.gen.py_ast = [self.sync(ast3.Pass())];
+        return;
+    }
     loc = self.sync(
         ast3.Name(id='self', ctx=ast3.Load())
         if nd.from_walker
@@ -1950,6 +1963,14 @@ impl PyastGenPass.exit_visit_stmt(self: PyastGenPass, nd: uni.VisitStmt) -> None
 impl PyastGenPass.exit_disengage_stmt(
     self: PyastGenPass, nd: uni.DisengageStmt
 ) -> None {
+    if not nd.from_walker {
+        self.log_error(
+            "'disengage' can only be used inside a walker ability. Use 'return' to exit a function.",
+            node_override=nd
+        );
+        nd.gen.py_ast = [self.sync(ast3.Pass())];
+        return;
+    }
     loc = self.sync(
         ast3.Name(id='self', ctx=ast3.Load())
         if nd.from_walker

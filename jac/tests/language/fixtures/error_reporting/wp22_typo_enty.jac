@@ -1,0 +1,3 @@
+with enty {
+    print("Hello");
+}

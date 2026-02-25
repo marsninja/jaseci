@@ -1,5 +1,6 @@
 """Jac Semantic Analysis Pass."""
 import ast as ast3;
+import re;
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok }
@@ -20,5 +21,25 @@ class SemanticAnalysisPass(UniPass) {
     """Mark final element in trailer chain as a Store context."""
     def _change_atom_trailer_ctx(
         self: SemanticAnalysisPass, nd: uni.AtomTrailer
+    ) -> None;
+
+    """Warn about missing return type annotations."""
+    def enter_ability(self: SemanticAnalysisPass, nd: uni.Ability) -> None;
+
+    """Warn about wrong type names and missing f-string prefix."""
+    def exit_string(self: SemanticAnalysisPass, nd: uni.String) -> None;
+
+    """Warn about wrong type names like 'string' instead of 'str'."""
+    def enter_sub_tag(self: SemanticAnalysisPass, nd: uni.SubTag) -> None;
+
+    """Warn when await is used outside an async function."""
+    def enter_await_expr(self: SemanticAnalysisPass, nd: uni.AwaitExpr) -> None;
+
+    """Warn when function returns JsxElement without cl prefix."""
+    def exit_ability(self: SemanticAnalysisPass, nd: uni.Ability) -> None;
+
+    """Warn about string literals in event handler attributes."""
+    def exit_jsx_normal_attribute(
+        self: SemanticAnalysisPass, nd: uni.JsxNormalAttribute
     ) -> None;
 }

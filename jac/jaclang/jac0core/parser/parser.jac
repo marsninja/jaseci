@@ -387,6 +387,7 @@ obj Parser {
     def consume_uni(kind: TokenKind) -> UniToken;
     def expect_name -> Token;
     def error(message: str);
+    def error_with_hint(message: str, hint: str);
     def error_at(message: str, loc: SourceLoc);
     def warn_at(message: str, loc: SourceLoc);
     def make_uni_token(tok: Token) -> UniToken;
@@ -404,6 +405,7 @@ obj Parser {
     def gen_token(tok_type: str, value: str | None = None) -> UniToken;
     def make_semi -> Semi;
     def synchronize;
+    def synchronize_to_brace;
     def parse -> Module;
     def parse_module -> Module;
     def parse_expression -> Expr;

@@ -253,6 +253,29 @@ impl Parser.error(message: str) {
     }
 }
 
+impl Parser.error_with_hint(message: str, hint: str) {
+    full_msg = f"{message}\n  Hint: {hint}";
+    sloc = self.current().loc;
+    self.errors.append(ParseError(message=full_msg, loc=sloc));
+    if self.prog is not None and hasattr(self.prog, "errors_had") {
+        source = self.get_source();
+        tok = UniToken(
+            orig_src=source,
+            name="ERROR",
+            value="",
+            line=sloc.line,
+            end_line=sloc.end_line,
+            col_start=sloc.col_start,
+            col_end=sloc.col_end,
+            pos_start=sloc.pos_start,
+            pos_end=sloc.pos_end
+        );
+        loc = CodeLocInfo(tok, tok);
+        alrt = Alert(full_msg, loc, Parser);
+        self.prog.errors_had.append(alrt);
+    }
+}
+
 impl Parser.error_at(message: str, loc: SourceLoc) {
     self.errors.append(ParseError(message=message, loc=loc));
     if self.prog is not None and hasattr(self.prog, "errors_had") {
@@ -679,6 +702,26 @@ impl Parser.synchronize{
             TokenKind.RBRACE,
             TokenKind.SEMI
         ) {
+            return;
+        }
+        self.advance();
+    }
+}
+
+impl Parser.synchronize_to_brace{
+    # Skip tokens until matching '}' at nesting depth 0 or a semicolon.
+    # Used for recovery from errors inside archetype bodies.
+    depth = 0;
+    while not self.at_end() {
+        if self.check(TokenKind.LBRACE) {
+            depth += 1;
+        } elif self.check(TokenKind.RBRACE) {
+            if depth == 0 {
+                return;
+            }
+            depth -= 1;
+        } elif self.check(TokenKind.SEMI) and depth == 0 {
+            self.advance();  # consume the semicolon
             return;
         }
         self.advance();
@@ -3024,6 +3067,8 @@ impl Parser.parse_jsx_element -> Expr {
     # Parse attributes
     attrs = self.parse_jsx_attributes();
     open_kid.extend(attrs);
+    # Build the opening tag name as a string for later comparison
+    open_tag_name = ".".join([p.value for p in name_parts]);
     # Check for self-closing: />
     if self.check(TokenKind.JSX_SELF_CLOSE) {
         self.advance();
@@ -3035,6 +3080,17 @@ impl Parser.parse_jsx_element -> Expr {
             is_self_closing=True,
             is_fragment=False,
             kid=open_kid
+        );
+    }
+    # Fix B: Detect void HTML elements that need self-closing in JSX
+    _JSX_VOID_ELEMENTS = {"input","br","hr","img","meta","link","area","base","col","embed","source","track","wbr"};
+    if (
+        self.check(TokenKind.JSX_TAG_END)
+        and open_tag_name.lower() in _JSX_VOID_ELEMENTS
+    ) {
+        self.error_with_hint(
+            f"'<{open_tag_name}>' is a void element and must be self-closed in JSX",
+            f"Use '<{open_tag_name} ... />' instead of '<{open_tag_name} ...>'"
         );
     }
     # Regular element with children
@@ -3067,6 +3123,14 @@ impl Parser.parse_jsx_element -> Expr {
         close_name_kid.append(cn);
     }
     close_elem_name = JsxElementName(parts=close_parts, kid=close_name_kid);
+    # Fix A: Detect mismatched JSX closing tag
+    close_tag_name = ".".join([p.value for p in close_parts]);
+    if close_tag_name != open_tag_name {
+        self.error_with_hint(
+            f"Closing tag '</{close_tag_name}>' does not match opening tag '<{open_tag_name}>'",
+            f"Did you mean '</{open_tag_name}>'?"
+        );
+    }
     close_kid.append(close_elem_name);
     close_kid.append(self.consume_uni(TokenKind.JSX_TAG_END));
     closing = JsxElement(
@@ -3187,6 +3251,19 @@ impl Parser.parse_jsx_child -> Expr {
     if self.check(TokenKind.LBRACE) {
         lbrace = self.advance();  # consume {
         lbrace_uni = self.make_uni_token(lbrace);
+        # Fix C: Detect imperative `{ if ... }` and `{ for ... }` in JSX
+        if self.check(TokenKind.KW_IF) {
+            self.error_with_hint(
+                "Statements are not allowed inside JSX expressions",
+                "Use a conditional expression instead: " + "{( <element /> ) if condition else None}"
+            );
+        }
+        if self.check(TokenKind.KW_FOR) {
+            self.error_with_hint(
+                "Statements are not allowed inside JSX expressions",
+                "Use a list comprehension instead: " + "{[ <element /> for item in list ]}"
+            );
+        }
         expr = self.parse_expression();
         rbrace_uni = self.consume_uni(TokenKind.RBRACE);
         kid: list = [lbrace_uni, expr, rbrace_uni];
@@ -3481,6 +3558,70 @@ impl Parser.parse_element_stmt{
         }
         return self.parse_archetype();
     }
+    # Provide specific suggestions for common module-level mistakes
+    cur = self.current();
+    if self.check(TokenKind.NAME) {
+        # Check for function call at module level: name(...)
+        save_pos = self.pos;
+        name_val = cur.value;
+        self.advance();
+        if self.check(TokenKind.LPAREN) {
+            self.pos = save_pos;
+            self.error_with_hint(
+                f"Unexpected '{name_val}(...)' at module level",
+                "Executable code must be inside a 'with entry { ... }' block."
+            );
+            self.synchronize();
+            return EmptyToken();
+        }
+        # Check for assignment at module level: name = ...
+        if self.check(TokenKind.EQ) {
+            self.pos = save_pos;
+            self.error_with_hint(
+                f"Unexpected assignment at module level",
+                f"Module-level variables require 'glob'. Write: glob {name_val} = <value>;"
+            );
+            self.synchronize();
+            return EmptyToken();
+        }
+        # Check for type annotation at module level: name: type
+        if self.check(TokenKind.COLON) {
+            self.pos = save_pos;
+            self.error_with_hint(
+                f"Unexpected declaration at module level",
+                f"Module-level variables require 'glob'. Write: glob {name_val}: <type> = <value>;"
+            );
+            self.synchronize();
+            return EmptyToken();
+        }
+        self.pos = save_pos;
+    }
+    # Python-style 'from X import Y'
+    if self.check(TokenKind.KW_FROM) {
+        self.error_with_hint(
+            "Unexpected 'from' at module level",
+            "Python-style 'from X import Y' is not supported. Use: import:py from X { Y }"
+        );
+        self.synchronize();
+        return EmptyToken();
+    }
+    # 'pub/priv/prot' before def/can (should be def:pub)
+    if self.check_any(TokenKind.KW_PUB, TokenKind.KW_PRIV, TokenKind.KW_PROT) {
+        access_val = cur.value;
+        save_pos = self.pos;
+        self.advance();
+        if self.check_any(TokenKind.KW_DEF, TokenKind.KW_CAN) {
+            ability_kw = self.current().value;
+            self.pos = save_pos;
+            self.error_with_hint(
+                f"'{access_val} {ability_kw}' is not valid Jac syntax",
+                f"Access tags go after the keyword with a colon. Write: {ability_kw}:{access_val} <name>(...)"
+            );
+            self.synchronize();
+            return EmptyToken();
+        }
+        self.pos = save_pos;
+    }
     self.error(f"Unexpected token '{self.current().value}'");
     self.synchronize();
     return EmptyToken();
@@ -3591,6 +3732,27 @@ impl Parser.parse_module_code -> ModuleCode {
     } elif self.check(TokenKind.KW_ENTRY) {
         name_tok = self.advance();
         name = self.make_uni_token(name_tok);
+    } elif self.check(TokenKind.NAME) {
+        # Did-you-mean for common typos of 'entry'/'exit'
+        typo_map: dict = {
+            "enty": "entry",
+            "entr": "entry",
+            "etry": "entry",
+            "entre": "entry",
+            "enrty": "entry",
+            "netry": "entry",
+            "exti": "exit",
+            "eixt": "exit",
+            "exiy": "exit"
+        };
+        cur_val = self.current().value;
+        if cur_val in typo_map {
+            suggestion = typo_map[cur_val];
+            self.error_with_hint(
+                f"Unknown keyword '{cur_val}' after 'with'",
+                f"Did you mean '{suggestion}'? Write: with {suggestion} {{ ... }}"
+            );
+        }
     }
     # Check for optional :NAME after entry/exit (e.g., with entry:__main__)
     if self.match_tok(TokenKind.COLON) {
@@ -3883,6 +4045,11 @@ impl Parser.parse_statement{
             pos_start=prev.loc.pos_start,
             pos_end=prev.loc.pos_end
         );
+    } else {
+        # Warn about missing semicolon (unless next token is } or EOF)
+        if not self.at_end() and not self.check(TokenKind.RBRACE) {
+            self.warn_at("Missing semicolon at end of statement.", self.previous().loc);
+        }
     }
     expr_kid: list = [expr];
     if semi_tok is not None {
@@ -3935,6 +4102,31 @@ impl Parser.parse_elif_stmt -> ElseIf {
 
 impl Parser.parse_else_stmt -> ElseStmt {
     else_uni = self.consume_uni(TokenKind.KW_ELSE);
+    # Detect 'else if' pattern (should be 'elif')
+    if self.check(TokenKind.KW_IF) {
+        self.error_with_hint(
+            "'else if' is not valid Jac syntax", "Use 'elif' instead of 'else if'."
+        );
+        # Recover: parse as elif
+        self.advance();  # consume 'if'
+        condition = self.parse_expression();
+        lb_uni = self.consume_uni(TokenKind.LBRACE);
+        body = self.parse_code_block_stmts();
+        rb_uni = self.consume_uni(TokenKind.RBRACE);
+        else_body = None;
+        if self.check(TokenKind.KW_ELIF) {
+            else_body = self.parse_elif_stmt();
+        } elif self.check(TokenKind.KW_ELSE) {
+            else_body = self.parse_else_stmt();
+        }
+        kid: list = [else_uni, condition, lb_uni];
+        kid.extend(body);
+        kid.append(rb_uni);
+        if else_body {
+            kid.append(else_body);
+        }
+        return ElseIf(condition=condition, body=body, else_body=else_body, kid=kid);
+    }
     lb_uni = self.consume_uni(TokenKind.LBRACE);
     body = self.parse_code_block_stmts();
     rb_uni = self.consume_uni(TokenKind.RBRACE);
@@ -5313,11 +5505,51 @@ impl Parser.parse_archetype_member{
             kid.append(rb_uni);
             return ModuleCode(name=None, body=body, kid=kid, doc=None);
         }
+        # Did-you-mean for common typos of 'entry'/'exit'
+        if self.check(TokenKind.NAME) {
+            typo_map: dict = {
+                "enty": "entry",
+                "entr": "entry",
+                "etry": "entry",
+                "entre": "entry",
+                "enrty": "entry",
+                "netry": "entry",
+                "exti": "exit",
+                "eixt": "exit",
+                "exiy": "exit"
+            };
+            cur_val = self.current().value;
+            if cur_val in typo_map {
+                suggestion = typo_map[cur_val];
+                self.error_with_hint(
+                    f"Unknown keyword '{cur_val}' after 'with'",
+                    f"Did you mean '{suggestion}'? Write: with {suggestion} {{ ... }}"
+                );
+                self.synchronize();
+                return EmptyToken();
+            }
+        }
     }
     # Check for 'pass' keyword specifically
     if self.check(TokenKind.NAME) and self.current().value == "pass" {
         self.error("'pass' keyword is not allowed in Jac");
         self.error("Jac does not allow this keyword in any syntactic position");
+    } elif self.check(TokenKind.NAME) {
+        # Detect NAME COLON pattern (likely missing 'has' keyword)
+        field_name = self.current().value;
+        save_pos = self.pos;
+        self.advance();
+        if self.check(TokenKind.COLON) {
+            self.pos = save_pos;
+            self.error_with_hint(
+                f"Unexpected identifier '{field_name}' in archetype body",
+                f"Field declarations require 'has'. Write: has {field_name}: <type>"
+            );
+            self.synchronize_to_brace();
+            return EmptyToken();
+        }
+        self.pos = save_pos;
+        self.error("Unexpected token in archetype body");
     } else {
         self.error("Unexpected token in archetype body");
     }
@@ -5492,6 +5724,14 @@ impl Parser.parse_ability -> Ability {
         name = self.make_special_name(name_tok);
     }
     signature: FuncSignature | EventSignature;
+    # Detect 'def name with ...' (should be 'can name with ...')
+    if not is_can and self.check(TokenKind.KW_WITH) {
+        self.error_with_hint(
+            "'def' cannot define event-based abilities",
+            "Use 'can' for walker event handlers: can <name> with <Type> entry { ... }"
+        );
+        is_can = True;  # Recover by treating as 'can'
+    }
     if is_can and self.check(TokenKind.KW_WITH) {
         with_uni = self.make_uni_token(self.advance());
         event_type = self.parse_expression()
@@ -5523,6 +5763,14 @@ impl Parser.parse_ability -> Ability {
     body_rb_uni = None;
     body_by_uni = None;
     body_abs_uni = None;
+    # Detect Python-style colon instead of brace for function body
+    if self.check(TokenKind.COLON) and not is_can {
+        self.error_with_hint(
+            "Expected '{' to open function body, got ':'",
+            "Jac uses curly braces for blocks, not colons. Write: def name() -> Type { ... }"
+        );
+        self.advance();  # consume the colon
+    }
     if self.match_tok(TokenKind.LBRACE) {
         body_type = "brace";
         body_lb_uni = self.make_uni_token(self.previous());
@@ -5862,6 +6110,14 @@ impl Parser.parse_enum -> Enum {
     has_body = False;
     enum_lb_uni: UniToken | None = None;
     enum_rb_uni: UniToken | None = None;
+    # Detect Python-style enum with colon instead of braces
+    if self.check(TokenKind.COLON) {
+        self.error_with_hint(
+            "Expected '{' to open enum body, got ':'",
+            f"Jac enums use braces: enum {name.value} {{ MEMBER1, MEMBER2 }}"
+        );
+        self.advance();  # consume the colon
+    }
     if self.match_tok(TokenKind.LBRACE) {
         has_body = True;
         enum_lb_uni = self.make_uni_token(self.previous());

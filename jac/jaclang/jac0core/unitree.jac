@@ -1116,7 +1116,7 @@ class DeleteStmt(CodeBlockStmt) {
 }
 
 """ReportStmt node type for Jac Ast."""
-class ReportStmt(CodeBlockStmt) {
+class ReportStmt(WalkerStmtOnlyNode, CodeBlockStmt) {
     def init(self: ReportStmt, expr: Expr, kid: Sequence[UniNode]) -> None;
 }
 

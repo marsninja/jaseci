@@ -1,0 +1,3 @@
+with entry {
+    report "hello";
+}

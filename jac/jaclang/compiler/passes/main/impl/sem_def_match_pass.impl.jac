@@ -15,6 +15,11 @@ impl SemDefMatchPass.connect_sems(
         if (target_sym is not None) {
             target_sym.decl.name_of.semstr = semdef.value.lit_value;
             target_sym.semstr = semdef.value.lit_value;
+        } else {
+            self.log_warning(
+                f"Semantic hint for '{sym.sym_name}' references a non-existent symbol.",
+                node_override=semdef
+            );
         }
     }
 }

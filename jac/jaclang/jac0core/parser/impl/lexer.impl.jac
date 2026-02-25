@@ -845,7 +845,12 @@ impl Lexer.scan_jsx_content -> Token {
     # is handled downstream by JsxText.get_normalized_text(). Whitespace-only
     # text nodes are filtered by the parser.
     if self.at_end() {
-        self.error("Unexpected end of JSX content", self.line, self.col, self.pos);
+        self.error(
+            f"Unexpected end of file inside JSX content (unclosed JSX tag, {self.jsx_depth} tag(s) still open). " + "Ensure all JSX tags are properly closed: <Tag>...</Tag> or <Tag />",
+            self.line,
+            self.col,
+            self.pos
+        );
         return self.make_token(TokenKind.ERROR, "", self.line, self.col, self.pos);
     }
     start_line = self.line;
@@ -934,7 +939,12 @@ impl Lexer.scan_jsx_content -> Token {
         );
     }
     # Empty - shouldn't happen
-    self.error("Unexpected end of JSX content", start_line, start_col, start_pos);
+    self.error(
+        f"Unexpected end of JSX content ({self.jsx_depth} tag(s) still open). " + "Ensure all JSX tags are properly closed.",
+        start_line,
+        start_col,
+        start_pos
+    );
     return self.make_token(TokenKind.ERROR, "", start_line, start_col, start_pos);
 }
 
@@ -1026,6 +1036,37 @@ impl Lexer.scan_regular_token -> Token {
     # Check for keyword-escaped name: `identifier (backtick prefix)
     if ch == "`" and self.is_alpha(self.peek()) {
         return self.scan_kwesc_name();
+    }
+    # Backtick not followed by alpha — likely template string from JS/Python
+    if ch == "`" {
+        start_line = self.line;
+        start_col = self.col;
+        start_pos = self.pos;
+        self.advance();  # consume opening backtick
+        content = "";
+        while not self.at_end() and self.current() != "`" {
+            content += self.current();
+            self.advance();
+        }
+        if not self.at_end() {
+            self.advance();  # consume closing backtick
+        }
+        self.error(
+            "Backtick strings are not supported in Jac. Use f-strings with double or single quotes instead.",
+            start_line,
+            start_col,
+            start_pos
+        );
+        return Token(
+            name=Tok.STRING.value,
+            value=f'"{content}"',
+            line=start_line,
+            end_line=self.line,
+            col_start=start_col,
+            col_end=self.col,
+            pos_start=start_pos,
+            pos_end=self.pos
+        );
     }
     # Operators and delimiters
     return self.scan_operator();
@@ -1588,12 +1629,11 @@ impl Lexer.tokenize -> list[Token] {
         # ERROR tokens without producing EOF or advancing the position.
         if self.pos == last_pos or self.pos > self._source_len {
             mode = self.current_mode();
-            self.error(
-                f"Lexer stuck at EOF in mode {mode} (pos={self.pos})",
-                self.line,
-                self.col,
-                self.pos
-            );
+            hint = "";
+            if mode == LexerMode.JSX_TAG or mode == LexerMode.JSX_CONTENT {
+                hint = f" — {self.jsx_depth} JSX tag(s) still open. Check for unclosed tags.";
+            }
+            self.error(f"Unexpected end of file{hint}", self.line, self.col, self.pos);
             tokens.append(
                 Token(
                     kind=TokenKind.EOF,

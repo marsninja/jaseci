@@ -1,0 +1,10 @@
+with entry {
+    x = 5;
+    if x > 10 {
+        print("big");
+    } else if x > 3 {
+        print("medium");
+    } else {
+        print("small");
+    }
+}
