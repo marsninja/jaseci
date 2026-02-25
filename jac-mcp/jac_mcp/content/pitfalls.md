@@ -279,7 +279,7 @@ with entry {
 ```jac
 # Connect nodes
 a ++> b;                    # default edge
-a +[MyEdge(weight=2.0)]+> b;  # typed edge
+a +>:MyEdge(weight=2.0):+> b;  # typed edge
 
 # Traverse
 visit [-->];           # visit all connected nodes

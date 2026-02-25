@@ -119,8 +119,9 @@ with entry {
     la = City(name="Los Angeles", population=3_900_000);
     chi = City(name="Chicago", population=2_700_000);
 
-    nyc +[Road(distance=790.0)]+> chi;
-    chi +[Road(distance=2015.0)]+> la;
+    root ++> nyc;
+    nyc +>:Road(distance=790.0):+> chi;
+    chi +>:Road(distance=2015.0):+> la;
 
     explorer = root spawn Explorer();
 }
@@ -149,9 +150,9 @@ with entry {
     bob = User(username="bob", bio="Designer");
     carol = User(username="carol", bio="Manager");
 
-    alice +[Follows(since="2024-01")]+> bob;
-    alice +[Follows(since="2024-03")]+> carol;
-    bob +[Follows(since="2024-02")]+> carol;
+    alice +>:Follows(since="2024-01"):+> bob;
+    alice +>:Follows(since="2024-03"):+> carol;
+    bob +>:Follows(since="2024-02"):+> carol;
 }
 ```
 
