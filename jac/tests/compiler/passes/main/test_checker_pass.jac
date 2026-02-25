@@ -1634,3 +1634,48 @@ test "match_type_narrowing" {
         program.errors_had[1].pretty_print()
     );
 }
+
+"""Test union of subclasses assignable to base class (match narrowing support)."""
+test "union_subclass_to_base_assignment" {
+    program = JacProgram();
+    mod = program.compile(os.path.join(FIXTURES, "checker_match_narrowing.jac"));
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    # Should have exactly 1 error (E1 - wrong type inside match case)
+    assert len(program.errors_had) == 1 , f"Expected exactly 1 type error, but got " + f"{len(
+        program.errors_had
+    )}:\n" + "\n---\n".join(err.pretty_print() for err in program.errors_had);
+
+    assert_error_pretty_found(
+        """
+        c: Cat = animal;  # <-- Error: Dog cannot assign to Cat
+    """,
+        program.errors_had[0].pretty_print()
+    );
+}
+
+"""Test compound AND narrowing picks most specific type."""
+test "compound_and_narrowing" {
+    program = JacProgram();
+    mod = program.compile(os.path.join(FIXTURES, "checker_and_narrowing.jac"));
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    # All positive cases should pass. E1 (attribute error after if block) is not
+    # reported because "has no attribute" errors are disabled in the type evaluator.
+    # TODO: Re-enable when attribute error reporting is fixed for generics.
+    assert len(program.errors_had) == 0 , f"Expected no type errors, but got " + f"{len(
+        program.errors_had
+    )}:\n" + "\n---\n".join(err.pretty_print() for err in program.errors_had);
+}
+
+"""Test assert isinstance type narrowing."""
+test "assert_isinstance_narrowing" {
+    program = JacProgram();
+    mod = program.compile(os.path.join(FIXTURES, "checker_assert_narrowing.jac"));
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    # All cases should pass - assert isinstance narrows the type
+    assert len(program.errors_had) == 0 , f"Expected no type errors, but got " + f"{len(
+        program.errors_had
+    )}:\n" + "\n---\n".join(err.pretty_print() for err in program.errors_had);
+}
