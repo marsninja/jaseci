@@ -4,6 +4,9 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.11.2 (Unreleased)
 
+- **Fix: Native Global Pointer Variables Collected by GC**: MCJIT global variables (e.g. `glob WHITE_SYMBOLS: dict[...]`) live outside Boehm GC's scanned memory, causing global dicts/lists/objects to be freed after enough allocations trigger a collection. Fixed by emitting `GC_add_roots` calls for every pointer-typed global after initialization.
+- **Fix: Native Dict Tuple Key Comparison**: Dict key comparison for tuple/struct pointer types used pointer equality instead of structural comparison, so two separately-allocated tuples with the same values would never match. Fixed by using `memcmp` for tuple keys, matching the existing pattern in set helpers.
+
 ## jaclang 0.11.1 (Latest Release)
 
 - **Perf: Type Narrowing Optimization**: Fixed exponential slowdown in `jac check` with many `if` statements (~1 min → ~2s). Member access now uses narrowed types and reports errors for invalid attribute access on `None`.
