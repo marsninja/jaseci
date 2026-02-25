@@ -1006,9 +1006,6 @@ class ESListEmitter(ListEmitter[
     }
 
     def emit_index(self, ctx: ESEmitCtx, target: str, args: list[str]) -> (str | None) {
-        if len(args) == 1 {
-            return _mcall(target, "indexOf", args);
-        }
         return _rt("list", "index", [target] + args);
     }
 
@@ -1438,9 +1435,6 @@ class ESTupleEmitter(TupleEmitter[(str, ESEmitCtx)]) {
     }
 
     def emit_index(self, ctx: ESEmitCtx, target: str, args: list[str]) -> (str | None) {
-        if len(args) == 1 {
-            return _mcall(target, "indexOf", args);
-        }
         return _rt("tuple", "index", [target] + args);
     }
 
