@@ -5,7 +5,7 @@ obj Animal {
         species: str,
         age: int = 0;
 
-    can describe -> str {
+    def describe -> str {
         return f"{self.name} is a {self.species}, age {self.age}";
     }
 }
