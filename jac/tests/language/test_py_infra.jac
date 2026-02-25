@@ -20,7 +20,6 @@ import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution, transform }
-import from jaclang.jac0core.bccache { get_global_cache_dir }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.main { PyastBuildPass }
 import from jaclang.runtimelib.utils { read_file_with_encoding }
@@ -277,8 +276,8 @@ test "deep imports interp mode" {
             del sys.modules[mod_name];
         }
     }
-    # Delete bytecode cache files to force recompilation (from global cache dir)
-    cache_dir = get_global_cache_dir();
+    # Delete bytecode cache files to force recompilation (from CWD cache dir)
+    cache_dir = Path.cwd() / '.jac' / 'cache' / 'bytecode';
     if cache_dir.exists() {
         for cache_file in cache_dir.glob("*deep_import*") {
             cache_file.unlink();

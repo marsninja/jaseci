@@ -2,10 +2,9 @@
 
 This module provides disk-based caching for compiled Jac bytecode,
 similar to Python's __pycache__ mechanism. Cache files are stored
-in a global user cache directory following platform conventions:
-- Linux:   ~/.cache/jac/bytecode/
-- macOS:   ~/Library/Caches/jac/bytecode/
-- Windows: %LOCALAPPDATA%/jac/cache/bytecode/
+in a local .jac/cache/bytecode/ directory under the current working
+directory. This is only used during editable installs; regular
+installs use precompiled bytecode bundled in the PyPI package.
 """
 import hashlib;
 import marshal;
@@ -15,34 +14,7 @@ import sys;
 import types;
 import from pathlib { Path }
 import from dataclasses { dataclass }
-import from typing { TYPE_CHECKING, Any, Final }
-
-with entry {
-    if TYPE_CHECKING {
-        import from jaclang.project.config { JacConfig }
-    }
-}
-
-"""Get the platform-appropriate global cache directory for Jac bytecode.
-
-    Returns:
-        Path to the global cache directory:
-        - Linux:   ~/.cache/jac/bytecode/ (respects XDG_CACHE_HOME)
-        - macOS:   ~/Library/Caches/jac/bytecode/
-        - Windows: %LOCALAPPDATA%/jac/cache/bytecode/
-    """
-def get_global_cache_dir -> Path {
-    if (sys.platform == 'win32') {
-        base = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local'));
-        return (base / 'jac' / 'cache' / 'bytecode');
-    } elif (sys.platform == 'darwin') {
-        return Path.home() / 'Library' / 'Caches' / 'jac' / 'bytecode';
-    } else {
-        xdg_cache = os.environ.get('XDG_CACHE_HOME');
-        base = Path(xdg_cache) if xdg_cache else (Path.home() / '.cache');
-        return base / 'jac' / 'bytecode';
-    }
-}
+import from typing { Any, Final }
 
 """Discover annex files (.impl.jac, .test.jac) for a source .jac or .cl.jac file.
 
@@ -234,22 +206,21 @@ class BytecodeCache {
     }
 }
 
-"""Disk-based bytecode cache using a global user cache directory.
+"""Disk-based bytecode cache using a local CWD-relative directory.
 
-    Cache files are stored in a platform-appropriate global location:
-    - Linux:   ~/.cache/jac/bytecode/
-    - macOS:   ~/Library/Caches/jac/bytecode/
-    - Windows: %LOCALAPPDATA%/jac/cache/bytecode/
+    Cache files are stored in .jac/cache/bytecode/ under the current
+    working directory. This is only relevant for editable (dev) installs;
+    regular installs use precompiled bytecode bundled in the PyPI package.
 
     Filenames include a path hash and Python version
-    to ensure uniqueness across different projects and avoid conflicts.
+    to ensure uniqueness and avoid conflicts.
 
     Example:
         source:  /project/src/main.jac
-        cache:   ~/.cache/jac/bytecode/main.a1b2c3d4.cpython-312.jbc
-                 ~/.cache/jac/bytecode/main.a1b2c3d4.cpython-312.mtir.pkl
-                 ~/.cache/jac/bytecode/main.a1b2c3d4.cpython-312.llvmir  (native modules)
-                 ~/.cache/jac/bytecode/main.a1b2c3d4.cpython-312.interop.pkl  (native interop)
+        cache:   .jac/cache/bytecode/main.a1b2c3d4.cpython-312.jbc
+                 .jac/cache/bytecode/main.a1b2c3d4.cpython-312.mtir.pkl
+                 .jac/cache/bytecode/main.a1b2c3d4.cpython-312.llvmir  (native modules)
+                 .jac/cache/bytecode/main.a1b2c3d4.cpython-312.interop.pkl  (native interop)
     """
 class DiskBytecodeCache(BytecodeCache) {
     with entry {
@@ -259,18 +230,17 @@ class DiskBytecodeCache(BytecodeCache) {
         INTEROP_EXTENSION: Final[str] = '.interop.pkl';
     }
 
-    """Initialize the cache with optional config."""
-    def init(self: DiskBytecodeCache, config: (JacConfig | None) = None) -> None {
-        self._config = config;
+    """Initialize the cache."""
+    def init(self: DiskBytecodeCache) -> None {
         self._cache_dir: (Path | None) = None;
     }
 
-    """Get the global cache directory."""
+    """Get the CWD-local cache directory."""
     def _get_cache_dir(self: DiskBytecodeCache) -> Path {
         if (self._cache_dir is not None) {
             return self._cache_dir;
         }
-        self._cache_dir = get_global_cache_dir();
+        self._cache_dir = Path.cwd() / '.jac' / 'cache' / 'bytecode';
         return self._cache_dir;
     }
 

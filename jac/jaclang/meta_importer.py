@@ -32,23 +32,10 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 #
 # jac0core .jac files are transpiled by jac0 on every invocation.  Caching
 # the resulting bytecode avoids ~200 ms of repeated work when the sources
-# haven't changed.  The cache lives next to the regular bytecode cache
-# (e.g. ~/.cache/jac/bootstrap/) and is keyed on a SHA-256 digest of all
+# haven't changed.  The cache lives in .jac/cache/bootstrap/ under
+# the current working directory and is keyed on a SHA-256 digest of all
 # source inputs plus the Python version.
 # ---------------------------------------------------------------------------
-
-
-def _get_bootstrap_cache_dir() -> Path:
-    """Return the platform-appropriate bootstrap cache directory."""
-    if sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-        return base / "jac" / "cache" / "bootstrap"
-    elif sys.platform == "darwin":
-        return Path.home() / "Library" / "Caches" / "jac" / "bootstrap"
-    else:
-        xdg = os.environ.get("XDG_CACHE_HOME")
-        base = Path(xdg) if xdg else (Path.home() / ".cache")
-        return base / "jac" / "bootstrap"
 
 
 def _bootstrap_compile(
@@ -69,7 +56,8 @@ def _bootstrap_compile(
 
     # Derive a human-readable cache filename
     base_name = os.path.splitext(os.path.basename(file_path))[0]
-    cache_file = _get_bootstrap_cache_dir() / f"{base_name}.{digest}.bc"
+    cache_dir = Path.cwd() / ".jac" / "cache" / "bootstrap"
+    cache_file = cache_dir / f"{base_name}.{digest}.bc"
 
     # Try loading from cache
     if cache_file.is_file():
