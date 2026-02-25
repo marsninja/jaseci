@@ -23,12 +23,10 @@ glob registry = get_registry();
             default="",
             help="Output binary path (defaults to filename without extension)"
         ),
-
     ],
     examples=[
         ("jac nacompile program.na.jac", "Compile to ./program"),
         ("jac nacompile program.na.jac -o mybin", "Compile to ./mybin"),
-
     ],
     group="transform"
 )

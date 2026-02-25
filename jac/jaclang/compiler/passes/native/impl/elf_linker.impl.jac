@@ -7,32 +7,42 @@ ELF executable with dynamic linking against libc/libgc.
 import struct;
 import os;
 
-# ── ELF constants ────────────────────────────────────────────────
+# ── ELF header ───────────────────────────────────────────────────
 glob ELFMAG = b"\x7fELF",
      ELFCLASS64 = 2,
      ELFDATA2LSB = 1,
      ET_EXEC = 2,
-     EM_X86_64 = 62,
-     SHT_NULL = 0,
+     EM_X86_64 = 62;
+
+# ── Section header types ─────────────────────────────────────────
+glob SHT_NULL = 0,
      SHT_PROGBITS = 1,
      SHT_SYMTAB = 2,
      SHT_STRTAB = 3,
      SHT_RELA = 4,
      SHT_HASH = 5,
      SHT_DYNAMIC = 6,
-     SHT_DYNSYM = 11,
-     SHF_WRITE = 0x1,
+     SHT_DYNSYM = 11;
+
+# ── Section flags ────────────────────────────────────────────────
+glob SHF_WRITE = 0x1,
      SHF_ALLOC = 0x2,
-     SHF_EXECINSTR = 0x4,
-     PT_NULL = 0,
+     SHF_EXECINSTR = 0x4;
+
+# ── Program header types ─────────────────────────────────────────
+glob PT_NULL = 0,
      PT_LOAD = 1,
      PT_DYNAMIC = 2,
      PT_INTERP = 3,
-     PT_PHDR = 6,
-     PF_X = 0x1,
+     PT_PHDR = 6;
+
+# ── Program header flags ─────────────────────────────────────────
+glob PF_X = 0x1,
      PF_W = 0x2,
-     PF_R = 0x4,
-     DT_NULL = 0,
+     PF_R = 0x4;
+
+# ── Dynamic section tags ─────────────────────────────────────────
+glob DT_NULL = 0,
      DT_NEEDED = 1,
      DT_HASH = 4,
      DT_STRTAB = 5,
@@ -44,34 +54,38 @@ glob ELFMAG = b"\x7fELF",
      DT_PLTRELSZ = 2,
      DT_PLTREL = 20,
      DT_JMPREL = 23,
-     DT_RELA = 7,
-     R_X86_64_64 = 1,
+     DT_RELA = 7;
+
+# ── Relocation types (x86_64) ────────────────────────────────────
+glob R_X86_64_64 = 1,
      R_X86_64_PC32 = 2,
      R_X86_64_PLT32 = 4,
      R_X86_64_GOTPCREL = 9,
-     R_X86_64_JUMP_SLOT = 7,
-     STB_GLOBAL = 1,
+     R_X86_64_JUMP_SLOT = 7;
+
+# ── Symbol binding/type ──────────────────────────────────────────
+glob STB_GLOBAL = 1,
      STT_FUNC = 2,
      STT_NOTYPE = 0,
-     SHN_UNDEF = 0,
-     PAGE_SIZE = 0x1000,
+     SHN_UNDEF = 0;
+
+# ── Layout constants ─────────────────────────────────────────────
+glob PAGE_SIZE = 0x1000,
      BASE_VADDR = 0x400000,
      INTERP_PATH = b"/lib64/ld-linux-x86-64.so.2";
 
+
 # ── Helper: align to boundary ────────────────────────────────────
-def _align(
-    value: int, alignment: int
-) -> int {
+def _align(value: int, alignment: int) -> int {
     if alignment <= 1 {
         return value;
     }
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
+
 # ── Helper: build ELF string table ──────────────────────────────
-def _build_strtab(
-    strings: list[str]
-) -> tuple[bytes, dict[str, int]] {
+def _build_strtab(strings: list[str]) -> tuple[bytes, dict[str, int]] {
     """Build a string table and return (bytes, {name: offset})."""
     data = bytearray(b"\x00");  # First byte is null
     offsets: dict[str, int] = {};
@@ -84,10 +98,9 @@ def _build_strtab(
     return (bytes(data), offsets);
 }
 
+
 # ── Helper: build ELF hash table ────────────────────────────────
-def _elf_hash(
-    name: str
-) -> int {
+def _elf_hash(name: str) -> int {
     """Compute ELF hash for a symbol name."""
     h = 0;
     for c in name.encode("utf-8") {
@@ -100,6 +113,7 @@ def _elf_hash(
     }
     return h;
 }
+
 
 def _build_hash_table(num_symbols: int) -> bytes {
     """Build a minimal ELF hash table.
@@ -127,6 +141,7 @@ def _build_hash_table(num_symbols: int) -> bytes {
     return bytes(data);
 }
 
+
 # ── Parse the relocatable object ─────────────────────────────────
 impl ElfLinker.parse_object -> bool {
     raw = self.obj_data;
@@ -150,9 +165,9 @@ impl ElfLinker.parse_object -> bool {
         e_shstrndx
     ) = struct.unpack_from("<HHIQQQIHHHHHH", raw, 16);
     if e_type != 1 {  # Must be ET_REL
-
         return False;
     }
+
     # Parse section headers
     raw_sections: list[dict] = [];
     for i in range(e_shnum) {
@@ -184,9 +199,11 @@ impl ElfLinker.parse_object -> bool {
             }
         );
     }
+
     # Get section name string table
     shstrtab = raw_sections[e_shstrndx];
     shstrtab_data = raw[shstrtab["offset"]:shstrtab["offset"] + shstrtab["size"]];
+
     # Build section list
     self.sections = [];
     for rs in raw_sections {
@@ -196,7 +213,6 @@ impl ElfLinker.parse_object -> bool {
         sh_type = rs["type"];
         sh_size = rs["size"];
         if sh_type == 8 {  # SHT_NOBITS
-
             data = b"";
             mem_sz = sh_size;
         } else {
@@ -218,6 +234,7 @@ impl ElfLinker.parse_object -> bool {
             )
         );
     }
+
     # Parse symbol table
     self.symbols = [];
     symtab_sec = None;
@@ -235,9 +252,14 @@ impl ElfLinker.parse_object -> bool {
         else 0;
         for i in range(num_syms) {
             off = i * symtab_sec.entsize;
-            (st_name, st_info, st_other, st_shndx, st_value, st_size) = struct.unpack_from(
-                "<IBBHQQ", symtab_sec.data, off
-            );
+            (
+                st_name,
+                st_info,
+                st_other,
+                st_shndx,
+                st_value,
+                st_size
+            ) = struct.unpack_from("<IBBHQQ", symtab_sec.data, off);
             end = strtab_data.index(b"\x00", st_name);
             name = strtab_data[st_name:end].decode();
             self.symbols.append(
@@ -252,6 +274,7 @@ impl ElfLinker.parse_object -> bool {
             );
         }
     }
+
     # Parse relocations — include all .rela.* sections except eh_frame
     self.relocations = [];
     for sec in self.sections {
@@ -265,14 +288,14 @@ impl ElfLinker.parse_object -> bool {
             }
             num_relas = len(sec.data) // 24 if len(sec.data) >= 24 else 0;
             for i in range(num_relas) {
-                (r_offset, r_info, r_addend) = struct.unpack_from(
-                    "<QQq", sec.data, i * 24
-                );
+                (
+                    r_offset,
+                    r_info,
+                    r_addend
+                ) = struct.unpack_from("<QQq", sec.data, i * 24);
                 r_sym = r_info >> 32;
                 r_type = r_info & 0xFFFFFFFF;
-                sym_name = self.symbols[r_sym].name
-                if r_sym < len(self.symbols)
-                else "";
+                sym_name = self.symbols[r_sym].name if r_sym < len(self.symbols) else "";
                 self.relocations.append(
                     ElfRela(
                         offset=r_offset,
@@ -289,6 +312,7 @@ impl ElfLinker.parse_object -> bool {
     return True;
 }
 
+
 # ── Build the executable ─────────────────────────────────────────
 impl ElfLinker.build_executable -> bytes {
     # Collect code and data sections from the .o file
@@ -296,10 +320,12 @@ impl ElfLinker.build_executable -> bytes {
     rodata_blob = bytearray();
     data_blob = bytearray();
     bss_size = 0;
+
     # Maps: section name -> offset within its blob
-    code_sections: dict[str, tuple[int, int]] = {};  # name -> (offset_in_code, size)
+    code_sections: dict[str, tuple[int, int]] = {};   # name -> (offset_in_code, size)
     rodata_sections: dict[str, tuple[int, int]] = {};
     data_sections: dict[str, tuple[int, int]] = {};
+
     # Map from .o section index to (segment_type, offset_in_segment)
     section_placement: dict[int, tuple[str, int]] = {};
     sec_idx = 0;
@@ -344,6 +370,7 @@ impl ElfLinker.build_executable -> bytes {
         }
         sec_idx += 1;
     }
+
     # Identify external symbols (undefined, need dynamic linking)
     extern_syms: list[str] = [];
     local_sym_map: dict[str, tuple[str, int]] = {};  # name -> (segment, offset_in_segment)
@@ -367,6 +394,7 @@ impl ElfLinker.build_executable -> bytes {
         }
         sym_i += 1;
     }
+
     # ── Inject _start stub for CRT initialization ────────────────
     # If 'main' is defined and __libc_start_main is not already an extern,
     # add it so we can build a proper _start that uses libc's CRT init.
@@ -385,6 +413,7 @@ impl ElfLinker.build_executable -> bytes {
         # 48 bytes for the stub (will be patched after layout is known)
         code_data.extend(b"\x00" * 48);
     }
+
     # ── Layout ────────────────────────────────────────────────────
     # ELF header: 64 bytes
     # Program headers: 5 * 56 = 280 bytes
@@ -392,6 +421,7 @@ impl ElfLinker.build_executable -> bytes {
     ehdr_size = 64;
     num_phdrs = 5;  # PHDR, INTERP, LOAD (code), LOAD (data), DYNAMIC
     phdr_size = num_phdrs * 56;
+
     # Build interp
     interp_data = INTERP_PATH + b"\x00";
     # Check for fallback interp path
@@ -401,15 +431,16 @@ impl ElfLinker.build_executable -> bytes {
             interp_data = alt_interp + b"\x00";
         }
     }
+
     # Build dynamic string table
     dynstr_strings = [""] + extern_syms + self.needed_libs;
     (dynstr_data, dynstr_offsets) = _build_strtab(dynstr_strings);
+
     # Build dynamic symbol table (STN_UNDEF + one entry per extern)
     # Each entry: 24 bytes (Elf64_Sym)
     num_dynsyms = 1 + len(extern_syms);  # STN_UNDEF + externals
     dynsym_data = bytearray();
-    # STN_UNDEF
-    dynsym_data.extend(struct.pack("<IBBHQQ", 0, 0, 0, 0, 0, 0));
+    dynsym_data.extend(struct.pack("<IBBHQQ", 0, 0, 0, 0, 0, 0));  # STN_UNDEF
     for sym_name in extern_syms {
         st_name = dynstr_offsets.get(sym_name, 0);
         st_info = (STB_GLOBAL << 4) | STT_FUNC;
@@ -417,11 +448,14 @@ impl ElfLinker.build_executable -> bytes {
             struct.pack("<IBBHQQ", st_name, st_info, 0, SHN_UNDEF, 0, 0)
         );
     }
+
     # Build hash table
     hash_data = _build_hash_table(num_dynsyms);
+
     # Build .rela.plt (one R_X86_64_JUMP_SLOT per extern)
     # Actual offsets will be patched after layout
     rela_plt_data = bytearray();
+
     # Build PLT
     # PLT[0]: push [GOT+8]; jmp [GOT+16]
     # PLT[n]: jmp [GOT+24+8*n]; push n; jmp PLT[0]
@@ -433,20 +467,21 @@ impl ElfLinker.build_executable -> bytes {
     # GOT.PLT: 3 reserved entries + one per extern
     got_plt_entries = 3 + len(extern_syms);
     got_plt_size = got_plt_entries * 8;
+
     # Dynamic section entries
     dyn_entries: list[tuple[int, int]] = [];
     for lib in self.needed_libs {
         dyn_entries.append((DT_NEEDED, dynstr_offsets.get(lib, 0)));
     }
     # Placeholders for addresses (filled after layout)
-    dyn_entries.append((DT_HASH, 0));  # idx len(needed_libs)
+    dyn_entries.append((DT_HASH, 0));
     dyn_entries.append((DT_STRTAB, 0));
     dyn_entries.append((DT_SYMTAB, 0));
     dyn_entries.append((DT_STRSZ, len(dynstr_data)));
     dyn_entries.append((DT_SYMENT, 24));
     dyn_entries.append((DT_PLTGOT, 0));
     dyn_entries.append((DT_PLTRELSZ, len(extern_syms) * 24));
-    dyn_entries.append((DT_PLTREL, DT_RELA));  # DT_PLTREL value must be DT_RELA (7)
+    dyn_entries.append((DT_PLTREL, DT_RELA));
     dyn_entries.append((DT_JMPREL, 0));
     dyn_entries.append((DT_DEBUG, 0));
     dyn_entries.append((DT_NULL, 0));
@@ -454,10 +489,12 @@ impl ElfLinker.build_executable -> bytes {
     for (tag, val) in dyn_entries {
         dynamic_data.extend(struct.pack("<qQ", tag, val));
     }
+
     # ── Compute file offsets and virtual addresses ────────────────
     # Code segment (PT_LOAD RX): ehdr + phdrs + interp + hash + dynsym + dynstr + rela.plt + plt + code + rodata
     # Data segment (PT_LOAD RW): .got.plt + .dynamic + .data
     code_seg_start = 0;  # File offset 0 for code segment
+
     # All the metadata sections go before .text in the code segment
     cur_offset = ehdr_size + phdr_size;
     interp_foff = cur_offset;
@@ -484,6 +521,7 @@ impl ElfLinker.build_executable -> bytes {
     rodata_foff = cur_offset;
     cur_offset += len(rodata_blob);
     code_seg_size = cur_offset;
+
     # Data segment on a new page — GOT.PLT must be writable (dynamic linker patches it)
     data_seg_foff = _align(cur_offset, PAGE_SIZE);
     data_seg_vaddr = BASE_VADDR + data_seg_foff;
@@ -497,6 +535,7 @@ impl ElfLinker.build_executable -> bytes {
     cur_offset += len(data_blob);
     data_seg_size = cur_offset - data_seg_foff;
     total_file_size = data_seg_foff + data_seg_size;
+
     # Virtual addresses
     interp_vaddr = BASE_VADDR + interp_foff;
     hash_vaddr = BASE_VADDR + hash_foff;
@@ -509,6 +548,7 @@ impl ElfLinker.build_executable -> bytes {
     rodata_vaddr = BASE_VADDR + rodata_foff;
     dynamic_vaddr = BASE_VADDR + dynamic_foff;
     data_vaddr = BASE_VADDR + data_foff;
+
     # ── Patch dynamic section addresses ───────────────────────────
     dyn_entries_patched: list[tuple[int, int]] = [];
     for (tag, val) in dyn_entries {
@@ -530,6 +570,7 @@ impl ElfLinker.build_executable -> bytes {
     for (tag, val) in dyn_entries_patched {
         dynamic_data.extend(struct.pack("<qQ", tag, val));
     }
+
     # ── Build PLT ─────────────────────────────────────────────────
     # x86_64 PLT layout:
     # PLT[0]: push [GOT+8]; jmp [GOT+16]; nop padding
@@ -557,6 +598,7 @@ impl ElfLinker.build_executable -> bytes {
         jmp_plt0_rel = plt_vaddr - (entry_vaddr + 16);
         plt_data.extend(b"\xe9" + struct.pack("<i", jmp_plt0_rel));
     }
+
     # ── Build GOT.PLT ────────────────────────────────────────────
     got_plt_data = bytearray();
     got_plt_data.extend(struct.pack("<Q", dynamic_vaddr));  # GOT[0] = .dynamic
@@ -567,6 +609,7 @@ impl ElfLinker.build_executable -> bytes {
         push_addr = plt_vaddr + plt0_size + idx * plt_entry_size + 6;
         got_plt_data.extend(struct.pack("<Q", push_addr));
     }
+
     # ── Build .rela.plt ──────────────────────────────────────────
     rela_plt_data = bytearray();
     for idx in range(len(extern_syms)) {
@@ -575,6 +618,7 @@ impl ElfLinker.build_executable -> bytes {
         r_addend = 0;
         rela_plt_data.extend(struct.pack("<QQq", r_offset, r_info, r_addend));
     }
+
     # ── Apply relocations to code ────────────────────────────────
     # Build PLT address map for external symbols
     extern_plt_addr: dict[str, int] = {};
@@ -583,14 +627,15 @@ impl ElfLinker.build_executable -> bytes {
         extern_plt_addr[sym_name] = plt_vaddr + plt0_size + plt_idx * plt_entry_size;
         plt_idx += 1;
     }
+
     code_bytes = bytearray(code_data);
     rodata_bytes = bytearray(rodata_blob);
     data_bytes = bytearray(data_blob);
+
     for rela in self.relocations {
         # Resolve the symbol address
         sym_addr = 0;
         is_external = rela.sym_name in extern_plt_addr;
-
         if is_external {
             sym_addr = extern_plt_addr[rela.sym_name];
         } else {
@@ -661,6 +706,7 @@ impl ElfLinker.build_executable -> bytes {
             struct.pack_into("<i", patch_buf, patch_off, val);
         }
     }
+
     # ── Find entry point and build _start stub ───────────────────
     if has_main and start_stub_offset >= 0 {
         # Resolve main's virtual address
@@ -670,19 +716,19 @@ impl ElfLinker.build_executable -> bytes {
         libc_start_plt = extern_plt_addr.get("__libc_start_main", 0);
         # Build the x86_64 _start stub
         stub = bytearray();
-        stub.extend(b"\x31\xed");  # xor ebp, ebp
-        stub.extend(b"\x5e");  # pop rsi (argc)
-        stub.extend(b"\x48\x89\xe2");  # mov rsp, rdx (argv)
-        stub.extend(b"\x48\x83\xe4\xf0");  # and $-16, rsp
-        stub.extend(b"\x50");  # push rax
-        stub.extend(b"\x54");  # push rsp (7th arg: stack_end)
-        stub.extend(b"\x45\x31\xc9");  # xor r9d, r9d
-        stub.extend(b"\x45\x31\xc0");  # xor r8d, r8d
-        stub.extend(b"\x31\xc9");  # xor ecx, ecx
-        stub.extend(b"\x48\xbf" + struct.pack("<Q", main_vaddr));  # movabs main, rdi
-        stub.extend(b"\x48\xb8" + struct.pack("<Q", libc_start_plt));  # movabs __libc_start_main, rax
-        stub.extend(b"\xff\xd0");  # call *rax
-        stub.extend(b"\xf4");  # hlt
+        stub.extend(b"\x31\xed");                                      # xor ebp, ebp
+        stub.extend(b"\x5e");                                          # pop rsi (argc)
+        stub.extend(b"\x48\x89\xe2");                                  # mov rdx, rsp (argv)
+        stub.extend(b"\x48\x83\xe4\xf0");                              # and rsp, -16
+        stub.extend(b"\x50");                                          # push rax
+        stub.extend(b"\x54");                                          # push rsp (stack_end)
+        stub.extend(b"\x45\x31\xc9");                                  # xor r9d, r9d
+        stub.extend(b"\x45\x31\xc0");                                  # xor r8d, r8d
+        stub.extend(b"\x31\xc9");                                      # xor ecx, ecx
+        stub.extend(b"\x48\xbf" + struct.pack("<Q", main_vaddr));      # movabs rdi, main
+        stub.extend(b"\x48\xb8" + struct.pack("<Q", libc_start_plt));  # movabs rax, __libc_start_main
+        stub.extend(b"\xff\xd0");                                      # call rax
+        stub.extend(b"\xf4");                                          # hlt
         # Patch the stub into code_bytes at the reserved offset
         code_bytes[start_stub_offset:start_stub_offset + len(stub)] = stub;
         entry_vaddr = text_vaddr + start_stub_offset;
@@ -698,8 +744,10 @@ impl ElfLinker.build_executable -> bytes {
             }
         }
     }
+
     # ── Assemble the ELF file ────────────────────────────────────
     output = bytearray(total_file_size);
+
     # ELF header
     ident = bytearray(16);
     ident[0:4] = ELFMAG;
@@ -712,96 +760,103 @@ impl ElfLinker.build_executable -> bytes {
         "<HHIQQQIHHHHHH",
         output,
         16,
-        ET_EXEC,  # e_type
-        EM_X86_64,  # e_machine
-        1,  # e_version
-        entry_vaddr,  # e_entry
-        ehdr_size,  # e_phoff (right after header)
-        0,  # e_shoff (no section headers needed for exec)
-        0,  # e_flags
-        ehdr_size,  # e_ehsize
-        56,  # e_phentsize
-        num_phdrs,  # e_phnum
-        0,  # e_shentsize
-        0,  # e_shnum
-        0  # e_shstrndx
+        ET_EXEC,       # e_type
+        EM_X86_64,     # e_machine
+        1,             # e_version
+        entry_vaddr,   # e_entry
+        ehdr_size,     # e_phoff (right after header)
+        0,             # e_shoff (no section headers needed for exec)
+        0,             # e_flags
+        ehdr_size,     # e_ehsize
+        56,            # e_phentsize
+        num_phdrs,     # e_phnum
+        0,             # e_shentsize
+        0,             # e_shnum
+        0              # e_shstrndx
     );
+
     # Program headers
     phdr_off = ehdr_size;
+
     # PT_PHDR
     struct.pack_into(
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_PHDR,
-        PF_R,
-        ehdr_size,
-        BASE_VADDR + ehdr_size,
-        BASE_VADDR + ehdr_size,
-        phdr_size,
-        phdr_size,
-        8
+        PT_PHDR,                  # p_type
+        PF_R,                     # p_flags
+        ehdr_size,                # p_offset
+        BASE_VADDR + ehdr_size,   # p_vaddr
+        BASE_VADDR + ehdr_size,   # p_paddr
+        phdr_size,                # p_filesz
+        phdr_size,                # p_memsz
+        8                         # p_align
     );
     phdr_off += 56;
+
     # PT_INTERP
     struct.pack_into(
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_INTERP,
-        PF_R,
-        interp_foff,
-        interp_vaddr,
-        interp_vaddr,
-        len(interp_data),
-        len(interp_data),
-        1
+        PT_INTERP,          # p_type
+        PF_R,               # p_flags
+        interp_foff,        # p_offset
+        interp_vaddr,       # p_vaddr
+        interp_vaddr,       # p_paddr
+        len(interp_data),   # p_filesz
+        len(interp_data),   # p_memsz
+        1                   # p_align
     );
     phdr_off += 56;
+
     # PT_LOAD (code segment - RX)
     struct.pack_into(
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_LOAD,
-        PF_R | PF_X,
-        0,
-        BASE_VADDR,
-        BASE_VADDR,
-        code_seg_size,
-        code_seg_size,
-        PAGE_SIZE
+        PT_LOAD,         # p_type
+        PF_R | PF_X,     # p_flags
+        0,               # p_offset
+        BASE_VADDR,      # p_vaddr
+        BASE_VADDR,      # p_paddr
+        code_seg_size,   # p_filesz
+        code_seg_size,   # p_memsz
+        PAGE_SIZE        # p_align
     );
     phdr_off += 56;
+
     # PT_LOAD (data segment - RW)
     struct.pack_into(
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_LOAD,
-        PF_R | PF_W,
-        data_seg_foff,
-        data_seg_vaddr,
-        data_seg_vaddr,
-        data_seg_size,
-        data_seg_size,
-        PAGE_SIZE
+        PT_LOAD,         # p_type
+        PF_R | PF_W,     # p_flags
+        data_seg_foff,   # p_offset
+        data_seg_vaddr,  # p_vaddr
+        data_seg_vaddr,  # p_paddr
+        data_seg_size,   # p_filesz
+        data_seg_size,   # p_memsz
+        PAGE_SIZE        # p_align
     );
     phdr_off += 56;
+
     # PT_DYNAMIC
     struct.pack_into(
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_DYNAMIC,
-        PF_R | PF_W,
-        dynamic_foff,
-        dynamic_vaddr,
-        dynamic_vaddr,
-        len(dynamic_data),
-        len(dynamic_data),
-        8
+        PT_DYNAMIC,            # p_type
+        PF_R | PF_W,           # p_flags
+        dynamic_foff,          # p_offset
+        dynamic_vaddr,         # p_vaddr
+        dynamic_vaddr,         # p_paddr
+        len(dynamic_data),     # p_filesz
+        len(dynamic_data),     # p_memsz
+        8                      # p_align
     );
+
     # Write sections into output
     output[interp_foff:interp_foff + len(interp_data)] = interp_data;
     output[hash_foff:hash_foff + len(hash_data)] = hash_data;
@@ -820,6 +875,7 @@ impl ElfLinker.build_executable -> bytes {
     }
     return bytes(output);
 }
+
 
 # ── Static link method ───────────────────────────────────────────
 impl ElfLinker.link(
@@ -845,18 +901,3 @@ impl ElfLinker.link(
     os.chmod(output_path, 0o755);
     return True;
 }
-# Section header types
-
-# Section flags
-
-# Program header types
-
-# Program header flags
-
-# Dynamic section tags
-
-# Relocation types (x86_64)
-
-# Symbol binding/type
-
-# Layout constants

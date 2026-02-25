@@ -29,6 +29,7 @@ entry:
     return llvm_ir_str + start_ir;
 }
 
+
 """Compile a .na.jac file to a standalone native binary."""
 impl nacompile(filename: str, output: str = "") -> int {
     # Validate input
@@ -40,6 +41,7 @@ impl nacompile(filename: str, output: str = "") -> int {
         console.error(f"File not found: {filename}");
         return 1;
     }
+
     # Determine output path
     if not output {
         output = os.path.basename(filename);
@@ -48,10 +50,13 @@ impl nacompile(filename: str, output: str = "") -> int {
             output = output[:-7];
         }
     }
+
     console.print(f"Compiling {filename} to native binary...");
+
     # Step 1: Compile through Jac pipeline to get LLVM IR
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
+
     try {
         prog = JacProgram();
         options = CompileOptions(skip_native_engine=True);
@@ -62,6 +67,7 @@ impl nacompile(filename: str, output: str = "") -> int {
         traceback.print_exc();
         return 1;
     }
+
     if ir_module is None or ir_module.gen.llvm_ir is None {
         console.error("Native compilation produced no LLVM IR.");
         if prog.errors_had {
@@ -71,6 +77,7 @@ impl nacompile(filename: str, output: str = "") -> int {
         }
         return 1;
     }
+
     # Step 2: Check for Python/server interop (can't compile standalone)
     manifest = ir_module.gen.interop_manifest;
     if manifest and manifest.native_imports {
@@ -83,7 +90,9 @@ impl nacompile(filename: str, output: str = "") -> int {
         }
         return 1;
     }
+
     llvm_ir_str = str(ir_module.gen.llvm_ir);
+
     # Check that jac_entry exists (requires with entry {} block)
     if "jac_entry" not in llvm_ir_str {
         console.error(
@@ -92,13 +101,17 @@ impl nacompile(filename: str, output: str = "") -> int {
         );
         return 1;
     }
+
     console.print("  LLVM IR generated successfully.");
+
     # Step 3: Inject _start entry point
     llvm_ir_str = _inject_start(llvm_ir_str);
+
     # Step 4: Emit object code via llvmlite
     import llvmlite.binding as llvm;
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
+
     try {
         mod = llvm.parse_assembly(llvm_ir_str);
         mod.verify();
@@ -106,13 +119,16 @@ impl nacompile(filename: str, output: str = "") -> int {
         console.error(f"LLVM IR verification failed: {e}");
         return 1;
     }
+
     target = llvm.Target.from_default_triple();
     target_machine = target.create_target_machine();
     obj_bytes = target_machine.emit_object(mod);
     console.print(f"  Object code emitted ({len(obj_bytes)} bytes).");
+
     # Step 5: Determine needed libraries
     import ctypes.util;
     needed_libs: list[str] = ["libc.so.6"];
+
     # Check if libgc is available and needed
     libgc_name = ctypes.util.find_library("gc");
     if libgc_name {
@@ -122,11 +138,15 @@ impl nacompile(filename: str, output: str = "") -> int {
             needed_libs.append("libgc.so.1");
         }
     }
+
     # Step 6: Link into ELF executable
     import from jaclang.compiler.passes.native.elf_linker { ElfLinker }
+
     try {
         success = ElfLinker.link(
-            obj_bytes=obj_bytes, output_path=output, needed_libs=needed_libs
+            obj_bytes=obj_bytes,
+            output_path=output,
+            needed_libs=needed_libs
         );
     } except Exception as e {
         console.error(f"ELF linking failed: {e}");
@@ -134,10 +154,12 @@ impl nacompile(filename: str, output: str = "") -> int {
         traceback.print_exc();
         return 1;
     }
+
     if not success {
         console.error("ELF linking failed: could not parse object file.");
         return 1;
     }
+
     file_size = os.path.getsize(output);
     console.print(f"  Binary written to [bold]{output}[/bold] ({file_size} bytes).");
     console.print(f"  Run with: ./{output}");
