@@ -372,7 +372,8 @@ impl JacAutoLintPass.combine_consecutive_glob(body: list) -> list {
                     break;
                 }
             }
-            if len(merged_globs) > 1 {
+            all_single = all(len(g.assignments) == 1 for g in merged_globs);
+            if len(merged_globs) > 1 and all_single {
                 self.log_error(
                     "Consecutive 'glob' declarations can be combined [combine-glob]",
                     node_override=base_glob
@@ -404,7 +405,9 @@ impl JacAutoLintPass.combine_consecutive_glob(body: list) -> list {
                 base_glob.set_kids(nodes=new_kid);
                 new_body.append(base_glob);
             } else {
-                new_body.append(stmt);
+                for g in merged_globs {
+                    new_body.append(g);
+                }
             }
             i = j;
         } else {
