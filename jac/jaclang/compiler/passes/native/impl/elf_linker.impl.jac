@@ -253,18 +253,13 @@ impl ElfLinker.parse_object -> bool {
     }
     if symtab_sec is not None {
         num_syms = len(symtab_sec.data) // symtab_sec.entsize
-        if symtab_sec.entsize
-        else 0;
+            if symtab_sec.entsize
+            else 0;
         for i in range(num_syms) {
             off = i * symtab_sec.entsize;
-            (
-                st_name,
-                st_info,
-                st_other,
-                st_shndx,
-                st_value,
-                st_size
-            ) = struct.unpack_from("<IBBHQQ", symtab_sec.data, off);
+            (st_name, st_info, st_other, st_shndx, st_value, st_size) = struct.unpack_from(
+                "<IBBHQQ", symtab_sec.data, off
+            );
             end = strtab_data.index(b"\x00", st_name);
             name = strtab_data[st_name:end].decode();
             self.symbols.append(
@@ -293,11 +288,9 @@ impl ElfLinker.parse_object -> bool {
             }
             num_relas = len(sec.data) // 24 if len(sec.data) >= 24 else 0;
             for i in range(num_relas) {
-                (
-                    r_offset,
-                    r_info,
-                    r_addend
-                ) = struct.unpack_from("<QQq", sec.data, i * 24);
+                (r_offset, r_info, r_addend) = struct.unpack_from(
+                    "<QQq", sec.data, i * 24
+                );
                 r_sym = r_info >> 32;
                 r_type = r_info & 0xFFFFFFFF;
                 sym_name = self.symbols[r_sym].name if r_sym < len(self.symbols) else "";
@@ -378,7 +371,7 @@ impl ElfLinker.build_executable -> bytes {
 
     # Identify external symbols (undefined, need dynamic linking)
     # Split into function externals (use PLT) and data externals (use GOT)
-    known_data_syms = {"stdin", "stdout", "stderr", "environ"};
+    known_data_syms = {"stdin","stdout","stderr","environ"};
     extern_func_syms: list[str] = [];
     extern_data_syms: list[str] = [];
     local_sym_map: dict[str, tuple[str, int]] = {};  # name -> (segment, offset_in_segment)
@@ -387,7 +380,8 @@ impl ElfLinker.build_executable -> bytes {
     sym_i = 0;
     for sym in self.symbols {
         if sym.shndx == SHN_UNDEF and sym.name and sym.bind == STB_GLOBAL {
-            is_data = sym.typ == STT_OBJECT or (sym.typ == STT_NOTYPE and sym.name in known_data_syms);
+            is_data = sym.typ == STT_OBJECT
+            or (sym.typ == STT_NOTYPE and sym.name in known_data_syms);
             if is_data {
                 if sym.name not in extern_data_syms {
                     extern_data_syms.append(sym.name);
@@ -656,7 +650,9 @@ impl ElfLinker.build_executable -> bytes {
     got_plt_data = bytearray();
     got_plt_data.extend(struct.pack("<Q", dynamic_vaddr));  # GOT[0] = .dynamic
     got_plt_data.extend(struct.pack("<Q", 0));  # GOT[1] = link_map (filled by ld.so)
-    got_plt_data.extend(struct.pack("<Q", 0));  # GOT[2] = _dl_runtime_resolve (filled by ld.so)
+    got_plt_data.extend(
+        struct.pack("<Q", 0)
+    );  # GOT[2] = _dl_runtime_resolve (filled by ld.so)
     for idx in range(len(extern_func_syms)) {
         # Initially points to the push instruction in PLT[n] (lazy binding)
         push_addr = plt_vaddr + plt0_size + idx * plt_entry_size + 6;
@@ -799,15 +795,21 @@ impl ElfLinker.build_executable -> bytes {
         stub = bytearray();
         stub.extend(b"\x31\xed");                                      # xor ebp, ebp
         stub.extend(b"\x5e");                                          # pop rsi (argc)
-        stub.extend(b"\x48\x89\xe2");                                  # mov rdx, rsp (argv)
+        stub.extend(
+            b"\x48\x89\xe2"
+        );                                  # mov rdx, rsp (argv)
         stub.extend(b"\x48\x83\xe4\xf0");                              # and rsp, -16
         stub.extend(b"\x50");                                          # push rax
-        stub.extend(b"\x54");                                          # push rsp (stack_end)
+        stub.extend(
+            b"\x54"
+        );                                          # push rsp (stack_end)
         stub.extend(b"\x45\x31\xc9");                                  # xor r9d, r9d
         stub.extend(b"\x45\x31\xc0");                                  # xor r8d, r8d
         stub.extend(b"\x31\xc9");                                      # xor ecx, ecx
         stub.extend(b"\x48\xbf" + struct.pack("<Q", main_vaddr));      # movabs rdi, main
-        stub.extend(b"\x48\xb8" + struct.pack("<Q", libc_start_plt));  # movabs rax, __libc_start_main
+        stub.extend(
+            b"\x48\xb8" + struct.pack("<Q", libc_start_plt)
+        );  # movabs rax, __libc_start_main
         stub.extend(b"\xff\xd0");                                      # call rax
         stub.extend(b"\xf4");                                          # hlt
         # Patch the stub into code_bytes at the reserved offset
