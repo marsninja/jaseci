@@ -54,19 +54,24 @@ glob DT_NULL = 0,
      DT_PLTRELSZ = 2,
      DT_PLTREL = 20,
      DT_JMPREL = 23,
-     DT_RELA = 7;
+     DT_RELA = 7,
+     DT_RELASZ = 8,
+     DT_RELAENT = 9;
 
 # ── Relocation types (x86_64) ────────────────────────────────────
 glob R_X86_64_64 = 1,
      R_X86_64_PC32 = 2,
      R_X86_64_PLT32 = 4,
      R_X86_64_GOTPCREL = 9,
+     R_X86_64_COPY = 5,
+     R_X86_64_GLOB_DAT = 6,
      R_X86_64_JUMP_SLOT = 7;
 
 # ── Symbol binding/type ──────────────────────────────────────────
 glob STB_GLOBAL = 1,
-     STT_FUNC = 2,
      STT_NOTYPE = 0,
+     STT_OBJECT = 1,
+     STT_FUNC = 2,
      SHN_UNDEF = 0;
 
 # ── Layout constants ─────────────────────────────────────────────
@@ -372,15 +377,25 @@ impl ElfLinker.build_executable -> bytes {
     }
 
     # Identify external symbols (undefined, need dynamic linking)
-    extern_syms: list[str] = [];
+    # Split into function externals (use PLT) and data externals (use GOT)
+    known_data_syms = {"stdin", "stdout", "stderr", "environ"};
+    extern_func_syms: list[str] = [];
+    extern_data_syms: list[str] = [];
     local_sym_map: dict[str, tuple[str, int]] = {};  # name -> (segment, offset_in_segment)
     # Also build a map from symbol index to placement for section symbols (empty name)
     sym_idx_placement: dict[int, tuple[str, int]] = {};  # sym_idx -> (segment, base_offset)
     sym_i = 0;
     for sym in self.symbols {
         if sym.shndx == SHN_UNDEF and sym.name and sym.bind == STB_GLOBAL {
-            if sym.name not in extern_syms {
-                extern_syms.append(sym.name);
+            is_data = sym.typ == STT_OBJECT or (sym.typ == STT_NOTYPE and sym.name in known_data_syms);
+            if is_data {
+                if sym.name not in extern_data_syms {
+                    extern_data_syms.append(sym.name);
+                }
+            } else {
+                if sym.name not in extern_func_syms {
+                    extern_func_syms.append(sym.name);
+                }
             }
         } elif sym.shndx != SHN_UNDEF and sym.shndx < len(self.sections) {
             placement = section_placement.get(sym.shndx);
@@ -394,15 +409,19 @@ impl ElfLinker.build_executable -> bytes {
         }
         sym_i += 1;
     }
+    # Combined list: functions first, then data (order matters for dynsym indices)
+    extern_syms: list[str] = extern_func_syms + extern_data_syms;
 
     # ── Inject _start stub for CRT initialization ────────────────
     # If 'main' is defined and __libc_start_main is not already an extern,
     # add it so we can build a proper _start that uses libc's CRT init.
     # This ensures GC_malloc, pthread, and other libc features work.
     has_main = "main" in local_sym_map;
-    needs_libc_start = has_main and "__libc_start_main" not in extern_syms;
+    needs_libc_start = has_main and "__libc_start_main" not in extern_func_syms;
     if needs_libc_start {
-        extern_syms.append("__libc_start_main");
+        extern_func_syms.append("__libc_start_main");
+        # Rebuild combined list
+        extern_syms = extern_func_syms + extern_data_syms;
     }
     # Reserve space for _start stub in code_data (addresses patched later)
     start_stub_offset = -1;
@@ -441,9 +460,11 @@ impl ElfLinker.build_executable -> bytes {
     num_dynsyms = 1 + len(extern_syms);  # STN_UNDEF + externals
     dynsym_data = bytearray();
     dynsym_data.extend(struct.pack("<IBBHQQ", 0, 0, 0, 0, 0, 0));  # STN_UNDEF
+    extern_data_set = set(extern_data_syms);
     for sym_name in extern_syms {
         st_name = dynstr_offsets.get(sym_name, 0);
-        st_info = (STB_GLOBAL << 4) | STT_FUNC;
+        sym_type = STT_OBJECT if sym_name in extern_data_set else STT_FUNC;
+        st_info = (STB_GLOBAL << 4) | sym_type;
         dynsym_data.extend(
             struct.pack("<IBBHQQ", st_name, st_info, 0, SHN_UNDEF, 0, 0)
         );
@@ -461,11 +482,11 @@ impl ElfLinker.build_executable -> bytes {
     # PLT[n]: jmp [GOT+24+8*n]; push n; jmp PLT[0]
     plt_entry_size = 16;
     plt0_size = 16;
-    plt_size = plt0_size + len(extern_syms) * plt_entry_size;
+    plt_size = plt0_size + len(extern_func_syms) * plt_entry_size;
     # PLT will be built after addresses are known
 
     # GOT.PLT: 3 reserved entries + one per extern
-    got_plt_entries = 3 + len(extern_syms);
+    got_plt_entries = 3 + len(extern_func_syms);
     got_plt_size = got_plt_entries * 8;
 
     # Dynamic section entries
@@ -480,9 +501,14 @@ impl ElfLinker.build_executable -> bytes {
     dyn_entries.append((DT_STRSZ, len(dynstr_data)));
     dyn_entries.append((DT_SYMENT, 24));
     dyn_entries.append((DT_PLTGOT, 0));
-    dyn_entries.append((DT_PLTRELSZ, len(extern_syms) * 24));
+    dyn_entries.append((DT_PLTRELSZ, len(extern_func_syms) * 24));
     dyn_entries.append((DT_PLTREL, DT_RELA));
     dyn_entries.append((DT_JMPREL, 0));
+    if len(extern_data_syms) > 0 {
+        dyn_entries.append((DT_RELA, 0));
+        dyn_entries.append((DT_RELASZ, len(extern_data_syms) * 24));
+        dyn_entries.append((DT_RELAENT, 24));
+    }
     dyn_entries.append((DT_DEBUG, 0));
     dyn_entries.append((DT_NULL, 0));
     dynamic_data = bytearray();
@@ -510,7 +536,12 @@ impl ElfLinker.build_executable -> bytes {
     cur_offset += len(dynstr_data);
     cur_offset = _align(cur_offset, 8);
     rela_plt_foff = cur_offset;
-    cur_offset += len(extern_syms) * 24;
+    cur_offset += len(extern_func_syms) * 24;
+    cur_offset = _align(cur_offset, 8);
+    # .rela.dyn for data symbol copy relocations (R_X86_64_COPY)
+    rela_dyn_foff = cur_offset;
+    rela_dyn_size = len(extern_data_syms) * 24;
+    cur_offset += rela_dyn_size;
     cur_offset = _align(cur_offset, 16);
     plt_foff = cur_offset;
     cur_offset += plt_size;
@@ -528,6 +559,12 @@ impl ElfLinker.build_executable -> bytes {
     got_plt_foff = data_seg_foff;
     cur_offset = data_seg_foff + got_plt_size;
     cur_offset = _align(cur_offset, 8);
+    # Copy relocation area for data externals (R_X86_64_COPY)
+    # Each data extern gets 8 bytes; ld.so copies the value here at startup
+    data_got_foff = cur_offset;
+    data_got_size = len(extern_data_syms) * 8;
+    cur_offset += data_got_size;
+    cur_offset = _align(cur_offset, 8);
     dynamic_foff = cur_offset;
     cur_offset += len(dynamic_data);
     cur_offset = _align(cur_offset, 8);
@@ -542,6 +579,8 @@ impl ElfLinker.build_executable -> bytes {
     dynsym_vaddr = BASE_VADDR + dynsym_foff;
     dynstr_vaddr = BASE_VADDR + dynstr_foff;
     rela_plt_vaddr = BASE_VADDR + rela_plt_foff;
+    rela_dyn_vaddr = BASE_VADDR + rela_dyn_foff;
+    data_got_vaddr = BASE_VADDR + data_got_foff;
     plt_vaddr = BASE_VADDR + plt_foff;
     got_plt_vaddr = BASE_VADDR + got_plt_foff;
     text_vaddr = BASE_VADDR + text_foff;
@@ -562,6 +601,8 @@ impl ElfLinker.build_executable -> bytes {
             dyn_entries_patched.append((tag, got_plt_vaddr));
         } elif tag == DT_JMPREL {
             dyn_entries_patched.append((tag, rela_plt_vaddr));
+        } elif tag == DT_RELA {
+            dyn_entries_patched.append((tag, rela_dyn_vaddr));
         } else {
             dyn_entries_patched.append((tag, val));
         }
@@ -569,6 +610,18 @@ impl ElfLinker.build_executable -> bytes {
     dynamic_data = bytearray();
     for (tag, val) in dyn_entries_patched {
         dynamic_data.extend(struct.pack("<qQ", tag, val));
+    }
+
+    # ── Patch dynsym entries for data externals (R_X86_64_COPY) ──
+    # For copy relocations, the dynsym entry must have:
+    #   st_value = address of copy destination in our executable
+    #   st_size  = size of the data to copy (8 bytes for a pointer)
+    for idx in range(len(extern_data_syms)) {
+        # dynsym index: 1 (STN_UNDEF) + func_syms + idx
+        dynsym_offset = (1 + len(extern_func_syms) + idx) * 24;
+        copy_vaddr = data_got_vaddr + idx * 8;
+        # Patch st_value (offset 8 in Elf64_Sym) and st_size (offset 16)
+        struct.pack_into("<QQ", dynsym_data, dynsym_offset + 8, copy_vaddr, 8);
     }
 
     # ── Build PLT ─────────────────────────────────────────────────
@@ -585,8 +638,8 @@ impl ElfLinker.build_executable -> bytes {
     plt_data.extend(b"\xff\x35" + struct.pack("<i", got8_rel));
     plt_data.extend(b"\xff\x25" + struct.pack("<i", got16_rel));
     plt_data.extend(b"\x0f\x1f\x40\x00");  # nop padding
-    # PLT[n] stubs
-    for idx in range(len(extern_syms)) {
+    # PLT[n] stubs (one per function extern)
+    for idx in range(len(extern_func_syms)) {
         entry_vaddr = plt_vaddr + plt0_size + idx * plt_entry_size;
         got_entry_vaddr = got_plt_vaddr + (3 + idx) * 8;
         # ff 25 XX XX XX XX    jmp QWORD [rip + got_entry - (entry+6)]
@@ -604,28 +657,47 @@ impl ElfLinker.build_executable -> bytes {
     got_plt_data.extend(struct.pack("<Q", dynamic_vaddr));  # GOT[0] = .dynamic
     got_plt_data.extend(struct.pack("<Q", 0));  # GOT[1] = link_map (filled by ld.so)
     got_plt_data.extend(struct.pack("<Q", 0));  # GOT[2] = _dl_runtime_resolve (filled by ld.so)
-    for idx in range(len(extern_syms)) {
+    for idx in range(len(extern_func_syms)) {
         # Initially points to the push instruction in PLT[n] (lazy binding)
         push_addr = plt_vaddr + plt0_size + idx * plt_entry_size + 6;
         got_plt_data.extend(struct.pack("<Q", push_addr));
     }
 
-    # ── Build .rela.plt ──────────────────────────────────────────
+    # ── Build .rela.plt (function externals only) ─────────────────
     rela_plt_data = bytearray();
-    for idx in range(len(extern_syms)) {
+    for idx in range(len(extern_func_syms)) {
         r_offset = got_plt_vaddr + (3 + idx) * 8;
+        # dynsym index: idx+1 (skip STN_UNDEF), func syms come first
         r_info = ((idx + 1) << 32) | R_X86_64_JUMP_SLOT;
         r_addend = 0;
         rela_plt_data.extend(struct.pack("<QQq", r_offset, r_info, r_addend));
     }
 
+    # ── Build .rela.dyn (data externals: R_X86_64_COPY) ────────
+    # Copy relocations: ld.so copies the symbol value into our data segment
+    rela_dyn_data = bytearray();
+    for idx in range(len(extern_data_syms)) {
+        r_offset = data_got_vaddr + idx * 8;
+        # dynsym index: after STN_UNDEF and all func syms
+        dynsym_idx = 1 + len(extern_func_syms) + idx;
+        r_info = (dynsym_idx << 32) | R_X86_64_COPY;
+        r_addend = 0;
+        rela_dyn_data.extend(struct.pack("<QQq", r_offset, r_info, r_addend));
+    }
+
+    # ── Build copy relocation area for data externals ────────────
+    data_got_data = bytearray(b"\x00" * data_got_size);
+
     # ── Apply relocations to code ────────────────────────────────
-    # Build PLT address map for external symbols
+    # Build PLT address map for function externals
     extern_plt_addr: dict[str, int] = {};
-    plt_idx = 0;
-    for sym_name in extern_syms {
-        extern_plt_addr[sym_name] = plt_vaddr + plt0_size + plt_idx * plt_entry_size;
-        plt_idx += 1;
+    for plt_idx in range(len(extern_func_syms)) {
+        extern_plt_addr[extern_func_syms[plt_idx]] = plt_vaddr + plt0_size + plt_idx * plt_entry_size;
+    }
+    # Build GOT address map for data externals
+    extern_got_addr: dict[str, int] = {};
+    for got_idx in range(len(extern_data_syms)) {
+        extern_got_addr[extern_data_syms[got_idx]] = data_got_vaddr + got_idx * 8;
     }
 
     code_bytes = bytearray(code_data);
@@ -635,9 +707,14 @@ impl ElfLinker.build_executable -> bytes {
     for rela in self.relocations {
         # Resolve the symbol address
         sym_addr = 0;
-        is_external = rela.sym_name in extern_plt_addr;
-        if is_external {
+        is_func_extern = rela.sym_name in extern_plt_addr;
+        is_data_extern = rela.sym_name in extern_got_addr;
+        is_external = is_func_extern or is_data_extern;
+        if is_func_extern {
             sym_addr = extern_plt_addr[rela.sym_name];
+        } elif is_data_extern {
+            # Data externals use copy relocation area — address in our data segment
+            sym_addr = extern_got_addr[rela.sym_name];
         } else {
             # Try named symbol first, then section symbol by index
             local = local_sym_map.get(rela.sym_name) if rela.sym_name else None;
@@ -695,8 +772,12 @@ impl ElfLinker.build_executable -> bytes {
             val = sym_addr + rela.addend - p;
             struct.pack_into("<i", patch_buf, patch_off, val);
         } elif rela.rtype == R_X86_64_GOTPCREL {
-            if is_external {
-                got_idx = extern_syms.index(rela.sym_name);
+            if is_data_extern {
+                # Data externals use the separate .got section
+                got_entry_addr = extern_got_addr[rela.sym_name];
+            } elif is_func_extern {
+                # Function externals use .got.plt
+                got_idx = extern_func_syms.index(rela.sym_name);
                 got_entry_addr = got_plt_vaddr + (3 + got_idx) * 8;
             } else {
                 got_entry_addr = 0;
@@ -863,8 +944,14 @@ impl ElfLinker.build_executable -> bytes {
     output[dynsym_foff:dynsym_foff + len(dynsym_data)] = bytes(dynsym_data);
     output[dynstr_foff:dynstr_foff + len(dynstr_data)] = dynstr_data;
     output[rela_plt_foff:rela_plt_foff + len(rela_plt_data)] = bytes(rela_plt_data);
+    if len(rela_dyn_data) > 0 {
+        output[rela_dyn_foff:rela_dyn_foff + len(rela_dyn_data)] = bytes(rela_dyn_data);
+    }
     output[plt_foff:plt_foff + len(plt_data)] = bytes(plt_data);
     output[got_plt_foff:got_plt_foff + len(got_plt_data)] = bytes(got_plt_data);
+    if data_got_size > 0 {
+        output[data_got_foff:data_got_foff + data_got_size] = bytes(data_got_data);
+    }
     output[text_foff:text_foff + len(code_bytes)] = bytes(code_bytes);
     if len(rodata_bytes) > 0 {
         output[rodata_foff:rodata_foff + len(rodata_bytes)] = bytes(rodata_bytes);
