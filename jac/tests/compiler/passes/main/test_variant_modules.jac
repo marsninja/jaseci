@@ -92,8 +92,15 @@ test "variant module complete scenario" {
     assert len(sv_variant.impl_mod) >= 1 , (
         f"Expected >=1 server variant impl, got {len(sv_variant.impl_mod)}"
     );
-    sv_impl = sv_variant.impl_mod[0];
-    assert sv_impl.name == "mymod.sv.impl" , f"Expected mymod.sv.impl, got {sv_impl.name}";
+    sv_impl_names = [m.name for m in sv_variant.impl_mod];
+    assert "mymod.sv.impl" in sv_impl_names , (
+        f"Expected mymod.sv.impl in {sv_impl_names}"
+    );
+    sv_impl = [
+        m
+        for m in sv_variant.impl_mod
+        if m.name == "mymod.sv.impl"
+    ][0];
     describe_sym = sv_impl.sym_tab.lookup("impl.CircleService.describe");
     assert describe_sym is not None , (
         "impl.CircleService.describe should be found from shared impl/ folder"
@@ -137,6 +144,32 @@ test "variant module complete scenario" {
     assert any(p.endswith("mymod.jac") for p in hub_paths);
     assert any(p.endswith("mymod.sv.jac") for p in hub_paths);
     assert any(p.endswith("mymod.cl.jac") for p in hub_paths);
+}
+
+test "standalone variant discovers bare impl files" {
+    # When a variant (.sv.jac, .cl.jac, .na.jac) is compiled standalone,
+    # it should discover bare .impl.jac files even when a bare head exists.
+    sv_path = os.path.join(VARIANT_DIR, "mymod.sv.jac");
+
+    # --- 1. Discovery: variant finds the bare impl file ---
+    impls = discover_annex_files(sv_path, '.impl.jac');
+    impl_names = [os.path.basename(p) for p in impls];
+    assert "mymod.impl.jac" in impl_names , (
+        f"Standalone variant should discover mymod.impl.jac, got {impl_names}"
+    );
+
+    # --- 2. Compile variant standalone and verify impl loaded ---
+    prog = JacProgram();
+    state = prog.compile(sv_path);
+    assert not prog.errors_had , f"Compilation errors: {[
+        e.pretty_print() for e in prog.errors_had
+    ]}";
+
+    # --- 3. Bare impl module attached to the standalone variant ---
+    impl_mod_names = [m.name for m in state.impl_mod];
+    assert "mymod.impl" in impl_mod_names , (
+        f"Expected mymod.impl in standalone variant impl_mod, got {impl_mod_names}"
+    );
 }
 
 test "variant precedence fallback — sv.jac as head when no plain .jac" {

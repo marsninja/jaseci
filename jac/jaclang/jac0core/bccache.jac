@@ -93,14 +93,12 @@ def discover_annex_files(source_path: str, suffix: str = '.impl.jac') -> list[st
                 }
             }
             # Variant-suffixed annex: must match the source variant exactly.
-            # Bare annex (no variant): matches any source, UNLESS a bare
-            # .jac head exists that would claim it instead.
+            # Bare annex (no variant): matches any source file with the
+            # same base name, regardless of variant suffix.
             if annex_variant is not None {
                 if (annex_variant != src_variant) {
                     continue;
                 }
-            } elif (src_variant is not None and bare_head_exists) {
-                continue;
             }
             results.append(str(f));
         }

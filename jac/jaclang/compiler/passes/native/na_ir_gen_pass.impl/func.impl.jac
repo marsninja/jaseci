@@ -131,9 +131,15 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
             }
         }
     }
-    # Generate body via manual tree-walking
-    if isinstance((nd).body, (list, tuple)) {
-        self._codegen_body((nd).body);
+    # Generate body via manual tree-walking.
+    # Body may be a list/tuple (inline def) or an ImplDef (from .impl.jac
+    # attached by DeclImplMatchPass).
+    body = (nd).body;
+    if isinstance(body, uni.ImplDef) {
+        body = body.body;
+    }
+    if isinstance(body, (list, tuple)) {
+        self._codegen_body(body);
     }
     # Ensure function has a terminator
     if not self.builder.block.is_terminated {

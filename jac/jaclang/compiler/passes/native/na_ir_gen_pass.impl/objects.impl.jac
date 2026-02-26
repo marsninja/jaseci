@@ -302,9 +302,14 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
             }
         }
     }
-    # Generate body
-    if isinstance(method.body, (list, tuple)) {
-        self._codegen_body(method.body);
+    # Generate body. May be a list/tuple (inline def) or an ImplDef
+    # (from .impl.jac attached by DeclImplMatchPass).
+    body = method.body;
+    if isinstance(body, uni.ImplDef) {
+        body = body.body;
+    }
+    if isinstance(body, (list, tuple)) {
+        self._codegen_body(body);
     }
     # Ensure function has a terminator
     if not self.builder.block.is_terminated {
