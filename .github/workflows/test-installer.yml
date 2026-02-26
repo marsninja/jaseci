@@ -1,0 +1,129 @@
+name: Test Installer
+
+on:
+  pull_request:
+    paths:
+      - "scripts/install.sh"
+      - ".github/workflows/build-standalone.yml"
+      - ".github/workflows/test-installer.yml"
+  workflow_dispatch:
+
+jobs:
+  shellcheck:
+    name: Lint install.sh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: scripts
+          additional_files: install.sh
+
+  test-uv-install:
+    name: "uv install (${{ matrix.os }}, ${{ matrix.mode }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            mode: full
+          - os: ubuntu-latest
+            mode: core
+          - os: macos-latest
+            mode: full
+          - os: macos-latest
+            mode: core
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run installer
+        run: |
+          if [ "${{ matrix.mode }}" = "core" ]; then
+            bash scripts/install.sh --core
+          else
+            bash scripts/install.sh
+          fi
+
+      - name: Verify jac is on PATH
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          which jac
+          jac --version
+
+      - name: Test basic execution
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          echo 'with entry { print("hello from installer test"); }' > /tmp/test_install.jac
+          jac /tmp/test_install.jac
+
+      - name: Test uninstall
+        run: |
+          bash scripts/install.sh --uninstall
+          export PATH="$HOME/.local/bin:$PATH"
+          if command -v jac &>/dev/null; then
+            echo "FAIL: jac still found after uninstall"
+            exit 1
+          fi
+          echo "PASS: jac removed successfully"
+
+  test-pex-build:
+    name: "pex build (${{ matrix.os }}, ${{ matrix.package }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            package: jaclang
+            asset-prefix: jac
+          - os: macos-latest
+            package: jaclang
+            asset-prefix: jac
+          - os: ubuntu-latest
+            package: jaseci
+            asset-prefix: jaseci
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pex
+        run: pip install pex
+
+      - name: Get latest PyPI version
+        id: version
+        run: |
+          VERSION=$(pip index versions ${{ matrix.package }} 2>/dev/null | head -1 | grep -oP '\(\K[^)]+' || echo "")
+          if [ -z "$VERSION" ]; then
+            echo "Could not determine latest version, using pip show"
+            pip install ${{ matrix.package }} --dry-run 2>&1 | grep -oP 'Would install.*${{ matrix.package }}-\K[^ ]+' | head -1
+            VERSION=$(pip install ${{ matrix.package }} --dry-run 2>&1 | grep -oP '${{ matrix.package }}-\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Testing with ${{ matrix.package }}==$VERSION"
+
+      - name: Build pex scie binary
+        run: |
+          pex \
+            "${{ matrix.package }}==${{ steps.version.outputs.version }}" \
+            --console-script jac \
+            --scie eager \
+            --interpreter-constraint "CPython==3.12.*" \
+            -o "${{ matrix.asset-prefix }}-test"
+
+      - name: Verify binary runs
+        run: |
+          chmod +x "${{ matrix.asset-prefix }}-test"
+          ./${{ matrix.asset-prefix }}-test --version
+
+      - name: Test basic execution
+        run: |
+          echo 'with entry { print("hello from pex test"); }' > /tmp/test_pex.jac
+          ./${{ matrix.asset-prefix }}-test /tmp/test_pex.jac
