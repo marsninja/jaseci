@@ -332,7 +332,9 @@ impl CommentInjectionPass._make_inline_comment(
     comment: uni.CommentToken, add_line: bool = True, anchor_col_end: int = 0
 ) -> doc.DocType {
     # Preserve original spacing from source (minimum 2 spaces)
-    padding = max(2, comment.loc.col_start - anchor_col_end) if anchor_col_end > 0 else 2;
+    padding = max(2, comment.loc.col_start - anchor_col_end)
+        if anchor_col_end > 0
+        else 2;
     parts: list[doc.DocType] = [doc.Text(' ' * padding), doc.Text(comment.value)];
     if add_line {
         parts.append(doc.Line(hard=True));
@@ -662,8 +664,8 @@ impl CommentInjectionPass._handle_body_comments(
                     break;
                 }
                 prev_item_line: (int | None) = body[(body_idx - 1)].loc.last_line
-                if ((body_idx > 0) and body[(body_idx - 1)].loc)
-                else (current_line - 1);
+                    if ((body_idx > 0) and body[(body_idx - 1)].loc)
+                    else (current_line - 1);
                 comments = [];
                 if self._comments {
                     comments = self._comments.take_standalone_between(
@@ -690,8 +692,8 @@ impl CommentInjectionPass._handle_body_comments(
     if (body_end is not None) {
         if body {
             last_body_line = body[-1].loc.last_line
-            if body[-1].loc
-            else (current_line - 1);
+                if body[-1].loc
+                else (current_line - 1);
             comments = [];
             if self._comments {
                 comments = self._comments.take_standalone_between(
@@ -733,8 +735,8 @@ impl CommentInjectionPass._inject_standalone_by_spans(
         return parts;
     }
     start_line = 1
-    if isinstance(ctx, uni.Module)
-    else ctx.loc.first_line if ctx.loc else None;
+        if isinstance(ctx, uni.Module)
+        else ctx.loc.first_line if ctx.loc else None;
     end_line = (ctx.loc.last_line + 1) if ctx.loc else None;
     prev_line = (start_line - 1) if (start_line is not None) else None;
     result: list[doc.DocType] = [];
@@ -809,8 +811,7 @@ impl CommentInjectionPass._inject_into_parts(
                 look = index + 1;
                 while (look < len(parts)) {
                     candidate = parts[look];
-                    if (isinstance(candidate, doc.Text)
-                        and not candidate.text.strip()) {
+                    if (isinstance(candidate, doc.Text) and not candidate.text.strip()) {
                         look += 1;
                         continue;
                     }
@@ -825,10 +826,13 @@ impl CommentInjectionPass._inject_into_parts(
                         add_line = False;
                     }
                 }
-                result.append(self._make_inline_comment(
-                    info.token, add_line=add_line,
-                    anchor_col_end=last_token.loc.col_end
-                ));
+                result.append(
+                    self._make_inline_comment(
+                        info.token,
+                        add_line=add_line,
+                        anchor_col_end=last_token.loc.col_end
+                    )
+                );
             }
         }
     }

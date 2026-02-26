@@ -179,7 +179,8 @@ impl JacAutoLintPass.enter_ability(ability_node: uni.Ability) -> None {
             ability_node.decorators = new_decorators or None;
         }
     }
-    if self.is_rule_enabled(LintRule.STATICMETHOD_TO_STATIC) and ability_node.is_static {
+    if self.is_rule_enabled(LintRule.STATICMETHOD_TO_STATIC)
+    and ability_node.is_static {
         self._remove_staticmethod_from_kids(ability_node);
     }
     if self.is_rule_enabled(LintRule.COMBINE_HAS)
@@ -759,7 +760,8 @@ impl JacAutoLintPass._convert_hasattr_to_null_ok(
         attr_value = attr_expr.value;
         string_node = attr_expr;
     } elif isinstance(attr_expr, uni.MultiString) {
-        if len(attr_expr.strings) == 1 and isinstance(attr_expr.strings[0], uni.String) {
+        if len(attr_expr.strings) == 1
+        and isinstance(attr_expr.strings[0], uni.String) {
             attr_value = attr_expr.strings[0].value;
             string_node = attr_expr.strings[0];
         }

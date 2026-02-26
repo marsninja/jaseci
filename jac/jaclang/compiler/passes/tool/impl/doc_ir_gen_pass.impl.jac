@@ -58,11 +58,11 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
             return;
         }
         start_token = nd.kid[0]
-        if (nd.kid and isinstance(nd.kid[0], uni.Token))
-        else None;
+            if (nd.kid and isinstance(nd.kid[0], uni.Token))
+            else None;
         end_token = nd.kid[-1]
-        if (nd.kid and isinstance(nd.kid[-1], uni.Token))
-        else None;
+            if (nd.kid and isinstance(nd.kid[-1], uni.Token))
+            else None;
         if (not start_token or not end_token) {
             nd.gen.doc_ir = self.group(self.concat([kid.gen.doc_ir for kid in nd.kid]));
             return;
@@ -1196,9 +1196,7 @@ impl DocIRGenPass.exit_if_else_expr(nd: uni.IfElseExpr) -> None {
         continuation.pop();
     }
     # Wrap continuation (if cond else default) in Indent so it indents when broken
-    parts.append(
-        self.indent(self.concat([self.line(), *continuation]))
-    );
+    parts.append(self.indent(self.concat([self.line(), *continuation])));
     nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
 }
 
@@ -2380,7 +2378,9 @@ impl DocIRGenPass.join_with_space(parts: list[doc.DocType]) -> doc.DocType {
 }
 
 """Join parts with separator."""
-impl DocIRGenPass.join(separator: doc.DocType, parts: list[doc.DocType]) -> doc.DocType {
+impl DocIRGenPass.join(
+    separator: doc.DocType, parts: list[doc.DocType]
+) -> doc.DocType {
     if not parts {
         return self.concat([]);
     }
