@@ -9,86 +9,67 @@ on:
   workflow_dispatch:
 
 jobs:
-  shellcheck:
-    name: Lint install.sh
+  test-installer:
+    name: Test install methods
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v5
-      - name: Run ShellCheck
+
+      # --- ShellCheck ---
+      - name: ShellCheck install.sh
         uses: ludeeus/action-shellcheck@master
         with:
           scandir: scripts
           additional_files: install.sh
 
-  test-uv-install:
-    name: "uv install (${{ matrix.os }}, ${{ matrix.mode }})"
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            mode: full
-          - os: ubuntu-latest
-            mode: core
-          - os: macos-latest
-            mode: full
-          - os: macos-latest
-            mode: core
-    runs-on: ${{ matrix.os }}
+      # --- uv install (full) ---
+      - name: "uv install: full ecosystem"
+        run: bash scripts/install.sh
 
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Run installer
-        run: |
-          if [ "${{ matrix.mode }}" = "core" ]; then
-            bash scripts/install.sh --core
-          else
-            bash scripts/install.sh
-          fi
-
-      - name: Verify jac is on PATH
+      - name: "uv install: verify jac"
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           which jac
           jac --version
 
-      - name: Test basic execution
+      - name: "uv install: run test program"
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          echo 'with entry { print("hello from installer test"); }' > /tmp/test_install.jac
-          jac /tmp/test_install.jac
+          echo 'with entry { print("hello from uv full"); }' > /tmp/test_uv_full.jac
+          jac /tmp/test_uv_full.jac
 
-      - name: Test uninstall
+      - name: "uv install: uninstall full"
+        run: bash scripts/install.sh --uninstall
+
+      - name: "uv install: verify uninstall"
         run: |
-          bash scripts/install.sh --uninstall
           export PATH="$HOME/.local/bin:$PATH"
           if command -v jac &>/dev/null; then
             echo "FAIL: jac still found after uninstall"
             exit 1
           fi
-          echo "PASS: jac removed successfully"
+          echo "PASS: jac removed"
 
-  test-pex-build:
-    name: "pex build (${{ matrix.os }}, ${{ matrix.package }})"
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            package: jaclang
-            asset-prefix: jac
-          - os: macos-latest
-            package: jaclang
-            asset-prefix: jac
-          - os: ubuntu-latest
-            package: jaseci
-            asset-prefix: jaseci
-    runs-on: ${{ matrix.os }}
+      # --- uv install (core only) ---
+      - name: "uv install: core only"
+        run: bash scripts/install.sh --core
 
-    steps:
-      - uses: actions/checkout@v5
+      - name: "uv install: verify core jac"
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          jac --version
 
+      - name: "uv install: run test program (core)"
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          echo 'with entry { print("hello from uv core"); }' > /tmp/test_uv_core.jac
+          jac /tmp/test_uv_core.jac
+
+      - name: "uv install: uninstall core"
+        run: bash scripts/install.sh --uninstall
+
+      # --- pex scie build (jaclang) ---
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -97,33 +78,61 @@ jobs:
       - name: Install pex
         run: pip install pex
 
-      - name: Get latest PyPI version
-        id: version
+      - name: "pex: get latest jaclang version"
+        id: jac-version
         run: |
-          VERSION=$(pip index versions ${{ matrix.package }} 2>/dev/null | head -1 | grep -oP '\(\K[^)]+' || echo "")
+          VERSION=$(pip index versions jaclang 2>/dev/null | head -1 | grep -oP '\(\K[^)]+' || echo "")
           if [ -z "$VERSION" ]; then
-            echo "Could not determine latest version, using pip show"
-            pip install ${{ matrix.package }} --dry-run 2>&1 | grep -oP 'Would install.*${{ matrix.package }}-\K[^ ]+' | head -1
-            VERSION=$(pip install ${{ matrix.package }} --dry-run 2>&1 | grep -oP '${{ matrix.package }}-\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            VERSION=$(pip install jaclang --dry-run 2>&1 | grep -oP 'jaclang-\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Testing with ${{ matrix.package }}==$VERSION"
+          echo "Testing jaclang==$VERSION"
 
-      - name: Build pex scie binary
+      - name: "pex: build jaclang scie binary"
         run: |
           pex \
-            "${{ matrix.package }}==${{ steps.version.outputs.version }}" \
+            "jaclang==${{ steps.jac-version.outputs.version }}" \
             --console-script jac \
             --scie eager \
             --interpreter-constraint "CPython==3.12.*" \
-            -o "${{ matrix.asset-prefix }}-test"
+            -o jac-test-binary
 
-      - name: Verify binary runs
+      - name: "pex: verify jaclang binary"
         run: |
-          chmod +x "${{ matrix.asset-prefix }}-test"
-          ./${{ matrix.asset-prefix }}-test --version
+          chmod +x jac-test-binary
+          ./jac-test-binary --version
 
-      - name: Test basic execution
+      - name: "pex: run test program (jaclang)"
         run: |
-          echo 'with entry { print("hello from pex test"); }' > /tmp/test_pex.jac
-          ./${{ matrix.asset-prefix }}-test /tmp/test_pex.jac
+          echo 'with entry { print("hello from pex jaclang"); }' > /tmp/test_pex_jac.jac
+          ./jac-test-binary /tmp/test_pex_jac.jac
+
+      # --- pex scie build (jaseci) ---
+      - name: "pex: get latest jaseci version"
+        id: jaseci-version
+        run: |
+          VERSION=$(pip index versions jaseci 2>/dev/null | head -1 | grep -oP '\(\K[^)]+' || echo "")
+          if [ -z "$VERSION" ]; then
+            VERSION=$(pip install jaseci --dry-run 2>&1 | grep -oP 'jaseci-\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Testing jaseci==$VERSION"
+
+      - name: "pex: build jaseci scie binary"
+        run: |
+          pex \
+            "jaseci==${{ steps.jaseci-version.outputs.version }}" \
+            --console-script jac \
+            --scie eager \
+            --interpreter-constraint "CPython==3.12.*" \
+            -o jaseci-test-binary
+
+      - name: "pex: verify jaseci binary"
+        run: |
+          chmod +x jaseci-test-binary
+          ./jaseci-test-binary --version
+
+      - name: "pex: run test program (jaseci)"
+        run: |
+          echo 'with entry { print("hello from pex jaseci"); }' > /tmp/test_pex_jaseci.jac
+          ./jaseci-test-binary /tmp/test_pex_jaseci.jac
