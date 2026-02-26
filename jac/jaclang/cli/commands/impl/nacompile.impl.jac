@@ -144,9 +144,7 @@ impl nacompile(filename: str, output: str = "") -> int {
 
     try {
         success = ElfLinker.link(
-            obj_bytes=obj_bytes,
-            output_path=output,
-            needed_libs=needed_libs
+            obj_bytes=obj_bytes, output_path=output, needed_libs=needed_libs
         );
     } except Exception as e {
         console.error(f"ELF linking failed: {e}");
