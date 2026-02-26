@@ -2,7 +2,7 @@
 
 Compiles a .na.jac file to a standalone ELF binary:
 1. Compile .na.jac through Jac pipeline to get LLVM IR
-2. Inject _start entry point into the IR
+2. Inject main() + _start as pure LLVM IR (zero assembly)
 3. Emit object code via llvmlite
 4. Link into ELF executable via pure Python ELF linker
 """
@@ -11,69 +11,21 @@ import os;
 
 import from jaclang.cli.console { console }
 
-"""Inline asm for x86_64 _start: extracts argc/argv from stack, calls __libc_start_main."""
-glob _X86_64_START_ASM = (
-         "xorl %ebp, %ebp\\0A"
-         "popq %rsi\\0A"
-         "movq %rsp, %rdx\\0A"
-         "andq $$-16, %rsp\\0A"
-         "pushq %rax\\0A"
-         "pushq %rsp\\0A"
-         "xorl %r9d, %r9d\\0A"
-         "xorl %r8d, %r8d\\0A"
-         "xorl %ecx, %ecx\\0A"
-         "leaq main(%rip), %rdi\\0A"
-         "callq __libc_start_main\\0A"
-         "hlt"
-     );
 
-"""Inline asm for aarch64 _start: extracts argc/argv, calls __libc_start_main."""
-glob _AARCH64_START_ASM = (
-         "mov x29, #0\\0A"
-         "mov x30, #0\\0A"
-         "mov x1, x0\\0A"
-         "adrp x0, main\\0A"
-         "add x0, x0, :lo12:main\\0A"
-         "ldr x2, [sp]\\0A"
-         "add x3, sp, #8\\0A"
-         "mov x4, #0\\0A"
-         "mov x5, #0\\0A"
-         "mov x6, sp\\0A"
-         "bl __libc_start_main\\0A"
-         "brk #1"
-     );
+"""Inject main() and _start into the LLVM IR.
 
-"""Clobber constraints for x86_64 inline asm."""
-glob _X86_64_CLOBBERS = "~{dirflag},~{fpsr},~{flags},~{memory}";
+main() calls jac_entry() and returns 0.
+_start is the ELF entry point, written in pure LLVM IR — no inline
+assembly. It calls main(0, null) then exit(). LLVM handles all
+architecture-specific code generation via emit_object().
 
-"""Clobber constraints for aarch64 inline asm."""
-glob _AARCH64_CLOBBERS = "~{memory}";
-
-
-"""Inject _start and main functions into LLVM IR for standalone binary.
-
-Generates _start via architecture-specific inline assembly so LLVM produces
-proper relocations. The ELF linker treats _start like any other function.
+alignstack(16) is needed because _start is jumped to by the kernel
+(not called), so there's no return address on the stack and LLVM's
+default stack alignment assumption is wrong.
 """
-def _inject_start(llvm_ir_str: str, triple: str) -> str {
-    arch = triple.split("-")[0];
-    if arch == "x86_64" {
-        asm_body = _X86_64_START_ASM;
-        clobbers = _X86_64_CLOBBERS;
-    } elif arch == "aarch64" {
-        asm_body = _AARCH64_START_ASM;
-        clobbers = _AARCH64_CLOBBERS;
-    } else {
-        asm_body = "";
-        clobbers = "";
-    }
-    start_ir = '\n; --- injected entry points ---\n' + 'declare i32 @__libc_start_main(ptr, i32, ptr, ptr, ptr, ptr, ptr)\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n';
-    if asm_body {
-        start_ir += (
-            'define void @_start() naked noreturn nounwind {\n' + 'entry:\n' + '    call void asm sideeffect "' + asm_body + '", "' + clobbers + '"()\n' + '    unreachable\n' + '}\n'
-        );
-    }
-    return llvm_ir_str + start_ir;
+def _inject_entry(llvm_ir_str: str) -> str {
+    ir = '\n; --- injected entry point ---\n' + 'declare void @exit(i32) noreturn\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() noreturn alignstack(16) {\n' + 'entry:\n' + '    %ret = call i32 @main(i32 0, ptr null)\n' + '    call void @exit(i32 %ret)\n' + '    unreachable\n' + '}\n';
+    return llvm_ir_str + ir;
 }
 
 
@@ -151,18 +103,16 @@ impl nacompile(filename: str, output: str = "") -> int {
 
     console.print("  LLVM IR generated successfully.");
 
-    # Step 3: Initialize llvmlite and detect target architecture
+    # Step 3: Initialize llvmlite
     import llvmlite.binding as llvm;
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
-    llvm.initialize_native_asmparser();
 
     triple = llvm.get_default_triple();
-    arch = triple.split("-")[0];
     console.print(f"  Target: {triple}");
 
-    # Step 4: Inject _start entry point (architecture-specific via inline asm)
-    llvm_ir_str = _inject_start(llvm_ir_str, triple);
+    # Step 4: Inject main() + _start (pure LLVM IR, zero assembly)
+    llvm_ir_str = _inject_entry(llvm_ir_str);
 
     # Step 5: Determine needed libraries and handle GC fallback
     # (must happen before parse_assembly so IR substitutions take effect)

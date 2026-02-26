@@ -104,7 +104,10 @@ obj ElfLinker {
 
     """Parse a relocatable ELF object and link into an executable."""
     static def link(
-        obj_bytes: bytes, output_path: str, needed_libs: list[str] = ["libc.so.6"]
+        obj_bytes: bytes,
+        output_path: str,
+        needed_libs: list[str] = ["libc.so.6"],
+        crt_objects: list[bytes] = []
     ) -> bool;
 
     """Parse the ELF relocatable object file."""
