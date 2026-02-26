@@ -122,20 +122,79 @@ impl ToolProvider.list_tools -> list[dict[str, Any]] {
             }
         },
         {
-            "name": "get_ast",
-            "description": "Parse Jac code and return AST representation.",
+            "name": "get_ir",
+            "description": "Generate intermediate representation (IR) of Jac code. Supports symbol tables, AST, control flow graphs, Python/JS output, and more.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "code": {
                         "type": "string",
-                        "description": "Jac source code to parse"
+                        "description": "Jac source code to inspect"
                     },
                     "format": {
                         "type": "string",
-                        "description": "Output format: tree or json",
-                        "default": "tree",
-                        "enum": ["tree", "json"]
+                        "description": "IR output format",
+                        "enum": [
+                            "sym",
+                            "sym_dot",
+                            "ast",
+                            "ast_dot",
+                            "cfg_dot",
+                            "unparse",
+                            "pyast",
+                            "py",
+                            "docir",
+                            "esast",
+                            "es",
+                            "llvmir"
+                        ]
+                    }
+                },
+                "required": ["code", "format"]
+            }
+        },
+        {
+            "name": "lint_jac",
+            "description": "Lint Jac code for style and correctness violations. Optionally auto-fix issues.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "Jac source code to lint"
+                    },
+                    "fix": {
+                        "type": "boolean",
+                        "description": "If true, return auto-fixed code along with violations",
+                        "default": False
+                    }
+                },
+                "required": ["code"]
+            }
+        },
+        {
+            "name": "jac_to_py",
+            "description": "Compile Jac code to Python. Returns the generated Python source.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "Jac source code to compile to Python"
+                    }
+                },
+                "required": ["code"]
+            }
+        },
+        {
+            "name": "jac_to_js",
+            "description": "Compile Jac code to JavaScript. Returns the generated JS source.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "Jac source code to compile to JavaScript"
                     }
                 },
                 "required": ["code"]
@@ -196,13 +255,35 @@ impl ToolProvider.call_tool(name: str, arguments: dict[str, Any]) -> dict[str, A
                 return {"error": "Missing required argument: query"};
             }
             return search_docs(query, limit);
-        } elif name == "get_ast" {
+        } elif name == "get_ir" {
             code = arguments.get("code", "");
-            fmt = arguments.get("format", "tree");
+            fmt = arguments.get("format", "");
             if not code {
                 return {"error": "Missing required argument: code"};
             }
-            return get_ast(code, fmt);
+            if not fmt {
+                return {"error": "Missing required argument: format"};
+            }
+            return CompilerBridge.ir_gen(code, fmt);
+        } elif name == "lint_jac" {
+            code = arguments.get("code", "");
+            fix = arguments.get("fix", False);
+            if not code {
+                return {"error": "Missing required argument: code"};
+            }
+            return CompilerBridge.lint_snippet(code, fix);
+        } elif name == "jac_to_py" {
+            code = arguments.get("code", "");
+            if not code {
+                return {"error": "Missing required argument: code"};
+            }
+            return CompilerBridge.jac_to_py_code(code);
+        } elif name == "jac_to_js" {
+            code = arguments.get("code", "");
+            if not code {
+                return {"error": "Missing required argument: code"};
+            }
+            return CompilerBridge.jac_to_js_code(code);
         } else {
             return {"error": f"Unknown tool: {name}"};
         }
@@ -377,21 +458,4 @@ impl search_docs(query: str, limit: int = 5) -> dict[str, Any] {
     scored.sort(key=lambda x : -x[0]);
     results = [item[1] for item in scored[:limit]];
     return {"results": results};
-}
-
-"""Parse code and return AST info."""
-impl get_ast(code: str, fmt: str = "tree") -> dict[str, Any] {
-    import from jac_mcp.compiler_bridge { CompilerBridge }
-    result = CompilerBridge.parse_snippet(code);
-    if not result.get("valid", False) {
-        return {
-            "error": "Parse failed",
-            "errors": result.get("errors", []),
-            "ast": None
-        };
-    }
-    return {
-        "ast": "Parsed successfully. Use validate_jac for detailed analysis.",
-        "valid": True
-    };
 }

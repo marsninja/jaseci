@@ -11,7 +11,10 @@ import jaclang;
 import from jaclang.utils.lang_tools { AstTool }
 
 glob JAC_ROOT = str(Path(jaclang.__file__).parent.parent),
-     LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
+     LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
+     NATIVE_FIXTURES = os.path.join(
+         JAC_ROOT, "tests", "compiler", "passes", "native", "fixtures"
+     );
 
 test "pass template" {
     tool = AstTool();
@@ -73,6 +76,14 @@ test "sym sym dot" {
     }
     out = tool.ir(["sym.", jac_file]);
     assert '[label="' in out;
+}
+
+test "llvmir" {
+    tool = AstTool();
+    na_file = os.path.join(NATIVE_FIXTURES, "arithmetic.na.jac");
+    out = tool.ir(["llvmir", na_file]);
+    assert "ModuleID" in out;
+    assert "define" in out;
 }
 
 test "uninode doc" {

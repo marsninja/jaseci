@@ -44,7 +44,7 @@ impl AstTool.autodoc_uninode -> str {
 
 """Generate a AST, SymbolTable tree for .jac file, or Python AST for .py file."""
 impl AstTool.ir(args: list[str]) -> str {
-    error = 'Usage: ir <choose one of (sym / sym. / ast / ast. / docir / pyast / py / unparse / esast / es)> <.py or .jac file_path>';
+    error = 'Usage: ir <choose one of (sym / sym. / ast / ast. / docir / pyast / py / unparse / esast / es / llvmir)> <.py or .jac file_path>';
     if (len(args) != 2) {
         return error;
     }
@@ -148,6 +148,12 @@ impl AstTool.ir(args: list[str]) -> str {
                 } else {
                     return 'ECMAScript code generation failed.';
                 }
+
+            case 'llvmir':
+                ir = prog.compile(file_name);
+                return f"{ir.gen.llvm_ir}"
+                if ir.gen.llvm_ir is not None
+                else 'No LLVM IR generated. Ensure file contains na {} blocks or is a .na.jac file.';
 
             case _:
                 return f"Invalid key: {error}";

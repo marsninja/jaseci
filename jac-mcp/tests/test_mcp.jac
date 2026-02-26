@@ -168,6 +168,10 @@ test "tool names" {
     assert "list_examples" in names;
     assert "get_example" in names;
     assert "search_docs" in names;
+    assert "get_ir" in names;
+    assert "lint_jac" in names;
+    assert "jac_to_py" in names;
+    assert "jac_to_js" in names;
 }
 
 test "explain error unexpected token" {
@@ -253,6 +257,107 @@ test "py to jac basic" {
     assert isinstance(result, dict);
     assert "jac_code" in result;
     assert "warnings" in result;
+}
+
+# ── IR Generation Tool Tests ──
+test "get_ir ast format" {
+    tp = ToolProvider();
+    result = tp.call_tool(
+        "get_ir", {"code": "obj Foo { has x: int = 5; }", "format": "ast"}
+    );
+    assert result.get("valid") == True;
+    assert len(result.get("output", "")) > 0;
+    assert result.get("format") == "ast";
+}
+
+test "get_ir sym format" {
+    tp = ToolProvider();
+    result = tp.call_tool(
+        "get_ir", {"code": "obj Foo { has x: int = 5; }", "format": "sym"}
+    );
+    assert result.get("valid") == True;
+    assert len(result.get("output", "")) > 0;
+}
+
+test "get_ir py format" {
+    tp = ToolProvider();
+    result = tp.call_tool(
+        "get_ir", {"code": "obj Foo { has x: int = 5; }", "format": "py"}
+    );
+    assert result.get("valid") == True;
+    assert len(result.get("output", "")) > 0;
+}
+
+test "get_ir unparse format" {
+    tp = ToolProvider();
+    result = tp.call_tool(
+        "get_ir", {"code": "obj Foo { has x: int = 5; }", "format": "unparse"}
+    );
+    assert result.get("valid") == True;
+    assert "Foo" in result.get("output", "");
+}
+
+test "get_ir invalid format" {
+    tp = ToolProvider();
+    result = tp.call_tool(
+        "get_ir", {"code": "obj Foo { has x: int = 5; }", "format": "invalid"}
+    );
+    assert result.get("valid") == False;
+    assert len(result.get("errors", [])) > 0;
+}
+
+test "get_ir missing format" {
+    tp = ToolProvider();
+    result = tp.call_tool("get_ir", {"code": "obj Foo {}"});
+    assert "error" in result;
+}
+
+test "get_ir llvmir format" {
+    tp = ToolProvider();
+    result = tp.call_tool(
+        "get_ir", {"code": "obj Foo { has x: int = 5; }", "format": "llvmir"}
+    );
+    assert isinstance(result, dict);
+    assert "output" in result;
+    assert "format" in result;
+    assert result.get("format") == "llvmir";
+}
+
+# ── Lint Tool Tests ──
+test "lint_jac clean code" {
+    tp = ToolProvider();
+    result = tp.call_tool(
+        "lint_jac",
+        {"code": "\"\"\"Module doc.\"\"\"\nobj Foo {\n    has x: int = 5;\n}\n"}
+    );
+    assert "violations" in result;
+    assert "count" in result;
+}
+
+test "lint_jac with fix" {
+    tp = ToolProvider();
+    result = tp.call_tool(
+        "lint_jac", {"code": "obj Foo { has x: int = 5; }", "fix": True}
+    );
+    assert "violations" in result;
+    assert "fixed_code" in result;
+}
+
+# ── Code Generation Tool Tests ──
+test "jac_to_py basic" {
+    tp = ToolProvider();
+    result = tp.call_tool("jac_to_py", {"code": "obj Foo { has x: int = 5; }"});
+    assert isinstance(result, dict);
+    assert "python_code" in result;
+    assert "errors" in result;
+}
+
+test "jac_to_js basic" {
+    tp = ToolProvider();
+    result = tp.call_tool("jac_to_js", {"code": "obj Foo { has x: int = 5; }"});
+    assert isinstance(result, dict);
+    assert "js_code" in result;
+    assert "errors" in result;
 }
 
 # ── Prompt Provider Tests ──

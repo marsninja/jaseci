@@ -4,6 +4,10 @@
 
 - **Expanded documentation resources**: DOC_MAPPINGS now covers all 42 mkdocs pages (up from 12), including tutorials, developer workflow, and quick-start guides
 - **Auto-generated doc bundling**: New `scripts/bundle_docs.jac` script replaces hardcoded CI copy commands, using DOC_MAPPINGS as the single source of truth for PyPI release bundling
+- **New `get_ir` tool**: Full IR inspection with 12 output formats -- sym, sym_dot, ast, ast_dot, cfg_dot, unparse, pyast, py, docir, esast, es, llvmir (replaces stub `get_ast`)
+- **New `lint_jac` tool**: Lint Jac code for style/correctness violations with optional auto-fix
+- **New `jac_to_py` tool**: Compile Jac code to Python, returning generated source
+- **New `jac_to_js` tool**: Compile Jac code to JavaScript, returning generated source
 
 ## jac-mcp 0.1.0
 

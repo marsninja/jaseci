@@ -26,6 +26,3 @@ def get_example(name: str) -> dict[str, Any];
 
 """Search documentation by keywords."""
 def search_docs(query: str, limit: int = 5) -> dict[str, Any];
-
-"""Parse code and return AST info."""
-def get_ast(code: str, fmt: str = "tree") -> dict[str, Any];
