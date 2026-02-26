@@ -392,9 +392,7 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                             sym_name = val.params[0].value;
                             type_arg = val.params[1];
                             isinstance_type = self.get_type_of_expression(type_arg);
-                            isinstance_inst = self._convert_to_instance(
-                                isinstance_type
-                            );
+                            isinstance_inst = self._convert_to_instance(isinstance_type);
                             self._add_and_narrowing(sym_name, isinstance_inst);
                         }
                         # Evaluate and collect operand type
@@ -1513,9 +1511,7 @@ impl TypeEvaluator._compute_narrowed_at(
             predicate = self._find_predicate_for(symbol, pred.condition);
             if predicate is not None {
                 # Assert passed means condition is true
-                narrowed = self._apply_narrowing(
-                    predicate, pred_narrowed, True, symbol
-                );
+                narrowed = self._apply_narrowing(predicate, pred_narrowed, True, symbol);
                 if narrowed is not None {
                     incoming_types.append(narrowed);
                 } else {
