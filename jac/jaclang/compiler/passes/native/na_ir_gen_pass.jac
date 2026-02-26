@@ -81,6 +81,7 @@ obj NaIRGenPass(Transform) {
     def _codegen_fstring(nd: uni.FString) -> (ir.Value | None);
     def _make_global_string(text: str, name_prefix: str = ".str") -> ir.Value;
     # Phase 3: Objects, Fields, Methods, None
+    def _pre_register_struct_types(module: uni.Module) -> None;
     def _register_archetypes(module: uni.Module) -> None;
     def _codegen_archetype(nd: uni.Archetype) -> None;
     def _forward_declare_method(arch_name: str, method: uni.Ability) -> None;

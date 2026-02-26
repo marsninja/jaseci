@@ -1,4 +1,34 @@
 """Archetype (object) codegen: structs, fields, methods, instantiation."""
+"""Pre-register opaque struct types so globals with struct annotations resolve."""
+impl NaIRGenPass._pre_register_struct_types(module: uni.Module) -> None {
+    for stmt in module.body {
+        if isinstance(stmt, uni.NativeBlock) {
+            for inner in stmt.body {
+                if isinstance(inner, uni.Archetype) {
+                    aname = inner.name.value if inner.name else None;
+                    if aname is not None and aname not in self.struct_types {
+                        self.struct_types[aname] = self.llvm_module.context.get_identified_type(
+                            aname
+                        );
+                    }
+                }
+            }
+        } elif isinstance(stmt, uni.Archetype) {
+            if (
+                isinstance(stmt, uni.ContextAwareNode)
+                and stmt.code_context == CodeContext.NATIVE
+            ) {
+                aname = stmt.name.value if stmt.name else None;
+                if aname is not None and aname not in self.struct_types {
+                    self.struct_types[aname] = self.llvm_module.context.get_identified_type(
+                        aname
+                    );
+                }
+            }
+        }
+    }
+}
+
 """Walk the module and register all native archetypes (obj definitions)."""
 impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     # Collect all archetype nodes, deduplicating forward declarations
@@ -74,16 +104,13 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         arch_name = arch.name.value if arch.name else "unknown";
         self._emit_struct_release_fn(arch_name);
     }
-    # Pass 3: Forward-declare all methods
+    # Pass 3: Forward-declare all methods (including signature-less like postinit)
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
         if arch.body is not None {
             for stmt in arch.body {
                 if isinstance(stmt, uni.Ability) {
-                    if stmt.signature is not None
-                    and isinstance(stmt.signature, uni.FuncSignature) {
-                        self._forward_declare_method(arch_name, stmt);
-                    }
+                    self._forward_declare_method(arch_name, stmt);
                 }
             }
         }
@@ -107,16 +134,13 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     }
     # Pass 4.5: Forward-declare free functions (must happen before method bodies)
     self._forward_declare_functions(module);
-    # Pass 5: Generate method bodies
+    # Pass 5: Generate method bodies (including signature-less like postinit)
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
         if arch.body is not None {
             for stmt in arch.body {
                 if isinstance(stmt, uni.Ability) {
-                    if stmt.signature is not None
-                    and isinstance(stmt.signature, uni.FuncSignature) {
-                        self._codegen_method(arch_name, stmt);
-                    }
+                    self._codegen_method(arch_name, stmt);
                 }
             }
         }
@@ -205,29 +229,33 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     full_name = f"{arch_name}.{method_name}";
     sig = method.signature;
     struct_type = self.struct_types.get(arch_name);
-    if struct_type is None or sig is None {
+    if struct_type is None {
         return;
     }
     # Build parameter types: self pointer + declared params
     param_types: list[ir.Type] = [struct_type.as_pointer()];
-    for p in sig.get_parameters() {
-        if p.type_tag and p.type_tag.tag {
-            param_types.append(self._resolve_jac_type(p.type_tag.tag));
-        } else {
-            param_types.append(ir.IntType(64));
+    if sig is not None and isinstance(sig, uni.FuncSignature) {
+        for p in sig.get_parameters() {
+            if p.type_tag and p.type_tag.tag {
+                param_types.append(self._resolve_jac_type(p.type_tag.tag));
+            } else {
+                param_types.append(ir.IntType(64));
+            }
         }
-    }
-    # Return type
-    ret_type = self._resolve_jac_type(sig.return_type);
-    if isinstance(ret_type, ir.VoidType) {
-        ;  # keep void
+        # Return type
+        ret_type = self._resolve_jac_type(sig.return_type);
+    } else {
+        # Signature-less method (e.g. `def postinit { ... }`) — self only, returns i64
+        ret_type = ir.IntType(64);
     }
     fnty = ir.FunctionType(ret_type, param_types);
     func = ir.Function(self.llvm_module, fnty, name=full_name);
     # Name the parameters
     func.args[0].name = "self";
-    for (i, p) in enumerate(sig.get_parameters()) {
-        func.args[i + 1].name = p.name.value if p.name else f"arg{i}";
+    if sig is not None and isinstance(sig, uni.FuncSignature) {
+        for (i, p) in enumerate(sig.get_parameters()) {
+            func.args[i + 1].name = p.name.value if p.name else f"arg{i}";
+        }
     }
     self.method_funcs[full_name] = func;
     self.func_symtab[full_name] = func;
@@ -261,44 +289,46 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
     self.type_var_map["self"] = arch_name;
-    # Store other parameters
+    # Store other parameters (only if method has a FuncSignature)
     sig = method.signature;
-    for (i, p) in enumerate(sig.get_parameters()) {
-        param_name = p.name.value if p.name else f"arg{i}";
-        arg_val = func.args[i + 1];
-        alloca = self.builder.alloca(arg_val.type, name=param_name);
-        self.builder.store(arg_val, alloca);
-        self.local_vars[param_name] = alloca;
-        # Track type info for struct pointer parameters
-        if isinstance(arg_val.type, ir.PointerType) {
-            for (sname, stype) in self.struct_types.items() {
-                if arg_val.type == stype.as_pointer() {
-                    self.type_var_map[param_name] = sname;
-                    break;
+    if sig is not None and isinstance(sig, uni.FuncSignature) {
+        for (i, p) in enumerate(sig.get_parameters()) {
+            param_name = p.name.value if p.name else f"arg{i}";
+            arg_val = func.args[i + 1];
+            alloca = self.builder.alloca(arg_val.type, name=param_name);
+            self.builder.store(arg_val, alloca);
+            self.local_vars[param_name] = alloca;
+            # Track type info for struct pointer parameters
+            if isinstance(arg_val.type, ir.PointerType) {
+                for (sname, stype) in self.struct_types.items() {
+                    if arg_val.type == stype.as_pointer() {
+                        self.type_var_map[param_name] = sname;
+                        break;
+                    }
                 }
             }
-        }
-        # Track Jac type annotation for parameters (enables nested list resolution)
-        if p.type_tag and p.type_tag.tag {
-            self.var_type_node[param_name] = p.type_tag.tag;
-            # Also track list elem type from annotation
-            for (ename, ltype) in self.list_types.items() {
-                if arg_val.type == ltype.as_pointer() {
-                    self.var_list_elem_type[param_name] = ename;
-                    break;
+            # Track Jac type annotation for parameters (enables nested list resolution)
+            if p.type_tag and p.type_tag.tag {
+                self.var_type_node[param_name] = p.type_tag.tag;
+                # Also track list elem type from annotation
+                for (ename, ltype) in self.list_types.items() {
+                    if arg_val.type == ltype.as_pointer() {
+                        self.var_list_elem_type[param_name] = ename;
+                        break;
+                    }
                 }
-            }
-            # Handle union types T | None for struct tracking
-            tag_name = self._get_name(p.type_tag.tag);
-            tag_node = p.type_tag.tag;
-            if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
-                op_val = getattr(tag_node.op, 'value', '');
-                if op_val == "|" {
-                    tag_name = self._get_name(tag_node.left);
+                # Handle union types T | None for struct tracking
+                tag_name = self._get_name(p.type_tag.tag);
+                tag_node = p.type_tag.tag;
+                if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
+                    op_val = getattr(tag_node.op, 'value', '');
+                    if op_val == "|" {
+                        tag_name = self._get_name(tag_node.left);
+                    }
                 }
-            }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[param_name] = tag_name;
+                if tag_name is not None and tag_name in self.struct_types {
+                    self.type_var_map[param_name] = tag_name;
+                }
             }
         }
     }

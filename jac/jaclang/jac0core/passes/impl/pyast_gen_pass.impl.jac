@@ -1190,7 +1190,20 @@ impl PyastGenPass.exit_sem_def(self: PyastGenPass, nd: uni.SemDef) -> None {
 impl PyastGenPass.exit_func_signature(
     self: PyastGenPass, nd: uni.FuncSignature
 ) -> None {
-    posonlyargs = [i.gen.py_ast[0] for i in nd.posonly_params];
+    # Helper: get py_ast[0] from a ParamVar, synthesizing an ast3.arg
+    # if the node wasn't traversed in this pass (e.g. impl annex re-traversal).
+    def _param_arg(p: uni.ParamVar) -> ast3.arg {
+        if p.gen.py_ast {
+            return p.gen.py_ast[0];
+        }
+        name = p.name.value if p.name else "arg";
+        annotation = None;
+        if p.type_tag and p.type_tag.gen.py_ast {
+            annotation = cast(ast3.expr, p.type_tag.gen.py_ast[0]);
+        }
+        return self.sync(ast3.arg(arg=name, annotation=annotation));
+    }
+    posonlyargs = [_param_arg(i) for i in nd.posonly_params];
     vararg = nd.varargs.gen.py_ast[0] if nd.varargs else None;
     kwarg = nd.kwargs.gen.py_ast[0] if nd.kwargs else None;
     params = [self.sync(ast3.arg(arg='self', annotation=None))]
@@ -1204,21 +1217,27 @@ impl PyastGenPass.exit_func_signature(
         else [];
     if posonlyargs {
         posonlyargs = params + posonlyargs;
-        params = [cast(ast3.arg, i.gen.py_ast[0]) for i in nd.params];
+        params = [cast(ast3.arg, _param_arg(i)) for i in nd.params];
     } else {
-        params = params + [cast(ast3.arg, i.gen.py_ast[0]) for i in nd.params];
+        params = params + [cast(ast3.arg, _param_arg(i)) for i in nd.params];
     }
     defaults = [];
     for i in [*nd.posonly_params, *nd.params] {
         if i.value {
-            defaults.append(cast(ast3.expr, i.value.gen.py_ast[0]));
+            if i.value.gen.py_ast {
+                defaults.append(cast(ast3.expr, i.value.gen.py_ast[0]));
+            }
         }
     }
-    kwonly_args = [cast(ast3.arg, i.gen.py_ast[0]) for i in nd.kwonlyargs];
+    kwonly_args = [cast(ast3.arg, _param_arg(i)) for i in nd.kwonlyargs];
     kw_defaults: list[(ast3.expr | None)] = [];
     for i in nd.kwonlyargs {
         if i.value {
-            kw_defaults.append(cast(ast3.expr, i.value.gen.py_ast[0]));
+            if i.value.gen.py_ast {
+                kw_defaults.append(cast(ast3.expr, i.value.gen.py_ast[0]));
+            } else {
+                kw_defaults.append(None);
+            }
         } else {
             kw_defaults.append(None);
         }

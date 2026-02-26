@@ -119,7 +119,11 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
     # Process C library imports: import from "libname" { def ...; }
     self._process_clib_imports(self.ir_in);
     # Phase 0: Forward declarations (enums, archetypes, free functions, globals)
+    # Enums first (used by struct fields and globals).
     self._register_enums(self.ir_in);
+    # Pre-register opaque struct types so globals with struct-typed annotations
+    # (e.g. `glob game: Game = Game()`) resolve correctly.
+    self._pre_register_struct_types(self.ir_in);
     self._register_globals(self.ir_in);
     self._register_archetypes(self.ir_in);
     # Phase 1: Codegen native abilities and entry blocks

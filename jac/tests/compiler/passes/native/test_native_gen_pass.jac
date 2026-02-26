@@ -643,6 +643,71 @@ test "chess play random moves stress" {
     );
 }
 
+# --- TestNativeChessExample (decl+impl separation) ---
+test "chess example decl impl separation" {
+    # Validates that chess.jac and chess.na.jac are identical source files
+    # and that both run successfully via `jac run`. chess.jac uses the default
+    # Python/sv pathway; chess.na.jac uses the native LLVM pathway. Both share
+    # chess.impl.jac for method implementations. This exercises:
+    #   - Annex discovery: .na.jac variant finding bare .impl.jac
+    #   - DeclImplMatchPass: connecting impl bodies to forward declarations
+    #   - NaIRGenPass: ImplDef unwrapping, signature-less methods, type inference
+    #   - PyastGenPass: resilient FuncSignature handling for re-traversed impls
+    examples_dir = str(Path(jaclang.__file__).parent.parent / "examples" / "chess");
+    jac_path = os.path.join(examples_dir, "chess.jac");
+    na_path = os.path.join(examples_dir, "chess.na.jac");
+
+    # --- 1. Source files must be identical ---
+    with open(jac_path) as f {
+        jac_src = f.read();
+    }
+    with open(na_path) as f {
+        na_src = f.read();
+    }
+    assert jac_src == na_src , "chess.jac and chess.na.jac must have identical source code";
+
+    # --- 2. Both pathways must run successfully ---
+    stdin_data = "\n" * 3 + "quit\n";
+
+    result_jac = subprocess.run(
+        [sys.executable, "-m", "jaclang", "run", jac_path],
+        input=stdin_data,
+        capture_output=True,
+        text=True,
+        timeout=120
+    );
+    assert result_jac.returncode == 0 , (
+        f"chess.jac crashed: {result_jac.stderr[-500:]
+            if result_jac.stderr
+            else '(empty)'}"
+    );
+    assert "Game ended." in result_jac.stdout;
+
+    result_na = subprocess.run(
+        [sys.executable, "-m", "jaclang", "run", na_path],
+        input=stdin_data,
+        capture_output=True,
+        text=True,
+        timeout=120
+    );
+    assert result_na.returncode == 0 , (
+        f"chess.na.jac crashed: {result_na.stderr[-500:]
+            if result_na.stderr
+            else '(empty)'}"
+    );
+    assert "Game ended." in result_na.stdout;
+
+    # --- 3. Both must display a chess board ---
+    for (name, out) in [
+        ("chess.jac", result_jac.stdout),
+        ("chess.na.jac", result_na.stdout)
+    ] {
+        assert "a  b  c  d  e  f  g  h" in out , f"{name} missing board header";
+        assert "R  N  B  Q  K  B  N  R" in out , f"{name} missing back rank";
+        assert "Position eval:" in out , f"{name} missing eval line";
+    }
+}
+
 # --- TestNativeDicts ---
 test "dicts dict new empty" {
     (eng, _) = compile_native("dicts_sets.na.jac");

@@ -34,6 +34,13 @@ impl NaIRGenPass._codegen_global_vars(nd: uni.GlobalVars) -> None {
             var_type: ir.Type = ir.IntType(64);  # Default to i64
             if assign.type_tag and assign.type_tag.tag {
                 var_type = self._resolve_jac_type(assign.type_tag.tag);
+            } elif assign.value is not None
+            and isinstance(assign.value, uni.FuncCall) {
+                # Infer type from constructor call (e.g. glob game = Game())
+                call_name = self._get_name(assign.value.target);
+                if call_name is not None and call_name in self.struct_types {
+                    var_type = self.struct_types[call_name].as_pointer();
+                }
             }
             # Create LLVM global variable
             global_var = ir.GlobalVariable(self.llvm_module, var_type, name=var_name);
