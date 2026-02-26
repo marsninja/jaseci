@@ -18,10 +18,7 @@ jobs:
 
       # --- ShellCheck ---
       - name: ShellCheck install.sh
-        uses: ludeeus/action-shellcheck@master
-        with:
-          scandir: scripts
-          additional_files: install.sh
+        run: shellcheck scripts/install.sh
 
       # --- uv install (full) ---
       - name: "uv install: full ecosystem"
