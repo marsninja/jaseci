@@ -11,21 +11,68 @@ import os;
 
 import from jaclang.cli.console { console }
 
-"""Inject a _start function into LLVM IR that calls jac_entry and exit."""
-def _inject_start(llvm_ir_str: str) -> str {
-    # Add a main() function so we can use __libc_start_main for proper CRT init.
-    # The ELF linker will inject a _start stub (raw x86_64 bytes) that reads
-    # argc/argv from the stack and calls __libc_start_main(@main, argc, argv, ...).
-    # This ensures pthread, GC, and other libc subsystems initialize correctly.
-    start_ir = """
-; --- injected main entry point ---
+"""Inline asm for x86_64 _start: extracts argc/argv from stack, calls __libc_start_main."""
+glob _X86_64_START_ASM = (
+         "xorl %ebp, %ebp\\0A"
+         "popq %rsi\\0A"
+         "movq %rsp, %rdx\\0A"
+         "andq $$-16, %rsp\\0A"
+         "pushq %rax\\0A"
+         "pushq %rsp\\0A"
+         "xorl %r9d, %r9d\\0A"
+         "xorl %r8d, %r8d\\0A"
+         "xorl %ecx, %ecx\\0A"
+         "leaq main(%rip), %rdi\\0A"
+         "callq __libc_start_main\\0A"
+         "hlt"
+     );
 
-define i32 @main(i32 %argc, ptr %argv) {
-entry:
-    call void @jac_entry()
-    ret i32 0
-}
-""";
+"""Inline asm for aarch64 _start: extracts argc/argv, calls __libc_start_main."""
+glob _AARCH64_START_ASM = (
+         "mov x29, #0\\0A"
+         "mov x30, #0\\0A"
+         "mov x1, x0\\0A"
+         "adrp x0, main\\0A"
+         "add x0, x0, :lo12:main\\0A"
+         "ldr x2, [sp]\\0A"
+         "add x3, sp, #8\\0A"
+         "mov x4, #0\\0A"
+         "mov x5, #0\\0A"
+         "mov x6, sp\\0A"
+         "bl __libc_start_main\\0A"
+         "brk #1"
+     );
+
+"""Clobber constraints for x86_64 inline asm."""
+glob _X86_64_CLOBBERS = "~{dirflag},~{fpsr},~{flags},~{memory}";
+
+"""Clobber constraints for aarch64 inline asm."""
+glob _AARCH64_CLOBBERS = "~{memory}";
+
+
+"""Inject _start and main functions into LLVM IR for standalone binary.
+
+Generates _start via architecture-specific inline assembly so LLVM produces
+proper relocations. The ELF linker treats _start like any other function.
+"""
+def _inject_start(llvm_ir_str: str, triple: str) -> str {
+    arch = triple.split("-")[0];
+    if arch == "x86_64" {
+        asm_body = _X86_64_START_ASM;
+        clobbers = _X86_64_CLOBBERS;
+    } elif arch == "aarch64" {
+        asm_body = _AARCH64_START_ASM;
+        clobbers = _AARCH64_CLOBBERS;
+    } else {
+        asm_body = "";
+        clobbers = "";
+    }
+    start_ir = '\n; --- injected entry points ---\n' + 'declare i32 @__libc_start_main(ptr, i32, ptr, ptr, ptr, ptr, ptr)\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n';
+    if asm_body {
+        start_ir += (
+            'define void @_start() naked noreturn nounwind {\n' + 'entry:\n' + '    call void asm sideeffect "' + asm_body + '", "' + clobbers + '"()\n' + '    unreachable\n' + '}\n'
+        );
+    }
     return llvm_ir_str + start_ir;
 }
 
@@ -104,14 +151,47 @@ impl nacompile(filename: str, output: str = "") -> int {
 
     console.print("  LLVM IR generated successfully.");
 
-    # Step 3: Inject _start entry point
-    llvm_ir_str = _inject_start(llvm_ir_str);
-
-    # Step 4: Emit object code via llvmlite
+    # Step 3: Initialize llvmlite and detect target architecture
     import llvmlite.binding as llvm;
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
+    llvm.initialize_native_asmparser();
 
+    triple = llvm.get_default_triple();
+    arch = triple.split("-")[0];
+    console.print(f"  Target: {triple}");
+
+    # Step 4: Inject _start entry point (architecture-specific via inline asm)
+    llvm_ir_str = _inject_start(llvm_ir_str, triple);
+
+    # Step 5: Determine needed libraries and handle GC fallback
+    # (must happen before parse_assembly so IR substitutions take effect)
+    import ctypes.util;
+    needed_libs: list[str] = ["libc.so.6"];
+
+    libgc_name = ctypes.util.find_library("gc");
+    gc_needed = "GC_malloc" in llvm_ir_str or "GC_add_roots" in llvm_ir_str;
+    if gc_needed and libgc_name {
+        needed_libs.append("libgc.so.1");
+    } elif gc_needed {
+        # libgc not available: rewrite GC calls to libc fallbacks at IR level.
+        # GC_malloc -> malloc, GC_add_roots -> noop stub (matching JIT fallback).
+        import re;
+        llvm_ir_str = llvm_ir_str.replace(
+            'declare i8* @"GC_malloc"(i64 %".1")', 'declare i8* @"malloc"(i64 %".1")'
+        );
+        llvm_ir_str = re.sub(
+            r'call i8\* @"GC_malloc"\(', 'call i8* @"malloc"(', llvm_ir_str
+        );
+        # Replace GC_add_roots with a no-op: remove calls and declaration
+        llvm_ir_str = re.sub(r'call void @"GC_add_roots"\([^)]*\)\n', '', llvm_ir_str);
+        llvm_ir_str = llvm_ir_str.replace(
+            'declare void @"GC_add_roots"(i8* %".1", i8* %".2")', ''
+        );
+        console.print("  Note: libgc not found, using malloc fallback.");
+    }
+
+    # Step 6: Emit object code via llvmlite
     try {
         mod = llvm.parse_assembly(llvm_ir_str);
         mod.verify();
@@ -125,21 +205,7 @@ impl nacompile(filename: str, output: str = "") -> int {
     obj_bytes = target_machine.emit_object(mod);
     console.print(f"  Object code emitted ({len(obj_bytes)} bytes).");
 
-    # Step 5: Determine needed libraries
-    import ctypes.util;
-    needed_libs: list[str] = ["libc.so.6"];
-
-    # Check if libgc is available and needed
-    libgc_name = ctypes.util.find_library("gc");
-    if libgc_name {
-        # Check if the IR references GC functions
-        if "GC_malloc" in llvm_ir_str or "GC_init" in llvm_ir_str {
-            # Resolve to actual soname
-            needed_libs.append("libgc.so.1");
-        }
-    }
-
-    # Step 6: Link into ELF executable
+    # Step 7: Link into ELF executable
     import from jaclang.compiler.passes.native.elf_linker { ElfLinker }
 
     try {

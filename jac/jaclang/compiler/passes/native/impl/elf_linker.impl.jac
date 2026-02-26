@@ -1,7 +1,8 @@
-"""Pure Python ELF64 linker implementation.
+"""Architecture-agnostic ELF64 linker implementation.
 
 Converts a relocatable .o (from llvmlite emit_object) into a runnable
 ELF executable with dynamic linking against libc/libgc.
+Architecture is auto-detected from the object file.
 """
 
 import struct;
@@ -11,8 +12,11 @@ import os;
 glob ELFMAG = b"\x7fELF",
      ELFCLASS64 = 2,
      ELFDATA2LSB = 1,
-     ET_EXEC = 2,
-     EM_X86_64 = 62;
+     ET_EXEC = 2;
+
+# ── ELF machine types ──────────────────────────────────────────
+glob EM_X86_64 = 62,
+     EM_AARCH64 = 183;
 
 # ── Section header types ─────────────────────────────────────────
 glob SHT_NULL = 0,
@@ -58,15 +62,6 @@ glob DT_NULL = 0,
      DT_RELASZ = 8,
      DT_RELAENT = 9;
 
-# ── Relocation types (x86_64) ────────────────────────────────────
-glob R_X86_64_64 = 1,
-     R_X86_64_PC32 = 2,
-     R_X86_64_PLT32 = 4,
-     R_X86_64_GOTPCREL = 9,
-     R_X86_64_COPY = 5,
-     R_X86_64_GLOB_DAT = 6,
-     R_X86_64_JUMP_SLOT = 7;
-
 # ── Symbol binding/type ──────────────────────────────────────────
 glob STB_GLOBAL = 1,
      STT_NOTYPE = 0,
@@ -74,10 +69,37 @@ glob STB_GLOBAL = 1,
      STT_FUNC = 2,
      SHN_UNDEF = 0;
 
-# ── Layout constants ─────────────────────────────────────────────
-glob PAGE_SIZE = 0x1000,
-     BASE_VADDR = 0x400000,
-     INTERP_PATH = b"/lib64/ld-linux-x86-64.so.2";
+# ══════════════════════════════════════════════════════════════════
+# x86_64 relocation types
+# ══════════════════════════════════════════════════════════════════
+glob R_X86_64_64 = 1,
+     R_X86_64_PC32 = 2,
+     R_X86_64_PLT32 = 4,
+     R_X86_64_COPY = 5,
+     R_X86_64_GLOB_DAT = 6,
+     R_X86_64_JUMP_SLOT = 7,
+     R_X86_64_GOTPCREL = 9,
+     R_X86_64_REX_GOTPCRELX = 42;
+
+# ══════════════════════════════════════════════════════════════════
+# aarch64 relocation types
+# ══════════════════════════════════════════════════════════════════
+glob R_AARCH64_PREL32 = 261,
+     R_AARCH64_ADR_PREL_PG_HI21 = 275,
+     R_AARCH64_ADD_ABS_LO12_NC = 277,
+     R_AARCH64_JUMP26 = 282,
+     R_AARCH64_CALL26 = 283,
+     R_AARCH64_LDST8_ABS_LO12_NC = 278,
+     R_AARCH64_LDST16_ABS_LO12_NC = 284,
+     R_AARCH64_LDST32_ABS_LO12_NC = 285,
+     R_AARCH64_LDST64_ABS_LO12_NC = 286,
+     R_AARCH64_LDST128_ABS_LO12_NC = 299,
+     R_AARCH64_ADR_GOT_PAGE = 311,
+     R_AARCH64_LD64_GOT_LO12_NC = 312,
+     R_AARCH64_COPY = 1024,
+     R_AARCH64_GLOB_DAT = 1025,
+     R_AARCH64_JUMP_SLOT = 1026,
+     R_AARCH64_ABS64 = 257;
 
 
 # ── Helper: align to boundary ────────────────────────────────────
@@ -91,8 +113,7 @@ def _align(value: int, alignment: int) -> int {
 
 # ── Helper: build ELF string table ──────────────────────────────
 def _build_strtab(strings: list[str]) -> tuple[bytes, dict[str, int]] {
-    """Build a string table and return (bytes, {name: offset})."""
-    data = bytearray(b"\x00");  # First byte is null
+    data = bytearray(b"\x00");
     offsets: dict[str, int] = {};
     for s in strings {
         if s not in offsets {
@@ -106,7 +127,6 @@ def _build_strtab(strings: list[str]) -> tuple[bytes, dict[str, int]] {
 
 # ── Helper: build ELF hash table ────────────────────────────────
 def _elf_hash(name: str) -> int {
-    """Compute ELF hash for a symbol name."""
     h = 0;
     for c in name.encode("utf-8") {
         h = (h << 4) + c;
@@ -121,31 +141,304 @@ def _elf_hash(name: str) -> int {
 
 
 def _build_hash_table(num_symbols: int) -> bytes {
-    """Build a minimal ELF hash table.
-
-    Uses nbucket=1 so all symbols hash to bucket 0, chained together.
-    Simple but correct for small symbol counts.
-    """
     nbucket = 1;
     nchain = num_symbols;
-    # All symbols go to bucket 0
     data = bytearray();
     data.extend(struct.pack("<II", nbucket, nchain));
-    # Bucket[0] = 1 (first non-null symbol)
     data.extend(struct.pack("<I", 1 if num_symbols > 1 else 0));
-    # Chain: chain[0] = 0 (STN_UNDEF), chain[i] = i+1, chain[last] = 0
     for i in range(nchain) {
         if i == 0 {
-            data.extend(struct.pack("<I", 0));  # STN_UNDEF chains to nothing
+            data.extend(struct.pack("<I", 0));
         } elif i == nchain - 1 {
-            data.extend(struct.pack("<I", 0));  # Last symbol chains to nothing
+            data.extend(struct.pack("<I", 0));
         } else {
-            data.extend(struct.pack("<I", i + 1));  # Chain to next
+            data.extend(struct.pack("<I", i + 1));
         }
     }
     return bytes(data);
 }
 
+
+# ══════════════════════════════════════════════════════════════════
+# ArchConfig implementations
+# ══════════════════════════════════════════════════════════════════
+
+# ── x86_64 PLT ───────────────────────────────────────────────────
+impl ArchConfig.build_plt0(got_plt_vaddr: int, plt_vaddr: int) -> bytes {
+    if self.e_machine == EM_X86_64 {
+        return _x86_64_build_plt0(got_plt_vaddr, plt_vaddr);
+    } elif self.e_machine == EM_AARCH64 {
+        return _aarch64_build_plt0(got_plt_vaddr, plt_vaddr);
+    }
+    return b"";
+}
+
+impl ArchConfig.build_plt_entry(
+    entry_vaddr: int, got_entry_vaddr: int, idx: int, plt_vaddr: int
+) -> bytes {
+    if self.e_machine == EM_X86_64 {
+        return _x86_64_build_plt_entry(entry_vaddr, got_entry_vaddr, idx, plt_vaddr);
+    } elif self.e_machine == EM_AARCH64 {
+        return _aarch64_build_plt_entry(entry_vaddr, got_entry_vaddr, idx, plt_vaddr);
+    }
+    return b"";
+}
+
+impl ArchConfig.apply_reloc(
+    rtype: int,
+    patch_buf: bytearray,
+    patch_off: int,
+    sym_addr: int,
+    addend: int,
+    patch_vaddr: int
+) -> bool {
+    if self.e_machine == EM_X86_64 {
+        return _x86_64_apply_reloc(
+            rtype, patch_buf, patch_off, sym_addr, addend, patch_vaddr
+        );
+    } elif self.e_machine == EM_AARCH64 {
+        return _aarch64_apply_reloc(
+            rtype, patch_buf, patch_off, sym_addr, addend, patch_vaddr
+        );
+    }
+    return False;
+}
+
+impl ArchConfig.get_lazy_bind_addr(
+    plt_vaddr: int, plt0_size: int, idx: int, plt_entry_size: int
+) -> int {
+    if self.e_machine == EM_X86_64 {
+        # x86_64: point to push instruction in PLT[n] (offset +6)
+        return plt_vaddr + plt0_size + idx * plt_entry_size + 6;
+    } elif self.e_machine == EM_AARCH64 {
+        # aarch64: point back to PLT[0] resolver
+        return plt_vaddr;
+    }
+    return plt_vaddr;
+}
+
+impl ArchConfig.from_e_machine(e_machine: int) -> (ArchConfig | None) {
+    if e_machine == EM_X86_64 {
+        return ArchConfig(
+            e_machine=EM_X86_64,
+            base_vaddr=0x400000,
+            page_size=0x1000,
+            interp_paths=[
+                "/lib64/ld-linux-x86-64.so.2",
+                "/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+            ],
+            plt0_size=16,
+            plt_entry_size=16,
+            jump_slot_rtype=R_X86_64_JUMP_SLOT,
+            copy_rtype=R_X86_64_COPY,
+            glob_dat_rtype=R_X86_64_GLOB_DAT,
+            gotpcrel_rtypes={R_X86_64_GOTPCREL,R_X86_64_REX_GOTPCRELX}
+        );
+    } elif e_machine == EM_AARCH64 {
+        return ArchConfig(
+            e_machine=EM_AARCH64,
+            base_vaddr=0x400000,
+            page_size=0x10000,
+            interp_paths=[
+                "/lib/ld-linux-aarch64.so.1",
+                "/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"
+            ],
+            plt0_size=32,
+            plt_entry_size=16,
+            jump_slot_rtype=R_AARCH64_JUMP_SLOT,
+            copy_rtype=R_AARCH64_COPY,
+            glob_dat_rtype=R_AARCH64_GLOB_DAT,
+            gotpcrel_rtypes={R_AARCH64_ADR_GOT_PAGE,R_AARCH64_LD64_GOT_LO12_NC}
+        );
+    }
+    return None;
+}
+
+
+# ── x86_64 PLT stubs ─────────────────────────────────────────────
+def _x86_64_build_plt0(got_plt_vaddr: int, plt_vaddr: int) -> bytes {
+    data = bytearray();
+    # ff 35 XX XX XX XX    push QWORD [rip + got_plt+8]
+    got8_rel = (got_plt_vaddr + 8) - (plt_vaddr + 6);
+    data.extend(b"\xff\x35" + struct.pack("<i", got8_rel));
+    # ff 25 XX XX XX XX    jmp  QWORD [rip + got_plt+16]
+    got16_rel = (got_plt_vaddr + 16) - (plt_vaddr + 12);
+    data.extend(b"\xff\x25" + struct.pack("<i", got16_rel));
+    # 0f 1f 40 00          nop padding
+    data.extend(b"\x0f\x1f\x40\x00");
+    return bytes(data);
+}
+
+
+def _x86_64_build_plt_entry(
+    entry_vaddr: int, got_entry_vaddr: int, idx: int, plt_vaddr: int
+) -> bytes {
+    data = bytearray();
+    # ff 25 XX XX XX XX    jmp QWORD [rip + got_entry]
+    jmp_rel = got_entry_vaddr - (entry_vaddr + 6);
+    data.extend(b"\xff\x25" + struct.pack("<i", jmp_rel));
+    # 68 XX XX XX XX       push idx
+    data.extend(b"\x68" + struct.pack("<i", idx));
+    # e9 XX XX XX XX       jmp PLT[0]
+    jmp_plt0_rel = plt_vaddr - (entry_vaddr + 16);
+    data.extend(b"\xe9" + struct.pack("<i", jmp_plt0_rel));
+    return bytes(data);
+}
+
+
+# ── x86_64 relocation application ────────────────────────────────
+def _x86_64_apply_reloc(
+    rtype: int,
+    patch_buf: bytearray,
+    patch_off: int,
+    sym_addr: int,
+    addend: int,
+    patch_vaddr: int
+) -> bool {
+    if rtype == R_X86_64_64 {
+        val = sym_addr + addend;
+        struct.pack_into("<Q", patch_buf, patch_off, val & 0xFFFFFFFFFFFFFFFF);
+        return True;
+    } elif rtype == R_X86_64_PC32 or rtype == R_X86_64_PLT32 {
+        val = sym_addr + addend - patch_vaddr;
+        struct.pack_into("<i", patch_buf, patch_off, val);
+        return True;
+    } elif rtype == R_X86_64_GOTPCREL or rtype == R_X86_64_REX_GOTPCRELX {
+        # GOT-directed: sym_addr is already the GOT entry address
+        val = sym_addr + addend - patch_vaddr;
+        struct.pack_into("<i", patch_buf, patch_off, val);
+        return True;
+    }
+    return False;
+}
+
+
+# ── aarch64 PLT stubs ────────────────────────────────────────────
+def _aarch64_build_plt0(got_plt_vaddr: int, plt_vaddr: int) -> bytes {
+    data = bytearray();
+    # stp x16, x30, [sp, #-16]!
+    data.extend(struct.pack("<I", 0xa9bf7bf0));
+    # adrp x16, page(GOT+16)
+    got16 = got_plt_vaddr + 16;
+    page_off = ((got16 & ~0xFFF) - ((plt_vaddr + 4) & ~0xFFF)) >> 12;
+    immlo = (page_off & 0x3) << 29;
+    immhi = ((page_off >> 2) & 0x7FFFF) << 5;
+    data.extend(struct.pack("<I", 0x90000010 | immlo | immhi));
+    # ldr x17, [x16, #lo12:GOT+16]
+    lo12_ldr = (got16 & 0xFFF) >> 3;
+    data.extend(struct.pack("<I", 0xf9400211 | (lo12_ldr << 10)));
+    # add x16, x16, #lo12:GOT+16
+    lo12_add = got16 & 0xFFF;
+    data.extend(struct.pack("<I", 0x91000210 | (lo12_add << 10)));
+    # br x17
+    data.extend(struct.pack("<I", 0xd61f0220));
+    # nop padding to 32 bytes
+    data.extend(struct.pack("<I", 0xd503201f));
+    data.extend(struct.pack("<I", 0xd503201f));
+    data.extend(struct.pack("<I", 0xd503201f));
+    return bytes(data);
+}
+
+
+def _aarch64_build_plt_entry(
+    entry_vaddr: int, got_entry_vaddr: int, idx: int, plt_vaddr: int
+) -> bytes {
+    data = bytearray();
+    # adrp x16, page(GOT[n])
+    page_off = ((got_entry_vaddr & ~0xFFF) - (entry_vaddr & ~0xFFF)) >> 12;
+    immlo = (page_off & 0x3) << 29;
+    immhi = ((page_off >> 2) & 0x7FFFF) << 5;
+    data.extend(struct.pack("<I", 0x90000010 | immlo | immhi));
+    # ldr x17, [x16, #lo12:GOT[n]]
+    lo12_ldr = (got_entry_vaddr & 0xFFF) >> 3;
+    data.extend(struct.pack("<I", 0xf9400211 | (lo12_ldr << 10)));
+    # add x16, x16, #lo12:GOT[n]
+    lo12_add = got_entry_vaddr & 0xFFF;
+    data.extend(struct.pack("<I", 0x91000210 | (lo12_add << 10)));
+    # br x17
+    data.extend(struct.pack("<I", 0xd61f0220));
+    return bytes(data);
+}
+
+
+# ── aarch64 relocation application ───────────────────────────────
+def _aarch64_apply_reloc(
+    rtype: int,
+    patch_buf: bytearray,
+    patch_off: int,
+    sym_addr: int,
+    addend: int,
+    patch_vaddr: int
+) -> bool {
+    if rtype == R_AARCH64_CALL26 or rtype == R_AARCH64_JUMP26 {
+        offset = ((sym_addr + addend - patch_vaddr) >> 2) & 0x3FFFFFF;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFC000000) | offset;
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_ADR_PREL_PG_HI21 or rtype == R_AARCH64_ADR_GOT_PAGE {
+        page_s = (sym_addr + addend) & ~0xFFF;
+        page_p = patch_vaddr & ~0xFFF;
+        page_off = (page_s - page_p) >> 12;
+        immlo = (page_off & 0x3) << 29;
+        immhi = ((page_off >> 2) & 0x7FFFF) << 5;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0x9F00001F) | immlo | immhi;
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_ADD_ABS_LO12_NC {
+        val = (sym_addr + addend) & 0xFFF;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFFC003FF) | (val << 10);
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_LDST64_ABS_LO12_NC
+    or rtype == R_AARCH64_LD64_GOT_LO12_NC {
+        val = ((sym_addr + addend) & 0xFFF) >> 3;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFFC003FF) | (val << 10);
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_LDST32_ABS_LO12_NC {
+        val = ((sym_addr + addend) & 0xFFF) >> 2;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFFC003FF) | (val << 10);
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_LDST16_ABS_LO12_NC {
+        val = ((sym_addr + addend) & 0xFFF) >> 1;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFFC003FF) | (val << 10);
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_LDST8_ABS_LO12_NC {
+        val = (sym_addr + addend) & 0xFFF;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFFC003FF) | (val << 10);
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_LDST128_ABS_LO12_NC {
+        val = ((sym_addr + addend) & 0xFFF) >> 4;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFFC003FF) | (val << 10);
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_PREL32 {
+        val = sym_addr + addend - patch_vaddr;
+        struct.pack_into("<i", patch_buf, patch_off, val);
+        return True;
+    } elif rtype == R_AARCH64_ABS64 {
+        val = sym_addr + addend;
+        struct.pack_into("<Q", patch_buf, patch_off, val & 0xFFFFFFFFFFFFFFFF);
+        return True;
+    }
+    return False;
+}
+
+
+# ══════════════════════════════════════════════════════════════════
+# ElfLinker implementation
+# ══════════════════════════════════════════════════════════════════
 
 # ── Parse the relocatable object ─────────────────────────────────
 impl ElfLinker.parse_object -> bool {
@@ -170,6 +463,12 @@ impl ElfLinker.parse_object -> bool {
         e_shstrndx
     ) = struct.unpack_from("<HHIQQQIHHHHHH", raw, 16);
     if e_type != 1 {  # Must be ET_REL
+        return False;
+    }
+
+    # Detect architecture from the object file
+    self.arch = ArchConfig.from_e_machine(e_machine);
+    if self.arch is None {
         return False;
     }
 
@@ -214,7 +513,6 @@ impl ElfLinker.parse_object -> bool {
     for rs in raw_sections {
         name_end = shstrtab_data.index(b"\x00", rs["name_idx"]);
         name = shstrtab_data[rs["name_idx"]:name_end].decode();
-        # For NOBITS (BSS), there's no file data but mem_size = sh_size
         sh_type = rs["type"];
         sh_size = rs["size"];
         if sh_type == 8 {  # SHT_NOBITS
@@ -279,7 +577,6 @@ impl ElfLinker.parse_object -> bool {
     self.relocations = [];
     for sec in self.sections {
         if sec.typ == SHT_RELA and "eh_frame" not in sec.name {
-            # Determine target section name from .rela.XXX -> XXX
             target_name = sec.name;
             if target_name.startswith(".rela.") {
                 target_name = "." + target_name[6:];
@@ -313,23 +610,23 @@ impl ElfLinker.parse_object -> bool {
 
 # ── Build the executable ─────────────────────────────────────────
 impl ElfLinker.build_executable -> bytes {
+    arch = self.arch;
+    BASE_VADDR = arch.base_vaddr;
+    PAGE_SIZE = arch.page_size;
+
     # Collect code and data sections from the .o file
     code_data = bytearray();
     rodata_blob = bytearray();
     data_blob = bytearray();
-    bss_size = 0;
 
-    # Maps: section name -> offset within its blob
-    code_sections: dict[str, tuple[int, int]] = {};  # name -> (offset_in_code, size)
+    code_sections: dict[str, tuple[int, int]] = {};
     rodata_sections: dict[str, tuple[int, int]] = {};
     data_sections: dict[str, tuple[int, int]] = {};
 
-    # Map from .o section index to (segment_type, offset_in_segment)
     section_placement: dict[int, tuple[str, int]] = {};
     sec_idx = 0;
     for sec in self.sections {
         if sec.typ == SHT_PROGBITS and (sec.flags & SHF_EXECINSTR) {
-            # Code section (.text, .ltext)
             if len(sec.data) > 0 {
                 aligned_off = _align(len(code_data), max(sec.align, 1));
                 code_data.extend(b"\x00" * (aligned_off - len(code_data)));
@@ -340,7 +637,6 @@ impl ElfLinker.build_executable -> bytes {
         } elif sec.typ == SHT_PROGBITS
         and (sec.flags & SHF_ALLOC)
         and not (sec.flags & SHF_WRITE) {
-            # Read-only data (.rodata, .lrodata)
             if len(sec.data) > 0 {
                 aligned_off = _align(len(rodata_blob), max(sec.align, 1));
                 rodata_blob.extend(b"\x00" * (aligned_off - len(rodata_blob)));
@@ -349,7 +645,6 @@ impl ElfLinker.build_executable -> bytes {
                 rodata_blob.extend(sec.data);
             }
         } elif (sec.flags & SHF_WRITE) and (sec.flags & SHF_ALLOC) {
-            # Writable data (.data, .ldata) or BSS (.bss, .lbss)
             alloc_size = sec.mem_size;
             if alloc_size > 0 {
                 aligned_off = _align(len(data_blob), max(sec.align, 1));
@@ -369,14 +664,12 @@ impl ElfLinker.build_executable -> bytes {
         sec_idx += 1;
     }
 
-    # Identify external symbols (undefined, need dynamic linking)
-    # Split into function externals (use PLT) and data externals (use GOT)
+    # Identify external symbols
     known_data_syms = {"stdin","stdout","stderr","environ"};
     extern_func_syms: list[str] = [];
     extern_data_syms: list[str] = [];
-    local_sym_map: dict[str, tuple[str, int]] = {};  # name -> (segment, offset_in_segment)
-    # Also build a map from symbol index to placement for section symbols (empty name)
-    sym_idx_placement: dict[int, tuple[str, int]] = {};  # sym_idx -> (segment, base_offset)
+    local_sym_map: dict[str, tuple[str, int]] = {};
+    sym_idx_placement: dict[int, tuple[str, int]] = {};
     sym_i = 0;
     for sym in self.symbols {
         if sym.shndx == SHN_UNDEF and sym.name and sym.bind == STB_GLOBAL {
@@ -397,51 +690,24 @@ impl ElfLinker.build_executable -> bytes {
                 if sym.name {
                     local_sym_map[sym.name] = (placement[0], placement[1] + sym.value);
                 }
-                # For section symbols (empty name or STT_SECTION), store base placement by index
                 sym_idx_placement[sym_i] = (placement[0], placement[1]);
             }
         }
         sym_i += 1;
     }
-    # Combined list: functions first, then data (order matters for dynsym indices)
     extern_syms: list[str] = extern_func_syms + extern_data_syms;
 
-    # ── Inject _start stub for CRT initialization ────────────────
-    # If 'main' is defined and __libc_start_main is not already an extern,
-    # add it so we can build a proper _start that uses libc's CRT init.
-    # This ensures GC_malloc, pthread, and other libc features work.
-    has_main = "main" in local_sym_map;
-    needs_libc_start = has_main and "__libc_start_main" not in extern_func_syms;
-    if needs_libc_start {
-        extern_func_syms.append("__libc_start_main");
-        # Rebuild combined list
-        extern_syms = extern_func_syms + extern_data_syms;
-    }
-    # Reserve space for _start stub in code_data (addresses patched later)
-    start_stub_offset = -1;
-    if has_main {
-        aligned_off = _align(len(code_data), 16);
-        code_data.extend(b"\x00" * (aligned_off - len(code_data)));
-        start_stub_offset = len(code_data);
-        # 48 bytes for the stub (will be patched after layout is known)
-        code_data.extend(b"\x00" * 48);
-    }
-
     # ── Layout ────────────────────────────────────────────────────
-    # ELF header: 64 bytes
-    # Program headers: 5 * 56 = 280 bytes
-    # Then: .interp, .hash, .dynsym, .dynstr, .rela.plt, .plt, .text+rodata, .data+.got.plt+.dynamic
     ehdr_size = 64;
-    num_phdrs = 5;  # PHDR, INTERP, LOAD (code), LOAD (data), DYNAMIC
+    num_phdrs = 5;
     phdr_size = num_phdrs * 56;
 
     # Build interp
-    interp_data = INTERP_PATH + b"\x00";
-    # Check for fallback interp path
-    if not os.path.exists(INTERP_PATH.decode()) {
-        alt_interp = b"/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2";
-        if os.path.exists(alt_interp.decode()) {
-            interp_data = alt_interp + b"\x00";
+    interp_data = b"\x00";
+    for path in arch.interp_paths {
+        if os.path.exists(path) {
+            interp_data = path.encode() + b"\x00";
+            break;
         }
     }
 
@@ -449,11 +715,10 @@ impl ElfLinker.build_executable -> bytes {
     dynstr_strings = [""] + extern_syms + self.needed_libs;
     (dynstr_data, dynstr_offsets) = _build_strtab(dynstr_strings);
 
-    # Build dynamic symbol table (STN_UNDEF + one entry per extern)
-    # Each entry: 24 bytes (Elf64_Sym)
-    num_dynsyms = 1 + len(extern_syms);  # STN_UNDEF + externals
+    # Build dynamic symbol table
+    num_dynsyms = 1 + len(extern_syms);
     dynsym_data = bytearray();
-    dynsym_data.extend(struct.pack("<IBBHQQ", 0, 0, 0, 0, 0, 0));  # STN_UNDEF
+    dynsym_data.extend(struct.pack("<IBBHQQ", 0, 0, 0, 0, 0, 0));
     extern_data_set = set(extern_data_syms);
     for sym_name in extern_syms {
         st_name = dynstr_offsets.get(sym_name, 0);
@@ -467,19 +732,12 @@ impl ElfLinker.build_executable -> bytes {
     # Build hash table
     hash_data = _build_hash_table(num_dynsyms);
 
-    # Build .rela.plt (one R_X86_64_JUMP_SLOT per extern)
-    # Actual offsets will be patched after layout
-    rela_plt_data = bytearray();
-
-    # Build PLT
-    # PLT[0]: push [GOT+8]; jmp [GOT+16]
-    # PLT[n]: jmp [GOT+24+8*n]; push n; jmp PLT[0]
-    plt_entry_size = 16;
-    plt0_size = 16;
+    # PLT sizing
+    plt0_size = arch.plt0_size;
+    plt_entry_size = arch.plt_entry_size;
     plt_size = plt0_size + len(extern_func_syms) * plt_entry_size;
-    # PLT will be built after addresses are known
 
-    # GOT.PLT: 3 reserved entries + one per extern
+    # GOT.PLT: 3 reserved entries + one per extern function
     got_plt_entries = 3 + len(extern_func_syms);
     got_plt_size = got_plt_entries * 8;
 
@@ -488,7 +746,6 @@ impl ElfLinker.build_executable -> bytes {
     for lib in self.needed_libs {
         dyn_entries.append((DT_NEEDED, dynstr_offsets.get(lib, 0)));
     }
-    # Placeholders for addresses (filled after layout)
     dyn_entries.append((DT_HASH, 0));
     dyn_entries.append((DT_STRTAB, 0));
     dyn_entries.append((DT_SYMTAB, 0));
@@ -511,11 +768,6 @@ impl ElfLinker.build_executable -> bytes {
     }
 
     # ── Compute file offsets and virtual addresses ────────────────
-    # Code segment (PT_LOAD RX): ehdr + phdrs + interp + hash + dynsym + dynstr + rela.plt + plt + code + rodata
-    # Data segment (PT_LOAD RW): .got.plt + .dynamic + .data
-    code_seg_start = 0;  # File offset 0 for code segment
-
-    # All the metadata sections go before .text in the code segment
     cur_offset = ehdr_size + phdr_size;
     interp_foff = cur_offset;
     cur_offset += len(interp_data);
@@ -532,7 +784,6 @@ impl ElfLinker.build_executable -> bytes {
     rela_plt_foff = cur_offset;
     cur_offset += len(extern_func_syms) * 24;
     cur_offset = _align(cur_offset, 8);
-    # .rela.dyn for data symbol copy relocations (R_X86_64_COPY)
     rela_dyn_foff = cur_offset;
     rela_dyn_size = len(extern_data_syms) * 24;
     cur_offset += rela_dyn_size;
@@ -547,14 +798,12 @@ impl ElfLinker.build_executable -> bytes {
     cur_offset += len(rodata_blob);
     code_seg_size = cur_offset;
 
-    # Data segment on a new page — GOT.PLT must be writable (dynamic linker patches it)
+    # Data segment on a new page
     data_seg_foff = _align(cur_offset, PAGE_SIZE);
     data_seg_vaddr = BASE_VADDR + data_seg_foff;
     got_plt_foff = data_seg_foff;
     cur_offset = data_seg_foff + got_plt_size;
     cur_offset = _align(cur_offset, 8);
-    # Copy relocation area for data externals (R_X86_64_COPY)
-    # Each data extern gets 8 bytes; ld.so copies the value here at startup
     data_got_foff = cur_offset;
     data_got_size = len(extern_data_syms) * 8;
     cur_offset += data_got_size;
@@ -606,91 +855,61 @@ impl ElfLinker.build_executable -> bytes {
         dynamic_data.extend(struct.pack("<qQ", tag, val));
     }
 
-    # ── Patch dynsym entries for data externals (R_X86_64_COPY) ──
-    # For copy relocations, the dynsym entry must have:
-    #   st_value = address of copy destination in our executable
-    #   st_size  = size of the data to copy (8 bytes for a pointer)
+    # ── Patch dynsym entries for data externals ───────────────────
     for idx in range(len(extern_data_syms)) {
-        # dynsym index: 1 (STN_UNDEF) + func_syms + idx
         dynsym_offset = (1 + len(extern_func_syms) + idx) * 24;
         copy_vaddr = data_got_vaddr + idx * 8;
-        # Patch st_value (offset 8 in Elf64_Sym) and st_size (offset 16)
         struct.pack_into("<QQ", dynsym_data, dynsym_offset + 8, copy_vaddr, 8);
     }
 
-    # ── Build PLT ─────────────────────────────────────────────────
-    # x86_64 PLT layout:
-    # PLT[0]: push [GOT+8]; jmp [GOT+16]; nop padding
-    # PLT[n]: jmp [GOT+24+8*(n-1)]; push (n-1); jmp PLT[0]
+    # ── Build PLT (architecture-dispatched) ───────────────────────
     plt_data = bytearray();
-    # PLT[0] stub
-    # ff 35 XX XX XX XX    push QWORD [rip + got_plt+8 - (plt+6)]
-    # ff 25 XX XX XX XX    jmp  QWORD [rip + got_plt+16 - (plt+12)]
-    # 0f 1f 40 00          nop dword [rax+0]
-    got8_rel = (got_plt_vaddr + 8) - (plt_vaddr + 6);
-    got16_rel = (got_plt_vaddr + 16) - (plt_vaddr + 12);
-    plt_data.extend(b"\xff\x35" + struct.pack("<i", got8_rel));
-    plt_data.extend(b"\xff\x25" + struct.pack("<i", got16_rel));
-    plt_data.extend(b"\x0f\x1f\x40\x00");  # nop padding
-    # PLT[n] stubs (one per function extern)
+    plt_data.extend(arch.build_plt0(got_plt_vaddr, plt_vaddr));
     for idx in range(len(extern_func_syms)) {
         entry_vaddr = plt_vaddr + plt0_size + idx * plt_entry_size;
         got_entry_vaddr = got_plt_vaddr + (3 + idx) * 8;
-        # ff 25 XX XX XX XX    jmp QWORD [rip + got_entry - (entry+6)]
-        jmp_rel = got_entry_vaddr - (entry_vaddr + 6);
-        plt_data.extend(b"\xff\x25" + struct.pack("<i", jmp_rel));
-        # 68 XX XX XX XX       push idx
-        plt_data.extend(b"\x68" + struct.pack("<i", idx));
-        # e9 XX XX XX XX       jmp PLT[0]  (6+5+5=16 bytes total)
-        jmp_plt0_rel = plt_vaddr - (entry_vaddr + 16);
-        plt_data.extend(b"\xe9" + struct.pack("<i", jmp_plt0_rel));
+        plt_data.extend(
+            arch.build_plt_entry(entry_vaddr, got_entry_vaddr, idx, plt_vaddr)
+        );
     }
 
-    # ── Build GOT.PLT ────────────────────────────────────────────
+    # ── Build GOT.PLT ─────────────────────────────────────────────
     got_plt_data = bytearray();
-    got_plt_data.extend(struct.pack("<Q", dynamic_vaddr));  # GOT[0] = .dynamic
-    got_plt_data.extend(struct.pack("<Q", 0));  # GOT[1] = link_map (filled by ld.so)
-    got_plt_data.extend(
-        struct.pack("<Q", 0)
-    );  # GOT[2] = _dl_runtime_resolve (filled by ld.so)
+    got_plt_data.extend(struct.pack("<Q", dynamic_vaddr));
+    got_plt_data.extend(struct.pack("<Q", 0));
+    got_plt_data.extend(struct.pack("<Q", 0));
     for idx in range(len(extern_func_syms)) {
-        # Initially points to the push instruction in PLT[n] (lazy binding)
-        push_addr = plt_vaddr + plt0_size + idx * plt_entry_size + 6;
-        got_plt_data.extend(struct.pack("<Q", push_addr));
+        lazy_addr = arch.get_lazy_bind_addr(plt_vaddr, plt0_size, idx, plt_entry_size);
+        got_plt_data.extend(struct.pack("<Q", lazy_addr));
     }
 
-    # ── Build .rela.plt (function externals only) ─────────────────
+    # ── Build .rela.plt (architecture-dispatched reloc type) ──────
     rela_plt_data = bytearray();
     for idx in range(len(extern_func_syms)) {
         r_offset = got_plt_vaddr + (3 + idx) * 8;
-        # dynsym index: idx+1 (skip STN_UNDEF), func syms come first
-        r_info = ((idx + 1) << 32) | R_X86_64_JUMP_SLOT;
+        r_info = ((idx + 1) << 32) | arch.jump_slot_rtype;
         r_addend = 0;
         rela_plt_data.extend(struct.pack("<QQq", r_offset, r_info, r_addend));
     }
 
-    # ── Build .rela.dyn (data externals: R_X86_64_COPY) ────────
-    # Copy relocations: ld.so copies the symbol value into our data segment
+    # ── Build .rela.dyn (data externals: COPY reloc) ──────────────
     rela_dyn_data = bytearray();
     for idx in range(len(extern_data_syms)) {
         r_offset = data_got_vaddr + idx * 8;
-        # dynsym index: after STN_UNDEF and all func syms
         dynsym_idx = 1 + len(extern_func_syms) + idx;
-        r_info = (dynsym_idx << 32) | R_X86_64_COPY;
+        r_info = (dynsym_idx << 32) | arch.copy_rtype;
         r_addend = 0;
         rela_dyn_data.extend(struct.pack("<QQq", r_offset, r_info, r_addend));
     }
 
-    # ── Build copy relocation area for data externals ────────────
+    # ── Build copy relocation area ────────────────────────────────
     data_got_data = bytearray(b"\x00" * data_got_size);
 
-    # ── Apply relocations to code ────────────────────────────────
-    # Build PLT address map for function externals
+    # ── Apply relocations (architecture-dispatched) ───────────────
     extern_plt_addr: dict[str, int] = {};
     for plt_idx in range(len(extern_func_syms)) {
         extern_plt_addr[extern_func_syms[plt_idx]] = plt_vaddr + plt0_size + plt_idx * plt_entry_size;
     }
-    # Build GOT address map for data externals
     extern_got_addr: dict[str, int] = {};
     for got_idx in range(len(extern_data_syms)) {
         extern_got_addr[extern_data_syms[got_idx]] = data_got_vaddr + got_idx * 8;
@@ -701,21 +920,27 @@ impl ElfLinker.build_executable -> bytes {
     data_bytes = bytearray(data_blob);
 
     for rela in self.relocations {
-        # Resolve the symbol address
         sym_addr = 0;
         is_func_extern = rela.sym_name in extern_plt_addr;
         is_data_extern = rela.sym_name in extern_got_addr;
-        is_external = is_func_extern or is_data_extern;
-        if is_func_extern {
+
+        # For GOT-directed relocations, resolve the GOT entry address
+        if rela.rtype in arch.gotpcrel_rtypes {
+            if is_data_extern {
+                sym_addr = extern_got_addr[rela.sym_name];
+            } elif is_func_extern {
+                func_idx = extern_func_syms.index(rela.sym_name);
+                sym_addr = got_plt_vaddr + (3 + func_idx) * 8;
+            } else {
+                sym_addr = 0;
+            }
+        } elif is_func_extern {
             sym_addr = extern_plt_addr[rela.sym_name];
         } elif is_data_extern {
-            # Data externals use copy relocation area — address in our data segment
             sym_addr = extern_got_addr[rela.sym_name];
         } else {
-            # Try named symbol first, then section symbol by index
             local = local_sym_map.get(rela.sym_name) if rela.sym_name else None;
             if local is None {
-                # Section symbol (empty name) — use sym_idx_placement + addend
                 sec_place = sym_idx_placement.get(rela.sym_idx);
                 if sec_place is not None {
                     local = sec_place;
@@ -733,9 +958,7 @@ impl ElfLinker.build_executable -> bytes {
             }
         }
 
-        # Determine which buffer, base vaddr, and section offset to patch
-        # rela.offset is relative to the target section; add the section's
-        # offset within the merged blob
+        # Determine target buffer and base vaddr
         target_is_code = rela.target_sec in code_sections;
         target_is_data = rela.target_sec in data_sections;
         target_is_rodata = rela.target_sec in rodata_sections;
@@ -752,74 +975,35 @@ impl ElfLinker.build_executable -> bytes {
             patch_buf = rodata_bytes;
             patch_base_vaddr = rodata_vaddr + sec_blob_off;
         } else {
-            # Default: assume code section
             sec_blob_off = 0;
             patch_buf = code_bytes;
             patch_base_vaddr = text_vaddr;
         }
         patch_off = sec_blob_off + rela.offset;
+        patch_vaddr = patch_base_vaddr + patch_off;
 
-        # Apply relocation
-        if rela.rtype == R_X86_64_64 {
-            val = sym_addr + rela.addend;
-            struct.pack_into("<Q", patch_buf, patch_off, val & 0xFFFFFFFFFFFFFFFF);
-        } elif rela.rtype == R_X86_64_PC32 or rela.rtype == R_X86_64_PLT32 {
-            p = patch_base_vaddr + patch_off;
-            val = sym_addr + rela.addend - p;
-            struct.pack_into("<i", patch_buf, patch_off, val);
-        } elif rela.rtype == R_X86_64_GOTPCREL {
-            if is_data_extern {
-                # Data externals use the separate .got section
-                got_entry_addr = extern_got_addr[rela.sym_name];
-            } elif is_func_extern {
-                # Function externals use .got.plt
-                got_idx = extern_func_syms.index(rela.sym_name);
-                got_entry_addr = got_plt_vaddr + (3 + got_idx) * 8;
-            } else {
-                got_entry_addr = 0;
-            }
-            p = patch_base_vaddr + patch_off;
-            val = got_entry_addr + rela.addend - p;
-            struct.pack_into("<i", patch_buf, patch_off, val);
-        }
+        # Apply via architecture-specific handler
+        arch.apply_reloc(
+            rela.rtype, patch_buf, patch_off, sym_addr, rela.addend, patch_vaddr
+        );
     }
 
-    # ── Find entry point and build _start stub ───────────────────
-    if has_main and start_stub_offset >= 0 {
-        # Resolve main's virtual address
-        main_local = local_sym_map.get("main");
-        main_vaddr = text_vaddr + (main_local[1] if main_local is not None else 0);
-        # Resolve __libc_start_main PLT address
-        libc_start_plt = extern_plt_addr.get("__libc_start_main", 0);
-        # Build the x86_64 _start stub
-        stub = bytearray();
-        stub.extend(b"\x31\xed");  # xor ebp, ebp
-        stub.extend(b"\x5e");  # pop rsi (argc)
-        stub.extend(b"\x48\x89\xe2");  # mov rdx, rsp (argv)
-        stub.extend(b"\x48\x83\xe4\xf0");  # and rsp, -16
-        stub.extend(b"\x50");  # push rax
-        stub.extend(b"\x54");  # push rsp (stack_end)
-        stub.extend(b"\x45\x31\xc9");  # xor r9d, r9d
-        stub.extend(b"\x45\x31\xc0");  # xor r8d, r8d
-        stub.extend(b"\x31\xc9");  # xor ecx, ecx
-        stub.extend(b"\x48\xbf" + struct.pack("<Q", main_vaddr));  # movabs rdi, main
-        stub.extend(
-            b"\x48\xb8" + struct.pack("<Q", libc_start_plt)
-        );  # movabs rax, __libc_start_main
-        stub.extend(b"\xff\xd0");  # call rax
-        stub.extend(b"\xf4");  # hlt
-        # Patch the stub into code_bytes at the reserved offset
-        code_bytes[start_stub_offset:start_stub_offset + len(stub)] = stub;
-        entry_vaddr = text_vaddr + start_stub_offset;
+    # ── Find entry point ──────────────────────────────────────────
+    # Look for _start (generated by nacompile via inline asm)
+    entry_vaddr = text_vaddr;
+    start_local = local_sym_map.get("_start");
+    if start_local is not None {
+        (seg, seg_off) = start_local;
+        if seg == "code" {
+            entry_vaddr = text_vaddr + seg_off;
+        }
     } else {
-        entry_vaddr = text_vaddr;
-        for sym in self.symbols {
-            if sym.name == "_start" {
-                local = local_sym_map.get("_start");
-                if local is not None {
-                    entry_vaddr = text_vaddr + local[1];
-                }
-                break;
+        # Fallback: look for main
+        main_local = local_sym_map.get("main");
+        if main_local is not None {
+            (seg, seg_off) = main_local;
+            if seg == "code" {
+                entry_vaddr = text_vaddr + seg_off;
             }
         }
     }
@@ -839,19 +1023,19 @@ impl ElfLinker.build_executable -> bytes {
         "<HHIQQQIHHHHHH",
         output,
         16,
-        ET_EXEC,  # e_type
-        EM_X86_64,  # e_machine
-        1,  # e_version
-        entry_vaddr,  # e_entry
-        ehdr_size,  # e_phoff (right after header)
-        0,  # e_shoff (no section headers needed for exec)
-        0,  # e_flags
-        ehdr_size,  # e_ehsize
-        56,  # e_phentsize
-        num_phdrs,  # e_phnum
-        0,  # e_shentsize
-        0,  # e_shnum
-        0  # e_shstrndx
+        ET_EXEC,
+        arch.e_machine,
+        1,
+        entry_vaddr,
+        ehdr_size,
+        0,
+        0,
+        ehdr_size,
+        56,
+        num_phdrs,
+        0,
+        0,
+        0
     );
 
     # Program headers
@@ -862,14 +1046,14 @@ impl ElfLinker.build_executable -> bytes {
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_PHDR,  # p_type
-        PF_R,  # p_flags
-        ehdr_size,  # p_offset
-        BASE_VADDR + ehdr_size,  # p_vaddr
-        BASE_VADDR + ehdr_size,  # p_paddr
-        phdr_size,  # p_filesz
-        phdr_size,  # p_memsz
-        8  # p_align
+        PT_PHDR,
+        PF_R,
+        ehdr_size,
+        BASE_VADDR + ehdr_size,
+        BASE_VADDR + ehdr_size,
+        phdr_size,
+        phdr_size,
+        8
     );
     phdr_off += 56;
 
@@ -878,14 +1062,14 @@ impl ElfLinker.build_executable -> bytes {
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_INTERP,  # p_type
-        PF_R,  # p_flags
-        interp_foff,  # p_offset
-        interp_vaddr,  # p_vaddr
-        interp_vaddr,  # p_paddr
-        len(interp_data),  # p_filesz
-        len(interp_data),  # p_memsz
-        1  # p_align
+        PT_INTERP,
+        PF_R,
+        interp_foff,
+        interp_vaddr,
+        interp_vaddr,
+        len(interp_data),
+        len(interp_data),
+        1
     );
     phdr_off += 56;
 
@@ -894,14 +1078,14 @@ impl ElfLinker.build_executable -> bytes {
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_LOAD,  # p_type
-        PF_R | PF_X,  # p_flags
-        0,  # p_offset
-        BASE_VADDR,  # p_vaddr
-        BASE_VADDR,  # p_paddr
-        code_seg_size,  # p_filesz
-        code_seg_size,  # p_memsz
-        PAGE_SIZE  # p_align
+        PT_LOAD,
+        PF_R | PF_X,
+        0,
+        BASE_VADDR,
+        BASE_VADDR,
+        code_seg_size,
+        code_seg_size,
+        PAGE_SIZE
     );
     phdr_off += 56;
 
@@ -910,14 +1094,14 @@ impl ElfLinker.build_executable -> bytes {
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_LOAD,  # p_type
-        PF_R | PF_W,  # p_flags
-        data_seg_foff,  # p_offset
-        data_seg_vaddr,  # p_vaddr
-        data_seg_vaddr,  # p_paddr
-        data_seg_size,  # p_filesz
-        data_seg_size,  # p_memsz
-        PAGE_SIZE  # p_align
+        PT_LOAD,
+        PF_R | PF_W,
+        data_seg_foff,
+        data_seg_vaddr,
+        data_seg_vaddr,
+        data_seg_size,
+        data_seg_size,
+        PAGE_SIZE
     );
     phdr_off += 56;
 
@@ -926,14 +1110,14 @@ impl ElfLinker.build_executable -> bytes {
         "<IIQQQQQQ",
         output,
         phdr_off,
-        PT_DYNAMIC,  # p_type
-        PF_R | PF_W,  # p_flags
-        dynamic_foff,  # p_offset
-        dynamic_vaddr,  # p_vaddr
-        dynamic_vaddr,  # p_paddr
-        len(dynamic_data),  # p_filesz
-        len(dynamic_data),  # p_memsz
-        8  # p_align
+        PT_DYNAMIC,
+        PF_R | PF_W,
+        dynamic_foff,
+        dynamic_vaddr,
+        dynamic_vaddr,
+        len(dynamic_data),
+        len(dynamic_data),
+        8
     );
 
     # Write sections into output
