@@ -645,28 +645,40 @@ test "chess play random moves stress" {
 
 # --- TestNativeChessExample (decl+impl separation) ---
 test "chess example decl impl separation" {
-    # Validates that chess.jac and chess.na.jac are identical source files
-    # and that both run successfully via `jac run`. chess.jac uses the default
-    # Python/sv pathway; chess.na.jac uses the native LLVM pathway. Both share
-    # chess.impl.jac for method implementations. This exercises:
+    # Validates that chess.jac and nachess.na.jac are identical source files,
+    # that chess.impl.jac and nachess.impl.jac are identical, and that both
+    # run successfully via `jac run`. chess.jac uses the default Python/sv
+    # pathway; nachess.na.jac uses the native LLVM pathway. Both share
+    # identical impl files for method implementations. This exercises:
     #   - Annex discovery: .na.jac variant finding bare .impl.jac
     #   - DeclImplMatchPass: connecting impl bodies to forward declarations
     #   - NaIRGenPass: ImplDef unwrapping, signature-less methods, type inference
     #   - PyastGenPass: resilient FuncSignature handling for re-traversed impls
     examples_dir = str(Path(jaclang.__file__).parent.parent / "examples" / "chess");
     jac_path = os.path.join(examples_dir, "chess.jac");
-    na_path = os.path.join(examples_dir, "chess.na.jac");
+    na_path = os.path.join(examples_dir, "nachess.na.jac");
+    jac_impl_path = os.path.join(examples_dir, "chess.impl.jac");
+    na_impl_path = os.path.join(examples_dir, "nachess.impl.jac");
 
-    # --- 1. Source files must be identical ---
+    # --- 1. Declaration source files must be identical ---
     with open(jac_path) as f {
         jac_src = f.read();
     }
     with open(na_path) as f {
         na_src = f.read();
     }
-    assert jac_src == na_src , "chess.jac and chess.na.jac must have identical source code";
+    assert jac_src == na_src , "chess.jac and nachess.na.jac must have identical source code";
 
-    # --- 2. Both pathways must run successfully ---
+    # --- 2. Implementation source files must be identical ---
+    with open(jac_impl_path) as f {
+        jac_impl_src = f.read();
+    }
+    with open(na_impl_path) as f {
+        na_impl_src = f.read();
+    }
+    assert jac_impl_src == na_impl_src , "chess.impl.jac and nachess.impl.jac must have identical source code";
+
+    # --- 3. Both pathways must run successfully ---
     stdin_data = "\n" * 3 + "quit\n";
 
     result_jac = subprocess.run(
@@ -691,16 +703,16 @@ test "chess example decl impl separation" {
         timeout=120
     );
     assert result_na.returncode == 0 , (
-        f"chess.na.jac crashed: {result_na.stderr[-500:]
+        f"nachess.na.jac crashed: {result_na.stderr[-500:]
             if result_na.stderr
             else '(empty)'}"
     );
     assert "Game ended." in result_na.stdout;
 
-    # --- 3. Both must display a chess board ---
+    # --- 4. Both must display a chess board ---
     for (name, out) in [
         ("chess.jac", result_jac.stdout),
-        ("chess.na.jac", result_na.stdout)
+        ("nachess.na.jac", result_na.stdout)
     ] {
         assert "a  b  c  d  e  f  g  h" in out , f"{name} missing board header";
         assert "R  N  B  Q  K  B  N  R" in out , f"{name} missing back rank";
