@@ -314,7 +314,7 @@ def analyze_priority(title: str, description: str) -> Priority by llm();
 ```
 
 !!! warning "Graph Persistence"
-    Walker examples use persistent graph state. Run `rm -rf .jac/` before re-running to avoid `NodeAnchor` errors.
+    Walker examples use persistent graph state. Run `jac clean --all` before re-running to avoid `NodeAnchor` errors.
 
 ```jac
 walker PrioritizeTickets {

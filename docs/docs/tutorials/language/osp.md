@@ -9,7 +9,7 @@ Learn Jac's unique graph-based programming paradigm with nodes, edges, and walke
 > - Time: ~45 minutes
 
 !!! warning "Graph Persistence Between Runs"
-    `jac run` persists graph state to a `.jac/` directory. If you run an example multiple times, you may see duplicate nodes or `NodeAnchor ... is not a valid reference!` errors. To start fresh, delete the `.jac/` directory: `rm -rf .jac/`
+    `jac run` persists graph state to a `.jac/` directory. If you run an example multiple times, you may see duplicate nodes or `NodeAnchor ... is not a valid reference!` errors. To start fresh, clean the `.jac/` directory: `jac clean --all`
 
 ---
 
