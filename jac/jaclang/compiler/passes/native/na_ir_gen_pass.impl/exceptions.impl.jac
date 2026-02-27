@@ -73,14 +73,10 @@ impl NaIRGenPass._emit_exc_push_helper -> None {
     # state.prev_handler = __jac_current_handler
     prev_handler = b.load(self._exc_handler_global, name="prev");
     prev_as_i8p = b.bitcast(prev_handler, i8p, name="prev.i8p");
-    prev_ptr = b.gep(
-        state, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="prev.ptr"
-    );
+    prev_ptr = b.gep(state, [ir.Constant(i32, 0), ir.Constant(i32, 3)], name="prev.ptr");
     b.store(prev_as_i8p, prev_ptr);
     # state.exception_type = 0
-    type_ptr = b.gep(
-        state, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="type.ptr"
-    );
+    type_ptr = b.gep(state, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="type.ptr");
     b.store(ir.Constant(i32, 0), type_ptr);
     # state.exception_obj = null
     obj_ptr = b.gep(state, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="obj.ptr");
@@ -230,8 +226,7 @@ impl NaIRGenPass._emit_runtime_raise(
 
 # Canonical exception hierarchy: child → direct parent.
 # Used by _get_exc_descendants to enable hierarchy-aware matching.
-glob _EXC_PARENT:
-         dict[str, str] = {
+glob _EXC_PARENT: dict[str, str] = {
          "Exception": "BaseException",
          "ArithmeticError": "Exception",
          "ZeroDivisionError": "ArithmeticError",
@@ -516,8 +511,8 @@ impl NaIRGenPass._codegen_try(nd: uni.TryStmt) -> None {
             # Bind exception variable if "except ExcType as e"
             if except_node.name is not None {
                 var_name = except_node.name.value
-                if isinstance(except_node.name, uni.Name)
-                else str(except_node.name);
+                    if isinstance(except_node.name, uni.Name)
+                    else str(except_node.name);
                 # Re-load exc_obj in this block
                 handler_exc_obj = self.builder.load(exc_obj_ptr, name="exc.bound.obj");
                 alloca = self._entry_alloca(i8p, var_name);

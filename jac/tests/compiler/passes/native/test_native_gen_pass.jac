@@ -63,9 +63,7 @@ test "arithmetic negate" {
 
 test "arithmetic float add" {
     (eng, _) = compile_native("arithmetic.na.jac");
-    fadd = get_func(
-        eng, "float_add", ctypes.c_double, ctypes.c_double, ctypes.c_double
-    );
+    fadd = get_func(eng, "float_add", ctypes.c_double, ctypes.c_double, ctypes.c_double);
     assert abs(fadd(1.5, 2.5) - 4.0) < 1e-10;
     assert abs(fadd(-1.0, 1.0)) < 1e-10;
 }
@@ -216,9 +214,7 @@ test "strings str equal" {
 
 test "strings str not equal" {
     (eng, _) = compile_native("strings.na.jac");
-    f = get_func(
-        eng, "str_not_equal", ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p
-    );
+    f = get_func(eng, "str_not_equal", ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p);
     assert f(b"hello", b"world") == 1;
     assert f(b"hello", b"hello") == 0;
 }
@@ -1461,4 +1457,108 @@ test "clib struct value-type coercion" {
     # ABI coercion instructions should be present (bitcast %Color* to i32*, then load)
     assert "struct.abi.cast" in llvm_ir_str , "Missing struct-to-ABI bitcast";
     assert "struct.abi.unbox" in llvm_ir_str , "Missing struct ABI unbox load";
+}
+
+# --- TestRefCounting ---
+test "rc basic alloc" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_alloc_basic", ctypes.c_int64);
+    assert f() == 42;
+}
+
+test "rc object lifecycle" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_object_lifecycle", ctypes.c_int64);
+    assert f() == 10;
+}
+
+test "rc reassignment" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_reassign", ctypes.c_int64);
+    assert f() == 2;
+}
+
+test "rc list growth" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_list_growth", ctypes.c_int64);
+    assert f() == 20;
+}
+
+test "rc list of objects" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_list_of_objects", ctypes.c_int64);
+    assert f() == 3;
+}
+
+test "rc nested structure" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_nested_structure", ctypes.c_int64);
+    assert f() == 3;
+}
+
+test "rc string alloc" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_string_alloc", ctypes.c_int64);
+    assert f() == 11;
+}
+
+test "rc return transfer" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_return_transfer", ctypes.c_int64);
+    assert f() == 42;
+}
+
+test "rc dict growth" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_dict_growth", ctypes.c_int64);
+    assert f() == 20;
+}
+
+test "rc loop reassign" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_loop_reassign", ctypes.c_int64);
+    assert f() == 10;
+}
+
+test "rc set operations" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_set_operations", ctypes.c_int64);
+    assert f() == 5;
+}
+
+test "rc string reassign" {
+    (eng, _) = compile_native("refcount.na.jac");
+    f = get_func(eng, "test_string_reassign", ctypes.c_int64);
+    assert f() == 5;
+}
+
+# --- TestRefCountingStress ---
+test "rc stress many objects" {
+    (eng, _) = compile_native("rc_stress.na.jac");
+    f = get_func(eng, "test_many_objects", ctypes.c_int64, ctypes.c_int64);
+    assert f(1000) == 1000;
+}
+
+test "rc stress rapid reassign" {
+    (eng, _) = compile_native("rc_stress.na.jac");
+    f = get_func(eng, "test_rapid_reassign", ctypes.c_int64, ctypes.c_int64);
+    assert f(1000) == 999;
+}
+
+test "rc stress large list" {
+    (eng, _) = compile_native("rc_stress.na.jac");
+    f = get_func(eng, "test_large_list", ctypes.c_int64, ctypes.c_int64);
+    assert f(1000) == 1000;
+}
+
+test "rc stress string concat" {
+    (eng, _) = compile_native("rc_stress.na.jac");
+    f = get_func(eng, "test_string_concat_stress", ctypes.c_int64, ctypes.c_int64);
+    assert f(100) == 100;
+}
+
+test "rc stress large dict" {
+    (eng, _) = compile_native("rc_stress.na.jac");
+    f = get_func(eng, "test_large_dict", ctypes.c_int64, ctypes.c_int64);
+    assert f(1000) == 1000;
 }

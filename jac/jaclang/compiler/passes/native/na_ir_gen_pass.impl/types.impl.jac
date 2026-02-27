@@ -318,7 +318,8 @@ impl NaIRGenPass._coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value {
         return self.builder.fpext(val, target_type, name="fpext");
     }
     # Pointer-to-pointer bitcast (e.g., different struct pointer types)
-    if isinstance(val.type, ir.PointerType) and isinstance(target_type, ir.PointerType) {
+    if isinstance(val.type, ir.PointerType)
+    and isinstance(target_type, ir.PointerType) {
         return self.builder.bitcast(val, target_type, name="ptrcast");
     }
     # Struct pointer → struct value (Jac pointer → C value at call boundary)
@@ -344,15 +345,12 @@ impl NaIRGenPass._coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value {
     if not isinstance(val.type, ir.PointerType)
     and isinstance(target_type, ir.PointerType) {
         if target_type?.pointee and target_type.pointee == val.type {
-            gc_malloc = self._get_or_declare_extern(
-                "GC_malloc", ir.IntType(8).as_pointer(), [ir.IntType(64)]
-            );
             null_ptr = ir.Constant(target_type, None);
             size_gep = self.builder.gep(
                 null_ptr, [ir.Constant(ir.IntType(32), 1)], name="clib.sizeof.gep"
             );
             size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="clib.sizeof");
-            raw_ptr = self.builder.call(gc_malloc, [size], name="clib.box.raw");
+            raw_ptr = self.builder.call(self.rc_alloc_fn, [size], name="clib.box.raw");
             typed_ptr = self.builder.bitcast(raw_ptr, target_type, name="clib.box.ptr");
             self.builder.store(val, typed_ptr);
             return typed_ptr;
@@ -362,9 +360,6 @@ impl NaIRGenPass._coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value {
             for (sname, abi_type) in self.clib_struct_abi_types.items() {
                 if target_type.pointee == self.struct_types.get(sname)
                 and abi_type == val.type {
-                    gc_malloc = self._get_or_declare_extern(
-                        "GC_malloc", ir.IntType(8).as_pointer(), [ir.IntType(64)]
-                    );
                     null_ptr = ir.Constant(target_type, None);
                     size_gep = self.builder.gep(
                         null_ptr,
@@ -374,7 +369,9 @@ impl NaIRGenPass._coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value {
                     size = self.builder.ptrtoint(
                         size_gep, ir.IntType(64), name="clib.sizeof"
                     );
-                    raw_ptr = self.builder.call(gc_malloc, [size], name="clib.box.raw");
+                    raw_ptr = self.builder.call(
+                        self.rc_alloc_fn, [size], name="clib.box.raw"
+                    );
                     int_ptr = self.builder.bitcast(
                         raw_ptr, val.type.as_pointer(), name="clib.abi.cast"
                     );
@@ -421,9 +418,6 @@ impl NaIRGenPass._emit_binary_op(
         strlen_fn = self._get_or_declare_extern(
             "strlen", ir.IntType(64), [ir.IntType(8).as_pointer()]
         );
-        gc_malloc = self._get_or_declare_extern(
-            "GC_malloc", ir.IntType(8).as_pointer(), [ir.IntType(64)]
-        );
         strcpy_fn = self._get_or_declare_extern(
             "strcpy",
             ir.IntType(8).as_pointer(),
@@ -440,7 +434,7 @@ impl NaIRGenPass._emit_binary_op(
         buf_size = self.builder.add(
             total, ir.Constant(ir.IntType(64), 1), name="buf_size"
         );
-        buf = self.builder.call(gc_malloc, [buf_size], name="concat.buf");
+        buf = self.builder.call(self.rc_alloc_fn, [buf_size], name="concat.buf");
         self.builder.call(strcpy_fn, [buf, left]);
         self.builder.call(strcat_fn, [buf, right]);
         return buf;
@@ -461,12 +455,11 @@ impl NaIRGenPass._emit_binary_op(
             i8p = i8.as_pointer();
             i64 = ir.IntType(64);
             strlen_fn = self._get_or_declare_extern("strlen", i64, [i8p]);
-            gc_malloc = self._get_or_declare_extern("GC_malloc", i8p, [i64]);
             memcpy_fn = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
             slen = self.builder.call(strlen_fn, [str_val], name="rep.slen");
             total = self.builder.mul(slen, int_val, name="rep.total");
             alloc = self.builder.add(total, ir.Constant(i64, 1), name="rep.alloc");
-            buf = self.builder.call(gc_malloc, [alloc], name="rep.buf");
+            buf = self.builder.call(self.rc_alloc_fn, [alloc], name="rep.buf");
             func = self.builder.basic_block.function;
             entry_bb = self.builder.basic_block;
             loop_bb = func.append_basic_block(name="rep.loop");
@@ -527,16 +520,12 @@ impl NaIRGenPass._emit_binary_op(
                 self.builder.branch(loop1_bb);
                 # Append all from right
                 self.builder.position_at_start(mid_bb);
-                right_len = self.builder.call(
-                    helpers["len"], [right], name="lcat.rlen"
-                );
+                right_len = self.builder.call(helpers["len"], [right], name="lcat.rlen");
                 self.builder.branch(loop2_bb);
                 self.builder.position_at_start(loop2_bb);
                 i2 = self.builder.phi(i64, name="lcat.i2");
                 i2.add_incoming(ir.Constant(i64, 0), mid_bb);
-                end2 = self.builder.icmp_unsigned(
-                    ">=", i2, right_len, name="lcat.end2"
-                );
+                end2 = self.builder.icmp_unsigned(">=", i2, right_len, name="lcat.end2");
                 self.builder.cbranch(end2, done_bb, body2_bb);
                 self.builder.position_at_start(body2_bb);
                 e2 = self.builder.call(helpers["get"], [right, i2], name="lcat.e2");
@@ -703,7 +692,8 @@ impl NaIRGenPass._emit_comparison(
     op: str, left: ir.Value, right: ir.Value, is_float: bool
 ) -> (ir.Value | None) {
     # Pointer comparisons
-    if isinstance(left.type, ir.PointerType) and isinstance(right.type, ir.PointerType) {
+    if isinstance(left.type, ir.PointerType)
+    and isinstance(right.type, ir.PointerType) {
         i8_ptr = ir.IntType(8).as_pointer();
         # String comparison: both operands must be i8* (char pointers)
         if left.type == i8_ptr and right.type == i8_ptr {

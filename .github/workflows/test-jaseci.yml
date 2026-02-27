@@ -101,6 +101,13 @@ jobs:
     - name: Run package tests
       run: pytest -x jac-byllm
 
+    - name: Install docs dependencies
+      run: pip install -e docs
+
+    - name: Build documentation
+      run: mkdocs build --strict
+      working-directory: docs
+
     - name: Run documentation validation tests
       run: pytest -q -x docs/tests/test_validate_md_files.jac
 
@@ -285,6 +292,6 @@ jobs:
 
     - name: Run tests on built packages
       run: |
-        jac check jac/tests/compiler/passes/main/fixtures/checker_type_ref.jac
+        jac check jac/tests/compiler/passes/main/fixtures/checker/checker_type_ref.jac
         pytest "jac-client/jac_client/tests/test_cli.jac::create jac app"
         pytest jac-byllm/tests/test_byllm.jac

@@ -57,6 +57,7 @@ obj Serializer {
 
     static def _deserialize_value(val: object) -> object;
     static def _get_class(module_name: str, class_name: str) -> (type | None);
+    static def _id_to_stub(anchor_cls: type, id_str: str) -> (object | None);
     static def _deserialize_anchor(data: dict[str, object]) -> (object | None);
     static def _deserialize_permission(data: object) -> object;
     static def _deserialize_access(data: object) -> object;
@@ -66,12 +67,11 @@ obj Serializer {
 }
 
 # Auto-register user archetypes via __init_subclass__ hook.
-glob _register_hook:
-         object = Archetype._subclass_hooks.append(
+glob _register_hook: object = Archetype._subclass_hooks.append(
          lambda cls: type :
              Serializer.register(cls)
-             if not cls.__module__.startswith('jaclang.')
-             else None
+                 if not cls.__module__.startswith('jaclang.')
+                 else None
      ),
      _register_root: object = Serializer.register(cast(type, Root)),
      _register_generic_edge: object = Serializer.register(cast(type, GenericEdge));

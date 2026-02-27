@@ -2,9 +2,23 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.11.2 (Unreleased)
+## jaclang 0.11.3 (Unreleased)
 
 - **Exception Hierarchy for NA and CL Backends**: Added hierarchy-aware exception matching to both native (LLVM) and client (ES) codegen. `except ArithmeticError` now correctly catches `ZeroDivisionError`, `except LookupError` catches `KeyError`/`IndexError`, etc. NA backend OR-chains descendant type IDs at compile time; CL backend uses `instanceof` checks against a full Error subclass hierarchy (`_jac.exc.*`). All runtime error throws in the JS runtime now use typed exceptions (e.g., `_jac.exc.ValueError`, `_jac.exc.KeyError`) instead of plain `Error`. Includes cross-backend equivalence tests for both explicit `raise` and implicit runtime errors (division by zero, index OOB, missing keys).
+- **Native Memory Management: Reference Counting Replaces Boehm GC**: Replaced the external Boehm GC (`libgc`) dependency with a self-contained reference counting scheme. All heap allocations use an 8-byte RC header (`rc_alloc`), container data arrays use plain `malloc`/`free`, and type-specific destructors are emitted for lists, dicts, sets, and archetypes. String literals are copied into RC-managed memory on use. Old values are released on variable reassignment and container growth paths free old data arrays. This eliminates the `libgc` system dependency entirely -- the native compiler only requires `libc`.
+- **Fix: string escape** : Support string escape decoding.
+- **Fix: Py2Jac String Escapes**: Fixed `py2jac` to correctly preserve escape sequences in strings, including hex (`\x1b`), octal (`\033`), and standard escapes (`\n`, `\t`). Previously these were being lost or corrupted during conversion.
+- **`jac nacompile` Mach-O Support (macOS arm64)**: Extended `jac nacompile` to produce standalone Mach-O executables on macOS arm64, in addition to the existing ELF support on Linux. Includes a pure-Python Mach-O linker (`macho_linker.jac`) that handles GOT construction, stub generation, rebase/bind opcodes, and ad-hoc code signing with SHA-256 page hashes. Platform is auto-detected -- the same `jac nacompile program.na.jac` command works on both Linux and macOS.
+- **Type Narrowing Improvements**: Fixed scope-based narrowing for AND expressions (`isinstance(x, T) and x.member`), assignment narrowing (`a = 90` narrows `a: int|None` to `int`), guard patterns (`if not isinstance(x, T): return`), member access chains, truthiness checks, and assert statements. Else-branch no longer incorrectly inherits true-branch narrowings.
+- **Union Type Member Access**: `x.name` where `x: Dog | Cat` now resolves member types and enables go-to-definition.
+- **IDE Hover Types**: Function parameters and `has` vars now display types on hover.
+- **Fix: Bug Fix**: Stop appending lint warnings to `py2jac` converted files.
+- **Structured GitHub Issue Forms**: Replaced blank markdown issue templates with guided YAML forms, making it easier to submit well-structured bug reports, feature requests, and docs issues.
+
+## jaclang 0.11.2 (Latest Release)
+
+- **Improved Memory Efficiency for Large Graphs**: Jac now uses lazy loading for graph data in MongoDB/Redis, nodes and edges are fetched only when accessed, instead of loading the entire graph upfront.
+- **Fix: Impl File Import Resolution**: Impl files (`.impl.jac`) can now access imports from their parent `.jac` file without requiring duplicate import statements. Also fixed internal builtins imports (like `SupportsAdd`, `types`) incorrectly being visible to user code.
 - **Fix: Union of Subclasses Assignable to Base Class**: Fixed type checker rejecting valid assignments where a union of subclasses (e.g., `Dog | Cat`) is passed to a parameter expecting the base class (e.g., `Animal`). This commonly occurs after match statement narrowing and now works correctly.
 - **Fix: Compound AND Narrowing**: Multiple isinstance checks in the same AND expression now narrow to the most specific type. Example: `isinstance(x, BaseNode) and isinstance(x, CFGNode)` correctly narrows `x` to `CFGNode` inside the if block.
 - **Fix: Progressive Narrowing in AND Expressions**: Earlier isinstance checks in an AND expression now narrow the type for subsequent parts. Example: `isinstance(x, CFGNode) and x.bb_out` works correctly because `x.bb_out` sees `x` as `CFGNode`.
@@ -13,8 +27,12 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: Native Global Pointer Variables Collected by GC**: MCJIT global variables (e.g. `glob WHITE_SYMBOLS: dict[...]`) live outside Boehm GC's scanned memory, causing global dicts/lists/objects to be freed after enough allocations trigger a collection. Fixed by emitting `GC_add_roots` calls for every pointer-typed global after initialization.
 - **Fix: Native Dict Tuple Key Comparison**: Dict key comparison for tuple/struct pointer types used pointer equality instead of structural comparison, so two separately-allocated tuples with the same values would never match. Fixed by using `memcmp` for tuple keys, matching the existing pattern in set helpers.
 - **Match Case Type Narrowing**: The type checker now narrows variable types inside match cases based on the pattern being matched. For example, `case MyClass():` narrows the matched variable to `MyClass`, and union patterns like `case A() | B():` narrow to `A | B`.
+- **Fix: Formatter Line-Breaking, Comment Spacing, and DocIR Generation**: Improved `jac format` line-breaking by accounting for trailing sibling width when deciding group breaks, fixed budget tracking after newlines, preserved original source spacing for inline comments, added proper indentation for ternary (if-else) continuation lines, among others.
+- **`jac nacompile` -- Standalone ELF Binaries**: New `jac nacompile` CLI command compiles `.na.jac` files to standalone ELF executables with no external compiler or linker required. Uses llvmlite's code generator to emit object code and a pure-Python ELF linker (`elf_linker.jac`) to produce dynamically-linked ELF binaries against libc/libgc. The `_start` entry point is written in pure LLVM IR (zero inline assembly), making the entire pipeline architecture-agnostic. Includes automatic GC fallback (rewrites `GC_malloc` to `malloc` at the IR level when libgc is unavailable). Usage: `jac nacompile program.na.jac` or `jac nacompile program.na.jac -o mybin`.
+- **Fix: py2jac docstring conversion**: Fix py2jac to correctly convert `Docstrings` with escape sequences.
+- 2 Minor refactors/changes
 
-## jaclang 0.11.1 (Latest Release)
+## jaclang 0.11.1
 
 - **Perf: Type Narrowing Optimization**: Fixed exponential slowdown in `jac check` with many `if` statements (~1 min → ~2s). Member access now uses narrowed types and reports errors for invalid attribute access on `None`.
 - **Import Path Alias Resolution**: The module resolver now supports path aliases configured in `[plugins.client.paths]` in `jac.toml`. Aliases like `@components/Button` are resolved to their filesystem paths before standard module lookup, enabling cleaner imports in client-side Jac code.
@@ -69,7 +87,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: Lexer Infinite Loop on Malformed JSX**: Fixed three infinite-loop scenarios where the lexer would hang forever when hitting EOF inside a non-NORMAL mode (JSX content, JSX tag, or f-string). Added a stuck detector in `tokenize()` that forces EOF when the lexer stops advancing or overshoots the source, preventing `jac run`, `jac start`, and `jac js` from hanging on malformed input (e.g., unterminated JSX like `<div>hello` with no closing tag).
 - **Fix: Bare `<` in JSX Content No Longer Hangs Lexer**: A `<` character in JSX content that does not start a valid tag (e.g., `<--`) is now consumed as text instead of causing an infinite loop. The text scanner only breaks on `<` when the next character forms a real JSX construct (`</`, `<>`, or `<` + identifier).
 - **Fix: Grammar Extraction Accuracy**: Fixed multiple issues in `jac grammar` output: `atomic_chain` and `jsx_attributes` now show `*` repetition, `compare` no longer duplicates operators, `assignment_with_target` correctly extracts ternary expressions, excessive top-level `?` wrapping is stripped from multi-branch rules, f-string tokens use proper quoting, and added `GPlus` (one-or-more `+`) grammar expression type.
-- 1 Minor refactors/chages
+- 1 Minor refactors/changes
 
 ## jaclang 0.10.3
 
