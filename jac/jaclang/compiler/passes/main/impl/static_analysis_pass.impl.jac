@@ -38,6 +38,7 @@ impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
         # Skip structural symbol types that are not user variables
         if sym.sym_type in (
             SymbolType.MODULE,
+            SymbolType.MOD_VAR,
             SymbolType.IMPL,
             SymbolType.SEM,
             SymbolType.TEST,
@@ -155,7 +156,8 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
             "NameError",
             "AssertionError",
             "ZeroDivisionError",
-            "OverflowError"
+            "OverflowError",
+            "almostEqual"
         ) {
             continue;
         }
