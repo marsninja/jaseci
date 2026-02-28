@@ -271,7 +271,7 @@ walker Example {
 
 ### 6. `report` vs `return`
 
-<!-- jac-skip: conceptual illustration of report vs return behavior -->
+<!-- jac-skip -->
 ```jac
 walker Example {
     can collect with Node entry -> object {
