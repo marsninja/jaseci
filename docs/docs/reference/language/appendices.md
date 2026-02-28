@@ -271,9 +271,10 @@ walker Example {
 
 ### 6. `report` vs `return`
 
+<!-- jac-skip: conceptual illustration of report vs return behavior -->
 ```jac
 walker Example {
-    can collect with Node entry {
+    can collect with Node entry -> object {
         report here.value;  # Continues execution
         visit [-->];        # Still runs
 
