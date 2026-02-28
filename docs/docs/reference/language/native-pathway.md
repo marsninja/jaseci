@@ -491,6 +491,7 @@ Fixed-width types (`f64`, `i32`, `c_void`, etc.) are only needed inside the `imp
 
 The same mechanism works with any C-compatible shared library. For example, using [raylib](https://www.raylib.com/) for graphics:
 
+<!-- jac-skip -->
 ```jac
 import from "libraylib.so" {
     def InitWindow(width: i32, height: i32, title: i8*) -> c_void;
@@ -687,6 +688,7 @@ HELLO, WORLD!
 
 ### Mixing Native and Python
 
+<!-- jac-skip -->
 ```jac
 # mixed.jac
 

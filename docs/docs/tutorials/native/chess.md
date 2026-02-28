@@ -322,6 +322,7 @@ impl Board.attacked_squares(by_color: Color) -> set[tuple[int, int]] {
 
 Castling rights use bitwise flags -- AND, OR, NOT:
 
+<!-- jac-skip -->
 ```jac
 # King moved -- remove both castling rights for that side
 if piece.kind == PieceKind.KING {
