@@ -25,7 +25,12 @@ alignstack(16) is needed because _start is jumped to by the kernel
 default stack alignment assumption is wrong.
 """
 def _inject_entry_elf(llvm_ir_str: str) -> str {
-    ir = '\n; --- injected entry point ---\n' + 'declare void @exit(i32) noreturn\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() noreturn alignstack(16) {\n' + 'entry:\n' + '    %ret = call i32 @main(i32 0, ptr null)\n' + '    call void @exit(i32 %ret)\n' + '    unreachable\n' + '}\n';
+    # Declare __jac_argc/__jac_argv only if the IR gen pass didn't already
+    has_jac_argc = "__jac_argc" in llvm_ir_str;
+    globals_ir = ""
+        if has_jac_argc
+        else ('@__jac_argc = global i32 0\n' + '@__jac_argv = global ptr null\n\n');
+    ir = '\n; --- injected entry point ---\n' + globals_ir + 'declare void @exit(i32) noreturn\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() noreturn alignstack(16) {\n' + 'entry:\n' + '    %ret = call i32 @main(i32 0, ptr null)\n' + '    call void @exit(i32 %ret)\n' + '    unreachable\n' + '}\n';
     return llvm_ir_str + ir;
 }
 
@@ -37,7 +42,12 @@ system CRT manages _start. No exit() declaration needed since
 returning from main() is handled by dyld.
 """
 def _inject_entry_macho(llvm_ir_str: str) -> str {
-    ir = '\n; --- injected entry point ---\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n';
+    # Declare __jac_argc/__jac_argv only if the IR gen pass didn't already
+    has_jac_argc = "__jac_argc" in llvm_ir_str;
+    globals_ir = ""
+        if has_jac_argc
+        else ('@__jac_argc = global i32 0\n' + '@__jac_argv = global ptr null\n\n');
+    ir = '\n; --- injected entry point ---\n' + globals_ir + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n';
     return llvm_ir_str + ir;
 }
 
