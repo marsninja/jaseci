@@ -31,7 +31,9 @@ def _inject_entry_elf(llvm_ir_str: str) -> str {
         if has_jac_argc
         else ('@__jac_argc = global i32 0\n' + '@__jac_argv = global ptr null\n\n');
     # Only declare exit() if sys.exit() didn't already declare it
-    exit_decl = "" if "@exit" in llvm_ir_str else 'declare void @exit(i32) noreturn\n\n';
+    # llvmlite quotes the name as @"exit", so check both forms
+    has_exit = "@exit" in llvm_ir_str or '@"exit"' in llvm_ir_str;
+    exit_decl = "" if has_exit else 'declare void @exit(i32) noreturn\n\n';
     ir = '\n; --- injected entry point ---\n' + globals_ir + exit_decl + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() noreturn alignstack(16) {\n' + 'entry:\n' + '    %ret = call i32 @main(i32 0, ptr null)\n' + '    call void @exit(i32 %ret)\n' + '    unreachable\n' + '}\n';
     return llvm_ir_str + ir;
 }
