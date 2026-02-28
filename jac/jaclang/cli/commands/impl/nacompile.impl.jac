@@ -16,9 +16,10 @@ import from jaclang.cli.console { console }
 """Inject main() and _start into the LLVM IR for ELF (Linux).
 
 main() stores argc/argv into globals, calls jac_entry(), and returns 0.
-_start is the ELF entry point, written as module-level inline assembly
-so it can read argc/argv from the raw stack before any prologue runs.
-Architecture-specific: x86_64 reads from rsp, aarch64 reads from sp.
+_start is the ELF entry point. It uses the naked attribute with
+@llvm.stacksave() to read the raw stack pointer without a prologue,
+then loads argc and argv from the kernel-placed stack layout:
+[sp]=argc, [sp+8..]=argv array. No inline assembly needed.
 """
 def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     # Declare __jac_argc/__jac_argv only if the IR gen pass didn't already
@@ -30,37 +31,9 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     # llvmlite quotes the name as @"exit", so check both forms
     has_exit = "@exit" in llvm_ir_str or '@"exit"' in llvm_ir_str;
     exit_decl = "" if has_exit else 'declare void @exit(i32) noreturn\n\n';
-    # _start: the ELF entry point. The kernel places argc/argv on the stack:
-    #   x86_64: [rsp]=argc, [rsp+8..]=argv array
-    #   aarch64: [sp]=argc, [sp+8..]=argv array
-    # We use module-level inline assembly so _start can read the raw stack
-    # before any function prologue modifies it.
-    is_aarch64 = "aarch64" in triple;
-    if is_aarch64 {
-        start_asm = (
-            'module asm ".globl _start"\n'
-            'module asm ".type _start, @function"\n'
-            'module asm "_start:"\n'
-            'module asm "  ldr x0, [sp]"\n'  # x0 = argc
-            'module asm "  add x1, sp, #8"\n'  # x1 = &argv[0]
-            'module asm "  bl main"\n'
-            'module asm "  bl exit"\n'
-        );
-    } else {
-        start_asm = (
-            'module asm ".globl _start"\n'
-            'module asm ".type _start, @function"\n'
-            'module asm "_start:"\n'
-            'module asm "  xor %ebp, %ebp"\n'  # Clear frame pointer (ABI)
-            'module asm "  mov (%rsp), %rdi"\n'  # rdi = argc
-            'module asm "  lea 8(%rsp), %rsi"\n'  # rsi = &argv[0]
-            'module asm "  andq $-16, %rsp"\n'  # Align stack to 16 bytes
-            'module asm "  call main"\n'
-            'module asm "  mov %eax, %edi"\n'  # Pass return value to exit
-            'module asm "  call exit"\n'
-        );
-    }
-    ir = '\n; --- injected entry point ---\n' + globals_ir + exit_decl + start_asm + '\ndefine i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n';
+    ir = (
+        '\n; --- injected entry point ---\n' + globals_ir + exit_decl + 'declare ptr @llvm.stacksave()\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() naked noreturn {\n' + 'entry:\n' + '    %sp = call ptr @llvm.stacksave()\n' + '    %argc = load i32, ptr %sp\n' + '    %argv = getelementptr i8, ptr %sp, i64 8\n' + '    %ret = call i32 @main(i32 %argc, ptr %argv)\n' + '    call void @exit(i32 %ret)\n' + '    unreachable\n' + '}\n'
+    );
     return llvm_ir_str + ir;
 }
 
