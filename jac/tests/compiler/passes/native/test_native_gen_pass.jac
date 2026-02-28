@@ -248,6 +248,14 @@ test "strings fstring mixed" {
     assert f(b"Alice", 30) == b"name=Alice, age=30";
 }
 
+test "strings str replace count arg respected" {
+    (eng, _) = compile_native("strings.na.jac");
+    f = get_func(eng, "str_replace_first_only", ctypes.c_char_p, ctypes.c_char_p);
+    # only the first 'a' should be replaced; remaining 'a's must be untouched
+    assert f(b"aaa") == b"Xaa";
+    assert f(b"banana") == b"bXnana";
+}
+
 # --- TestNativePrintMultiArgs ---
 test "print multi args compiles" {
     (eng, _) = compile_native("print_multi_args.na.jac");
@@ -1628,6 +1636,22 @@ test "rc stress large dict" {
     (eng, _) = compile_native("rc_stress.na.jac");
     f = get_func(eng, "test_large_dict", ctypes.c_int64, ctypes.c_int64);
     assert f(1000) == 1000;
+}
+
+test "dicts items iteration sum" {
+    (eng, _) = compile_native("dicts_sets.na.jac");
+    f = get_func(eng, "dict_items_iter_sum", ctypes.c_int64);
+    assert f() == 60;
+}
+
+# --- TestNativeEmptyGlobDict (regression: empty-dict-glob-var-init-null-ptr) ---
+test "dicts empty glob dict set and get" {
+    # glob x: dict[K,V] = {} previously left the global as null -> segfault on first access.
+    (eng, _) = compile_native("dicts_sets.na.jac");
+    entry_fn = get_func(eng, "jac_entry", None);
+    entry_fn();
+    f = get_func(eng, "empty_glob_dict_set_get", ctypes.c_int64);
+    assert f() == 7;
 }
 
 test "default params omitted trailing defaults" {
