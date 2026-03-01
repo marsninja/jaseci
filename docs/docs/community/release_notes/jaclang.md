@@ -6,6 +6,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 - 2 small refactors/changes.
 - **Type System Improvement**: Fixed type narrowing not working correctly inside while loops, for loops with break/continue, and loop else blocks.
+- **Fixed-Width Numeric Types Promoted to Language Level**: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `f32`, and `f64` are now recognized as built-in types across all backends, not just native codespace. The type checker resolves them, IDE hover/autocomplete works, and arithmetic between fixed-width types follows width-based promotion rules (e.g., `i8 + i32` promotes to `i32`). On the Python backend they behave as `int`/`float`; on the native backend they map to exact LLVM IR types.
 
 ## jaclang 0.11.3 (Latest Release)
 
