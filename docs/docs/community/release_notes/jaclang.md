@@ -7,6 +7,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - 2 small refactors/changes.
 - **Type System Improvement**: Fixed type narrowing not working correctly inside while loops, for loops with break/continue, and loop else blocks.
 - **Native Primitives: Set Algebra & Dict `setdefault`**: Implemented 6 new native LLVM emitters -- `set.symmetric_difference`, `set.update`, `set.intersection_update`, `set.difference_update`, `set.symmetric_difference_update`, and `dict.setdefault`. Native primitive coverage rises from 47% → 49% implemented (147/299) and 45% → 47% tested (140/299), with SetEmitter at 61% and DictEmitter at 81%.
+- **Native Primitives: Set Operators & Builtins**: Added full set operator dispatch (`|`, `&`, `-`, `^`, `==`, `!=`, `<=`, `<`, `>=`, `>`) and augmented assignments (`&=`, `-=`, `^=`) to the native LLVM backend, plus `sum`, `any`, `all`, and `divmod` builtins. SetEmitter reaches 100% native coverage (31/31). Overall native primitive coverage rises from 49% → 55% implemented (163/299) and 47% → 52% tested (156/299).
 
 ## jaclang 0.11.3 (Latest Release)
 
