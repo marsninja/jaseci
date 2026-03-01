@@ -81,7 +81,11 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         return types.UnknownType();
     }
     if isinstance(caller_type, types.ClassType)
-    and caller_type.shared == (self.prefetch and self.prefetch.type_var_class.shared) {
+    and self.prefetch
+    and self.prefetch.type_var_class
+    and self._same_shared_class(
+        caller_type.shared, self.prefetch.type_var_class.shared
+    ) {
         return types.TypeVarType();
     }
     if (

@@ -88,7 +88,9 @@ impl build_enum_members(
                 # Validate value type matches required type (e.g., IntEnum members must be int)
                 if enum_value_type
                 and isinstance(member_info.value_type, types.ClassType)
-                and member_info.value_type.shared != enum_value_type.shared {
+                and not evaluator._same_shared_class(
+                    member_info.value_type.shared, enum_value_type.shared
+                ) {
                     evaluator.add_diagnostic(
                         stmt,
                         f"Cannot assign {member_info.value_type} to enum member '{member_info.member_name}' of type {enum_value_type}"

@@ -144,6 +144,9 @@ obj TypeEvaluator {
     ) -> TypeBase | None;
 
     def is_sub_class(super_cls: types.ClassType, sub_cls: types.ClassType) -> bool;
+    def _same_shared_class(
+        a: types.ClassType.ClassDetailsShared, b: types.ClassType.ClassDetailsShared
+    ) -> bool;
     # --- Callable assignment compatibility ---
     def _assign_callable(
         src_func: types.FunctionType, dest_func: types.FunctionType

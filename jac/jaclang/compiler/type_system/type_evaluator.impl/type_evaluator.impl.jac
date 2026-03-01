@@ -893,17 +893,17 @@ impl TypeEvaluator._assign_class(
     # If the type is Final[T], unwrap it to T.
     # TODO: We can actually check if the Final type is modified and
     # prevent that, but for now just unwrap it.
-    if dest_type.shared == self.prefetch.final_class.shared {
+    if self._same_shared_class(dest_type.shared, self.prefetch.final_class.shared) {
         if len(dest_type.private.type_args) > 0 {
             dest_type = dest_type.private.type_args[0];
         }
     }
-    if src_type.shared == self.prefetch.final_class.shared {
+    if self._same_shared_class(src_type.shared, self.prefetch.final_class.shared) {
         if len(src_type.private.type_args) > 0 {
             src_type = src_type.private.type_args[0];
         }
     }
-    if src_type.shared == dest_type.shared {
+    if self._same_shared_class(src_type.shared, dest_type.shared) {
         return True;
     }
     # Check if src class is a subclass of dest class.
@@ -914,12 +914,18 @@ impl TypeEvaluator._assign_class(
     if src_type.is_builtin("int") and dest_type.is_builtin("float") {
         return True;
     }
+    # Strings can be used where PathLike is expected.
+    if src_type.is_builtin("str") and dest_type.shared.class_name == "PathLike" {
+        return True;
+    }
     # Check if dest_type is a protocol and src_type implements it.
     for base_cls in dest_type.shared.base_classes {
         if not isinstance(base_cls, types.ClassType) or base_cls.shared is None {
             continue;
         }
-        if base_cls.shared == self.prefetch.protocol_class.shared {
+        if self._same_shared_class(
+            base_cls.shared, self.prefetch.protocol_class.shared
+        ) {
             if type_utils.class_implements_protocol(src_type, dest_type) {
                 return True;
             }
@@ -935,11 +941,38 @@ impl TypeEvaluator.is_sub_class(
     super_cls: types.ClassType, sub_cls: types.ClassType
 ) -> bool {
     for cls in sub_cls.shared.mro {
-        if cls.shared == super_cls.shared {
+        if self._same_shared_class(cls.shared, super_cls.shared) {
             return True;
         }
     }
     return False;
+}
+
+"""Check if two ClassDetailsShared instances represent the same class.
+
+Falls back to comparing class_name + module file path when object identity
+fails (which happens when the same class is loaded from different paths,
+e.g. installed package vs dev repo).
+"""
+impl TypeEvaluator._same_shared_class(
+    a: types.ClassType.ClassDetailsShared, b: types.ClassType.ClassDetailsShared
+) -> bool {
+    if a is b {
+        return True;
+    }
+    if a.class_name != b.class_name {
+        return False;
+    }
+    a_path = a.symbol_table.loc.mod_path
+        if (a.symbol_table and hasattr(a.symbol_table, 'loc'))
+        else "";
+    b_path = b.symbol_table.loc.mod_path
+        if (b.symbol_table and hasattr(b.symbol_table, 'loc'))
+        else "";
+    if a_path and b_path {
+        return os.path.abspath(a_path) == os.path.abspath(b_path);
+    }
+    return True;
 }
 
 """Return the effective return type of a magic method call."""
@@ -1024,12 +1057,15 @@ impl TypeEvaluator.is_any_type(ty: TypeBase) -> bool {
         if ty.is_builtin("object") {
             return True;
         }
-        if (self.prefetch.any_class and ty.shared == self.prefetch.any_class.shared) {
+        if (
+            self.prefetch.any_class
+            and self._same_shared_class(ty.shared, self.prefetch.any_class.shared)
+        ) {
             return True;
         }
         if (
             self.prefetch.type_var_class
-            and ty.shared == self.prefetch.type_var_class.shared
+            and self._same_shared_class(ty.shared, self.prefetch.type_var_class.shared)
         ) {
             return True;
         }
@@ -1046,8 +1082,12 @@ impl TypeEvaluator.assign_type(src_type: TypeBase, dest_type: TypeBase) -> bool 
     if self.prefetch and self.prefetch.literal_string_class {
         if isinstance(dest_type, types.ClassType)
         and isinstance(src_type, types.ClassType) {
-            if dest_type.shared == self.prefetch.str_class.shared {
-                if src_type.shared == self.prefetch.literal_string_class.shared {
+            if self._same_shared_class(
+                dest_type.shared, self.prefetch.str_class.shared
+            ) {
+                if self._same_shared_class(
+                    src_type.shared, self.prefetch.literal_string_class.shared
+                ) {
                     return True;
                 }
             }
@@ -1057,9 +1097,13 @@ impl TypeEvaluator.assign_type(src_type: TypeBase, dest_type: TypeBase) -> bool 
     if self.prefetch and self.prefetch.jsx_element_class {
         if isinstance(dest_type, types.ClassType)
         and isinstance(src_type, types.ClassType) {
-            if dest_type.shared == self.prefetch.jsx_element_class.shared {
+            if self._same_shared_class(
+                dest_type.shared, self.prefetch.jsx_element_class.shared
+            ) {
                 # Destination is JsxElement - only allow JsxElement as source
-                if src_type.shared != self.prefetch.jsx_element_class.shared {
+                if not self._same_shared_class(
+                    src_type.shared, self.prefetch.jsx_element_class.shared
+                ) {
                     return False;
                 }
             }
@@ -1166,13 +1210,15 @@ impl TypeEvaluator.assign_type(src_type: TypeBase, dest_type: TypeBase) -> bool 
     if isinstance(src_type, types.EnumMemberType) {
         # Enum member can assign to its enum class (Color.RED -> Color ) -> a: Color = Color.RED
         if isinstance(dest_type, types.ClassType) and dest_type.is_enum_class() {
-            if src_type.enum_class.shared == dest_type.shared {
+            if self._same_shared_class(src_type.enum_class.shared, dest_type.shared) {
                 return True;
             }
         }
         # Enum members of same enum can assign to each other (Color.RED -> Color.BLUE) -> a: Color.BLUE = Color.RED
         if isinstance(dest_type, types.EnumMemberType) {
-            if src_type.enum_class.shared == dest_type.enum_class.shared {
+            if self._same_shared_class(
+                src_type.enum_class.shared, dest_type.enum_class.shared
+            ) {
                 return True;
             }
         }
@@ -1182,7 +1228,7 @@ impl TypeEvaluator.assign_type(src_type: TypeBase, dest_type: TypeBase) -> bool 
             enum_val_type := src_type.enum_class.shared.enum_value_type,
             types.ClassType
         )
-        and dest_type.shared == enum_val_type.shared {
+        and self._same_shared_class(dest_type.shared, enum_val_type.shared) {
             return True;
         }
     }
@@ -1194,7 +1240,9 @@ impl TypeEvaluator.assign_type(src_type: TypeBase, dest_type: TypeBase) -> bool 
         and isinstance(src_type, types.ClassType) {
             # Check if dest_type is the `type` builtin (bare type annotation)
             if isinstance(self.prefetch.type_class, types.ClassType)
-            and dest_type.shared == self.prefetch.type_class.shared {
+            and self._same_shared_class(
+                dest_type.shared, self.prefetch.type_class.shared
+            ) {
                 # Any instantiable class type can be assigned to bare `type`.
                 if src_type.is_instantiable_class() {
                     return True;
@@ -2168,7 +2216,7 @@ impl TypeEvaluator._type_matches_isinstance(
     if isinstance(t, types.ClassType) and isinstance(target_type, types.ClassType) {
         # Same class?
         if t.shared is not None and target_type.shared is not None {
-            if t.shared == target_type.shared {
+            if self._same_shared_class(t.shared, target_type.shared) {
                 return True;
             }
         }

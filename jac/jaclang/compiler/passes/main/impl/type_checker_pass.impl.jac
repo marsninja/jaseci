@@ -130,10 +130,15 @@ impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: uni.AtomTrailer) -
 impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> None {
     if ((len(nd.target) == 1) and (nd.value is not None)) {
         target = nd.target[0];
-        # For assignment targets, use the declared symbol type (not the
-        # narrowed type). Narrowing reflects the *current* value; the
-        # variable's declared type determines what can be assigned to it.
-        if isinstance(target, uni.Name) and target.sym {
+        # If there's a type annotation (e.g. `x: T | None = None`), use it
+        # as the destination type instead of the resolved attribute type.
+        if nd.type_tag is not None {
+            left_type = self.evaluator.get_type_of_expression(nd.type_tag.tag);
+            left_type = self.evaluator._convert_to_instance(left_type);
+            # For assignment targets, use the declared symbol type (not the
+            # narrowed type). Narrowing reflects the *current* value; the
+            # variable's declared type determines what can be assigned to it.
+        } elif isinstance(target, uni.Name) and target.sym {
             left_type = self.evaluator.get_type_of_symbol(target.sym);
         } else {
             left_type = self.evaluator.get_type_of_expression(target);

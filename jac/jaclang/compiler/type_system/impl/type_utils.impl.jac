@@ -1,15 +1,25 @@
 """Determine if a class implements a protocol.
 
-This is a placeholder function and should be implemented based on
-the specific requirements for protocol conformance checking.
+Checks if all methods required by the protocol are present in the class,
+walking the entire MRO to find inherited methods.
 """
 impl class_implements_protocol(cls: types.ClassType, proto: types.ClassType) -> bool {
-    cls_ast: uni.Archetype = cls.shared.symbol_table;
-    proto_ast: uni.Archetype = proto.shared.symbol_table;
-    # FIXME: For now I'm only checking if method names are equal
-    # However we need to check the full signature compatibility.
-    cls_method_names = {method.sym_name for method in cls_ast.get_methods()};
+    proto_ast = proto.shared.symbol_table;
+    if not proto_ast {
+        return False;
+    }
     proto_method_names = {method.sym_name for method in proto_ast.get_methods()};
+    # Collect methods from the entire MRO, not just the class itself.
+    # This ensures inherited methods (e.g. int.__abs__ for SupportsAbs) are found.
+    cls_method_names: set[str] = set();
+    for mro_cls in cls.shared.mro {
+        mro_ast = mro_cls.shared.symbol_table;
+        if mro_ast {
+            for method in mro_ast.get_methods() {
+                cls_method_names.add(method.sym_name);
+            }
+        }
+    }
     return proto_method_names.issubset(cls_method_names);
 }
 
