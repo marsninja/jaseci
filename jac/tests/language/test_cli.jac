@@ -130,7 +130,7 @@ test "jac cli run python file" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        execution.run(fixture_path("python_run_test.py"));
+        execution.run(fixture_path("python_run_fixture.py"));
     } finally {
         sys.stdout = old_stdout;
     }
