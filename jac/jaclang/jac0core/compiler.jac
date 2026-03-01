@@ -89,7 +89,7 @@ def get_type_check_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     """
 def get_py_code_gen -> list[type[Transform[uni.Module, uni.Module]]] {
     global _codegen_sched_loading;
-    if _codegen_sched_loading {
+    if _codegen_sched_loading or _ir_sched_loading {
         return [PyastGenPass, PyBytecodeGenPass];
     }
     _codegen_sched_loading = True;
