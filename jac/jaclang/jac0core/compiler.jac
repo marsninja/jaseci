@@ -57,11 +57,9 @@ def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     }
     _ir_sched_loading = True;
     try {
-        import from jaclang.compiler.passes.main {
-            CFGBuildPass,
-            MTIRGenPass,
-            SemDefMatchPass
-        }
+        import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
+        import from jaclang.compiler.passes.main.mtir_gen_pass { MTIRGenPass }
+        import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
         return [
             SymTabBuildPass,
             DeclImplMatchPass,
@@ -79,7 +77,8 @@ def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
 
 """Type checking schedule."""
 def get_type_check_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    import from jaclang.compiler.passes.main { TypeCheckPass, StaticAnalysisPass }
+    import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+    import from jaclang.compiler.passes.main.static_analysis_pass { StaticAnalysisPass }
     return [TypeCheckPass, StaticAnalysisPass];
 }
 
@@ -96,7 +95,7 @@ def get_py_code_gen -> list[type[Transform[uni.Module, uni.Module]]] {
     _codegen_sched_loading = True;
     try {
         import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-        import from jaclang.compiler.passes.main { PyJacAstLinkPass }
+        import from jaclang.compiler.passes.main.pyjac_ast_link_pass { PyJacAstLinkPass }
         passes: list[type[Transform[uni.Module, uni.Module]]] = [
             InteropAnalysisPass,
             EsastGenPass
@@ -620,7 +619,7 @@ class JacCompiler {
     ) -> uni.Module {
         had_error = False;
         if (file_path.endswith('.py') or file_path.endswith('.pyi')) {
-            import from jaclang.compiler.passes.main { PyastBuildPass }
+            import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
             parsed_ast = py_ast.parse(source_str);
             py_ast_ret = PyastBuildPass(
                 ir_in=uni.PythonModuleAst(
