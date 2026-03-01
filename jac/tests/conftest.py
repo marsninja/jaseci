@@ -5,9 +5,21 @@ not to package-specific tests like jac-byllm, jac-client, etc.
 """
 
 import contextlib
+import os
 from typing import Any
 
 import pytest
+
+# =============================================================================
+# Test Discovery Tracking - used by test_discovery.jac canary
+# =============================================================================
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
+    """Export collection metadata via env vars for the discovery canary."""
+    os.environ["_JAC_TEST_COUNT"] = str(len(items))
+    os.environ["_JAC_TEST_ARGS"] = "\x00".join(config.args)
+
 
 # =============================================================================
 # Console Output Normalization - Disable Rich styling during tests
