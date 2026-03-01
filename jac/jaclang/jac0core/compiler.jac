@@ -45,10 +45,10 @@ glob _ir_sched_loading = False,
 """Full IR generation schedule.
 
     Uses a re-entrancy guard: when compiling the pass modules that this
-    schedule depends on (CFGBuildPass, etc.), the lazy imports would
+    schedule depends on (CFGBuildPass, etc.), importing them would
     trigger recursive compilation. The guard detects this and falls back
     to the basic schedule (symtab + semantic analysis only), which uses
-    only jac0core passes with no lazy imports.
+    only jac0core passes.
     """
 def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     global _ir_sched_loading;
@@ -85,8 +85,8 @@ def get_type_check_sched -> list[type[Transform[uni.Module, uni.Module]]] {
 
 """Full Python code generation schedule.
 
-    Same re-entrancy guard as get_ir_gen_sched: when compiling the pass
-    modules this depends on, falls back to bytecode-only generation.
+    Same re-entrancy guard as get_ir_gen_sched: when compiling the
+    pass modules this depends on, falls back to bytecode-only generation.
     """
 def get_py_code_gen -> list[type[Transform[uni.Module, uni.Module]]] {
     global _codegen_sched_loading;
