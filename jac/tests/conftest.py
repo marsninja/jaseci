@@ -18,7 +18,7 @@ import pytest
 def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
     """Export collection metadata via env vars for the discovery canary."""
     os.environ["_JAC_TEST_COUNT"] = str(len(items))
-    os.environ["_JAC_TEST_ARGS"] = "\x00".join(config.args)
+    os.environ["_JAC_TEST_ARGS"] = "|".join(config.args)
 
 
 # =============================================================================

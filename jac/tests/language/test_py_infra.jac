@@ -517,7 +517,11 @@ test "import jac from py" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        jac_from_py_mod = importlib.import_module("tests.language.fixtures.jac_from_py");
+        spec = importlib.util.spec_from_file_location(
+            "jac_from_py", os.path.join(FIXTURES, "jac_from_py.py")
+        );
+        jac_from_py_mod = importlib.util.module_from_spec(spec);
+        spec.loader.exec_module(jac_from_py_mod);
         jac_from_py_mod.main();
     } finally {
         sys.stdout = old_stdout;

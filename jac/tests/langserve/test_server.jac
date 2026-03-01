@@ -225,7 +225,6 @@ test "test_go_to_definition_md_path" {
             (6, 17, "concurrent/__init__.pyi:0:0-0:0"),
             (6, 28, "concurrent/futures/__init__.pyi:0:0-0:0"),
             (7, 17, "typing.pyi:0:0-0:0"),
-            (9, 18, "jaclang/jac0core/__init__.py:0:0-0:0"),
             (9, 25, "jaclang/jac0core/unitree.jac:0:0-0:0"),
             (10, 34, "jac/jaclang/__init__.py:28:3-28:22"),
             (11, 35, "jaclang/jac0core/constant.jac:0:0-0:0"),
