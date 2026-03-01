@@ -8,23 +8,19 @@ import from jaclang.cli.console { console }
 import from rich.table { Table }
 import from jaclang.jac0core.runtime { hookimpl, plugin_manager }
 import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.server { JacAPIServer as JacServer }
-import from .context { JScaleExecutionContext }
-import from .serve { JacAPIServer }
-import from .jserver.jfast_api { JFastApiServer }
-import from .config_loader { get_scale_config }
-import from .factories.deployment_factory { DeploymentTargetFactory }
-import from .factories.registry_factory { ImageRegistryFactory }
-import from .factories.utility_factory { UtilityFactory }
-import from .abstractions.config.app_config { AppConfig }
-import from .user_manager { JacScaleUserManager }
 import from jaclang.runtimelib.server { UserManager }
 import from jaclang.runtimelib.storage { Storage }
+import from .config_loader { get_scale_config }
 
 """Pre-hook for jac start command to handle --scale flag."""
 def _scale_pre_hook(context: HookContext) -> None {
     scale = context.get_arg("scale", False);
     if scale {
+        import from .factories.deployment_factory { DeploymentTargetFactory }
+        import from .factories.registry_factory { ImageRegistryFactory }
+        import from .factories.utility_factory { UtilityFactory }
+        import from .abstractions.config.app_config { AppConfig }
+
         # Handle deployment instead of local server
         filename = context.get_arg("filename");
         build = context.get_arg("build", False);
@@ -230,6 +226,9 @@ class JacCmd {
             source="jac-scale"
         )
         def destroy(file_path: str, target: str = "kubernetes") -> int {
+            import from .factories.deployment_factory { DeploymentTargetFactory }
+            import from .factories.utility_factory { UtilityFactory }
+
             if not os.path.exists(file_path) {
                 raise FileNotFoundError(f"File not found: '{file_path}'") ;
             }
@@ -300,6 +299,9 @@ class JacCmd {
             source="jac-scale"
         )
         def status(file_path: str, target: str = "kubernetes") -> int {
+            import from .factories.deployment_factory { DeploymentTargetFactory }
+            import from .factories.utility_factory { UtilityFactory }
+
             if not os.path.exists(file_path) {
                 raise FileNotFoundError(f"File not found: '{file_path}'") ;
             }
@@ -334,10 +336,16 @@ class JacCmd {
     }
 }
 
-"""Jac Scale Plugin Implementation."""
+"""Jac Scale Plugin Implementation.
+
+Heavy imports (serve, context, jserver, user_manager) are deferred to
+hook method bodies so that loading this plugin doesn't pull in FastAPI,
+Pydantic, PyJWT, etc. at registration time.
+"""
 class JacScalePlugin {
     @hookimpl
     static def create_j_context(user_root: (str | None)) -> ExecutionContext {
+        import from .context { JScaleExecutionContext }
         # Storage backend configured via environment (MONGODB_URI, etc.)
         ctx = JScaleExecutionContext();
         if user_root is not None {
@@ -348,21 +356,22 @@ class JacScalePlugin {
 
     """Create the API server instance."""
     @hookimpl
-    static def create_server(
-        jac_server: JacServer, host: str, port: int
-    ) -> JFastApiServer {
+    static def create_server(jac_server: object, host: str, port: int) -> object {
+        import from .jserver.jfast_api { JFastApiServer }
         return JFastApiServer([]);
     }
 
     """Provide jac-scale's enhanced JacAPIServer class."""
     @hookimpl
     static def get_api_server_class -> type {
+        import from .serve { JacAPIServer }
         return JacAPIServer;
     }
 
     """Provide jac-scale's UserManager."""
     @hookimpl
     static def get_user_manager(base_path: str) -> UserManager {
+        import from .user_manager { JacScaleUserManager }
         return JacScaleUserManager(base_path=base_path);
     }
 

@@ -2557,6 +2557,14 @@ with entry {
         JacRuntimeInterface
     );
     plugin_manager.add_hookspecs(JacRuntimeSpec);
+    plugin_manager.register(JacRuntimeImpl);
+}
+
+# Backward-compat module alias for old import path.
+import sys;
+
+with entry {
+    sys.modules.setdefault("jaclang.runtimelib.runtime", sys.modules[__name__]);
 }
 
 """Jac Machine State."""

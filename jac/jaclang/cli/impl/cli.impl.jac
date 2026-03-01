@@ -10,15 +10,27 @@ import from importlib.metadata { version as pkg_version }
 import from pathlib { Path }
 
 impl start_cli -> None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.cli.registry { get_registry }
     import from jaclang.cli.executor { get_executor }
     import from jaclang.cli.help { get_help_formatter }
     import from jaclang.cli.console { console }
+
     # Auto-discover and load jac.toml project configuration
     _load_project_config();
-    # Load plugins which may register additional commands
-    Jac.create_cmd();
+
+    # Core compiler commands don't need external plugins.
+    # Skip plugin loading for these to avoid importing heavy dependencies
+    # (FastAPI, Pydantic, etc.) that add ~0.6s of startup overhead.
+    # Also skip for flag-only invocations (--version, --help) and bare `jac`.
+    _COMPILER_ONLY_COMMANDS: set = {"check","lint","format","grammar","gen_parser"};
+    raw_cmd = _peek_command();
+    if raw_cmd is not None and raw_cmd not in _COMPILER_ONLY_COMMANDS {
+        import from jaclang.plugin_loader { load_plugins }
+        load_plugins();
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        Jac.create_cmd();
+    }
+
     # Get the registry and finalize it (builds argparse parser)
     registry = get_registry();
     parser = registry.finalize();
@@ -262,6 +274,33 @@ def _apply_profile(args_dict: dict) -> None {
     } except (KeyError, ValueError, OSError) as e {
         console.print(f"Warning: Failed to apply profile: {e}", style="warning");
     }
+}
+
+"""Peek at sys.argv to determine the command name without full parsing.
+
+Returns the command name (e.g. 'check', 'run') or None if no command found.
+Handles the implicit 'run' shorthand for .jac/.py files.
+"""
+def _peek_command -> (str | None) {
+    raw = sys.argv[1:];
+    if not raw {
+        return None;
+    }
+    first = raw[0];
+    if not first.startswith('-') {
+        # Implicit 'run' for .jac/.py file arguments
+        if first.lower().endswith(('.jac', '.py')) {
+            return 'run';
+        }
+        return first;
+    }
+    # Skip leading flags to find the command
+    for arg in raw {
+        if not arg.startswith('-') {
+            return arg;
+        }
+    }
+    return None;
 }
 
 """Apply config values to args_dict for keys still at their argparse defaults.
