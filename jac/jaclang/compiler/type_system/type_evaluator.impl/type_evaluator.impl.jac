@@ -89,6 +89,32 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                     ) {
                         # Get the symbol's type first
                         sym_type = self.get_type_of_symbol(sym);
+                        # Collect overloads for module-level functions.
+                        # Mirrors the Name expression path (lines ~586-618) which uses
+                        # lookup_all() to find all overloads and wraps in OverloadedType.
+                        if isinstance(sym_type, types.FunctionType) {
+                            overloaded_fns: list[types.FunctionType] = [sym_type];
+                            all_syms = base_type.symbol_table.lookup_all(
+                                expr.right.value, deep=False
+                            );
+                            for overload_symbol in all_syms {
+                                if overload_symbol == sym {
+                                    continue;
+                                }
+                                overload_type = self.get_type_of_symbol(overload_symbol);
+                                if isinstance(overload_type, types.FunctionType) {
+                                    overloaded_fns.append(overload_type);
+                                }
+                            }
+                            if len(overloaded_fns) > 1 {
+                                sym.add_use(expr.right);
+                                overloaded_ty = types.OverloadedType(
+                                    overloads=overloaded_fns
+                                );
+                                expr.right.type = overloaded_ty;
+                                return overloaded_ty;
+                            }
+                        }
                         # Return prefetched special form type if both name and type match
                         if special_form := self._get_special_form_type(
                             sym.sym_name, sym_type
@@ -141,6 +167,34 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                     if member := self._lookup_object_member(
                         base_type, expr.right.value
                     ) {
+                        # Handle .value/.name on enum class instances (e.g., self.value
+                        # inside an enum method). Mirrors the EnumMemberType handling
+                        # at lines ~268-278. The _is_symbol_property check fails for
+                        # Enum.value because its stub uses @_magic_enum_attr, not @property.
+                        if base_type.is_enum_class() {
+                            member_name = expr.right.value;
+                            if member_name in ('name', '_name_') {
+                                member.symbol.add_use(expr.right);
+                                result_type = self._convert_to_instance(
+                                    self.prefetch.str_class
+                                );
+                                expr.right.type = result_type;
+                                return result_type;
+                            }
+                            if member_name in ('value', '_value_') {
+                                member.symbol.add_use(expr.right);
+                                result_type = base_type.shared.enum_value_type;
+                                if result_type is not None {
+                                    result_type = self._convert_to_instance(
+                                        result_type
+                                    );
+                                } else {
+                                    result_type = types.UnknownType();
+                                }
+                                expr.right.type = result_type;
+                                return result_type;
+                            }
+                        }
                         # For init method lookup: if the class is a data class and
                         # doesn't have an explicit init defined directly (not inherited),
                         # prefer the implicit dataclass init over inherited object.__init__.
@@ -484,6 +538,27 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
             }
 
         case uni.Name() | uni.SpecialVarRef():
+            # Handle BuiltinType nodes (any, str, int, etc.) — map to prefetched types.
+            # BuiltinType inherits from Name, so it matches this case. Without this,
+            # 'any' resolves to the builtin any() function instead of typing.Any.
+            if isinstance(expr, uni.BuiltinType) and self.prefetch {
+                _builtin_type_map: dict[str, TypeBase | None] = {
+                    'any': self.prefetch.any_class,
+                    'str': self.prefetch.str_class,
+                    'int': self.prefetch.int_class,
+                    'float': self.prefetch.float_class,
+                    'bool': self.prefetch.bool_class,
+                    'list': self.prefetch.list_class,
+                    'dict': self.prefetch.dict_class,
+                    'tuple': self.prefetch.tuple_class,
+                    'type': self.prefetch.type_class,
+
+                };
+                if expr.value in _builtin_type_map
+                and _builtin_type_map[expr.value] is not None {
+                    return _builtin_type_map[expr.value];
+                }
+            }
             if isinstance(expr, uni.SpecialVarRef) {
                 if expr.name == Tok.KW_ROOT {
                     return self._get_type_of_root(expr);
@@ -1025,6 +1100,32 @@ impl TypeEvaluator.get_type_of_magic_method_call(
                     return _fallback_result;
                 }
                 # If we reached here, none of the overloads matched.
+                # Fallback for generic container __getitem__: return element type
+                # from type_args when overload matching fails (e.g., int vs SupportsIndex).
+                # This handles list[str][0] -> str, dict[str, int]["key"] -> int, etc.
+                if (
+                    method_name == "__getitem__"
+                    and obj_type.private.type_args
+                    and len(obj_type.private.type_args) > 0
+                ) {
+                    elem_idx = -1 if len(obj_type.private.type_args) > 1 else 0;
+                    elem_type = obj_type.private.type_args[elem_idx];
+                    return self._convert_to_instance(elem_type);
+                }
+                # Structural fallback for builtin types only: use return type from
+                # first overload matching by arg count (ignoring type checking).
+                # Handles protocol/stub limitations like str.__add__(LiteralString).
+                # Restricted to builtins to preserve correct errors for user-defined overloads.
+                if obj_type.is_builtin() {
+                    for fn in overloaded_fns {
+                        arg_match = self.match_args_to_params(
+                            arg_nodes, None, fn, checking_overload=True
+                        );
+                        if not arg_match.argument_errors {
+                            return fn.return_type or types.UnknownType();
+                        }
+                    }
+                }
                 # Return None to allow fallback to reverse magic method (e.g., __radd__).
                 return None;
             }
@@ -1033,6 +1134,26 @@ impl TypeEvaluator.get_type_of_magic_method_call(
             # 2. if any or unknown, return getUnknownTypeForCallable() TODO
             # 3. return undefined.
             return None;
+        }
+    }
+    # Handle UnionType: distribute the magic method call across union members.
+    # For `int | None`, try __add__ on int (succeeds) and None (fails),
+    # return the successful result. This matches mypy/pyright behavior.
+    if isinstance(obj_type, types.UnionType) {
+        result_types: list[types.TypeBase] = [];
+        for member_type in obj_type.types {
+            member_result = self.get_type_of_magic_method_call(
+                member_type, method_name, arg_nodes, None
+            );
+            if member_result is not None {
+                result_types.append(member_result);
+            }
+        }
+        if len(result_types) == 1 {
+            return result_types[0];
+        }
+        if len(result_types) > 1 {
+            return types.UnionType(types=result_types);
         }
     }
     return None;
@@ -1163,6 +1284,21 @@ impl TypeEvaluator.assign_type(src_type: TypeBase, dest_type: TypeBase) -> bool 
     # Example: Dog | Cat -> Animal (valid if both Dog and Cat are subclasses of Animal)
     if isinstance(src_type, types.UnionType)
     and not isinstance(dest_type, types.UnionType) {
+        # If union is Optional (contains None), check only non-None members.
+        # T|None is assignable to T — matches practical usage and mypy behavior.
+        if self._union_contains_none(src_type) {
+            for src_member in src_type.types {
+                src_member_inst = self._convert_to_instance(src_member);
+                if self._is_none_type_instance(src_member_inst) {
+                    continue;
+                }
+                if not self.assign_type(src_member_inst, dest_type) {
+                    return False;
+                }
+            }
+            return True;
+        }
+        # Non-Optional unions: all members must be assignable (strict)
         for src_member in src_type.types {
             src_member_inst = self._convert_to_instance(src_member);
             if not self.assign_type(src_member_inst, dest_type) {
@@ -1324,6 +1460,7 @@ impl TypeEvaluator._prefetch_types{
     self.prefetch.object_class = get_builtin_type("object");
     self.prefetch.type_class = get_builtin_type("type");
     self.prefetch.classmethod_class = get_builtin_type("classmethod");
+    self.prefetch.property_class = get_builtin_type("property");
     self.prefetch.union_type_class = get_types_type("UnionType");
     # self.prefetch.awaitable_class =
     # self.prefetch.function_class =
@@ -2366,6 +2503,17 @@ impl TypeEvaluator._union_contains_none(union_type: TypeBase) -> bool {
         }
     }
     return False;
+}
+
+"""Check if a type is NoneType (instance form)."""
+impl TypeEvaluator._is_none_type_instance(ty: TypeBase) -> bool {
+    if not isinstance(ty, types.ClassType) {
+        return False;
+    }
+    if not self.prefetch or not self.prefetch.none_type_class {
+        return False;
+    }
+    return self._same_shared_class(ty.shared, self.prefetch.none_type_class.shared);
 }
 
 """Parse isinstance(x, T) or isinstance(x, (A,B)) → ("x", T|A|B) or None."""

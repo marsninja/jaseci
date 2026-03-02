@@ -57,6 +57,7 @@ obj PrefetchedTypes {
         template_class: TypeBase | None = None,
         type_var_class: TypeBase | None = None,
         classmethod_class: TypeBase | None = None,
+        property_class: TypeBase | None = None,
         # Prefetch from typing.pyi file
         protocol_class: TypeBase | None = None,
         any_class: TypeBase | None = None,
@@ -268,5 +269,6 @@ obj TypeEvaluator {
     def exclude_type_from_union(original: TypeBase, to_exclude: TypeBase) -> TypeBase;
     def _get_type_from_match_pattern(pattern: uni.MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
+    def _is_none_type_instance(ty: TypeBase) -> bool;
     def _extract_isinstance_info(condition: uni.Expr) -> tuple[str, TypeBase] | None;
 }

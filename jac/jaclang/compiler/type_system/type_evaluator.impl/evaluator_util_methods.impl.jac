@@ -149,9 +149,35 @@ impl TypeEvaluator._is_expr_super(expr: uni.Expr) -> bool {
     return False;
 }
 
-"""Check if a function call is an unbound method call (Class.method(self, ...) pattern)."""
+"""Check if a function call is an unbound method call (Class.method(args...) pattern)."""
 impl TypeEvaluator._is_unbound_method_call(expr: uni.FuncCall) -> bool {
-    # First check if there are positional arguments and the first one is 'self'
+    # Check if target is Class.method pattern (method on a class type, not instance)
+    if isinstance(expr.target, uni.AtomTrailer) and expr.target.is_attr {
+        base_type = self.get_type_of_expression(expr.target.target);
+        if isinstance(base_type, types.ClassType)
+        and not base_type.is_class_instance() {
+            # Accessing a method on a class itself (not an instance)
+            if isinstance(expr.target.right, uni.Name) {
+                member = self._lookup_class_member(base_type, expr.target.right.value);
+                if member {
+                    member_type = self.get_type_of_symbol(member.symbol);
+                    if isinstance(member_type, types.FunctionType) {
+                        # Static methods and classmethods are always bound
+                        if member_type.function_flags & (
+                            types.FunctionTypeFlags.StaticMethod | types.FunctionTypeFlags.ClassMethod
+                        ) {
+                            return False;
+                        }
+                        return True;
+                    }
+                }
+            }
+        }
+    }
+    # Handle method references stored in variables:
+    # fmt = Class.method; fmt(self, arg)
+    # Here expr.target is a Name, not AtomTrailer.
+    # For this pattern, require first arg to be 'self' to avoid false positives.
     first_positional_arg: uni.Expr | None = None;
     for arg in expr.params {
         if not isinstance(arg, uni.KWPair) {
@@ -159,28 +185,17 @@ impl TypeEvaluator._is_unbound_method_call(expr: uni.FuncCall) -> bool {
             break;
         }
     }
-    # If no positional args or first arg is not 'self', it's not an unbound call
-    if first_positional_arg is None or not self._is_expr_self(first_positional_arg) {
-        return False;
-    }
-    # TODO: Atomtrailer should have a symbol
-
-    # Check if target is Class.method pattern (method on instantiable class)
-    if isinstance(expr.target, uni.AtomTrailer) and expr.target.is_attr {
-        base_type = self.get_type_of_expression(expr.target.target);
-        if isinstance(base_type, types.ClassType)
-        and base_type.is_instantiable_class() {
-            # Accessing a method on a class (not instance)
-            # Check if accessed member is a method
-            if isinstance(expr.target.right, uni.Name) {
-                member = self._lookup_class_member(base_type, expr.target.right.value);
-                if member {
-                    member_type = self.get_type_of_symbol(member.symbol);
-                    if isinstance(member_type, types.FunctionType) {
-                        # Static methods don't have self, so can't be unbound calls
-                        if member_type.function_flags & types.FunctionTypeFlags.StaticMethod {
-                            return False;
-                        }
+    if first_positional_arg is not None and self._is_expr_self(first_positional_arg) {
+        if isinstance(expr.target, uni.Name) {
+            caller_type = self.get_type_of_expression(expr.target);
+            if isinstance(caller_type, types.FunctionType) {
+                if expr.target.sym and expr.target.sym.decl {
+                    decl_node = expr.target.sym.decl.name_of;
+                    if isinstance(decl_node, uni.Ability)
+                    and decl_node.is_method
+                    and not (
+                        caller_type.function_flags & types.FunctionTypeFlags.StaticMethod
+                    ) {
                         return True;
                     }
                 }
@@ -288,8 +303,27 @@ impl TypeEvaluator._is_symbol_property(symbol: uni.Symbol) -> bool {
         ability = node_;
         if ability.decorators {
             for decorator in ability.decorators {
-                if isinstance(decorator, uni.Name) and decorator.value == "property" {
+                # Quick check for literal @property decorator
+                if isinstance(decorator, uni.Name)
+                and decorator.value in ("property", "cached_property") {
                     return True;
+                }
+                # Type-based check for property aliases (e.g., @_magic_enum_attr
+                # which is assigned to property in enum.pyi). Follows the same
+                # pattern as _is_ability_classmethod above.
+                if self.prefetch and self.prefetch.property_class {
+                    decor_type = self.get_type_of_expression(decorator);
+                    if (
+                        isinstance(decor_type, types.ClassType)
+                        and isinstance(
+                            self.prefetch.property_class, types.ClassType
+                        )
+                        and self._same_shared_class(
+                            decor_type.shared, self.prefetch.property_class.shared
+                        )
+                    ) {
+                        return True;
+                    }
                 }
             }
         }

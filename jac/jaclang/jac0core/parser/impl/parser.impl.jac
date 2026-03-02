@@ -1445,7 +1445,7 @@ impl Parser.parse_atomic_chain -> Expr {
 }
 
 """Create an attribute Name node from a keyword token (used for dot-access on keywords)."""
-impl Parser._make_attr_from_keyword(name_tok: Any) {
+impl Parser._make_attr_from_keyword(name_tok: Any) -> UniNode {
     special_kinds = [
         TokenKind.KW_INIT,
         TokenKind.KW_POST_INIT,
@@ -4604,7 +4604,9 @@ impl Parser.parse_literal_for_mapping{
     return self.make_name(self.advance());
 }
 
-impl Parser.parse_class_pattern_args(names: list, dot_unis: list | None = None) {
+impl Parser.parse_class_pattern_args(
+    names: list, dot_unis: list | None = None
+) -> MatchArch {
     # class_pattern: NAME (DOT NAME)* LPAREN kw_pattern_list? RPAREN
     #              | NAME (DOT NAME)* LPAREN pattern_list (COMMA kw_pattern_list)? RPAREN
     lparen_uni = self.consume_uni(TokenKind.LPAREN);

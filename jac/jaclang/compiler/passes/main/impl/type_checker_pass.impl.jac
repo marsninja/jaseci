@@ -130,6 +130,18 @@ impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: uni.AtomTrailer) -
 impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> None {
     if ((len(nd.target) == 1) and (nd.value is not None)) {
         target = nd.target[0];
+        # Skip type checking for slice assignments (e.g., buf[1:3] = data).
+        # __setitem__ with a slice key has different semantics than __getitem__;
+        # without __setitem__ resolution, checking would produce false positives.
+        if (
+            isinstance(target, uni.AtomTrailer)
+            and not target.is_attr
+            and isinstance(target.right, uni.IndexSlice)
+            and target.right.is_range
+        ) {
+            self.evaluator.get_type_of_expression(nd.value);
+            return;
+        }
         # For assignment targets, use the declared symbol type (not the
         # narrowed type). Narrowing reflects the *current* value; the
         # variable's declared type determines what can be assigned to it.

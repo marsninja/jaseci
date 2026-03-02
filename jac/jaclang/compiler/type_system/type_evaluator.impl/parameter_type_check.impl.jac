@@ -74,11 +74,29 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         if _fallback_result is not None {
             return _fallback_result;
         }
+        # Structural fallback: use return type from first overload that matches
+        # by argument count (ignoring type checking). Avoids cascading false
+        # positives from UnknownType propagation when protocol/stub limitations
+        # cause type matching to fail.
+        _structural_ret: types.TypeBase | None = None;
+        for overload in caller_type.overloads {
+            arg_match = self.match_args_to_params(
+                expr.params,
+                None,
+                overload,
+                checking_overload=True,
+                is_unbound_call=is_unbound_call
+            );
+            if not arg_match.argument_errors {
+                _structural_ret = overload.return_type or types.UnknownType();
+                break;
+            }
+        }
         self.add_diagnostic(
             expr,
             "No matching overload found for the function call with the given arguments",
         );
-        return types.UnknownType();
+        return _structural_ret or types.UnknownType();
     }
     if isinstance(caller_type, types.ClassType)
     and self.prefetch
