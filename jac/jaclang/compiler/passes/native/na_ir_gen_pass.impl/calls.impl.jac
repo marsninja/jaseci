@@ -1,18 +1,191 @@
 """Function call codegen including builtins and method calls."""
 
-"""Resolve a type name string to an LLVM type.
+"""Resolve a canonical type name string to an LLVM type.
 
-Checks type_map (primitives), then struct_types (user-defined objs),
-falling back to i64 for unknown types.
+Handles primitives, structs, unions (T|None), and generic collections
+(list[T], dict[K,V], set[T], tuple[T1,T2,...]).  For collections,
+emits the necessary helper functions as a side effect.
 """
 impl NaIRGenPass._resolve_type_str(type_name: str) -> ir.Type {
+    # Primitives and fixed-width types
     if type_name in self.type_map {
         return self.type_map[type_name];
     }
+    # Struct types → pointer
     if type_name in self.struct_types {
         return self.struct_types[type_name].as_pointer();
     }
+    # None → void
+    if type_name == "None" {
+        return ir.VoidType();
+    }
+    # any → JacVal
+    if type_name == "any" {
+        return self.jacval_type;
+    }
+    # Generic collection types MUST be checked BEFORE union "|" since
+    # inner types may contain "|", e.g. list[Piece|None]
+    # list[T]
+    if type_name.startswith("list[") and type_name.endswith("]") {
+        inner_name = type_name[5:-1];
+        (inner_llvm, elem_key) = self._type_name_to_llvm_elem(inner_name);
+        self._emit_list_helpers(elem_key, inner_llvm);
+        return self.list_types[elem_key].as_pointer();
+    }
+    # dict[K,V] — find top-level comma (not inside brackets)
+    if type_name.startswith("dict[") and type_name.endswith("]") {
+        inner = type_name[5:-1];
+        comma_idx = self._find_top_level_comma(inner);
+        if comma_idx >= 0 {
+            key_name = inner[:comma_idx].strip();
+            val_name = inner[comma_idx + 1:].strip();
+            (key_llvm, key_key) = self._type_name_to_llvm_elem(key_name);
+            (val_llvm, val_key) = self._type_name_to_llvm_elem(val_name);
+            # Special case: tuple keys need struct size for hashing
+            key_size = 0;
+            if (
+                key_key == "ptr"
+                and isinstance(key_llvm, ir.PointerType)
+                and key_llvm?.pointee
+                and isinstance(key_llvm.pointee, ir.LiteralStructType)
+            ) {
+                key_size = self._get_struct_size(key_llvm.pointee);
+                key_key = f"tuple{key_size}";
+            }
+            dict_key = f"{key_key}:{val_key}";
+            self._emit_dict_helpers(key_key, val_key, key_llvm, val_llvm, key_size);
+            return self.dict_types[dict_key].as_pointer();
+        }
+        return ir.IntType(64);
+    }
+    # set[T]
+    if type_name.startswith("set[") and type_name.endswith("]") {
+        inner_name = type_name[4:-1];
+        (inner_llvm, elem_key) = self._type_name_to_llvm_elem(inner_name);
+        # Special case: tuple elements need struct size for hashing
+        elem_size = 0;
+        if (
+            elem_key == "ptr"
+            and isinstance(inner_llvm, ir.PointerType)
+            and inner_llvm?.pointee
+            and isinstance(inner_llvm.pointee, ir.LiteralStructType)
+        ) {
+            elem_size = self._get_struct_size(inner_llvm.pointee);
+            elem_key = f"tuple{elem_size}";
+        }
+        self._emit_set_helpers(elem_key, inner_llvm, elem_size);
+        return self.set_types[elem_key].as_pointer();
+    }
+    # tuple[T1,T2,...] — split at top-level commas
+    if type_name.startswith("tuple[") and type_name.endswith("]") {
+        inner = type_name[6:-1];
+        parts = self._split_top_level_commas(inner);
+        elem_types: list[ir.Type] = [];
+        for p in parts {
+            p = p.strip();
+            if p {
+                (llvm_t, _) = self._type_name_to_llvm_elem(p);
+                elem_types.append(llvm_t);
+            }
+        }
+        if elem_types {
+            n = len(elem_types);
+            tuple_key = f"Tuple.{n}." + ".".join([str(t) for t in elem_types]);
+            if tuple_key not in self.tuple_types {
+                struct_type = ir.LiteralStructType(elem_types);
+                self.tuple_types[tuple_key] = struct_type;
+            }
+            return self.tuple_types[tuple_key].as_pointer();
+        }
+        return ir.IntType(64);
+    }
+    # Union: T|None → resolve the non-None part (AFTER generic checks)
+    if "|" in type_name {
+        parts = type_name.split("|");
+        for p in parts {
+            p = p.strip();
+            if p and p != "None" {
+                return self._resolve_type_str(p);
+            }
+        }
+        return ir.IntType(64);
+    }
+    # Fallback
     return ir.IntType(64);
+}
+
+"""Find the index of the first top-level comma (not inside brackets)."""
+impl NaIRGenPass._find_top_level_comma(s: str) -> int {
+    depth = 0;
+    for (i, ch) in enumerate(s) {
+        if ch == "[" {
+            depth += 1;
+        } elif ch == "]" {
+            depth -= 1;
+        } elif ch == "," and depth == 0 {
+            return i;
+        }
+    }
+    return -1;
+}
+
+"""Split a string at top-level commas (not inside brackets)."""
+impl NaIRGenPass._split_top_level_commas(s: str) -> list[str] {
+    parts: list[str] = [];
+    depth = 0;
+    start = 0;
+    for (i, ch) in enumerate(s) {
+        if ch == "[" {
+            depth += 1;
+        } elif ch == "]" {
+            depth -= 1;
+        } elif ch == "," and depth == 0 {
+            parts.append(s[start:i]);
+            start = i + 1;
+        }
+    }
+    parts.append(s[start:]);
+    return parts;
+}
+
+"""Convert a canonical type name to (LLVM type, collection element key).
+
+The elem_key is used for collection helper dispatch: 'i64', 'f64', 'ptr', or 'jacval'.
+All pointer types (including tuples) are classified as 'ptr' here;
+callers that need tuple-specific keys handle that separately.
+"""
+impl NaIRGenPass._type_name_to_llvm_elem(type_name: str) -> tuple {
+    # Check type_map (primitives + fixed-width)
+    if type_name in self.type_map {
+        t = self.type_map[type_name];
+        if isinstance(t, ir.DoubleType) or isinstance(t, ir.FloatType) {
+            return (t, "f64");
+        }
+        if isinstance(t, ir.PointerType) {
+            return (t, "ptr");
+        }
+        # IntType (i64, i1, etc.) → "i64" for collection purposes
+        return (t, "i64");
+    }
+    # Struct types → pointer
+    if type_name in self.struct_types {
+        return (self.struct_types[type_name].as_pointer(), "ptr");
+    }
+    if type_name == "None" {
+        return (ir.VoidType(), "i64");
+    }
+    if type_name == "any" {
+        return (self.jacval_type, "jacval");
+    }
+    # For compound types, resolve and classify
+    resolved = self._resolve_type_str(type_name);
+    if isinstance(resolved, ir.PointerType) {
+        return (resolved, "ptr");
+    }
+    if isinstance(resolved, ir.DoubleType) {
+        return (resolved, "f64");
+    }
+    return (resolved, "i64");
 }
 
 """Generate function call."""
@@ -325,7 +498,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if func_name in self.method_ast_sigs {
         fn_sig = self.method_ast_sigs[func_name];
         if fn_sig?.return_type and fn_sig.return_type is not None {
-            self._last_type_node_hint = fn_sig.return_type;
+            self._last_type_hint = self._get_resolved_type(fn_sig.return_type);
         }
     }
     # Build arguments

@@ -14,10 +14,10 @@ impl NaIRGenPass._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None) {
         # For [m for m in items], infer from items' element type
         first_compr = nd.compr[0];
         coll_name = self._get_name(first_compr.collection);
-        if coll_name is not None and coll_name in self.var_type_node {
-            hint = self._get_list_elem_from_type_node(self.var_type_node[coll_name]);
-            if hint is not None {
-                elem_type_name = hint;
+        if coll_name is not None and coll_name in self.var_resolved_type {
+            _cle = self._extract_list_elem(self.var_resolved_type[coll_name]);
+            if _cle is not None {
+                (_, elem_type_name) = self._type_name_to_llvm_elem(_cle);
             }
         }
         # 3. If output is a TupleVal, assume ptr type
@@ -52,12 +52,12 @@ impl NaIRGenPass._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None) {
                 if target_name == out_name {
                     # The output is the loop variable itself, infer from collection
                     coll_name = self._get_name(compr.collection);
-                    if coll_name is not None and coll_name in self.var_type_node {
-                        hint = self._get_list_elem_from_type_node(
-                            self.var_type_node[coll_name]
+                    if coll_name is not None and coll_name in self.var_resolved_type {
+                        _cle2 = self._extract_list_elem(
+                            self.var_resolved_type[coll_name]
                         );
-                        if hint is not None {
-                            elem_type_name = hint;
+                        if _cle2 is not None {
+                            (_, elem_type_name) = self._type_name_to_llvm_elem(_cle2);
                         }
                     }
                     break;
@@ -162,11 +162,11 @@ impl NaIRGenPass._codegen_compr_loops(
     actual_elem_type = coll_helpers["elem_type"];
     inner_type: (ir.Type | None) = None;
     if coll_elem_type_name == "ptr" {
-        coll_type_node = self.var_type_node.get(coll_name) if coll_name else None;
-        if coll_type_node is not None {
-            (_, inner_type_resolved, _) = self._peel_list_type(coll_type_node);
-            if inner_type_resolved is not None {
-                inner_type = inner_type_resolved;
+        coll_rt = self.var_resolved_type.get(coll_name, "") if coll_name else "";
+        inner_name = self._extract_list_elem(coll_rt);
+        if inner_name is not None {
+            inner_type = self._resolve_type_str(inner_name);
+            if inner_type is not None {
                 actual_elem_type = inner_type;
             }
         }
@@ -587,7 +587,81 @@ impl NaIRGenPass._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | None) {
             loop_var = self._get_name(nd.compr[0].target);
             if loop_var == target_name {
                 # Output accesses a field on the loop variable — infer loop var's struct type
-                loop_struct = self._infer_compr_elem_struct(nd.compr[0]);
+                # Infer struct type from collection's resolved type
+                _compr_coll = nd.compr[0].collection;
+                loop_struct = None;
+                _cc_name = self._get_name(_compr_coll);
+                if _cc_name is not None {
+                    # Simple variable: check resolved type
+                    _cc_type = self.var_resolved_type.get(_cc_name, "");
+                    _cc_elem = self._extract_list_elem(_cc_type);
+                    if _cc_elem and _cc_elem in self.struct_types {
+                        loop_struct = _cc_elem;
+                    }
+                    if loop_struct is None {
+                        _cc_elem2 = self.var_list_elem_type.get(_cc_name);
+                        if _cc_elem2 and _cc_elem2 in self.struct_types {
+                            loop_struct = _cc_elem2;
+                        }
+                    }
+                }
+                # Method call: obj.method() → look up return type
+                if loop_struct is None {
+                    _mc_obj: (str | None) = None;
+                    _mc_meth: (str | None) = None;
+                    if isinstance(_compr_coll, uni.FuncCall)
+                    and isinstance(_compr_coll.target, uni.AtomTrailer)
+                    and _compr_coll.target.is_attr {
+                        _mc_obj = self._get_name(_compr_coll.target.target);
+                        _mc_meth = self._get_name(_compr_coll.target.right);
+                    } elif isinstance(_compr_coll, uni.AtomTrailer)
+                    and not _compr_coll.is_attr {
+                        _mc_obj = self._get_name(_compr_coll.target);
+                        if isinstance(_compr_coll.right, uni.FuncCall) {
+                            _mc_meth = self._get_name(_compr_coll.right.target);
+                        } else {
+                            _mc_meth = self._get_name(_compr_coll.right);
+                        }
+                    }
+                    if _mc_obj and _mc_meth {
+                        _mc_type = self.type_var_map.get(_mc_obj);
+                        if _mc_type is None and _mc_obj in self.local_vars {
+                            _mc_lv = self.local_vars[_mc_obj];
+                            if isinstance(_mc_lv.type, ir.PointerType) {
+                                for (_sn, _st) in self.struct_types.items() {
+                                    if _mc_lv.type.pointee == _st.as_pointer() {
+                                        _mc_type = _sn;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if _mc_type {
+                            _ch = _mc_type;
+                            while _ch is not None {
+                                _full = f"{_ch}.{_mc_meth}";
+                                if _full in self.method_ast_sigs {
+                                    _sig = self.method_ast_sigs[_full];
+                                    _rtn = getattr(_sig, 'return_type', None);
+                                    if _rtn is not None {
+                                        _ret_str = self._get_resolved_type(_rtn);
+                                        _ret_elem = self._extract_list_elem(
+                                            _ret_str
+                                        )
+                                            if _ret_str
+                                            else None;
+                                        if _ret_elem
+                                        and _ret_elem in self.struct_types {
+                                            loop_struct = _ret_elem;
+                                        }
+                                    }
+                                    break;
+                                }
+                                _ch = self.class_hierarchy.get(_ch);
+                            }
+                        }
+                    }
+                }
                 if loop_struct is not None and loop_struct in self.struct_field_types {
                     ftype = self.struct_field_types[loop_struct].get(field_name);
                     if ftype is not None and isinstance(ftype, ir.PointerType) {
@@ -672,19 +746,19 @@ impl NaIRGenPass._codegen_set_compr_loops(
         }
     }
     # List iteration
-    self._last_type_node_hint = None;
+    self._last_type_hint = None;
     coll_val = self._codegen_expr(collection);
-    coll_type_hint = self._last_type_node_hint;
+    coll_type_hint = self._last_type_hint;
     if coll_val is None {
         return;
     }
     coll_elem_type_name = self._infer_list_elem_type(coll_val);
     # Fallback: if coll_val is a generic ptr (e.g., from vtable dispatch),
-    # use the _last_type_node_hint (method return type AST) to infer list elem type.
+    # use the type hint string to infer list elem type.
     if coll_elem_type_name is None and coll_type_hint is not None {
-        (_, inner_llvm_type, inner_elem_name) = self._peel_list_type(coll_type_hint);
+        inner_elem_name = self._extract_list_elem(coll_type_hint);
         if inner_elem_name is not None {
-            coll_elem_type_name = inner_elem_name;
+            (_, coll_elem_type_name) = self._type_name_to_llvm_elem(inner_elem_name);
         }
     }
     # Fallback: if still None, treat unknown ptr results as ptr-element lists
@@ -709,9 +783,12 @@ impl NaIRGenPass._codegen_set_compr_loops(
     actual_elem_type = coll_helpers["elem_type"];
     # Resolve inner element type for ptr lists (e.g., list[Move] -> Move*)
     if coll_elem_type_name == "ptr" and coll_type_hint is not None {
-        (_, inner_llvm_type, _) = self._peel_list_type(coll_type_hint);
-        if inner_llvm_type is not None {
-            actual_elem_type = inner_llvm_type;
+        inner_name = self._extract_list_elem(coll_type_hint);
+        if inner_name is not None {
+            inner_llvm = self._resolve_type_str(inner_name);
+            if inner_llvm is not None {
+                actual_elem_type = inner_llvm;
+            }
         }
     }
     loop_alloca = self._entry_alloca(actual_elem_type, loop_var_name);

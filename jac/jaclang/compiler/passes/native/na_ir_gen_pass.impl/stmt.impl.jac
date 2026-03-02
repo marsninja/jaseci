@@ -205,8 +205,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
     self._list_type_hint = None;
     # 1. From explicit type annotation: var: list[T] = []
     if nd.type_tag and nd.type_tag.tag {
-        hint = self._get_list_elem_from_type_node(nd.type_tag.tag);
-        if hint is not None {
+        _le = self._extract_list_elem(self._get_resolved_type(nd.type_tag.tag));
+        if _le is not None {
+            (_, hint) = self._type_name_to_llvm_elem(_le);
             self._list_type_hint = hint;
         }
     }
@@ -222,11 +223,12 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 if ct_target_name is not None and ct_field_name is not None {
                     ct_type_name = self.type_var_map.get(ct_target_name);
                     if ct_type_name is not None
-                    and ct_type_name in self.field_type_node {
-                        ftn = self.field_type_node[ct_type_name].get(ct_field_name);
-                        if ftn is not None {
-                            hint = self._get_list_elem_from_type_node(ftn);
-                            if hint is not None {
+                    and ct_type_name in self.field_resolved_type {
+                        frt = self.field_resolved_type[ct_type_name].get(ct_field_name);
+                        if frt is not None {
+                            _fle = self._extract_list_elem(frt);
+                            if _fle is not None {
+                                (_, hint) = self._type_name_to_llvm_elem(_fle);
                                 self._list_type_hint = hint;
                             }
                         }
@@ -740,52 +742,51 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             self.builder.store(value, alloca);
             self.local_vars[var_name] = alloca;
         }
-        # Track type info for variables pointing to structs
-        if isinstance(value.type, ir.PointerType) {
-            # Check if it's a known struct pointer type
+        # Track type info from type_tag annotation
+        if nd.type_tag and nd.type_tag.tag {
+            rt = self._get_resolved_type(nd.type_tag.tag);
+            if rt {
+                self.var_resolved_type[var_name] = rt;
+                elem = self._extract_list_elem(rt);
+                if elem {
+                    (_, ek) = self._type_name_to_llvm_elem(elem);
+                    self.var_list_elem_type[var_name] = ek;
+                }
+                dkv = self._extract_dict_kv(rt);
+                if dkv {
+                    (kl, kk) = self._type_name_to_llvm_elem(dkv[0]);
+                    (vl, vk) = self._type_name_to_llvm_elem(dkv[1]);
+                    if kk == "ptr"
+                    and isinstance(kl, ir.PointerType)
+                    and kl?.pointee
+                    and isinstance(kl.pointee, ir.LiteralStructType) {
+                        kk = f"tuple{self._get_struct_size(kl.pointee)}";
+                    }
+                    self.var_dict_type[var_name] = f"{kk}:{vk}";
+                }
+                selem = self._extract_set_elem(rt);
+                if selem {
+                    (sl, sk) = self._type_name_to_llvm_elem(selem);
+                    if sk == "ptr"
+                    and isinstance(sl, ir.PointerType)
+                    and sl?.pointee
+                    and isinstance(sl.pointee, ir.LiteralStructType) {
+                        sk = f"tuple{self._get_struct_size(sl.pointee)}";
+                    }
+                    self.var_set_elem_type[var_name] = sk;
+                }
+                base = rt.split("|")[0].strip() if "|" in rt else rt;
+                if base in self.struct_types {
+                    self.type_var_map[var_name] = base;
+                }
+            }
+        } elif isinstance(value.type, ir.PointerType) {
+            # Fallback: check if value is a known struct pointer type
             for (sname, stype) in self.struct_types.items() {
                 if value.type == stype.as_pointer() {
                     self.type_var_map[var_name] = sname;
                     break;
                 }
-            }
-        }
-        # Track from type_tag annotation (supports T and T | None union types)
-        if nd.type_tag and nd.type_tag.tag {
-            tag_node = nd.type_tag.tag;
-            tag_name = self._get_name(tag_node);
-            # Handle union type: T | None → extract T
-            if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
-                op_val = getattr(tag_node.op, 'value', '');
-                if op_val == "|" {
-                    tag_name = self._get_name(tag_node.left);
-                }
-            }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[var_name] = tag_name;
-            }
-            # Store the full type AST node for nested type resolution
-            self.var_type_node[var_name] = tag_node;
-        }
-        # Track list element type for list variables
-        for (ename, ltype) in self.list_types.items() {
-            if value.type == ltype.as_pointer() {
-                self.var_list_elem_type[var_name] = ename;
-                break;
-            }
-        }
-        # Track dict type for dict variables
-        for (dkey, dtype) in self.dict_types.items() {
-            if value.type == dtype.as_pointer() {
-                self.var_dict_type[var_name] = dkey;
-                break;
-            }
-        }
-        # Track set element type for set variables
-        for (ename, stype) in self.set_types.items() {
-            if value.type == stype.as_pointer() {
-                self.var_set_elem_type[var_name] = ename;
-                break;
             }
         }
     }
@@ -1090,17 +1091,17 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     # Set list type hint in case collection is a list literal
     self._list_type_hint = None;
     coll_name = self._get_name(nd.collection);
-    # Infer elem type hint from collection variable's type node
-    if coll_name is not None and coll_name in self.var_type_node {
-        coll_type_node = self.var_type_node[coll_name];
-        hint = self._get_list_elem_from_type_node(coll_type_node);
-        if hint is not None {
+    # Infer elem type hint from collection variable's resolved type
+    if coll_name is not None and coll_name in self.var_resolved_type {
+        _cle = self._extract_list_elem(self.var_resolved_type[coll_name]);
+        if _cle is not None {
+            (_, hint) = self._type_name_to_llvm_elem(_cle);
             self._list_type_hint = hint;
         }
     }
-    self._last_type_node_hint = None;
+    self._last_type_hint = None;
     collection_val = self._codegen_expr(nd.collection);
-    coll_type_hint = self._last_type_node_hint;
+    coll_type_hint = self._last_type_hint;
     self._list_type_hint = None;
     if collection_val is None {
         return;
@@ -1112,11 +1113,11 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     } else {
         elem_type_name = self._infer_list_elem_type(collection_val);
     }
-    # Fallback: use _last_type_node_hint from method call return type
+    # Fallback: use _last_type_hint from method call return type
     if elem_type_name is None and coll_type_hint is not None {
-        hint_elem = self._get_list_elem_from_type_node(coll_type_hint);
-        if hint_elem is not None {
-            elem_type_name = hint_elem;
+        _hle = self._extract_list_elem(coll_type_hint);
+        if _hle is not None {
+            (_, elem_type_name) = self._type_name_to_llvm_elem(_hle);
         }
     }
     # Fallback: if still None and collection is a list ptr, assume ptr elements.
@@ -1149,43 +1150,35 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     # Resolve actual element type for ptr lists (before allocating loop var)
     actual_elem_type = helpers["elem_type"];
     inner_type: (ir.Type | None) = None;
-    # Get the type node for the collection (from variable or from field access hint)
-    coll_type_node: (object | None) = None;
-    if coll_name is not None and coll_name in self.var_type_node {
-        coll_type_node = self.var_type_node[coll_name];
-    } elif coll_type_hint is not None {
-        coll_type_node = coll_type_hint;
-    }
+    # Resolve inner type for ptr-element lists (e.g., list[Move] → Move*)
+    coll_rt = (
+        self.var_resolved_type.get(coll_name, "")
+            if coll_name
+            else (coll_type_hint or "")
+    );
     if elem_type_name == "ptr" {
-        inner_type = self._resolve_for_loop_elem_type(coll_name, nd.collection);
-        # Fallback: use coll_type_hint from field access
-        if inner_type is None and coll_type_node is not None {
-            (_, inner_type_from_hint, _) = self._peel_list_type(coll_type_node);
-            if inner_type_from_hint is not None {
-                inner_type = inner_type_from_hint;
-            }
+        inner_name = self._extract_list_elem(coll_rt);
+        if inner_name is not None {
+            inner_type = self._resolve_type_str(inner_name);
         }
         if inner_type is not None {
             actual_elem_type = inner_type;
             # Track inner type info on loop var
-            for (sname, stype) in self.struct_types.items() {
-                if inner_type == stype.as_pointer() {
-                    self.type_var_map[loop_var_name] = sname;
-                    break;
-                }
+            inner_base = inner_name.split("|")[0].strip()
+                if inner_name and "|" in inner_name
+                else inner_name;
+            if inner_base and inner_base in self.struct_types {
+                self.type_var_map[loop_var_name] = inner_base;
             }
-            for (ename, ltype) in self.list_types.items() {
-                if inner_type == ltype.as_pointer() {
-                    self.var_list_elem_type[loop_var_name] = ename;
-                    break;
-                }
+            # Track list elem if inner is a list pointer
+            _ile = self._extract_list_elem(inner_name) if inner_name else None;
+            if _ile {
+                (_, _ile_key) = self._type_name_to_llvm_elem(_ile);
+                self.var_list_elem_type[loop_var_name] = _ile_key;
             }
-            # Propagate inner type node for nested access
-            if coll_type_node is not None {
-                (inner_node, _, _) = self._peel_list_type(coll_type_node);
-                if inner_node is not None {
-                    self.var_type_node[loop_var_name] = inner_node;
-                }
+            # Propagate resolved type for nested access
+            if inner_name is not None {
+                self.var_resolved_type[loop_var_name] = inner_name;
             }
         }
     }

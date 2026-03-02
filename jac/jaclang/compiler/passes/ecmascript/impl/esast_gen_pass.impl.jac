@@ -954,10 +954,16 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                     # Analyze function body for auto-caching effects
                     effect_key = f"func:{func_name}";
                     if effect_key not in self.client_manifest.endpoint_effects {
-                        if ability_node.body and isinstance(ability_node.body, list) {
-                            effects = self._analyze_body_effects(ability_node.body);
-                            self.client_manifest.endpoint_effects[effect_key] = effects;
-                        }
+                        effects = (
+                            ability_node.gen.body_effects
+                                if (
+                                    ability_node?.gen
+                                    and ability_node.gen is not None
+                                    and ability_node.gen.body_effects is not None
+                                )
+                                else {"is_writer": False, "touches": ["*"]}
+                        );
+                        self.client_manifest.endpoint_effects[effect_key] = effects;
                     }
                     param_names: list[str] = [];
                     if isinstance(ability_node.signature, uni.FuncSignature) {
@@ -1689,11 +1695,16 @@ impl EsastGenPass.exit_binary_expr(nd: uni.BinaryExpr) -> None {
                 if (walker_sym and walker_sym.sym_type == SymbolType.WALKER_ARCH) {
                     arch_node = walker_sym.decl.parent;
                     if isinstance(arch_node, uni.Archetype) {
-                        resolved_body = arch_node._get_impl_resolved_body();
-                        if resolved_body {
-                            effects = self._analyze_body_effects(resolved_body);
-                            self.client_manifest.endpoint_effects[effect_key] = effects;
-                        }
+                        effects = (
+                            arch_node.gen.body_effects
+                                if (
+                                    arch_node?.gen
+                                    and arch_node.gen is not None
+                                    and arch_node.gen.body_effects is not None
+                                )
+                                else {"is_writer": False, "touches": ["*"]}
+                        );
+                        self.client_manifest.endpoint_effects[effect_key] = effects;
                     }
                 }
             }
@@ -3021,10 +3032,16 @@ impl EsastGenPass._generate_sv_import_stubs(nd: uni.Import) -> None {
                     ];
                 }
                 # Analyze function body for auto-caching effects
-                if ability_node
-                and ability_node.body
-                and isinstance(ability_node.body, list) {
-                    effects = self._analyze_body_effects(ability_node.body);
+                if ability_node {
+                    effects = (
+                        ability_node.gen.body_effects
+                            if (
+                                ability_node?.gen
+                                and ability_node.gen is not None
+                                and ability_node.gen.body_effects is not None
+                            )
+                            else {"is_writer": False, "touches": ["*"]}
+                    );
                     self.client_manifest.endpoint_effects[f"func:{func_name}"] = effects;
                 }
             }
@@ -3295,111 +3312,6 @@ impl EsastGenPass._collect_stmt_body(
         }
     }
     return statements;
-}
-
-"""Analyze a code body to classify it as reader or writer and extract touched node types.
-
-Recursively scans descendant AST nodes for write-indicating operations
-(edge creation, node deletion, field mutation, sub-walker spawns).
-Returns dict with 'is_writer' (bool) and 'touches' (list of node type names).
-"""
-impl EsastGenPass._analyze_body_effects(body_nodes: Sequence[uni.UniNode]) -> dict {
-    is_writer = False;
-    touches: set[str] = set();
-    """Recursively scan a node and its descendants for effects.""";
-    def _scan(nd: uni.UniNode) -> None {
-        nonlocal is_writer ;
-
-        # Edge creation: BinaryExpr with ConnectOp operator (++>, <++, <++>)
-        if isinstance(nd, uni.BinaryExpr) and isinstance(nd.op, uni.ConnectOp) {
-            is_writer = True;
-            # Try to extract edge type from ConnectOp
-            if nd.op.conn_type and isinstance(nd.op.conn_type, uni.Name) {
-                touches.add(nd.op.conn_type.sym_name);
-            }
-        }
-
-        # Edge deletion: BinaryExpr with DisconnectOp operator
-        if isinstance(nd, uni.BinaryExpr) and isinstance(nd.op, uni.DisconnectOp) {
-            is_writer = True;
-        }
-
-        # Node/edge deletion: DeleteStmt
-        if isinstance(nd, uni.DeleteStmt) {
-            is_writer = True;
-        }
-
-        # Spawn sub-walker: BinaryExpr with KW_SPAWN
-        if (
-            isinstance(nd, uni.BinaryExpr)
-            and isinstance(nd.op, uni.Token)
-            and nd.op.name == Tok.KW_SPAWN
-        ) {
-            is_writer = True;
-        }
-
-        # Field mutation on non-self targets: Assignment with AtomTrailer target
-        if isinstance(nd, uni.Assignment) {
-            for tgt in nd.target {
-                if isinstance(tgt, uni.AtomTrailer) and tgt.is_attr {
-                    # Check if the target root is NOT self/here (those are walker state writes)
-                    root_expr = tgt.target;
-                    while isinstance(root_expr, uni.AtomTrailer) {
-                        root_expr = root_expr.target;
-                    }
-                    is_self = (
-                        isinstance(root_expr, uni.SpecialVarRef)
-                        and root_expr.sym_name == 'self'
-                    );
-                    if not is_self {
-                        is_writer = True;
-                    }
-                }
-            }
-        }
-
-        # Node type touched: FuncCall targeting a node/edge archetype
-        if isinstance(nd, uni.FuncCall) {
-            target_sym = self._resolve_expr_symbol(nd.target);
-            if target_sym {
-                if target_sym.sym_type in [
-                    SymbolType.NODE_ARCH,
-                    SymbolType.EDGE_ARCH
-                ] {
-                    touches.add(target_sym.sym_name);
-                    # Constructing a node/edge is a write
-                    is_writer = True;
-                }
-            }
-        }
-
-        # Node types from EventSignature (can foo with NodeType entry)
-        if isinstance(nd, uni.EventSignature) and nd.arch_tag_info {
-            if isinstance(nd.arch_tag_info, uni.Name) {
-                touches.add(nd.arch_tag_info.sym_name);
-            } elif isinstance(nd.arch_tag_info, uni.BoolExpr) {
-                # Union type: NodeA | NodeB
-                for val in nd.arch_tag_info.values {
-                    if isinstance(val, uni.Name) {
-                        touches.add(val.sym_name);
-                    }
-                }
-            }
-        }
-
-        # Recurse into children
-        for child in nd.kid {
-            if child {
-                _scan(child);
-            }
-        }
-    }
-    for nd in body_nodes {
-        _scan(nd);
-    }
-    # If no specific node types were determined, use catch-all
-    touches_list = sorted(touches) if touches else ["*"];
-    return {"is_writer": is_writer, "touches": touches_list};
 }
 
 """Emit the await __jacSpawn(...) expression for a spawn call."""

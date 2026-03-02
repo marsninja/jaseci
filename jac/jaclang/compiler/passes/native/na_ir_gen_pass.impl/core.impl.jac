@@ -68,11 +68,11 @@ impl NaIRGenPass.init(
     self.list_types: dict[(str, object)] = {};  # elem_type_name → list struct type
     self.list_helpers: dict[(str, dict)] = {};  # elem_type_name → {new, append, get, set, len}
     self.var_list_elem_type: dict[(str, str)] = {};  # var_name → elem_type_name
-    # Jac-level type tracking for nested lists and ptr list element resolution
-    self.field_type_node: dict[(str, dict)] = {};  # struct_name → {field → type AST node}
-    self.var_type_node: dict[(str, object)] = {};  # var_name → type AST node
+    # Canonical type string tracking for nested lists and ptr list element resolution
+    self.field_resolved_type: dict[(str, dict)] = {};  # struct_name → {field → type string}
+    self.var_resolved_type: dict[(str, str)] = {};  # var_name → canonical type string
     self._list_type_hint: (str | None) = None;  # hint for empty list creation
-    self._last_type_node_hint: (object | None) = None;  # Jac type AST of last evaluated expr
+    self._last_type_hint: (str | None) = None;  # canonical type string of last evaluated expr
     # Inheritance / vtable support (Phase 5)
     self.class_hierarchy: dict[(str, str)] = {};  # child → parent
     self.has_vtable: dict[(str, bool)] = {};

@@ -40,7 +40,9 @@ def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
 }
 
 glob _ir_sched_loading = False,
-     _codegen_sched_loading = False;
+     _codegen_sched_loading = False,
+     _type_check_sched_loading = False,
+     _analysis_sched_loading = False;
 
 """Full IR generation schedule.
 
@@ -75,11 +77,61 @@ def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     }
 }
 
-"""Type checking schedule."""
+"""Type checking schedule.
+
+    Uses a re-entrancy guard: when compiling the pass modules that this
+    schedule depends on, importing them would trigger recursive compilation.
+    The guard detects this and returns an empty schedule.
+    """
 def get_type_check_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-    import from jaclang.compiler.passes.main.static_analysis_pass { StaticAnalysisPass }
-    return [TypeCheckPass, StaticAnalysisPass];
+    global _type_check_sched_loading;
+    if _type_check_sched_loading or _ir_sched_loading {
+        return [];
+    }
+    _type_check_sched_loading = True;
+    try {
+        import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+        import from jaclang.compiler.passes.main.static_analysis_pass {
+            StaticAnalysisPass
+        }
+        return [TypeCheckPass, StaticAnalysisPass];
+    } except ImportError {
+        return [];
+    } finally {
+        _type_check_sched_loading = False;
+    }
+}
+
+"""Centralized analysis schedule.
+
+    Runs TypeAnnotationPass, ClassHierarchyPass, and EffectAnalysisPass to
+    pre-compute type info, class hierarchy, and side effects onto node.gen
+    fields. These passes work with or without prior type checking — they
+    produce better results when the TypeEvaluator is available but gracefully
+    degrade when it is not.
+    """
+def get_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+    global _analysis_sched_loading;
+    if _analysis_sched_loading or _ir_sched_loading or _codegen_sched_loading {
+        return [];
+    }
+    _analysis_sched_loading = True;
+    try {
+        import from jaclang.compiler.passes.main.type_annotation_pass {
+            TypeAnnotationPass
+        }
+        import from jaclang.compiler.passes.main.class_hierarchy_pass {
+            ClassHierarchyPass
+        }
+        import from jaclang.compiler.passes.main.effect_analysis_pass {
+            EffectAnalysisPass
+        }
+        return [TypeAnnotationPass, ClassHierarchyPass, EffectAnalysisPass];
+    } except ImportError {
+        return [];
+    } finally {
+        _analysis_sched_loading = False;
+    }
 }
 
 """Full Python code generation schedule.
@@ -706,6 +758,14 @@ class JacCompiler {
             );
         }
         if (not had_parse_errors and not options.no_cgen) {
+            # Centralized analysis passes pre-compute type info, class
+            # hierarchy, and side effects onto node.gen fields for backends.
+            self.run_schedule(
+                mod=mod_targ,
+                target_program=actual_program,
+                passes=get_analysis_sched(),
+                cancel_token=options.cancel_token
+            );
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,

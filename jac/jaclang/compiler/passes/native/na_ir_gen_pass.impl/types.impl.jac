@@ -1,214 +1,89 @@
 """Type resolution and LLVM type helpers."""
-"""Resolve a Jac type expression to an LLVM type."""
+"""Resolve a Jac type expression to an LLVM type.
+
+Delegates to pre-computed gen.resolved_type from TypeAnnotationPass,
+with fallback to composing a canonical name from the AST node.
+"""
 impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
     if type_expr is None {
         return ir.IntType(64);
     }
-    # Handle Name nodes (type references like `int`, `float`, `Point`)
+    # Primary: use pre-computed type from TypeAnnotationPass
+    if (
+        type_expr?.gen
+        and type_expr.gen is not None
+        and type_expr.gen.resolved_type is not None
+        and type_expr.gen.resolved_type != "unknown"
+    ) {
+        return self._resolve_type_str(type_expr.gen.resolved_type);
+    }
+    # Fallback: compose canonical type name from AST and resolve
+    name = self._ast_to_type_name(type_expr);
+    if name is not None {
+        return self._resolve_type_str(name);
+    }
+    return ir.IntType(64);
+}
+
+"""Compose a canonical type name string from an AST type expression node."""
+impl NaIRGenPass._ast_to_type_name(type_expr: (uni.UniNode | None)) -> (str | None) {
+    if type_expr is None {
+        return None;
+    }
+    # Simple Name or BuiltinType: read .value
     if isinstance(type_expr, uni.Name) {
-        type_name = type_expr.value;
-        if type_name in self.type_map {
-            return self.type_map[type_name];
-        }
-        # Check if it's a known struct type → pointer to struct
-        if type_name in self.struct_types {
-            return self.struct_types[type_name].as_pointer();
-        }
-        if type_name == "None" {
-            return ir.VoidType();
-        }
-        if type_name == "any" {
-            return self.jacval_type;
-        }
+        return type_expr.value;
     }
-    # Handle BuiltinType nodes
-    if uni?.BuiltinType and isinstance(type_expr, uni.BuiltinType) {
-        type_name = type_expr.value;
-        if type_name in self.type_map {
-            return self.type_map[type_name];
-        }
+    if hasattr(type_expr, 'value')
+    and isinstance(getattr(type_expr, 'value', None), str) {
+        return type_expr.value;
     }
-    # Generic fallback: any node with .value matching a known type (handles Tokens)
-    if type_expr?.value and isinstance(getattr(type_expr, "value", None), str) {
-        type_name = type_expr.value;
-        if type_name in self.type_map {
-            return self.type_map[type_name];
-        }
-        if type_name in self.struct_types {
-            return self.struct_types[type_name].as_pointer();
-        }
-        if type_name == "None" {
-            return ir.VoidType();
-        }
-        if type_name == "any" {
-            return self.jacval_type;
-        }
-    }
-    # Handle union types: T | None → resolve T (BinaryExpr with BW_OR op)
+    # Union: T | None → "T|None"
     if isinstance(type_expr, uni.BinaryExpr) {
         op_val = getattr(type_expr.op, 'value', '');
         if op_val == "|" {
-            # Resolve left side; right is typically None
-            right_name = self._get_name(type_expr.right);
-            left_type = self._resolve_jac_type(type_expr.left);
-            if right_name == "None" {
-                # T | None → just use T's type (pointers are nullable)
-                return left_type;
+            left = self._ast_to_type_name(type_expr.left);
+            right = self._ast_to_type_name(type_expr.right);
+            if left is not None and right is not None {
+                return f"{left}|{right}";
             }
-            # For non-None unions, use the left type (simplified)
-            return left_type;
+            return left;
         }
     }
-    # Handle list[T] type annotations (AtomTrailer: list[T])
+    # Generic: list[T], dict[K,V], set[T], tuple[T1,T2,...]
     if isinstance(type_expr, uni.AtomTrailer) and not type_expr.is_attr {
-        target_name = self._get_name(type_expr.target);
-        if target_name == "list" {
-            if type_expr?.right and type_expr.right?.slices {
-                slices = type_expr.right.slices or [];
-                if slices {
-                    elem_node = slices[0];
-                    if elem_node?.start and elem_node.start is not None {
-                        elem_type = self._resolve_jac_type(elem_node.start);
-                    } else {
-                        elem_type = self._resolve_jac_type(elem_node);
-                    }
-                    elem_type_name = "i64";
-                    if isinstance(elem_type, ir.DoubleType) {
-                        elem_type_name = "f64";
-                    } elif isinstance(elem_type, ir.PointerType) {
-                        elem_type_name = "ptr";
-                    }
-                    self._emit_list_helpers(elem_type_name, elem_type);
-                    return self.list_types[elem_type_name].as_pointer();
-                }
-            }
-        }
-        # Handle dict[K, V] type annotations
-        if target_name == "dict" {
-            if type_expr?.right and type_expr.right?.slices {
-                slices = type_expr.right.slices or [];
-                key_node: (object | None) = None;
-                val_node: (object | None) = None;
-                # dict[K, V] may parse as one slice with TupleVal, or two separate slices
-                if len(slices) == 1
-                and slices[0]?.start
-                and isinstance(slices[0].start, uni.TupleVal) {
-                    # Single slice with TupleVal: dict[(K, V)] → extract K and V from tuple values
-                    tuple_val = slices[0].start;
-                    if tuple_val.values and len(tuple_val.values) >= 2 {
-                        key_node = tuple_val.values[0];
-                        val_node = tuple_val.values[1];
-                    }
-                } elif len(slices) >= 2 {
-                    # Two separate slices
-                    key_node = slices[0];
-                    val_node = slices[1];
-                    if key_node?.start and key_node.start is not None {
-                        key_node = key_node.start;
-                    }
-                    if val_node?.start and val_node.start is not None {
-                        val_node = val_node.start;
-                    }
-                }
-                if key_node is not None and val_node is not None {
-                    key_type = self._resolve_jac_type(key_node);
-                    val_type = self._resolve_jac_type(val_node);
-                    key_type_name = "i64";
-                    key_size = 0;
-                    if isinstance(key_type, ir.DoubleType) {
-                        key_type_name = "f64";
-                    } elif isinstance(key_type, ir.PointerType) {
-                        key_type_name = "ptr";
-                        # Check if key is a tuple (pointer to LiteralStructType)
-                        if isinstance(key_type.pointee, ir.LiteralStructType) {
-                            key_size = self._get_struct_size(key_type.pointee);
-                            key_type_name = f"tuple{key_size}";
+        target = self._ast_to_type_name(type_expr.target);
+        if target is not None and type_expr?.right and type_expr.right?.slices {
+            slices = type_expr.right.slices or [];
+            parts: list[str] = [];
+            for s in slices {
+                if s?.start and isinstance(s.start, uni.TupleVal) {
+                    # TupleVal inside slice: tuple[(int, int)] or dict[(K, V)]
+                    for tv in (s.start.values or []) {
+                        p = self._ast_to_type_name(tv);
+                        if p {
+                            parts.append(p);
                         }
                     }
-                    val_type_name = "i64";
-                    if isinstance(val_type, ir.DoubleType) {
-                        val_type_name = "f64";
-                    } elif isinstance(val_type, ir.PointerType) {
-                        val_type_name = "ptr";
-                    } elif self?.jacval_type and val_type == self.jacval_type {
-                        val_type_name = "jacval";
+                } elif s?.start and s.start is not None {
+                    p = self._ast_to_type_name(s.start);
+                    if p {
+                        parts.append(p);
                     }
-                    dict_key = f"{key_type_name}:{val_type_name}";
-                    self._emit_dict_helpers(
-                        key_type_name, val_type_name, key_type, val_type, key_size
-                    );
-                    return self.dict_types[dict_key].as_pointer();
+                } else {
+                    p = self._ast_to_type_name(s);
+                    if p {
+                        parts.append(p);
+                    }
                 }
             }
-        }
-        # Handle set[T] type annotations
-        if target_name == "set" {
-            if type_expr?.right and type_expr.right?.slices {
-                slices = type_expr.right.slices or [];
-                if slices {
-                    elem_node = slices[0];
-                    if elem_node?.start and elem_node.start is not None {
-                        elem_type = self._resolve_jac_type(elem_node.start);
-                    } else {
-                        elem_type = self._resolve_jac_type(elem_node);
-                    }
-                    elem_type_name = "i64";
-                    elem_size = 0;
-                    if isinstance(elem_type, ir.DoubleType) {
-                        elem_type_name = "f64";
-                    } elif isinstance(elem_type, ir.PointerType) {
-                        elem_type_name = "ptr";
-                        # Check if this is a tuple (pointer to LiteralStructType)
-                        if isinstance(elem_type.pointee, ir.LiteralStructType) {
-                            elem_size = self._get_struct_size(elem_type.pointee);
-                            elem_type_name = f"tuple{elem_size}";
-                        }
-                    }
-                    self._emit_set_helpers(elem_type_name, elem_type, elem_size);
-                    return self.set_types[elem_type_name].as_pointer();
-                }
+            if parts {
+                return f"{target}[{','.join(parts)}]";
             }
         }
-        # Handle tuple[T1, T2, ...] type annotations
-        if target_name == "tuple" {
-            if type_expr?.right and type_expr.right?.slices {
-                slices = type_expr.right.slices or [];
-                elem_types: list[ir.Type] = [];
-                for s in slices {
-                    # Check if slice.start is a TupleVal (tuple[int, int] parses as tuple[(int, int)])
-                    if s?.start and isinstance(s.start, uni.TupleVal) {
-                        for tv in s.start.values {
-                            et = self._resolve_jac_type(tv);
-                            elem_types.append(et);
-                        }
-                    } elif s?.start and s.start is not None {
-                        et = self._resolve_jac_type(s.start);
-                        elem_types.append(et);
-                    } else {
-                        et = self._resolve_jac_type(s);
-                        elem_types.append(et);
-                    }
-                }
-                if elem_types {
-                    n = len(elem_types);
-                    tuple_key = f"Tuple.{n}." + ".".join([str(t) for t in elem_types]);
-                    if tuple_key not in self.tuple_types {
-                        struct_type = ir.LiteralStructType(elem_types);
-                        self.tuple_types[tuple_key] = struct_type;
-                    }
-                    return self.tuple_types[tuple_key].as_pointer();
-                }
-            }
-        }
+        return target;
     }
-    # Try structured type
-    if isinstance(type_expr, uni.Expr) and type_expr.type {
-        type_str = str(type_expr.type);
-        if type_str in self.type_map {
-            return self.type_map[type_str];
-        }
-    }
-    return ir.IntType(64);
+    return None;
 }
 
 """Resolve a type for C library declarations -- clib structs use value types, not pointers."""
@@ -249,6 +124,57 @@ impl NaIRGenPass._get_name(nd: (uni.UniNode | None)) -> (str | None) {
         return nd.value;
     }
     return None;
+}
+
+"""Extract the element type from a list type string: 'list[X]' → 'X'."""
+impl NaIRGenPass._extract_list_elem(type_str: (str | None)) -> (str | None) {
+    if type_str is None
+    or not type_str.startswith("list[")
+    or not type_str.endswith("]") {
+        return None;
+    }
+    return type_str[5:-1];
+}
+
+"""Extract key,value types from a dict type string: 'dict[K,V]' → (K, V)."""
+impl NaIRGenPass._extract_dict_kv(type_str: (str | None)) -> (tuple | None) {
+    if type_str is None
+    or not type_str.startswith("dict[")
+    or not type_str.endswith("]") {
+        return None;
+    }
+    inner = type_str[5:-1];
+    comma = self._find_top_level_comma(inner);
+    if comma < 0 {
+        return None;
+    }
+    return (inner[:comma].strip(), inner[comma + 1:].strip());
+}
+
+"""Extract the element type from a set type string: 'set[X]' → 'X'."""
+impl NaIRGenPass._extract_set_elem(type_str: (str | None)) -> (str | None) {
+    if type_str is None
+    or not type_str.startswith("set[")
+    or not type_str.endswith("]") {
+        return None;
+    }
+    return type_str[4:-1];
+}
+
+"""Resolve a gen.resolved_type or var_resolved_type string, returning the type name only."""
+impl NaIRGenPass._get_resolved_type(type_expr: (uni.UniNode | None)) -> (str | None) {
+    if type_expr is None {
+        return None;
+    }
+    if (
+        type_expr?.gen
+        and type_expr.gen is not None
+        and type_expr.gen.resolved_type is not None
+        and type_expr.gen.resolved_type != "unknown"
+    ) {
+        return type_expr.gen.resolved_type;
+    }
+    return self._ast_to_type_name(type_expr);
 }
 
 """Create an alloca in the function entry block (ensures dominance)."""
@@ -779,187 +705,6 @@ impl NaIRGenPass._infer_list_elem_type(val: ir.Value) -> (str | None) {
         if val.type == ltype.as_pointer() {
             return ename;
         }
-    }
-    return None;
-}
-
-"""Peel one layer from a list type annotation: list[T] → (T_node, T_llvm_type, T_elem_type_name).
-For list[list[int]], returns (ast_node_for_list[int], List.i64*, 'ptr').
-For list[Piece|None], returns (ast_node_for_Piece|None, Piece*, 'ptr').
-For list[int], returns (ast_node_for_int, i64, 'i64').
-Returns (None, None, None) if not a list type."""
-impl NaIRGenPass._peel_list_type(type_node: (object | None)) -> tuple {
-    if type_node is None {
-        return (None, None, None);
-    }
-    # Handle union: T | None → peel T
-    if isinstance(type_node, uni.BinaryExpr) {
-        op_val = getattr(type_node.op, 'value', '');
-        if op_val == "|" {
-            return self._peel_list_type(type_node.left);
-        }
-    }
-    # Handle list[T] → return (T_node, resolve(T))
-    if isinstance(type_node, uni.AtomTrailer) and not type_node.is_attr {
-        target_name = self._get_name(type_node.target);
-        if target_name == "list" {
-            if type_node?.right and type_node.right?.slices {
-                slices = type_node.right.slices or [];
-                if slices {
-                    elem_node = slices[0];
-                    if elem_node?.start and elem_node.start is not None {
-                        inner = elem_node.start;
-                    } else {
-                        inner = elem_node;
-                    }
-                    inner_type = self._resolve_jac_type(inner);
-                    inner_elem_name = "i64";
-                    if isinstance(inner_type, ir.DoubleType) {
-                        inner_elem_name = "f64";
-                    } elif isinstance(inner_type, ir.PointerType) {
-                        inner_elem_name = "ptr";
-                    }
-                    return (inner, inner_type, inner_elem_name);
-                }
-            }
-        }
-    }
-    return (None, None, None);
-}
-
-"""Get the list element type name from a Jac type annotation AST node.
-Returns the elem_type_name string ('i64', 'f64', 'ptr') or None."""
-impl NaIRGenPass._get_list_elem_from_type_node(
-    type_node: (object | None)
-) -> (str | None) {
-    (inner, inner_type, elem_name) = self._peel_list_type(type_node);
-    return elem_name;
-}
-
-"""Infer the struct type name of a comprehension loop variable from its collection.
-For `for m in piece.raw_moves(self)`, returns 'Move' by looking up the method's
-return type in method_ast_sigs and peeling the list type."""
-impl NaIRGenPass._infer_compr_elem_struct(compr: object) -> (str | None) {
-    collection = compr.collection;
-    # Determine target and method name from the collection expression.
-    # Two AST shapes for method calls:
-    #   1. FuncCall(target=AtomTrailer(target=obj, right=method, is_attr=True), params=[...])
-    #   2. AtomTrailer(target=obj, right=FuncCall(target=method, ...), is_attr=False)
-    target_name: (str | None) = None;
-    method_name: (str | None) = None;
-    if isinstance(collection, uni.FuncCall) {
-        if isinstance(collection.target, uni.AtomTrailer)
-        and collection.target.is_attr {
-            target_name = self._get_name(collection.target.target);
-            method_name = self._get_name(collection.target.right);
-        }
-    } elif isinstance(collection, uni.AtomTrailer) and not collection.is_attr {
-        target_name = self._get_name(collection.target);
-        if isinstance(collection.right, uni.FuncCall) {
-            method_name = self._get_name(collection.right.target);
-        } else {
-            method_name = self._get_name(collection.right);
-        }
-    }
-    if target_name is None or method_name is None {
-        # Fallback: if collection is a simple variable (Name node), try to
-        # resolve its list element type from the variable's type annotation
-        coll_name = self._get_name(collection);
-        if coll_name is not None {
-            # Check var_type_node for type annotation like list[Move]
-            type_node = self.var_type_node.get(coll_name);
-            if type_node is not None {
-                (inner, _, _) = self._peel_list_type(type_node);
-                if inner is not None {
-                    inner_name = self._get_name(inner);
-                    if inner_name is not None and inner_name in self.struct_types {
-                        return inner_name;
-                    }
-                }
-            }
-            # Check var_list_elem_type for computed element type name
-            elem_type = self.var_list_elem_type.get(coll_name);
-            if elem_type is not None and elem_type in self.struct_types {
-                return elem_type;
-            }
-        }
-        return None;
-    }
-    # Look up the struct type for target variable
-    type_name = self.type_var_map.get(target_name);
-    if type_name is None {
-        if target_name in self.local_vars {
-            lv = self.local_vars[target_name];
-            if isinstance(lv.type, ir.PointerType) {
-                pointee = lv.type.pointee;
-                for (sname, stype) in self.struct_types.items() {
-                    if pointee == stype.as_pointer() {
-                        type_name = sname;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    if type_name is None {
-        return None;
-    }
-    # Walk hierarchy to find method signature and extract return element type
-    check = type_name;
-    while check is not None {
-        full = f"{check}.{method_name}";
-        if full in self.method_ast_sigs {
-            sig = self.method_ast_sigs[full];
-            ret_type = getattr(sig, 'return_type', None);
-            if ret_type is not None {
-                (inner, _, _) = self._peel_list_type(ret_type);
-                if inner is not None {
-                    inner_name = self._get_name(inner);
-                    if inner_name is not None and inner_name in self.struct_types {
-                        return inner_name;
-                    }
-                }
-            }
-            break;
-        }
-        check = self.class_hierarchy.get(check);
-    }
-    return None;
-}
-
-"""Resolve the LLVM type of elements in a ptr list for a for-loop variable.
-Uses Jac type annotations (var_type_node or field_type_node) to determine
-what i8* elements should be bitcast to."""
-impl NaIRGenPass._resolve_for_loop_elem_type(
-    coll_name: (str | None), coll_node: (object | None)
-) -> (ir.Type | None) {
-    # Check variable type annotation first
-    type_node: (object | None) = None;
-    if coll_name is not None and coll_name in self.var_type_node {
-        type_node = self.var_type_node[coll_name];
-    }
-    if type_node is not None {
-        (inner, inner_type, inner_elem) = self._peel_list_type(type_node);
-        if inner_type is not None {
-            return inner_type;
-        }
-    }
-    return None;
-}
-
-"""Resolve the LLVM type that ptr list elements should be bitcast to,
-given a Jac type AST node for the list variable/field.
-For list[list[int]], returns List.i64* (the type of each element).
-For list[Piece|None], returns Piece* (the type of each element)."""
-impl NaIRGenPass._resolve_ptr_elem_cast_type(
-    type_node: (object | None)
-) -> (ir.Type | None) {
-    if type_node is None {
-        return None;
-    }
-    (inner, inner_type, inner_elem) = self._peel_list_type(type_node);
-    if inner_type is not None and isinstance(inner_type, ir.PointerType) {
-        return inner_type;
     }
     return None;
 }

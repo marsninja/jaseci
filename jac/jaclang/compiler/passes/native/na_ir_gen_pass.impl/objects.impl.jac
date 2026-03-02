@@ -64,27 +64,48 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         self.struct_types[arch_name] = struct_type;
         self.has_native_code = True;
     }
-    # Pass 1.5: Build class hierarchy
+    # Pass 1.5: Read class hierarchy from pre-computed analysis (ClassHierarchyPass)
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
-        if arch.base_classes {
-            for base_expr in arch.base_classes {
-                parent_name = self._get_name(base_expr);
-                if parent_name is not None and parent_name in self.struct_types {
-                    self.class_hierarchy[arch_name] = parent_name;
-                    break;
+        parent_name: (str | None) = None;
+        if (arch?.gen and arch.gen is not None and arch.gen.class_parent is not None) {
+            parent_name = arch.gen.class_parent;
+        } else {
+            # Fallback: walk base_classes AST
+            if arch.base_classes {
+                for base_expr in arch.base_classes {
+                    parent_name = self._get_name(base_expr);
+                    if parent_name is not None {
+                        break;
+                    }
                 }
             }
         }
+        if parent_name is not None and parent_name in self.struct_types {
+            self.class_hierarchy[arch_name] = parent_name;
+        }
     }
-    # Determine which classes need vtables (any class in the hierarchy)
+    # Determine which classes need vtables
+    for arch in archetypes {
+        arch_name = arch.name.value if arch.name else "unknown";
+        if (arch?.gen and arch.gen is not None and arch.gen.needs_vtable is not None) {
+            if arch.gen.needs_vtable and arch_name in self.struct_types {
+                self.has_vtable[arch_name] = True;
+            }
+        }
+    }
+    # Fallback: ensure any class in the hierarchy has a vtable
     parents_set: set[str] = set();
     for (child, parent) in self.class_hierarchy.items() {
         parents_set.add(parent);
-        self.has_vtable[child] = True;
+        if child not in self.has_vtable {
+            self.has_vtable[child] = True;
+        }
     }
     for parent in parents_set {
-        self.has_vtable[parent] = True;
+        if parent not in self.has_vtable {
+            self.has_vtable[parent] = True;
+        }
     }
     # Pass 2: Define struct bodies (parents before children)
     for arch in archetypes {
@@ -220,11 +241,14 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                     ftype = ir.IntType(64);
                     if var.type_tag and var.type_tag.tag {
                         ftype = self._resolve_jac_type(var.type_tag.tag);
-                        # Track Jac-level type AST for nested type resolution
-                        if arch_name not in self.field_type_node {
-                            self.field_type_node[arch_name] = {};
+                        # Track resolved type string for nested type resolution
+                        if arch_name not in self.field_resolved_type {
+                            self.field_resolved_type[arch_name] = {};
                         }
-                        self.field_type_node[arch_name][fname] = var.type_tag.tag;
+                        frt = self._get_resolved_type(var.type_tag.tag);
+                        if frt {
+                            self.field_resolved_type[arch_name][fname] = frt;
+                        }
                     }
                     new_idx = len(field_types);
                     field_types.append(ftype);
@@ -294,13 +318,13 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     saved_builder = self.builder;
     saved_locals = self.local_vars;
     saved_type_map = dict(self.type_var_map);
-    saved_type_node = dict(self.var_type_node);
+    saved_resolved = dict(self.var_resolved_type);
     saved_list_elem = dict(self.var_list_elem_type);
     saved_dict_type = dict(self.var_dict_type);
     saved_set_elem = dict(self.var_set_elem_type);
     self.builder = ir.IRBuilder(block);
     self.local_vars = {};
-    self.var_type_node = {};
+    self.var_resolved_type = {};
     self.var_list_elem_type = {};
     self.var_dict_type = {};
     self.var_set_elem_type = {};
@@ -317,36 +341,50 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
         alloca = self.builder.alloca(arg_val.type, name=param_name);
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
-        # Track type info for struct pointer parameters
-        if isinstance(arg_val.type, ir.PointerType) {
+        # Track type info via resolved type string
+        if p.type_tag and p.type_tag.tag {
+            rt = self._get_resolved_type(p.type_tag.tag);
+            if rt {
+                self.var_resolved_type[param_name] = rt;
+                elem = self._extract_list_elem(rt);
+                if elem {
+                    (_, ek) = self._type_name_to_llvm_elem(elem);
+                    self.var_list_elem_type[param_name] = ek;
+                }
+                dkv = self._extract_dict_kv(rt);
+                if dkv {
+                    (kl, kk) = self._type_name_to_llvm_elem(dkv[0]);
+                    (vl, vk) = self._type_name_to_llvm_elem(dkv[1]);
+                    if kk == "ptr"
+                    and isinstance(kl, ir.PointerType)
+                    and kl?.pointee
+                    and isinstance(kl.pointee, ir.LiteralStructType) {
+                        kk = f"tuple{self._get_struct_size(kl.pointee)}";
+                    }
+                    self.var_dict_type[param_name] = f"{kk}:{vk}";
+                }
+                selem = self._extract_set_elem(rt);
+                if selem {
+                    (sl, sk) = self._type_name_to_llvm_elem(selem);
+                    if sk == "ptr"
+                    and isinstance(sl, ir.PointerType)
+                    and sl?.pointee
+                    and isinstance(sl.pointee, ir.LiteralStructType) {
+                        sk = f"tuple{self._get_struct_size(sl.pointee)}";
+                    }
+                    self.var_set_elem_type[param_name] = sk;
+                }
+                base = rt.split("|")[0].strip() if "|" in rt else rt;
+                if base in self.struct_types {
+                    self.type_var_map[param_name] = base;
+                }
+            }
+        } elif isinstance(arg_val.type, ir.PointerType) {
             for (sname, stype) in self.struct_types.items() {
                 if arg_val.type == stype.as_pointer() {
                     self.type_var_map[param_name] = sname;
                     break;
                 }
-            }
-        }
-        # Track Jac type annotation for parameters (enables nested list resolution)
-        if p.type_tag and p.type_tag.tag {
-            self.var_type_node[param_name] = p.type_tag.tag;
-            # Also track list elem type from annotation
-            for (ename, ltype) in self.list_types.items() {
-                if arg_val.type == ltype.as_pointer() {
-                    self.var_list_elem_type[param_name] = ename;
-                    break;
-                }
-            }
-            # Handle union types T | None for struct tracking
-            tag_name = self._get_name(p.type_tag.tag);
-            tag_node = p.type_tag.tag;
-            if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
-                op_val = getattr(tag_node.op, 'value', '');
-                if op_val == "|" {
-                    tag_name = self._get_name(tag_node.left);
-                }
-            }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[param_name] = tag_name;
             }
         }
     }
@@ -373,7 +411,7 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.builder = saved_builder;
     self.local_vars = saved_locals;
     self.type_var_map = saved_type_map;
-    self.var_type_node = saved_type_node;
+    self.var_resolved_type = saved_resolved;
     self.var_list_elem_type = saved_list_elem;
     self.var_dict_type = saved_dict_type;
     self.var_set_elem_type = saved_set_elem;
@@ -392,13 +430,13 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     saved_builder = self.builder;
     saved_locals = self.local_vars;
     saved_type_map = dict(self.type_var_map);
-    saved_type_node = dict(self.var_type_node);
+    saved_resolved = dict(self.var_resolved_type);
     saved_list_elem = dict(self.var_list_elem_type);
     saved_dict_type = dict(self.var_dict_type);
     saved_set_elem = dict(self.var_set_elem_type);
     self.builder = ir.IRBuilder(block);
     self.local_vars = {};
-    self.var_type_node = {};
+    self.var_resolved_type = {};
     self.var_list_elem_type = {};
     self.var_dict_type = {};
     self.var_set_elem_type = {};
@@ -423,7 +461,7 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.builder = saved_builder;
     self.local_vars = saved_locals;
     self.type_var_map = saved_type_map;
-    self.var_type_node = saved_type_node;
+    self.var_resolved_type = saved_resolved;
     self.var_list_elem_type = saved_list_elem;
     self.var_dict_type = saved_dict_type;
     self.var_set_elem_type = saved_set_elem;
@@ -949,7 +987,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         if result is not None {
             # Set return type hint AFTER call (args eval may have overwritten it)
             if method_ret_type_hint is not None {
-                self._last_type_node_hint = method_ret_type_hint;
+                self._last_type_hint = self._get_resolved_type(method_ret_type_hint);
             }
             if isinstance(func.return_value.type, ir.VoidType) {
                 return ir.Constant(ir.IntType(64), 0);
@@ -969,7 +1007,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     result = self.builder.call(func, coerced, name=f"call.{method_name}");
     # Set return type hint AFTER call (args eval may have overwritten it)
     if method_ret_type_hint is not None {
-        self._last_type_node_hint = method_ret_type_hint;
+        self._last_type_hint = self._get_resolved_type(method_ret_type_hint);
     }
     # Return void calls as None
     if isinstance(func.return_value.type, ir.VoidType) {

@@ -110,40 +110,44 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         alloca = self.builder.alloca(arg_val.type, name=param_name);
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
-        # Track type annotations for parameters
+        # Track type annotations for parameters via resolved type strings
         if p.type_tag and p.type_tag.tag {
-            self.var_type_node[param_name] = p.type_tag.tag;
-            for (ename, ltype) in self.list_types.items() {
-                if arg_val.type == ltype.as_pointer() {
-                    self.var_list_elem_type[param_name] = ename;
-                    break;
+            rt = self._get_resolved_type(p.type_tag.tag);
+            if rt {
+                self.var_resolved_type[param_name] = rt;
+                elem = self._extract_list_elem(rt);
+                if elem {
+                    (_, ek) = self._type_name_to_llvm_elem(elem);
+                    self.var_list_elem_type[param_name] = ek;
                 }
-            }
-            # Track dict type for dict parameters
-            for (dkey, dtype) in self.dict_types.items() {
-                if arg_val.type == dtype.as_pointer() {
-                    self.var_dict_type[param_name] = dkey;
-                    break;
+                dkv = self._extract_dict_kv(rt);
+                if dkv {
+                    (kl, kk) = self._type_name_to_llvm_elem(dkv[0]);
+                    (vl, vk) = self._type_name_to_llvm_elem(dkv[1]);
+                    if kk == "ptr"
+                    and isinstance(kl, ir.PointerType)
+                    and kl?.pointee
+                    and isinstance(kl.pointee, ir.LiteralStructType) {
+                        kk = f"tuple{self._get_struct_size(kl.pointee)}";
+                    }
+                    self.var_dict_type[param_name] = f"{kk}:{vk}";
                 }
-            }
-            # Track set element type for set parameters
-            for (ename, stype) in self.set_types.items() {
-                if arg_val.type == stype.as_pointer() {
-                    self.var_set_elem_type[param_name] = ename;
-                    break;
+                selem = self._extract_set_elem(rt);
+                if selem {
+                    (sl, sk) = self._type_name_to_llvm_elem(selem);
+                    if sk == "ptr"
+                    and isinstance(sl, ir.PointerType)
+                    and sl?.pointee
+                    and isinstance(sl.pointee, ir.LiteralStructType) {
+                        sk = f"tuple{self._get_struct_size(sl.pointee)}";
+                    }
+                    self.var_set_elem_type[param_name] = sk;
                 }
-            }
-            # Track struct types (including union T | None)
-            tag_name = self._get_name(p.type_tag.tag);
-            tag_node = p.type_tag.tag;
-            if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
-                op_val = getattr(tag_node.op, 'value', '');
-                if op_val == "|" {
-                    tag_name = self._get_name(tag_node.left);
+                # Track struct types (strip union suffix for T|None)
+                base = rt.split("|")[0].strip() if "|" in rt else rt;
+                if base in self.struct_types {
+                    self.type_var_map[param_name] = base;
                 }
-            }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[param_name] = tag_name;
             }
         }
     }
