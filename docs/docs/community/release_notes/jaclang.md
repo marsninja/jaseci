@@ -16,6 +16,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 =======
 - **Native Codegen: `del d[k]` and `d.remove(key)` for Dicts**: `del d[key]` and `d.remove(key)` now correctly remove entries from native dicts. Previously both operations were silently dropped, leaving the dict unchanged. Works for both `dict[int, int]` and object-value dicts (`dict[int, T]`).
 - **Fix: Native Cross-Module Struct Type Resolution**: Importing a user-defined `obj` from another `.na.jac` module and using it as a function parameter type no longer crashes the compiler. The importing module now walks the imported module's AST to fully register imported archetypes (struct layout, field types, field indices), and interop binding type strings resolve against both primitive types and struct types.
+
 >>>>>>> main
 
 ## jaclang 0.11.3 (Latest Release)
