@@ -1,13 +1,12 @@
 """Unified cross-backend primitive equivalence tests.
 
-Each fixture contains three backend implementations:
+One test per emitter class in primitives.jac. Each fixture contains:
   - def func_py()            Python reference (always run)
   - cl def func_cl()         ECMAScript/JS via Node.js
   - na { def func_na() }     Native LLVM JIT via ctypes
 
-The harness runs the Python reference, then both backends via run_with_both.
-compare_results uses intersection semantics: only keys present in both dicts
-are checked. If a backend returns an empty dict the comparison is skipped.
+compare_results uses intersection semantics: only keys present in both
+dicts are checked. Backends returning {} (unimplemented) are silently skipped.
 """
 
 import ctypes;
@@ -241,371 +240,45 @@ def run_with_both(
 }
 
 # =======================================================================
-# Tests — one per fixture, all three backends via run_with_both
+# Tests — one per emitter class in primitives.jac
 # =======================================================================
-test "numeric operators" {
-    run_with_both("prim_numeric.jac", "numeric_py", "numeric_cl", "numeric_na");
+
+# --- Numeric Types (IntEmitter) ---
+test "int" {
+    run_with_both("prim_int.jac", "int_py", "int_cl", "int_na");
 }
 
-test "builtin functions" {
-    run_with_both("prim_builtins.jac", "builtins_py", "builtins_cl", "builtins_na");
+# --- Numeric Types (FloatEmitter) ---
+test "float" {
+    run_with_both("prim_float.jac", "float_py", "float_cl", "float_na");
 }
 
-test "builtin extras" {
-    run_with_both(
-        "prim_builtins_extra.jac",
-        "builtins_extra_py",
-        "builtins_extra_cl",
-        "builtins_extra_na"
-    );
-}
-
-test "builtin extras 2" {
-    run_with_both(
-        "prim_builtins_extra2.jac",
-        "builtins_extra2_py",
-        "builtins_extra2_cl",
-        "builtins_extra2_na"
-    );
-}
-
-test "sorted and reversed" {
-    run_with_both(
-        "prim_builtin_sort.jac",
-        "builtin_sort_py",
-        "builtin_sort_cl",
-        "builtin_sort_na"
-    );
-}
-
-test "builtin list and set conversions" {
-    run_with_both(
-        "prim_builtin_convert.jac",
-        "builtin_convert_py",
-        "builtin_convert_cl",
-        "builtin_convert_na"
-    );
-}
-
-test "string methods" {
-    run_with_both(
-        "prim_str_methods.jac", "str_methods_py", "str_methods_cl", "str_methods_na"
-    );
-}
-
-test "string extra methods" {
-    run_with_both("prim_str_extra.jac", "str_extra_py", "str_extra_cl", "str_extra_na");
-}
-
-test "string advanced methods" {
-    run_with_both(
-        "prim_str_advanced.jac",
-        "str_advanced_py",
-        "str_advanced_cl",
-        "str_advanced_na"
-    );
-}
-
-test "string comparisons" {
-    run_with_both("prim_str_cmp.jac", "str_cmp_py", "str_cmp_cl", "str_cmp_na");
-}
-
-test "string index methods" {
-    run_with_both("prim_str_index.jac", "str_index_py", "str_index_cl", "str_index_na");
-}
-
-test "string operators" {
-    run_with_both("prim_str_ops.jac", "str_ops_py", "str_ops_cl", "str_ops_na");
-}
-
-test "string join" {
-    run_with_both("prim_str_join.jac", "str_join_py", "str_join_cl", "str_join_na");
-}
-
-test "string partition and splitlines" {
-    run_with_both(
-        "prim_str_partition.jac",
-        "str_partition_py",
-        "str_partition_cl",
-        "str_partition_na"
-    );
-}
-
-test "list methods" {
-    run_with_both(
-        "prim_list_methods.jac",
-        "list_methods_py",
-        "list_methods_cl",
-        "list_methods_na"
-    );
-}
-
-test "list extra methods" {
-    run_with_both(
-        "prim_list_extra.jac", "list_extra_py", "list_extra_cl", "list_extra_na"
-    );
-}
-
-test "list remove" {
-    run_with_both(
-        "prim_list_remove.jac", "list_remove_py", "list_remove_cl", "list_remove_na"
-    );
-}
-
-test "list sort" {
-    run_with_both("prim_list_sort.jac", "list_sort_py", "list_sort_cl", "list_sort_na");
-}
-
-test "list multiplication" {
-    run_with_both("prim_list_mul.jac", "list_mul_py", "list_mul_cl", "list_mul_na");
-}
-
-test "list comparison" {
-    run_with_both("prim_list_cmp.jac", "list_cmp_py", "list_cmp_cl", "list_cmp_na");
-}
-
-test "list operators" {
-    run_with_both("prim_list_ops.jac", "list_ops_py", "list_ops_cl", "list_ops_na");
-}
-
-test "dict methods" {
-    run_with_both(
-        "prim_dict_methods.jac",
-        "dict_methods_py",
-        "dict_methods_cl",
-        "dict_methods_na"
-    );
-}
-
-test "dict copy and clear" {
-    run_with_both("prim_dict_copy.jac", "dict_copy_py", "dict_copy_cl", "dict_copy_na");
-}
-
-test "dict extra methods" {
-    run_with_both(
-        "prim_dict_extra.jac", "dict_extra_py", "dict_extra_cl", "dict_extra_na"
-    );
-}
-
-test "dict setdefault" {
-    run_with_both(
-        "prim_dict_setdefault.jac",
-        "dict_setdefault_py",
-        "dict_setdefault_cl",
-        "dict_setdefault_na"
-    );
-}
-
-test "set methods" {
-    run_with_both(
-        "prim_set_methods.jac", "set_methods_py", "set_methods_cl", "set_methods_na"
-    );
-}
-
-test "set remove and pop" {
-    run_with_both(
-        "prim_set_remove.jac", "set_remove_py", "set_remove_cl", "set_remove_na"
-    );
-}
-
-test "set algebra" {
-    run_with_both(
-        "prim_set_algebra.jac", "set_algebra_py", "set_algebra_cl", "set_algebra_na"
-    );
-}
-
-test "set operators" {
-    run_with_both(
-        "prim_set_operators.jac",
-        "set_operators_py",
-        "set_operators_cl",
-        "set_operators_na"
-    );
-}
-
-test "set augmented assignments" {
-    run_with_both(
-        "prim_set_aug_assign.jac",
-        "set_aug_assign_py",
-        "set_aug_assign_cl",
-        "set_aug_assign_na"
-    );
-}
-
-test "set advanced operations" {
-    run_with_both(
-        "prim_set_advanced.jac",
-        "set_advanced_py",
-        "set_advanced_cl",
-        "set_advanced_na"
-    );
-}
-
-test "frozenset operations" {
-    run_with_both("prim_frozenset.jac", "frozenset_py", "frozenset_cl", "frozenset_na");
-}
-
-test "bool conversion" {
-    run_with_both("prim_bool_conv.jac", "bool_conv_py", "bool_conv_cl", "bool_conv_na");
-}
-
-test "float comparisons" {
-    run_with_both("prim_float_cmp.jac", "float_cmp_py", "float_cmp_cl", "float_cmp_na");
-}
-
-test "float methods" {
-    run_with_both(
-        "prim_float_methods.jac",
-        "float_methods_py",
-        "float_methods_cl",
-        "float_methods_na"
-    );
-}
-
-test "float operators" {
-    run_with_both("prim_float_ops.jac", "float_ops_py", "float_ops_cl", "float_ops_na");
-}
-
-test "int methods" {
-    run_with_both(
-        "prim_int_methods.jac", "int_methods_py", "int_methods_cl", "int_methods_na"
-    );
-}
-
-test "container operators" {
-    run_with_both(
-        "prim_containers.jac", "containers_py", "containers_cl", "containers_na"
-    );
-}
-
-test "jac runtime int methods" {
-    run_with_both(
-        "prim_jac_runtime.jac", "jac_rt_int_py", "jac_rt_int_cl", "jac_rt_int_na"
-    );
-}
-
-test "jac runtime float methods" {
-    run_with_both(
-        "prim_jac_runtime.jac", "jac_rt_float_py", "jac_rt_float_cl", "jac_rt_float_na"
-    );
-}
-
-test "jac runtime str methods" {
-    run_with_both(
-        "prim_jac_runtime.jac", "jac_rt_str_py", "jac_rt_str_cl", "jac_rt_str_na"
-    );
-}
-
-test "jac runtime list methods" {
-    run_with_both(
-        "prim_jac_runtime.jac", "jac_rt_list_py", "jac_rt_list_cl", "jac_rt_list_na"
-    );
-}
-
-test "jac runtime dict methods" {
-    run_with_both(
-        "prim_jac_runtime.jac", "jac_rt_dict_py", "jac_rt_dict_cl", "jac_rt_dict_na"
-    );
-}
-
-test "jac runtime set methods" {
-    run_with_both(
-        "prim_jac_runtime.jac", "jac_rt_set_py", "jac_rt_set_cl", "jac_rt_set_na"
-    );
-}
-
-test "jac runtime tuple methods" {
-    run_with_both(
-        "prim_jac_runtime.jac", "jac_rt_tuple_py", "jac_rt_tuple_cl", "jac_rt_tuple_na"
-    );
-}
-
-test "jac runtime builtin functions" {
-    run_with_both(
-        "prim_jac_runtime.jac",
-        "jac_rt_builtin_py",
-        "jac_rt_builtin_cl",
-        "jac_rt_builtin_na"
-    );
-}
-
-test "bool truthiness" {
-    run_with_both(
-        "prim_new_primitives.jac",
-        "bool_truthiness_py",
-        "bool_truthiness_cl",
-        "bool_truthiness_na"
-    );
-}
-
-test "range builtin" {
-    run_with_both(
-        "prim_new_primitives.jac",
-        "range_builtin_py",
-        "range_builtin_cl",
-        "range_builtin_na"
-    );
-}
-
-test "bool bitwise operators" {
-    run_with_both(
-        "prim_new_primitives.jac",
-        "bool_bitwise_py",
-        "bool_bitwise_cl",
-        "bool_bitwise_na"
-    );
-}
-
-test "format builtin" {
-    run_with_both(
-        "prim_new_primitives.jac",
-        "format_builtin_py",
-        "format_builtin_cl",
-        "format_builtin_na"
-    );
-}
-
-test "range methods" {
-    run_with_both(
-        "prim_new_primitives.jac",
-        "range_methods_py",
-        "range_methods_cl",
-        "range_methods_na"
-    );
-}
-
-test "slice builtin" {
-    run_with_both(
-        "prim_new_primitives.jac",
-        "slice_builtin_py",
-        "slice_builtin_cl",
-        "slice_builtin_na"
-    );
-}
-
-test "int extra methods" {
-    run_with_both("prim_int_extra.jac", "int_extra_py", "int_extra_cl", "int_extra_na");
-}
-
-test "complex operators" {
+# --- Numeric Types (ComplexEmitter) ---
+test "complex" {
     run_with_both(
         "prim_complex.jac", "complex_ops_py", "complex_ops_cl", "complex_ops_na"
     );
 }
 
-test "bytes search methods" {
+# --- String Types (StrEmitter) ---
+test "str" {
+    run_with_both("prim_str.jac", "str_py", "str_cl", "str_na");
+}
+
+# --- String Types (BytesEmitter) ---
+test "bytes search" {
     run_with_both(
         "prim_bytes.jac", "bytes_search_py", "bytes_search_cl", "bytes_search_na"
     );
 }
 
-test "bytes modify methods" {
+test "bytes modify" {
     run_with_both(
         "prim_bytes.jac", "bytes_modify_py", "bytes_modify_cl", "bytes_modify_na"
     );
 }
 
-test "bytes case methods" {
+test "bytes case" {
     run_with_both("prim_bytes.jac", "bytes_case_py", "bytes_case_cl", "bytes_case_na");
 }
 
@@ -613,24 +286,42 @@ test "bytes test methods" {
     run_with_both("prim_bytes.jac", "bytes_test_py", "bytes_test_cl", "bytes_test_na");
 }
 
-test "set mutation methods" {
-    run_with_both(
-        "prim_set_ops.jac", "set_mutation_py", "set_mutation_cl", "set_mutation_na"
-    );
+# --- Collection Types (ListEmitter) ---
+test "list" {
+    run_with_both("prim_list.jac", "list_py", "list_cl", "list_na");
 }
 
-test "set algebra methods" {
-    run_with_both(
-        "prim_set_ops.jac", "set_algebra_py", "set_algebra_cl", "set_algebra_na"
-    );
+# --- Collection Types (DictEmitter) ---
+test "dict" {
+    run_with_both("prim_dict.jac", "dict_py", "dict_cl", "dict_na");
 }
 
-test "set operator methods" {
-    run_with_both(
-        "prim_set_ops.jac", "set_operators_py", "set_operators_cl", "set_operators_na"
-    );
+# --- Collection Types (SetEmitter) ---
+test "set" {
+    run_with_both("prim_set.jac", "set_py", "set_cl", "set_na");
 }
 
+# --- Collection Types (FrozensetEmitter) ---
+test "frozenset" {
+    run_with_both("prim_frozenset.jac", "frozenset_py", "frozenset_cl", "frozenset_na");
+}
+
+# --- Collection Types (TupleEmitter) ---
+test "tuple" {
+    run_with_both("prim_tuple.jac", "tuple_py", "tuple_cl", "tuple_na");
+}
+
+# --- Collection Types (RangeEmitter) ---
+test "range" {
+    run_with_both("prim_range.jac", "range_py", "range_cl", "range_na");
+}
+
+# --- Builtin Functions (BuiltinEmitter) ---
+test "builtins" {
+    run_with_both("prim_builtins.jac", "builtins_py", "builtins_cl", "builtins_na");
+}
+
+# --- Exception Types (ExceptionEmitter) — dict-comparison for py/cl ---
 test "exception hierarchy" {
     py_result = run_py_fixture("prim_exceptions", "exceptions_py");
     try {
@@ -653,7 +344,7 @@ test "runtime error hierarchy" {
     } except Exception { }
 }
 
-# --- NA exception tests (int-returning, not dict-comparing) ---
+# --- Exception Types (ExceptionEmitter) — NA int-returning tests ---
 test "exception basic catch" {
     (eng, _) = compile_native("prim_exceptions.jac");
     f = get_func(eng, "test_basic_catch_na", ctypes.c_int64);
