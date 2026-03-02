@@ -914,10 +914,6 @@ impl TypeEvaluator._assign_class(
     if src_type.is_builtin("int") and dest_type.is_builtin("float") {
         return True;
     }
-    # Strings can be used where PathLike is expected.
-    if src_type.is_builtin("str") and dest_type.shared.class_name == "PathLike" {
-        return True;
-    }
     # Check if dest_type is a protocol and src_type implements it.
     for base_cls in dest_type.shared.base_classes {
         if not isinstance(base_cls, types.ClassType) or base_cls.shared is None {

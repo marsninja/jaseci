@@ -1859,21 +1859,3 @@ test "protocol_conformance_walks_mro" {
         program.errors_had[0].pretty_print()
     );
 }
-
-"""Test str is accepted where PathLike is expected."""
-test "str_pathlike_compatibility" {
-    program = JacProgram();
-    mod = program.compile(os.path.join(CHECKER_FIXTURES, "checker_str_pathlike.jac"));
-    TypeCheckPass(ir_in=mod, prog=program);
-    assert len(program.errors_had) == 1 , f"Expected 1 error, got {len(
-        program.errors_had
-    )}:\n" + "\n---\n".join(err.pretty_print() for err in program.errors_had);
-
-    assert_error_pretty_found(
-        """
-        process_path(42);  # <-- Error
-                     ^^
-    """,
-        program.errors_had[0].pretty_print()
-    );
-}
