@@ -6,9 +6,19 @@ not to package-specific tests like jac-byllm, jac-client, etc.
 
 import contextlib
 import os
+import sys
 from typing import Any
 
 import pytest
+
+import jaclang
+
+# Add the jaclang project root (parent of jaclang/) to sys.path so that
+# absolute imports like "tests.language.fixtures.deep.mycode" in test
+# fixtures can resolve without __init__.py files.
+_project_root = os.path.dirname(os.path.dirname(jaclang.__file__))
+if _project_root not in sys.path:
+    sys.path.append(_project_root)
 
 # =============================================================================
 # Test Discovery Tracking - used by test_discovery.jac canary
