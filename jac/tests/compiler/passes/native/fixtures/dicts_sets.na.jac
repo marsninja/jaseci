@@ -254,6 +254,30 @@ def dict_items_iter_sum() -> int {
     return total;
 }
 
+# dict .remove(k): remove by method call, returns 1 if key absent after removal
+def dict_remove_method() -> int {
+    d: dict[int, int] = {};
+    d[1] = 10;
+    d[2] = 20;
+    d.remove(1);
+    if 1 not in d {
+        return 1;
+    }
+    return 0;
+}
+
+# del d[k]: remove by delete keyword, returns 1 if key absent after deletion
+def dict_delete_keyword() -> int {
+    d: dict[int, int] = {};
+    d[1] = 10;
+    d[2] = 20;
+    del d[1];
+    if 1 not in d {
+        return 1;
+    }
+    return 0;
+}
+
 with entry {
     _init_done = 1;
 }

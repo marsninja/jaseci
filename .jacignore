@@ -1,5 +1,3 @@
-ability_has.jac
-access_mod_check.jac
 actions.jac
 advanced_language_features.jac
 app.jac
@@ -128,6 +126,8 @@ prim_builtins.jac
 prim_dict_extra.jac
 prim_float_cmp.jac
 prim_jac_runtime.jac
+prim_runtime_errors.jac
+prim_str_extra.jac
 program.jac
 project.impl.jac
 project.jac
@@ -136,6 +136,8 @@ pyast_gen_pass.impl.jac
 pyast_gen_pass.jac
 pyast_load_pass.impl.jac
 pyast_load_pass.jac
+pyjac_ast_link_pass.jac
+pyjac_ast_link_pass.impl.jac
 py_imp_test.jac
 random_check.jac
 rename.jac
@@ -210,3 +212,4 @@ yield_in_assignment.jac
 checker_bare_dot_import.jac
 type_info.jac
 prim_runtime_errors.jac
+prim_builtins_extra2.jac
