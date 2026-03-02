@@ -267,7 +267,15 @@ def str_py() -> dict {
         "joined": joined,
         "comma_joined": comma_joined,
         "empty_sep": empty_sep_j,
-        "single_joined": single_joined
+        "single_joined": single_joined,
+        # isnumeric (emit_isnumeric) — SV/Python only
+        "isnumeric_t": 1 if "123".isnumeric() else 0,
+        "isnumeric_f": 1 if "12a".isnumeric() else 0,
+        "isnumeric_empty": 1 if "".isnumeric() else 0,
+        # str.format method (emit_format) — SV/Python only
+        "fmt_pos_args": "x={} y={}".format(1, 2),
+        "fmt_single": "hello {}".format("world"),
+        "fmt_repeat": "{0} {0}".format("hi")
     };
 }
 
@@ -499,7 +507,15 @@ cl def str_cl() -> dict {
         "joined": joined,
         "comma_joined": comma_joined,
         "empty_sep": empty_sep_j,
-        "single_joined": single_joined
+        "single_joined": single_joined,
+        # isnumeric (emit_isnumeric)
+        "isnumeric_t": 1 if "123".isnumeric() else 0,
+        "isnumeric_f": 1 if "12a".isnumeric() else 0,
+        "isnumeric_empty": 1 if "".isnumeric() else 0,
+        # str.format method (emit_format)
+        "fmt_pos_args": "x={} y={}".format(1, 2),
+        "fmt_single": "hello {}".format("world"),
+        "fmt_repeat": "{0} {0}".format("hi")
     };
 }
 

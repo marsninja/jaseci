@@ -79,6 +79,66 @@ def exceptions_py() -> dict {
         results["exception_message"] = "test msg" in str(e);
     }
 
+    # reraise (emit_reraise) — bare raise re-raises active exception
+    reraised: int = 0;
+    try {
+        try {
+            raise ValueError("reraise_test");
+        } except ValueError {
+            raise;
+        }
+    } except ValueError {
+        reraised = 1;
+    }
+    results["reraise"] = reraised;
+
+    # get_args (emit_get_args) — e.args tuple
+    try {
+        raise ValueError("msg1", "msg2");
+    } except ValueError as e {
+        results["get_args_len"] = len(e.args);
+        results["get_args_0"] = e.args[0];
+    }
+
+    # get_context (emit_get_context) — implicit chain via raise-during-handling
+    context_ok: int = 0;
+    try {
+        try {
+            raise ValueError("inner");
+        } except ValueError {
+            raise TypeError("outer");
+        }
+    } except TypeError as e {
+        context_ok = 1 if e.__context__ is not None else 0;
+    }
+    results["get_context"] = context_ok;
+
+    # get_traceback (emit_get_traceback) — __traceback__ set after raise
+    tb_ok: int = 0;
+    try {
+        raise ValueError("tb_test");
+    } except ValueError as e {
+        tb_ok = 1 if e.__traceback__ is not None else 0;
+    }
+    results["get_traceback"] = tb_ok;
+
+    # with_traceback (emit_with_traceback) — returns self with traceback replaced
+    wtb_ok: int = 0;
+    try {
+        raise ValueError("wtb_test");
+    } except ValueError as e {
+        cleared: any = e.with_traceback(None);
+        wtb_ok = 1 if (cleared is e) else 0;
+    }
+    results["with_traceback"] = wtb_ok;
+
+    # repr (emit_repr) — repr includes type name and message
+    try {
+        raise ValueError("repr_test");
+    } except ValueError as e {
+        results["repr_ok"] = 1 if "repr_test" in repr(e) else 0;
+    }
+
     return results;
 }
 
@@ -155,6 +215,34 @@ cl def exceptions_cl() -> dict {
         raise ValueError("test msg");
     } except ValueError as e {
         results["exception_message"] = "test msg" in str(e);
+    }
+
+    # reraise (emit_reraise)
+    reraised: int = 0;
+    try {
+        try {
+            raise ValueError("reraise_test");
+        } except ValueError {
+            raise;
+        }
+    } except ValueError {
+        reraised = 1;
+    }
+    results["reraise"] = reraised;
+
+    # get_args (emit_get_args)
+    try {
+        raise ValueError("msg1", "msg2");
+    } except ValueError as e {
+        results["get_args_len"] = len(e.args);
+        results["get_args_0"] = e.args[0];
+    }
+
+    # repr (emit_repr)
+    try {
+        raise ValueError("repr_test");
+    } except ValueError as e {
+        results["repr_ok"] = 1 if "repr_test" in repr(e) else 0;
     }
 
     return results;

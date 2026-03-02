@@ -73,6 +73,13 @@ def dict_py() -> dict {
     d_ior: dict = {"a": 1, "b": 2};
     d_ior |= {"b": 99, "c": 3};
 
+    # popitem (emit_popitem) — single-key dict for deterministic result
+    dp: dict = {"pi_only": 77};
+    pi: tuple = dp.popitem();
+    pi_key: str = pi[0];
+    pi_val: int = pi[1];
+    pi_after_len: int = len(dp);
+
     return {
         "get_hit": get_hit,
         "get_miss": get_miss,
@@ -115,7 +122,11 @@ def dict_py() -> dict {
         "dict_merge": dict_merge,
         "dict_in": dict_in,
         "dict_nin": dict_nin,
-        "dict_ior": d_ior
+        "dict_ior": d_ior,
+        # popitem
+        "pi_key": pi_key,
+        "pi_val": pi_val,
+        "pi_after_len": pi_after_len
     };
 }
 

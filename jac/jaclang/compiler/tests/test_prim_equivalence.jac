@@ -470,3 +470,18 @@ test "runtime error with finally" {
     f = get_func(eng, "test_runtime_finally_na", ctypes.c_int64);
     assert f() == 11;
 }
+
+# --- Builtin Functions (BuiltinEmitter) — introspection methods ---
+# emit_enumerate, emit_zip, emit_map, emit_filter, emit_isinstance,
+# emit_issubclass, emit_type, emit_repr, emit_ascii, emit_callable,
+# emit_hash, emit_id, emit_iter, emit_next, emit_hasattr, emit_getattr,
+# emit_setattr, emit_vars, emit_delattr, emit_dir, emit_print,
+# emit_input, emit_open
+test "builtins introspection" {
+    run_with_both(
+        "prim_builtins_introspection.jac",
+        "builtins_introspection_py",
+        "builtins_introspection_cl",
+        "builtins_introspection_na"
+    );
+}
