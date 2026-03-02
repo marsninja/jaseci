@@ -108,8 +108,7 @@ def _proc_file(filename: str) -> tuple {
         console.error('Not a valid file!\nOnly supports `.jac` and `.py`');
         `exit(1);
     }
-    # Only set base path if not already set (allows tests to override)
-    if not Jac.base_path_dir {
+    if Jac.base_path_dir is None {
         Jac.set_base_path(base);
     }
     # CLI contexts use system_root (no user authentication)

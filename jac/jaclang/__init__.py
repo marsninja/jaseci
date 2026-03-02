@@ -46,4 +46,11 @@ else:
     # No disabling - load all plugins normally
     plugin_manager.load_setuptools_entrypoints("jac")
 
+# Register JacNamespaceFinder AFTER all internal imports — creates namespace
+# packages for bare directories only when no other finder claims the module.
+from jaclang.meta_importer import JacNamespaceFinder  # noqa: E402
+
+if not any(isinstance(f, JacNamespaceFinder) for f in sys.meta_path):
+    sys.meta_path.append(JacNamespaceFinder())
+
 __all__ = ["JacRuntimeInterface", "JacRuntime"]

@@ -9,6 +9,14 @@ def get_jac_search_paths(base_path: (str | None) = None) -> list[str] {
     if base_path {
         paths.append(base_path);
     }
+    # Include the runtime base path (project root) if configured.
+    # Lazy import to avoid circular dependency (runtime imports modresolver).
+    try {
+        import from jaclang.jac0core.runtime { JacRuntime }
+        if (JacRuntime.base_path_dir and JacRuntime.base_path_dir != base_path) {
+            paths.append(JacRuntime.base_path_dir);
+        }
+    } except ImportError { }
     paths.append(os.getcwd());
     if ('JACPATH' in os.environ) {
         paths.extend(
@@ -45,6 +53,16 @@ def get_py_search_paths(base_path: (str | None) = None) -> list[str] {
     paths = [];
     if base_path {
         paths.append(base_path);
+    }
+    # Include the runtime base path (project root) if configured.
+    # Lazy import to avoid circular dependency (runtime imports modresolver).
+    try {
+        import from jaclang.jac0core.runtime { JacRuntime }
+        if (JacRuntime.base_path_dir and JacRuntime.base_path_dir != base_path) {
+            paths.append(JacRuntime.base_path_dir);
+        }
+    } except ImportError {
+        ;
     }
     paths.append(os.getcwd());
     return `list(

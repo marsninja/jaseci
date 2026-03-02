@@ -331,3 +331,36 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                 )
 
         return None
+
+
+class JacNamespaceFinder(importlib.abc.MetaPathFinder):
+    """Last-resort finder that creates namespace packages for bare directories.
+
+    Registered at the end of sys.meta_path so it only runs when no other
+    finder claims the module.  This allows intermediate directories
+    (e.g. tests.language.fixtures.deep) to resolve as namespace packages
+    without requiring __init__.py or __init__.jac files.
+    """
+
+    def find_spec(
+        self,
+        fullname: str,
+        path: Sequence[str] | None = None,
+        target: ModuleType | None = None,
+    ) -> importlib.machinery.ModuleSpec | None:
+        if path is None:
+            paths_to_search = get_jac_search_paths()
+            parts = fullname.split(".")
+        else:
+            paths_to_search = [*path]
+            parts = fullname.split(".")[-1:]
+
+        for search_path in paths_to_search:
+            candidate = os.path.join(search_path, *parts)
+            if os.path.isdir(candidate):
+                spec = importlib.machinery.ModuleSpec(
+                    fullname, loader=None, is_package=True
+                )
+                spec.submodule_search_locations = [candidate]
+                return spec
+        return None

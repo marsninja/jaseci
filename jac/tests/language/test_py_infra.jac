@@ -269,6 +269,7 @@ test "funccall genexpr py2jac" {
 
 # -- Tests requiring special Python infrastructure --
 test "deep imports interp mode" {
+    _orig_base = Jac.base_path_dir;
     Jac.set_base_path(FIXTURES);
     Jac.attach_program(JacProgram());
     # Clear any cached module from previous test runs
@@ -304,9 +305,12 @@ test "deep imports interp mode" {
     prog.compile(os.path.join(FIXTURES, "deep_import_interp.jac"));
     # as we use jac_import, only main module should be in the hub
     assert len(Jac.get_program().mod.hub.keys()) == 1;
+    Jac.set_base_path(_orig_base);
 }
 
 test "deep outer imports from loc" {
+    _orig_base = Jac.base_path_dir;
+    Jac.set_base_path(FIXTURES);
     Jac.attach_program(JacProgram());
     captured = io.StringIO();
     old_stdout = sys.stdout;
@@ -321,6 +325,7 @@ test "deep outer imports from loc" {
         }
     } finally {
         sys.stdout = old_stdout;
+        Jac.set_base_path(_orig_base);
     }
     stdout_value = captured.getvalue();
     assert "one level deeperslHello World!" in stdout_value;

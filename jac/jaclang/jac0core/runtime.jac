@@ -2562,7 +2562,7 @@ with entry {
 """Jac Machine State."""
 class JacRuntime(JacRuntimeInterface) {
     with entry {
-        base_path_dir: (str | None) = os.getcwd();
+        base_path_dir: (str | None) = None;
         compiler: (JacCompiler | None) = None;
         program: (JacProgram | None) = None;
         pool: ThreadPoolExecutor = ThreadPoolExecutor();
