@@ -1765,3 +1765,75 @@ test "impl_imports_from_parent" {
     );
     assert "checker_impl_imports.impl.jac" in program.errors_had[1].loc.mod_path;
 }
+
+"""Test annotated assignments use the type annotation (not the resolved attribute type).
+
+When code says `x: T | None = None`, the checker should use `T | None` as the
+destination type, not whatever the attribute resolves to. Valid assignments to the
+declared union should pass; incompatible values should still error.
+"""
+test "annotated_assignment_uses_type_tag" {
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_annotated_assignment.jac")
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+    assert len(program.errors_had) == 2 , f"Expected 2 errors, got {len(
+        program.errors_had
+    )}:\n" + "\n---\n".join(err.pretty_print() for err in program.errors_had);
+
+    assert_error_pretty_found(
+        """
+        f: int | None = "wrong";  # <-- Error: str is not assignable to int | None
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print()
+    );
+    assert_error_pretty_found(
+        """
+        g: Foo | None = Bar(tag=1);  # <-- Error: Bar is not assignable to Foo | None
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print()
+    );
+}
+
+"""Test protocol conformance walks the full MRO chain.
+
+A class that inherits a method from a base class should satisfy a protocol
+requiring that method, even if the class itself doesn't define it directly.
+"""
+test "protocol_conformance_walks_mro" {
+    program = JacProgram();
+    mod = program.compile(os.path.join(CHECKER_FIXTURES, "checker_protocol_mro.jac"));
+    TypeCheckPass(ir_in=mod, prog=program);
+    assert len(program.errors_had) == 1 , f"Expected 1 error, got {len(
+        program.errors_had
+    )}:\n" + "\n---\n".join(err.pretty_print() for err in program.errors_had);
+
+    assert_error_pretty_found(
+        """
+        show(Unrelated(value=1));  # <-- Error
+             ^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print()
+    );
+}
+
+"""Test str is accepted where PathLike is expected."""
+test "str_pathlike_compatibility" {
+    program = JacProgram();
+    mod = program.compile(os.path.join(CHECKER_FIXTURES, "checker_str_pathlike.jac"));
+    TypeCheckPass(ir_in=mod, prog=program);
+    assert len(program.errors_had) == 1 , f"Expected 1 error, got {len(
+        program.errors_had
+    )}:\n" + "\n---\n".join(err.pretty_print() for err in program.errors_had);
+
+    assert_error_pretty_found(
+        """
+        process_path(42);  # <-- Error
+                     ^^
+    """,
+        program.errors_had[0].pretty_print()
+    );
+}
