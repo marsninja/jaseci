@@ -1766,11 +1766,10 @@ test "impl_imports_from_parent" {
     assert "checker_impl_imports.impl.jac" in program.errors_had[1].loc.mod_path;
 }
 
-"""Test annotated assignments use the type annotation (not the resolved attribute type).
+"""Test annotated assignments use the type annotation as the destination type.
 
-When code says `x: T | None = None`, the checker should use `T | None` as the
-destination type, not whatever the attribute resolves to. Valid assignments to the
-declared union should pass; incompatible values should still error.
+Covers both Name targets (local vars) and AtomTrailer targets (self.attr).
+Incompatible values should error; None assigned to T | None should pass.
 """
 test "annotated_assignment_uses_type_tag" {
     program = JacProgram();
@@ -1784,18 +1783,59 @@ test "annotated_assignment_uses_type_tag" {
 
     assert_error_pretty_found(
         """
-        f: int | None = "wrong";  # <-- Error: str is not assignable to int | None
+        c: int | None = "wrong";  # <-- Error
         ^^^^^^^^^^^^^^^^^^^^^^^^
     """,
         program.errors_had[0].pretty_print()
     );
     assert_error_pretty_found(
         """
-        g: Foo | None = Bar(tag=1);  # <-- Error: Bar is not assignable to Foo | None
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+        d: Engine | None = "bad";  # <-- Error
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
     """,
         program.errors_had[1].pretty_print()
     );
+}
+
+"""Test _same_shared_class correctly identifies same class across different paths.
+
+The helper should return True when two ClassDetailsShared instances have the same
+class_name and normalized module path, even if the path representations differ
+(absolute vs relative).
+"""
+test "same_shared_class_identity" {
+    import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
+    import from jaclang.compiler.type_system { types }
+    import from jaclang.jac0core.unitree { Source, CodeLocInfo }
+
+    # Build a minimal TypeEvaluator
+    evaluator = TypeEvaluator.__new__(TypeEvaluator);
+
+    # Create two shared instances with the same class name
+    shared_a = types.ClassType.ClassDetailsShared.__new__(
+        types.ClassType.ClassDetailsShared
+    );
+    shared_a.class_name = "MyClass";
+    shared_b = types.ClassType.ClassDetailsShared.__new__(
+        types.ClassType.ClassDetailsShared
+    );
+    shared_b.class_name = "MyClass";
+
+    # Identity check: same object
+    assert evaluator._same_shared_class(shared_a, shared_a);
+
+    # Different objects, same class name, no symbol tables -> True (fallback)
+    shared_a.symbol_table = None;
+    shared_b.symbol_table = None;
+    assert evaluator._same_shared_class(shared_a, shared_b);
+
+    # Different class names -> False
+    shared_c = types.ClassType.ClassDetailsShared.__new__(
+        types.ClassType.ClassDetailsShared
+    );
+    shared_c.class_name = "OtherClass";
+    shared_c.symbol_table = None;
+    assert not evaluator._same_shared_class(shared_a, shared_c);
 }
 
 """Test protocol conformance walks the full MRO chain.

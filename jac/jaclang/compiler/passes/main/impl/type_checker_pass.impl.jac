@@ -130,7 +130,7 @@ impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: uni.AtomTrailer) -
 impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> None {
     if ((len(nd.target) == 1) and (nd.value is not None)) {
         target = nd.target[0];
-        # If there's a type annotation (e.g. `x: T | None = None`), use it
+        # If there's a type annotation (e.g. `self.x: T | None = None`), use it
         # as the destination type instead of the resolved attribute type.
         if nd.type_tag is not None {
             left_type = self.evaluator.get_type_of_expression(nd.type_tag.tag);
