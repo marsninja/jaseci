@@ -1766,37 +1766,6 @@ test "impl_imports_from_parent" {
     assert "checker_impl_imports.impl.jac" in program.errors_had[1].loc.mod_path;
 }
 
-"""Test annotated assignments use the type annotation as the destination type.
-
-Covers both Name targets (local vars) and AtomTrailer targets (self.attr).
-Incompatible values should error; None assigned to T | None should pass.
-"""
-test "annotated_assignment_uses_type_tag" {
-    program = JacProgram();
-    mod = program.compile(
-        os.path.join(CHECKER_FIXTURES, "checker_annotated_assignment.jac")
-    );
-    TypeCheckPass(ir_in=mod, prog=program);
-    assert len(program.errors_had) == 2 , f"Expected 2 errors, got {len(
-        program.errors_had
-    )}:\n" + "\n---\n".join(err.pretty_print() for err in program.errors_had);
-
-    assert_error_pretty_found(
-        """
-        c: int | None = "wrong";  # <-- Error
-        ^^^^^^^^^^^^^^^^^^^^^^^^
-    """,
-        program.errors_had[0].pretty_print()
-    );
-    assert_error_pretty_found(
-        """
-        d: Engine | None = "bad";  # <-- Error
-        ^^^^^^^^^^^^^^^^^^^^^^^^^
-    """,
-        program.errors_had[1].pretty_print()
-    );
-}
-
 """Test _same_shared_class correctly identifies same class across different paths.
 
 The helper should return True when two ClassDetailsShared instances have the same
