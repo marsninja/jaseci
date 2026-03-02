@@ -58,6 +58,10 @@ impl NaIRGenPass._resolve_type_str(type_name: str) -> ir.Type {
         }
         return ir.IntType(64);
     }
+    # frozenset[T] — same underlying type as set[T]
+    if type_name.startswith("frozenset[") and type_name.endswith("]") {
+        return self._resolve_type_str("set[" + type_name[10:-1] + "]");
+    }
     # set[T]
     if type_name.startswith("set[") and type_name.endswith("]") {
         inner_name = type_name[4:-1];
@@ -275,7 +279,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
     }
     # Handle multi-arg builtins via emitter dispatch
-    if func_name in ("abs", "min", "max", "pow") {
+    if func_name in ("abs", "min", "max", "pow", "divmod", "sum", "any", "all") {
         params_l = nd.params or [];
         arg_vals: list[ir.Value] = [];
         for param in params_l {
@@ -302,7 +306,9 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         "bin",
         "round",
         "float",
-        "bool"
+        "bool",
+        "sorted",
+        "reversed"
     ) {
         params_l = nd.params or [];
         if params_l {
