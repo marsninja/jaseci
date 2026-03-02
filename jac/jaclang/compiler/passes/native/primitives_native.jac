@@ -5192,8 +5192,20 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         arg_val = args[0];
         p = ctx.pass_ref;
         b = p.builder;
-        i8p = ir.IntType(8).as_pointer();
         i64 = ir.IntType(64);
+        # int(bool) / int(int): zero-extend narrower integers to i64, return i64 directly
+        if isinstance(arg_val.type, ir.IntType) {
+            if arg_val.type.width == 64 {
+                return arg_val;
+            }
+            return b.zext(arg_val, i64, name="int.from.int");
+        }
+        # int(float): truncate double to i64 (same as Python int(3.7) == 3)
+        if isinstance(arg_val.type, ir.DoubleType) {
+            return b.fptosi(arg_val, i64, name="int.from.float");
+        }
+        # int(str): parse via strtol
+        i8p = ir.IntType(8).as_pointer();
         i32 = ir.IntType(32);
         strtol_fn = p._get_or_declare_extern(
             "strtol", i64, [i8p, i8p.as_pointer(), i32]

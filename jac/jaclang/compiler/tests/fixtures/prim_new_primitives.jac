@@ -490,19 +490,21 @@ na {
 
 na {
     def bool_bitwise_na() -> dict[str, any] {
-        and_tf: int = 1 if (True & False) else 0;
-        and_tt: int = 1 if (True & True) else 0;
-        and_ff: int = 1 if (False & False) else 0;
-        or_tf: int = 1 if (True | False) else 0;
-        or_tt: int = 1 if (True | True) else 0;
-        or_ff: int = 1 if (False | False) else 0;
-        xor_tf: int = 1 if (True ^ False) else 0;
-        xor_tt: int = 1 if (True ^ True) else 0;
-        xor_ff: int = 1 if (False ^ False) else 0;
+        a: bool = True;
+        b: bool = False;
+        and_tf: int = 1 if (a & b) else 0;
+        and_tt: int = 1 if (a & a) else 0;
+        and_ff: int = 1 if (b & b) else 0;
+        or_tf: int = 1 if (a | b) else 0;
+        or_tt: int = 1 if (a | a) else 0;
+        or_ff: int = 1 if (b | b) else 0;
+        xor_tf: int = 1 if (a ^ b) else 0;
+        xor_tt: int = 1 if (a ^ a) else 0;
+        xor_ff: int = 1 if (b ^ b) else 0;
 
-        and_val: int = 1 & 0;
-        or_val: int = 1 | 0;
-        xor_val: int = 1 ^ 0;
+        and_val: int = int(a & b);
+        or_val: int = int(a | b);
+        xor_val: int = int(a ^ b);
 
         return {
             "and_tf": and_tf, "and_tt": and_tt, "and_ff": and_ff,

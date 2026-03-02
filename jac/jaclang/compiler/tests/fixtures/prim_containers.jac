@@ -114,9 +114,9 @@ cl def containers_cl() -> dict {
 
 na {
     def containers_na() -> dict[str, any] {
-        a: list[int] = [1, 2];
+        a: list = [1, 2];
         s: str = "hello";
-        d1: dict[str, int] = {"x": 1};
+        d1: dict = {"x": 1};
 
         list_in: int = 1 if 1 in a else 0;
         list_nin: int = 1 if 5 not in a else 0;

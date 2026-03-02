@@ -109,6 +109,57 @@ def unbox_jacval(jv: JacVal) -> object {
             return "";
         }
         return ctypes.cast(jv.payload, ctypes.c_char_p).value.decode("utf-8");
+    } elif jv.tag == 3 {
+        # List pointer: struct { i64 len, i64 cap, i64* data } (List.i64 layout)
+        if jv.payload == 0 {
+            return [];
+        }
+        class ListStruct(ctypes.Structure) {
+            has _fields_: list = [
+                ("len", ctypes.c_int64),
+                ("cap", ctypes.c_int64),
+                ("data", ctypes.POINTER(ctypes.c_int64))
+            ];
+        }
+        lst_ptr = ctypes.cast(jv.payload, ctypes.POINTER(ListStruct));
+        n = lst_ptr.contents.len;
+        return [lst_ptr.contents.data[i] for i in range(n)];
+    } elif jv.tag == 4 {
+        # Dict pointer: struct { i64 len, i64 cap, i8** keys, JacVal* vals }
+        if jv.payload == 0 {
+            return {};
+        }
+        class InnerDictStruct(ctypes.Structure) {
+            has _fields_: list = [
+                ("len", ctypes.c_int64),
+                ("cap", ctypes.c_int64),
+                ("keys", ctypes.POINTER(ctypes.c_char_p)),
+                ("vals", ctypes.POINTER(JacVal))
+            ];
+        }
+        dct_ptr = ctypes.cast(jv.payload, ctypes.POINTER(InnerDictStruct));
+        n = dct_ptr.contents.len;
+        result: dict = {};
+        for i in range(n) {
+            k = dct_ptr.contents.keys[i].decode("utf-8");
+            result[k] = unbox_jacval(dct_ptr.contents.vals[i]);
+        }
+        return result;
+    } elif jv.tag == 5 {
+        # Set pointer: struct { i64 len, i64 cap, i64* elems } (Set.i64 layout)
+        if jv.payload == 0 {
+            return set();
+        }
+        class SetStruct(ctypes.Structure) {
+            has _fields_: list = [
+                ("len", ctypes.c_int64),
+                ("cap", ctypes.c_int64),
+                ("elems", ctypes.POINTER(ctypes.c_int64))
+            ];
+        }
+        st_ptr = ctypes.cast(jv.payload, ctypes.POINTER(SetStruct));
+        n = st_ptr.contents.len;
+        return {st_ptr.contents.elems[i] for i in range(n)};
     }
     return None;
 }
