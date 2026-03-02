@@ -714,3 +714,252 @@ cl def jac_rt_builtin_cl() -> dict {
         "pow": pow_basic, "pow_mod": pow_mod
     };
 }
+
+na {
+    def jac_rt_int_na() -> dict[str, any] {
+        a: int = -7;
+        b: int = 3;
+        mod_np: int = a % b;
+        c: int = 7;
+        d: int = -3;
+        mod_pn: int = c % d;
+        e: int = -7;
+        f: int = -3;
+        mod_nn: int = e % f;
+        mod_pp: int = 10 % 3;
+
+        return {
+            "mod_np": mod_np, "mod_pn": mod_pn,
+            "mod_nn": mod_nn, "mod_pp": mod_pp
+        };
+    }
+}
+
+na {
+    def jac_rt_float_na() -> dict[str, any] {
+        fa: float = -7.5;
+        fb: float = 2.0;
+        fmod1: float = fa % fb;
+
+        return {
+            "fmod1": fmod1
+        };
+    }
+}
+
+na {
+    def jac_rt_str_na() -> dict[str, any] {
+        s: str = "hello world";
+
+        cap: str = s.capitalize();
+        swp: str = "Hello World".swapcase();
+
+        cnt: int = s.count("l");
+        fnd: int = s.find("world");
+        fnd_miss: int = s.find("xyz");
+
+        sw: int = 1 if s.startswith("hello") else 0;
+        ew: int = 1 if s.endswith("world") else 0;
+
+        rep: str = s.replace("world", "jac");
+
+        padded: str = "  hello  ";
+        stripped: str = padded.strip();
+        lstripped: str = padded.lstrip();
+        rstripped: str = padded.rstrip();
+
+        parts: list[str] = s.split(" ");
+        split_len: int = len(parts);
+        split_first: str = parts[0];
+        split_last: str = parts[len(parts) - 1];
+
+        return {
+            "capitalize": cap, "swapcase": swp,
+            "count": cnt,
+            "find": fnd, "find_miss": fnd_miss,
+            "startswith": sw,
+            "endswith": ew,
+            "replace": rep,
+            "strip": stripped, "lstrip": lstripped, "rstrip": rstripped,
+            "split_len": split_len,
+            "split_first": split_first,
+            "split_last": split_last
+        };
+    }
+}
+
+na {
+    def jac_rt_list_na() -> dict[str, any] {
+        items: list[int] = [1, 2, 2, 3, 3, 3];
+        cnt_2: int = items.count(2);
+        cnt_3: int = items.count(3);
+        cnt_0: int = items.count(99);
+
+        removable: list[int] = [10, 20, 30, 20];
+        removable.remove(20);
+        remove_len: int = len(removable);
+        remove_first: int = removable[0];
+        remove_has_20: int = 1 if 20 in removable else 0;
+
+        srt: list[int] = [3, 1, 4, 1, 5];
+        srt.sort();
+        sort_first: int = srt[0];
+        sort_last: int = srt[len(srt) - 1];
+
+        a: list[int] = [1, 2, 3];
+        b: list[int] = [1, 2, 3];
+        c: list[int] = [1, 2, 4];
+        eq_t: int = 1 if a == b else 0;
+        eq_f: int = 1 if a == c else 0;
+
+        grow: list[int] = [1, 2];
+        grow += [3, 4];
+        grow_len: int = len(grow);
+        grow_last: int = grow[len(grow) - 1];
+
+        return {
+            "count_2": cnt_2, "count_3": cnt_3, "count_miss": cnt_0,
+            "remove_len": remove_len,
+            "remove_first": remove_first,
+            "remove_has_20": remove_has_20,
+            "sort_first": sort_first,
+            "sort_last": sort_last,
+            "eq_true": eq_t, "eq_false": eq_f,
+            "iadd_len": grow_len,
+            "iadd_last": grow_last
+        };
+    }
+}
+
+na {
+    def jac_rt_dict_na() -> dict[str, any] {
+        d: dict[str, int] = {"a": 1, "b": 2, "c": 3};
+        popped: int = d.pop("b");
+        pop_default: int = d.pop("z", -1);
+        after_pop_len: int = len(d);
+        after_pop_has_a: int = 1 if "a" in d else 0;
+        after_pop_has_b: int = 1 if "b" in d else 0;
+
+        d3: dict[str, int] = {"a": 1};
+        sd_existing: int = d3.setdefault("a", 99);
+        sd_new: int = d3.setdefault("b", 42);
+        after_sd_len: int = len(d3);
+        after_sd_has_b: int = 1 if "b" in d3 else 0;
+
+        d4: dict[str, int] = {"x": 1, "y": 2};
+        d4.clear();
+        after_clear_len: int = len(d4);
+
+        da: dict[str, int] = {"a": 1, "b": 2};
+        db: dict[str, int] = {"b": 2, "a": 1};
+        dc: dict[str, int] = {"a": 1, "b": 3};
+        eq_t: int = 1 if da == db else 0;
+        eq_f: int = 1 if da == dc else 0;
+
+        return {
+            "pop_val": popped, "pop_default": pop_default,
+            "after_pop_len": after_pop_len,
+            "after_pop_has_a": after_pop_has_a,
+            "after_pop_has_b": after_pop_has_b,
+            "sd_existing": sd_existing, "sd_new": sd_new,
+            "after_sd_len": after_sd_len,
+            "after_sd_has_b": after_sd_has_b,
+            "after_clear_len": after_clear_len,
+            "eq_true": eq_t, "eq_false": eq_f
+        };
+    }
+}
+
+na {
+    def jac_rt_set_na() -> dict[str, any] {
+        s1: set[int] = {1, 2, 3, 4};
+        s1.remove(3);
+        remove_len: int = len(s1);
+        remove_has_3: int = 1 if 3 in s1 else 0;
+        remove_has_1: int = 1 if 1 in s1 else 0;
+
+        s2: set[int] = {1, 2};
+        s2.update({3, 4});
+        update_len: int = len(s2);
+        update_has_3: int = 1 if 3 in s2 else 0;
+
+        s3: set[int] = {1, 2, 3, 4};
+        s3.intersection_update({2, 4, 6});
+        isect_len: int = len(s3);
+        isect_has_2: int = 1 if 2 in s3 else 0;
+        isect_has_1: int = 1 if 1 in s3 else 0;
+
+        s4: set[int] = {1, 2, 3, 4};
+        s4.difference_update({2, 4});
+        diff_len: int = len(s4);
+        diff_has_1: int = 1 if 1 in s4 else 0;
+        diff_has_2: int = 1 if 2 in s4 else 0;
+
+        s5: set[int] = {1, 2, 3};
+        s5.symmetric_difference_update({2, 3, 4});
+        symdiff_len: int = len(s5);
+        symdiff_has_1: int = 1 if 1 in s5 else 0;
+        symdiff_has_4: int = 1 if 4 in s5 else 0;
+        symdiff_has_2: int = 1 if 2 in s5 else 0;
+
+        small: set[int] = {1, 2};
+        big: set[int] = {1, 2, 3};
+        same: set[int] = {1, 2};
+        proper_sub: int = 1 if small < big else 0;
+        not_proper_sub: int = 1 if small < same else 0;
+        proper_sup: int = 1 if big > small else 0;
+        eq_t: int = 1 if small == same else 0;
+        eq_f: int = 1 if small == big else 0;
+
+        return {
+            "remove_len": remove_len,
+            "remove_has_3": remove_has_3,
+            "remove_has_1": remove_has_1,
+            "update_len": update_len,
+            "update_has_3": update_has_3,
+            "isect_len": isect_len,
+            "isect_has_2": isect_has_2,
+            "isect_has_1": isect_has_1,
+            "diff_len": diff_len,
+            "diff_has_1": diff_has_1,
+            "diff_has_2": diff_has_2,
+            "symdiff_len": symdiff_len,
+            "symdiff_has_1": symdiff_has_1,
+            "symdiff_has_4": symdiff_has_4,
+            "symdiff_has_2": symdiff_has_2,
+            "proper_subset": proper_sub,
+            "not_proper_subset": not_proper_sub,
+            "proper_superset": proper_sup,
+            "eq_true": eq_t, "eq_false": eq_f
+        };
+    }
+}
+
+na {
+    def jac_rt_tuple_na() -> dict[str, any] {
+        return {};
+    }
+}
+
+na {
+    def jac_rt_builtin_na() -> dict[str, any] {
+        r1: int = round(3.7);
+        r2: float = round(3.14159, 2);
+
+        srt: list[int] = [3, 1, 4, 1, 5];
+        srt.sort();
+        sort_first: int = srt[0];
+        sort_last: int = srt[len(srt) - 1];
+        sort_len: int = len(srt);
+
+        pow_basic: int = pow(2, 10);
+
+        return {
+            "round_int": r1, "round_digits": r2,
+            "sort_first": sort_first,
+            "sort_last": sort_last,
+            "sort_len": sort_len,
+            "pow": pow_basic
+        };
+    }
+}

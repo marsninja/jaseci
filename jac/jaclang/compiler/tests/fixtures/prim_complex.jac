@@ -73,3 +73,5 @@ cl def complex_ops_cl() -> dict {
         "neg_ok": neg_ok
     };
 }
+
+na { def complex_ops_na() -> dict[str, any] { return {}; } }

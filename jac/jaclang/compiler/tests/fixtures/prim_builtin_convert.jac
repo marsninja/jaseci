@@ -26,6 +26,27 @@ def builtin_convert_py() -> dict {
     };
 }
 
+cl def builtin_convert_cl() -> dict {
+    nums_list: list[int] = [1, 2, 3];
+    nums_set: set = set([1, 2, 3]);
+
+    # list(list) -> copy, preserves order
+    ll: list[int] = list(nums_list);
+    # set(set) -> copy, check len only
+    ss: set = set(nums_set);
+    # list(set) -> conversion; order unspecified, check len and sum
+    ls: list[int] = list(nums_set);
+    # set(list) -> conversion, check len only
+    sl: set = set(nums_list);
+
+    return {
+        "ll_len": len(ll), "ll0": ll[0], "ll2": ll[2],
+        "ss_len": len(ss),
+        "ls_len": len(ls), "ls_sum": sum(ls),
+        "sl_len": len(sl)
+    };
+}
+
 na {
     def builtin_convert_na() -> dict[str, any] {
         nums_list: list[int] = [1, 2, 3];

@@ -60,3 +60,5 @@ cl def int_extra_cl() -> dict {
         "fb_single": fb_single
     };
 }
+
+na { def int_extra_na() -> dict[str, any] { return {}; } }

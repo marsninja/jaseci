@@ -333,3 +333,8 @@ cl def bytes_test_cl() -> dict {
         "is_title": is_title, "is_title_no": is_title_no
     };
 }
+
+na { def bytes_search_na() -> dict[str, any] { return {}; } }
+na { def bytes_modify_na() -> dict[str, any] { return {}; } }
+na { def bytes_case_na() -> dict[str, any] { return {}; } }
+na { def bytes_test_na() -> dict[str, any] { return {}; } }

@@ -111,3 +111,31 @@ cl def containers_cl() -> dict {
         "list_iadd": c
     };
 }
+
+na {
+    def containers_na() -> dict[str, any] {
+        a: list[int] = [1, 2];
+        s: str = "hello";
+        d1: dict[str, int] = {"x": 1};
+
+        list_in: int = 1 if 1 in a else 0;
+        list_nin: int = 1 if 5 not in a else 0;
+
+        str_concat: str = s + "world";
+        str_in: int = 1 if "ell" in s else 0;
+        str_nin: int = 1 if "xyz" not in s else 0;
+
+        dict_in: int = 1 if "x" in d1 else 0;
+        dict_nin: int = 1 if "z" not in d1 else 0;
+
+        return {
+            "list_in": list_in,
+            "list_nin": list_nin,
+            "str_concat": str_concat,
+            "str_in": str_in,
+            "str_nin": str_nin,
+            "dict_in": dict_in,
+            "dict_nin": dict_nin
+        };
+    }
+}

@@ -217,3 +217,130 @@ cl def set_operators_cl() -> dict {
         "isub": isub, "ixor": ixor
     };
 }
+
+na {
+    def set_mutation_na() -> dict[str, any] {
+        s1 = {1, 2, 3};
+        s1.add(4);
+
+        s2 = {1, 2, 3};
+        s2.discard(2);
+        s2.discard(99);
+
+        s3 = {42};
+        popped: int = s3.pop();
+
+        s4 = {1, 2, 3};
+        s4.clear();
+
+        s5 = {10, 20, 30};
+
+        return {
+            "after_add_len": len(s1),
+            "after_add_has_4": 1 if 4 in s1 else 0,
+            "after_discard_len": len(s2),
+            "after_discard_has_1": 1 if 1 in s2 else 0,
+            "after_discard_has_2": 1 if 2 in s2 else 0,
+            "popped": popped,
+            "after_pop_len": len(s3),
+            "after_clear_len": len(s4),
+            "copy_len": len(s5.copy()),
+            "copy_has_10": 1 if 10 in s5 else 0
+        };
+    }
+}
+
+na {
+    def set_algebra_na() -> dict[str, any] {
+        a = {1, 2, 3, 4};
+        b = {3, 4, 5, 6};
+
+        u = a.union(b);
+        i_set = a.intersection(b);
+        d_set = a.difference(b);
+
+        sub_yes: int = 1 if {1, 2}.issubset({1, 2, 3}) else 0;
+        sub_no: int = 1 if {1, 4}.issubset({1, 2, 3}) else 0;
+        super_yes: int = 1 if {1, 2, 3}.issuperset({1, 2}) else 0;
+        super_no: int = 1 if {1, 2}.issuperset({1, 2, 3}) else 0;
+        disj_yes: int = 1 if {1, 2}.isdisjoint({3, 4}) else 0;
+        disj_no: int = 1 if {1, 2}.isdisjoint({2, 3}) else 0;
+
+        return {
+            "union_len": len(u),
+            "union_has_1": 1 if 1 in u else 0,
+            "union_has_5": 1 if 5 in u else 0,
+            "inter_len": len(i_set),
+            "inter_has_3": 1 if 3 in i_set else 0,
+            "inter_has_1": 1 if 1 in i_set else 0,
+            "diff_len": len(d_set),
+            "diff_has_1": 1 if 1 in d_set else 0,
+            "diff_has_3": 1 if 3 in d_set else 0,
+            "sub_yes": sub_yes, "sub_no": sub_no,
+            "super_yes": super_yes, "super_no": super_no,
+            "disj_yes": disj_yes, "disj_no": disj_no
+        };
+    }
+}
+
+na {
+    def set_operators_na() -> dict[str, any] {
+        a = {1, 2, 3, 4};
+        b = {3, 4, 5, 6};
+
+        or_set = a | b;
+        and_set = a & b;
+        sub_set = a - b;
+        xor_set = a ^ b;
+
+        in_yes: int = 1 if 2 in a else 0;
+        in_no: int = 1 if 9 in a else 0;
+
+        le_yes: int = 1 if {1, 2} <= {1, 2, 3} else 0;
+        le_eq: int = 1 if {1, 2} <= {1, 2} else 0;
+        le_no: int = 1 if {1, 4} <= {1, 2, 3} else 0;
+        ge_yes: int = 1 if {1, 2, 3} >= {1, 2} else 0;
+        ge_eq: int = 1 if {1, 2} >= {1, 2} else 0;
+        ge_no: int = 1 if {1, 2} >= {1, 2, 3} else 0;
+
+        s1 = {1, 2, 3};
+        s1 |= {4, 5};
+
+        s2 = {1, 2, 3, 4};
+        s2 &= {2, 3, 5};
+
+        s3 = {1, 2, 3, 4};
+        s3 -= {2, 4};
+
+        s4 = {1, 2, 3};
+        s4 ^= {2, 3, 4};
+
+        return {
+            "or_len": len(or_set),
+            "or_has_1": 1 if 1 in or_set else 0,
+            "or_has_6": 1 if 6 in or_set else 0,
+            "and_len": len(and_set),
+            "and_has_3": 1 if 3 in and_set else 0,
+            "and_has_1": 1 if 1 in and_set else 0,
+            "sub_len": len(sub_set),
+            "sub_has_1": 1 if 1 in sub_set else 0,
+            "sub_has_3": 1 if 3 in sub_set else 0,
+            "xor_len": len(xor_set),
+            "xor_has_1": 1 if 1 in xor_set else 0,
+            "xor_has_5": 1 if 5 in xor_set else 0,
+            "in_yes": in_yes, "in_no": in_no,
+            "le_yes": le_yes, "le_eq": le_eq, "le_no": le_no,
+            "ge_yes": ge_yes, "ge_eq": ge_eq, "ge_no": ge_no,
+            "ior_len": len(s1),
+            "ior_has_4": 1 if 4 in s1 else 0,
+            "iand_len": len(s2),
+            "iand_has_2": 1 if 2 in s2 else 0,
+            "iand_has_1": 1 if 1 in s2 else 0,
+            "isub_len": len(s3),
+            "isub_has_1": 1 if 1 in s3 else 0,
+            "ixor_len": len(s4),
+            "ixor_has_1": 1 if 1 in s4 else 0,
+            "ixor_has_4": 1 if 4 in s4 else 0
+        };
+    }
+}

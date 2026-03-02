@@ -376,3 +376,157 @@ cl def slice_builtin_cl() -> dict {
         "s3_start": s3_start, "s3_stop": s3_stop, "s3_step": s3_step
     };
 }
+
+na {
+    def bool_truthiness_na() -> dict[str, any] {
+        f_zero: int = 1 if bool(0) else 0;
+        f_empty_str: int = 1 if bool("") else 0;
+        f_zero_float: int = 1 if bool(0.0) else 0;
+        f_empty_list: int = 1 if bool([]) else 0;
+        f_empty_dict: int = 1 if bool({}) else 0;
+
+        t_one: int = 1 if bool(1) else 0;
+        t_str: int = 1 if bool("hello") else 0;
+        t_list: int = 1 if bool([1, 2]) else 0;
+        t_dict: int = 1 if bool({"a": 1}) else 0;
+        t_neg: int = 1 if bool(-1) else 0;
+        t_float: int = 1 if bool(3.14) else 0;
+
+        return {
+            "f_zero": f_zero, "f_empty_str": f_empty_str,
+            "f_zero_float": f_zero_float,
+            "f_empty_list": f_empty_list, "f_empty_dict": f_empty_dict,
+            "t_one": t_one, "t_str": t_str,
+            "t_list": t_list, "t_dict": t_dict, "t_neg": t_neg,
+            "t_float": t_float
+        };
+    }
+}
+
+na {
+    def range_builtin_na() -> dict[str, any] {
+        r1_len: int = len(list(range(5)));
+        r1_first: int = list(range(5))[0];
+        r1_last: int = list(range(5))[4];
+
+        r2_len: int = len(list(range(2, 7)));
+        r2_first: int = list(range(2, 7))[0];
+
+        r3_len: int = len(list(range(0, 10, 2)));
+        r3_first: int = list(range(0, 10, 2))[0];
+        r3_last: int = list(range(0, 10, 2))[4];
+
+        r4_len: int = len(list(range(10, 0, -2)));
+        r4_first: int = list(range(10, 0, -2))[0];
+
+        r5_len: int = len(list(range(5, 5)));
+        r6_len: int = len(list(range(10, 5)));
+        r7_len: int = len(list(range(3, 4)));
+        r7_val: int = list(range(3, 4))[0];
+
+        total: int = 0;
+        for i in range(5) {
+            total += i;
+        }
+
+        stepped_sum: int = 0;
+        stepped_first: int = 0;
+        stepped_count: int = 0;
+        for i in range(1, 10, 3) {
+            if stepped_count == 0 {
+                stepped_first = i;
+            }
+            stepped_sum += i;
+            stepped_count += 1;
+        }
+
+        countdown_sum: int = 0;
+        countdown_first: int = 0;
+        countdown_count: int = 0;
+        for i in range(5, 0, -1) {
+            if countdown_count == 0 {
+                countdown_first = i;
+            }
+            countdown_sum += i;
+            countdown_count += 1;
+        }
+
+        nested_sum: int = 0;
+        nested_count: int = 0;
+        for i in range(3) {
+            for j in range(2) {
+                nested_sum += i * 10 + j;
+                nested_count += 1;
+            }
+        }
+
+        return {
+            "r_stop_len": r1_len,
+            "r_stop_first": r1_first,
+            "r_stop_last": r1_last,
+            "r_start_stop_len": r2_len,
+            "r_start_stop_first": r2_first,
+            "r_step_len": r3_len,
+            "r_step_first": r3_first,
+            "r_step_last": r3_last,
+            "r_neg_step_len": r4_len,
+            "r_neg_step_first": r4_first,
+            "r_empty_eq_len": r5_len,
+            "r_empty_inv_len": r6_len,
+            "r_single_len": r7_len,
+            "r_single_val": r7_val,
+            "loop_sum": total,
+            "stepped_sum": stepped_sum,
+            "stepped_first": stepped_first,
+            "stepped_count": stepped_count,
+            "countdown_sum": countdown_sum,
+            "countdown_first": countdown_first,
+            "countdown_count": countdown_count,
+            "nested_sum": nested_sum,
+            "nested_count": nested_count
+        };
+    }
+}
+
+na {
+    def bool_bitwise_na() -> dict[str, any] {
+        and_tf: int = 1 if (True & False) else 0;
+        and_tt: int = 1 if (True & True) else 0;
+        and_ff: int = 1 if (False & False) else 0;
+        or_tf: int = 1 if (True | False) else 0;
+        or_tt: int = 1 if (True | True) else 0;
+        or_ff: int = 1 if (False | False) else 0;
+        xor_tf: int = 1 if (True ^ False) else 0;
+        xor_tt: int = 1 if (True ^ True) else 0;
+        xor_ff: int = 1 if (False ^ False) else 0;
+
+        and_val: int = 1 & 0;
+        or_val: int = 1 | 0;
+        xor_val: int = 1 ^ 0;
+
+        return {
+            "and_tf": and_tf, "and_tt": and_tt, "and_ff": and_ff,
+            "or_tf": or_tf, "or_tt": or_tt, "or_ff": or_ff,
+            "xor_tf": xor_tf, "xor_tt": xor_tt, "xor_ff": xor_ff,
+            "and_val": and_val, "or_val": or_val, "xor_val": xor_val
+        };
+    }
+}
+
+na {
+    def format_builtin_na() -> dict[str, any] {
+        return {};
+    }
+}
+
+na {
+    def range_methods_na() -> dict[str, any] {
+        return {};
+    }
+}
+
+na {
+    def slice_builtin_na() -> dict[str, any] {
+        return {};
+    }
+}

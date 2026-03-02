@@ -105,3 +105,46 @@ cl def float_ops_cl() -> dict {
         "neg_val": neg_val, "pos_val": pos_val
     };
 }
+
+na {
+    def float_ops_na() -> dict[str, any] {
+        x: float = 3.0;
+        y: float = 3.5;
+        a: float = 7.5;
+        b: float = 2.5;
+
+        fdiv: float = a // b;
+        fdiv_neg: float = (-7.5) // 2.5;
+
+        pw: float = 2.0 ** 10.0;
+        pw_frac: float = 4.0 ** 0.5;
+
+        eq_t: int = 1 if 3.0 == 3.0 else 0;
+        eq_f: int = 1 if 3.0 == 4.0 else 0;
+        ne_t: int = 1 if 3.0 != 4.0 else 0;
+        ne_f: int = 1 if 3.0 != 3.0 else 0;
+        lt_t: int = 1 if 2.0 < 3.0 else 0;
+        lt_f: int = 1 if 3.0 < 3.0 else 0;
+        gt_t: int = 1 if 4.0 > 3.0 else 0;
+        gt_f: int = 1 if 3.0 > 3.0 else 0;
+        le_t: int = 1 if 3.0 <= 3.0 else 0;
+        le_f: int = 1 if 4.0 <= 3.0 else 0;
+        ge_t: int = 1 if 3.0 >= 3.0 else 0;
+        ge_f: int = 1 if 2.0 >= 3.0 else 0;
+
+        neg_val: float = -a;
+        pos_val: float = +a;
+
+        return {
+            "fdiv": fdiv, "fdiv_neg": fdiv_neg,
+            "pw": pw, "pw_frac": pw_frac,
+            "eq_t": eq_t, "eq_f": eq_f,
+            "ne_t": ne_t, "ne_f": ne_f,
+            "lt_t": lt_t, "lt_f": lt_f,
+            "gt_t": gt_t, "gt_f": gt_f,
+            "le_t": le_t, "le_f": le_f,
+            "ge_t": ge_t, "ge_f": ge_f,
+            "neg_val": neg_val, "pos_val": pos_val
+        };
+    }
+}
