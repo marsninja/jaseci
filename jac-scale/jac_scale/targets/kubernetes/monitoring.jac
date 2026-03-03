@@ -36,12 +36,7 @@ obj MonitoringDeployer {
       - node-exporter for host-level node metrics (CPU, memory, disk, network)
     """
     def _deploy_prometheus(
-        self: MonitoringDeployer,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any,
-        cluster_env: str
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any, cluster_env: str
     ) -> None {
         prometheus_name = f"{app_name}-prometheus";
         ksm_name = f"{app_name}-kube-state-metrics";
@@ -212,11 +207,7 @@ obj MonitoringDeployer {
     A ClusterRole is required so it can list/watch cluster-wide resources.
     """
     def _deploy_kube_state_metrics(
-        self: MonitoringDeployer,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any
     ) -> None {
         ksm_name = f"{app_name}-kube-state-metrics";
         ksm_sa_name = f"{ksm_name}-sa";
@@ -444,11 +435,7 @@ obj MonitoringDeployer {
     to it correctly.
     """
     def _deploy_node_exporter(
-        self: MonitoringDeployer,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any
     ) -> None {
         ne_name = f"{app_name}-node-exporter";
 
@@ -558,12 +545,7 @@ obj MonitoringDeployer {
       - k8s-metrics.json: Kubernetes cluster metrics (nodes, pods, deployments)
     """
     def _deploy_grafana(
-        self: MonitoringDeployer,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any,
-        cluster_env: str
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any, cluster_env: str
     ) -> None {
         grafana_name = f"{app_name}-grafana";
         prometheus_name = f"{app_name}-prometheus";
@@ -1122,12 +1104,7 @@ obj MonitoringDeployer {
 
     """Deploy the full monitoring stack (Prometheus, kube-state-metrics, node-exporter, Grafana) for an app namespace."""
     def deploy(
-        self: MonitoringDeployer,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any,
-        cluster_env: str
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any, cluster_env: str
     ) -> None {
         if not self.k8s_config.monitoring_enabled {
             return;
@@ -1142,13 +1119,7 @@ obj MonitoringDeployer {
     }
 
     """Destroy all monitoring resources: Prometheus, Grafana, kube-state-metrics, node-exporter."""
-    def destroy(
-        self: MonitoringDeployer,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any
-    ) -> None {
+    def destroy(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) -> None {
         prometheus_name = f"{app_name}-prometheus";
         grafana_name = f"{app_name}-grafana";
         ksm_name = f"{app_name}-kube-state-metrics";

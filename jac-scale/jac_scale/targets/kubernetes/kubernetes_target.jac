@@ -49,9 +49,7 @@ obj KubernetesTarget(DeploymentTarget) {
     }
 
     """Get init containers from all enabled database providers."""
-    def _get_database_init_containers(
-        self: KubernetesTarget, app_name: str
-    ) -> list[dict[(str, Any)]] {
+    def _get_database_init_containers(app_name: str) -> list[dict[(str, Any)]] {
         init_containers = [];
         wait_image = self.k8s_config.wait_image;
 
@@ -108,9 +106,7 @@ obj KubernetesTarget(DeploymentTarget) {
     }
 
     """Build readiness and liveness probe configurations."""
-    def _build_probe_config(
-        self: KubernetesTarget, health_check_path: str
-    ) -> dict[(str, Any)] {
+    def _build_probe_config(health_check_path: str) -> dict[(str, Any)] {
         probe_config = {
             'httpGet': {
                 'path': health_check_path,
@@ -131,7 +127,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Build Kubernetes service configuration."""
     def _build_service_config(
-        self: KubernetesTarget, app_name: str, cluster_env: str, health_check_path: str
+        app_name: str, cluster_env: str, health_check_path: str
     ) -> dict[(str, Any)] {
         service_type = 'LoadBalancer' if cluster_env == 'aws' else 'NodePort';
         service_port = 80 if cluster_env == 'aws' else self.k8s_config.container_port;
@@ -173,9 +169,7 @@ obj KubernetesTarget(DeploymentTarget) {
     }
 
     """Build the bash command for setting up Jaseci runtime environment."""
-    def _build_runtime_setup_command(
-        self: KubernetesTarget, app_config: AppConfig
-    ) -> list[str] {
+    def _build_runtime_setup_command(app_config: AppConfig) -> list[str] {
         config = self.k8s_config;
         commands = [];
 
@@ -257,7 +251,6 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Build container configuration."""
     def _build_container_config(
-        self: KubernetesTarget,
         app_name: str,
         image: str,
         probe_configs: dict[(str, Any)],
@@ -297,7 +290,6 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Build volumes and build container configuration for code sync via code-server."""
     def _build_volumes_config(
-        self: KubernetesTarget,
         app_name: str,
         app_config: AppConfig,
         namespace: str,
@@ -342,11 +334,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Deploy code-server: a single-replica busybox httpd that serves code from the PVC over HTTP."""
     def _deploy_code_server(
-        self: KubernetesTarget,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any
     ) -> None {
         code_server_name = f"{app_name}-code-server";
         code_server_labels = {'app': code_server_name};
@@ -449,12 +437,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Deploy all enabled databases and their optional dashboards."""
     def _deploy_databases(
-        self: KubernetesTarget,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any,
-        cluster_env: str
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any, cluster_env: str
     ) -> None {
         if self.k8s_config.mongodb_enabled {
             mongodb_name = f"{app_name}-mongodb";
@@ -751,11 +734,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Wait for deployment to be ready and check status."""
     def _wait_for_deployment(
-        self: KubernetesTarget,
-        app_name: str,
-        namespace: str,
-        health_check_path: str,
-        cluster_env: str
+        app_name: str, namespace: str, health_check_path: str, cluster_env: str
     ) -> str {
         path = health_check_path;
         deployment_details = "";
@@ -814,9 +793,7 @@ obj KubernetesTarget(DeploymentTarget) {
     }
 
     """Handle image registry if build is requested."""
-    def _handle_image_registry(
-        self: KubernetesTarget, app_name: str, app_config: AppConfig
-    ) -> str {
+    def _handle_image_registry(app_name: str, app_config: AppConfig) -> str {
         image_name = self.k8s_config.docker_image_name or f"{app_name}:latest";
         repository_name: str;
         if app_config.build and self.image_registry {
@@ -1086,7 +1063,6 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Wait for resources to be completely deleted."""
     def _wait_for_deletion(
-        self: KubernetesTarget,
         app_name: str,
         namespace: str,
         apps_v1: Any,
@@ -1286,11 +1262,7 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Destroy all enabled databases and their dashboards."""
     def _destroy_databases(
-        self: KubernetesTarget,
-        app_name: str,
-        namespace: str,
-        apps_v1: Any,
-        core_v1: Any
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any
     ) -> None {
         if self.k8s_config.mongodb_enabled {
             mongodb_name = f"{app_name}-mongodb";
