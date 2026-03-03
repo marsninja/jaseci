@@ -447,6 +447,47 @@ class NativeBoolEmitter(NativeIntEmitter) {
     }
 }
 
+class NativeBoolEmitter(NativeIntEmitter) {
+    """Bool-specific emitter.
+
+    Inherits all int operations but overrides bitwise operators so that
+    True & False yields False (bool i1) rather than 0 (i64), matching
+    Python semantics where bool & bool -> bool.
+    """
+    def emit_op_and(
+        self, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    ) -> (ir.Value | None) {
+        p = ctx.pass_ref;
+        b = p.builder;
+        i1 = ir.IntType(1);
+        lhs = p._coerce_type(target, i1) if target.type != i1 else target;
+        rhs = p._coerce_type(args[0], i1) if args[0].type != i1 else args[0];
+        return b.and_(lhs, rhs, name="bool.and");
+    }
+
+    def emit_op_or(
+        self, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    ) -> (ir.Value | None) {
+        p = ctx.pass_ref;
+        b = p.builder;
+        i1 = ir.IntType(1);
+        lhs = p._coerce_type(target, i1) if target.type != i1 else target;
+        rhs = p._coerce_type(args[0], i1) if args[0].type != i1 else args[0];
+        return b.or_(lhs, rhs, name="bool.or");
+    }
+
+    def emit_op_xor(
+        self, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    ) -> (ir.Value | None) {
+        p = ctx.pass_ref;
+        b = p.builder;
+        i1 = ir.IntType(1);
+        lhs = p._coerce_type(target, i1) if target.type != i1 else target;
+        rhs = p._coerce_type(args[0], i1) if args[0].type != i1 else args[0];
+        return b.xor(lhs, rhs, name="bool.xor");
+    }
+}
+
 class NativeComplexEmitter(ComplexEmitter[(ir.Value, NativeEmitCtx)]) {
     """Helper: load real and imag from a JacComplex pointer."""
     def _load_parts(self, ctx: NativeEmitCtx, val: ir.Value) -> (tuple | None) {
