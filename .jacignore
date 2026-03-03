@@ -131,6 +131,7 @@ precompile_bytecode.jac
 precompiled.jac
 prim_builtins_extra.jac
 prim_builtins.jac
+prim_builtins_introspection.jac
 prim_dict.jac
 prim_dict_extra.jac
 prim_dict_methods.jac
