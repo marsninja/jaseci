@@ -502,6 +502,7 @@ na {
         ba_src: list[int] = [68, 69];
         ba: str = bytearray(ba_src);
 
+
         return {
             "abs_pos": abs(5),
             "abs_neg": abs(-7),

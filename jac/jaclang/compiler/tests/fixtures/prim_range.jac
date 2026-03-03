@@ -208,6 +208,7 @@ na {
         contains_end: int = 8 in r_obj;
         contains_past: int = 10 in r_obj;
 
+
         return {
             "r_stop_len": r1_len,
             "r_stop_first": r1_first,
