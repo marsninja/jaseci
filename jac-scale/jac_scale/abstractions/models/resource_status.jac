@@ -2,7 +2,7 @@
 import from enum { Enum }
 
 """Status of a deployed resource."""
-obj ResourceStatus(Enum) {
+class ResourceStatus(Enum) {
     has UNKNOWN: str = 'unknown',
         PENDING: str = 'pending',
         RUNNING: str = 'running',
