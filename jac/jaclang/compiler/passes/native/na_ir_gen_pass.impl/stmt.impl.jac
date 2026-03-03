@@ -993,23 +993,6 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 }
             }
         }
-        # Track from type_tag annotation (supports T and T | None union types)
-        if nd.type_tag and nd.type_tag.tag {
-            tag_node = nd.type_tag.tag;
-            tag_name = self._get_name(tag_node);
-            # Handle union type: T | None → extract T
-            if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
-                op_val = getattr(tag_node.op, 'value', '');
-                if op_val == "|" {
-                    tag_name = self._get_name(tag_node.left);
-                }
-            }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[var_name] = tag_name;
-            }
-            # Store the full type AST node for nested type resolution
-            self.var_type_node[var_name] = tag_node;
-        }
         # Track list element type for list variables
         for (ename, ltype) in self.list_types.items() {
             if value.type == ltype.as_pointer() {
