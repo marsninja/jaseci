@@ -37,22 +37,15 @@ import from kubernetes { client, config as k8s_cluster_config }
 import from kubernetes.client.exceptions { ApiException }
 
 """Kubernetes deployment target implementation."""
-class KubernetesTarget(DeploymentTarget) {
-    has k8s_config: KubernetesConfig,
+obj KubernetesTarget(DeploymentTarget) {
+    has config: KubernetesConfig,
+        logger: (Logger | None) = None,
+        k8s_config: KubernetesConfig by postinit,
+        env_list: list = [],
         secrets: dict[str, str] = {};
 
-    def init(
-        self: KubernetesTarget,
-        config: KubernetesConfig,
-        logger: (Logger | None) = None
-    ) -> None {
-        self.config = config;
-        self.k8s_config = config;
-        self.env_list = [];
-        self.secrets = {};
-        if logger {
-            self.logger = logger;
-        }
+    def postinit {
+        self.k8s_config = self.config;
     }
 
     """Get init containers from all enabled database providers."""
@@ -86,7 +79,7 @@ class KubernetesTarget(DeploymentTarget) {
     }
 
     """Build resource requests and limits configuration."""
-    def _build_resource_config(self: KubernetesTarget) -> dict[(str, Any)] {
+    def _build_resource_config -> dict[(str, Any)] {
         resource_requests: dict[(str, str)] = {};
         if self.k8s_config.cpu_request {
             resource_requests['cpu'] = self.k8s_config.cpu_request;
@@ -851,7 +844,7 @@ class KubernetesTarget(DeploymentTarget) {
         return repository_name;
     }
 
-    def deploy(self: KubernetesTarget, app_config: AppConfig) -> DeploymentResult {
+    def deploy(app_config: AppConfig) -> DeploymentResult {
         # 1. Initialize and validate
         app_name = app_config.app_name or self.k8s_config.app_name;
         namespace = os.getenv('K8s_NAMESPACE') or self.k8s_config.namespace;
@@ -1370,7 +1363,7 @@ class KubernetesTarget(DeploymentTarget) {
         }
     }
 
-    def destroy(self: KubernetesTarget, app_name: str) -> None {
+    def destroy(app_name: str) -> None {
         if self.logger {
             self.logger.info(f"Destroying application '{app_name}' from Kubernetes");
         }
@@ -1505,7 +1498,7 @@ class KubernetesTarget(DeploymentTarget) {
         }
     }
 
-    def get_status(self: KubernetesTarget, app_name: str) -> ResourceStatusInfo {
+    def get_status(app_name: str) -> ResourceStatusInfo {
         try {
             try {
                 k8s_cluster_config.load_kube_config();
@@ -1542,7 +1535,7 @@ class KubernetesTarget(DeploymentTarget) {
         }
     }
 
-    def scale(self: KubernetesTarget, app_name: str, replicas: int) -> None {
+    def scale(app_name: str, replicas: int) -> None {
         if self.logger {
             self.logger.info(
                 f"Scaling application '{app_name}' to {replicas} replicas"
@@ -1580,7 +1573,7 @@ class KubernetesTarget(DeploymentTarget) {
         }
     }
 
-    def get_service_url(self: KubernetesTarget, app_name: str) -> (str | None) {
+    def get_service_url(app_name: str) -> (str | None) {
         try {
             try {
                 k8s_cluster_config.load_kube_config();
@@ -1625,7 +1618,7 @@ class KubernetesTarget(DeploymentTarget) {
       3. list_namespaced_pod  (to detect crash-looping pods)
       4. read_namespaced_service  (app URL)
     """
-    def get_full_status(self: KubernetesTarget, app_name: str) -> dict {
+    def get_full_status(app_name: str) -> dict {
         try {
             try {
                 k8s_cluster_config.load_kube_config();

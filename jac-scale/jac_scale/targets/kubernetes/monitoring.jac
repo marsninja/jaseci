@@ -24,18 +24,9 @@ Kubernetes metrics are collected via:
   - kube-state-metrics: exposes K8s object state (pods, deployments, replicas, restarts)
   - node-exporter:      exposes host-level metrics (CPU, memory, disk, network)
 """
-class MonitoringDeployer {
+obj MonitoringDeployer {
     has k8s_config: KubernetesConfig,
         logger: (Logger | None) = None;
-
-    def init(
-        self: MonitoringDeployer,
-        k8s_config: KubernetesConfig,
-        logger: (Logger | None) = None
-    ) -> None {
-        self.k8s_config = k8s_config;
-        self.logger = logger;
-    }
 
     """Deploy Prometheus ConfigMap with scrape config + Deployment + ClusterIP Service.
 

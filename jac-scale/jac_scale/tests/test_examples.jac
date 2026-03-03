@@ -28,30 +28,22 @@ def get_free_port -> int {
     return port;
 }
 
-class JacScaleTestRunner {
+obj JacScaleTestRunner {
     """Helper class to run jac-scale examples and test their APIs."""
     has example_file: Path,
-        port: int = 0,
-        base_url: str = "",
-        session_file: Path = Path("."),
+        session_name: str = "test",
+        setup_npm: bool = True,
+        port: int by postinit,
+        base_url: str by postinit,
+        session_file: Path by postinit,
         server_process: subprocess.Popen | None = None,
         token: str | None = None,
-        root_id: str | None = None,
-        setup_npm: bool = True,
-        session_name: str = "test";
+        root_id: str | None = None;
 
-    def init(
-        self, example_file: Path, session_name: str = "test", setup_npm: bool = True
-    ) -> None {
-        self.example_file = example_file;
-        self.session_name = session_name;
-        self.setup_npm = setup_npm;
+    def postinit(self) -> None {
         self.port = get_free_port();
         self.base_url = f"http://localhost:{self.port}";
-        self.session_file = example_file.parent / f"{session_name}_{self.port}.session";
-        self.server_process = None;
-        self.token = None;
-        self.root_id = None;
+        self.session_file = self.example_file.parent / f"{self.session_name}_{self.port}.session";
     }
 
     """Start the jac-scale server."""

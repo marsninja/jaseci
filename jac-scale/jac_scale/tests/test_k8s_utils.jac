@@ -165,15 +165,21 @@ test "ensure pvc exists creates when missing" {
 
 # --- cluster_type detection ---
 test "cluster type detects aws by provider" {
-    class Node {
-        def init(self, provider_id: str) {
-            self.spec = SimpleNamespace(provider_id=provider_id);
+    obj Node {
+        has provider_id: str,
+            spec: SimpleNamespace by postinit,
+            metadata: SimpleNamespace by postinit;
+
+        def postinit {
+            self.spec = SimpleNamespace(provider_id=self.provider_id);
             self.metadata = SimpleNamespace(labels={});
         }
     }
 
-    class Response {
-        def init(self) {
+    obj Response {
+        has items: list by postinit;
+
+        def postinit {
             self.items = [Node("aws://12345")];
         }
     }
