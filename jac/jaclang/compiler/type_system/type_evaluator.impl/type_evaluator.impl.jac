@@ -453,6 +453,23 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                 }
             }
 
+        case uni.IfElseExpr():
+            true_type = self.get_type_of_expression(expr.value);
+            false_type = self.get_type_of_expression(expr.else_value);
+            # If both branches resolve to the same type, return it directly.
+            if true_type == false_type {
+                return true_type;
+            }
+            # If one branch is unknown, return the other.
+            if isinstance(true_type, types.UnknownType) {
+                return false_type;
+            }
+            if isinstance(false_type, types.UnknownType) {
+                return true_type;
+            }
+            # Different known types → union type.
+            return types.UnionType(types=[true_type, false_type]);
+
         case uni.FilterCompr():
             if expr.f_type {
                 filter_type = self.get_type_of_expression(expr.f_type);

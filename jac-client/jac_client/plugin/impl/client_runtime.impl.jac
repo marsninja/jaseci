@@ -102,7 +102,7 @@ impl __isFresh(entry: dict) -> bool {
 }
 
 # Get a cache entry and promote it in LRU order
-impl __cacheGet(key: str) -> dict {
+impl __cacheGet(key: str) -> Any {
     state = __getCacheState();
     entry = state["cache"][key];
     if not entry {
@@ -342,7 +342,7 @@ impl jacSignup(username: str, password: str) -> dict {
                 Reflect.deleteProperty(state["cache"], key);
             }
             state["order"].splice(0, state["order"].length);
-            __setLocalStorage("jac_token", token);
+            __setLocalStorage("jac_token", str(token));
             return {"success": True, "token": token, "username": username};
         }
         return {"success": False, "error": "No token received"};
@@ -389,7 +389,7 @@ impl jacLogin(username: str, password: str) -> bool {
                 Reflect.deleteProperty(state["cache"], key);
             }
             state["order"].splice(0, state["order"].length);
-            __setLocalStorage("jac_token", token);
+            __setLocalStorage("jac_token", str(token));
             return True;
         }
     }

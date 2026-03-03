@@ -778,6 +778,24 @@ class JacCompiler {
             );
             _recalculate_parents(mod);
             had_error = len(parse_errors) > 0 or len(lex_errors) > 0;
+            # Set CL/NA flags before coercion flattens the blocks.
+            # Covers both block syntax (cl { ... }) and prefix syntax (cl def, cl import).
+            mod.has_client = (
+                file_path.endswith('.cl.jac')
+                or any(isinstance(s, uni.ClientBlock) for s in mod.body)
+                or any(
+                    isinstance(s, uni.ContextAwareNode)
+                    and s.code_context == CodeContext.CLIENT for s in mod.body
+                )
+            );
+            mod.has_native = (
+                file_path.endswith('.na.jac')
+                or any(isinstance(s, uni.NativeBlock) for s in mod.body)
+                or any(
+                    isinstance(s, uni.ContextAwareNode)
+                    and s.code_context == CodeContext.NATIVE for s in mod.body
+                )
+            );
             if file_path.endswith('.cl.jac') {
                 _coerce_client_module(mod);
             } elif file_path.endswith('.sv.jac') {
@@ -838,7 +856,9 @@ class JacCompiler {
                 cancel_token=options.cancel_token
             );
         }
-        if options.type_check {
+        if options.type_check or mod_targ.has_client or mod_targ.has_native {
+            # Type check when explicitly requested or when CL/NA backends
+            # need type info to drive correct codegen (e.g. primitive dispatch).
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,

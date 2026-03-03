@@ -547,7 +547,9 @@ obj Module(AstDocNode, UniScopeNode) {
         source: Source,
         body: Sequence[ElementStmt | String | EmptyToken],
         terminals: list[Token],
-        stub_only: bool = False;
+        stub_only: bool = False,
+        has_client: bool = False,
+        has_native: bool = False;
 
     def postinit(self: Module) -> None;
     """Get the base module path that this annex file belongs to.

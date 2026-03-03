@@ -1765,3 +1765,29 @@ test "impl_imports_from_parent" {
     );
     assert "checker_impl_imports.impl.jac" in program.errors_had[1].loc.mod_path;
 }
+
+"""Test that ternary (if-else) expressions infer the correct type from both branches."""
+test "ternary_expr_type_inference" {
+    program = JacProgram();
+    mod = program.compile(os.path.join(CHECKER_FIXTURES, "checker_ternary_expr.jac"));
+    TypeCheckPass(ir_in=mod, prog=program);
+    assert len(program.errors_had) == 2 , f"Expected 2 type errors, but got {len(
+        program.errors_had
+    )}: " + "\n".join([err.pretty_print() for err in program.errors_had]);
+
+    assert_error_pretty_found(
+        """
+        bad_int: int = label;  # <-- Error
+        ^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[0].pretty_print()
+    );
+
+    assert_error_pretty_found(
+        """
+        bad_str: str = items;  # <-- Error
+        ^^^^^^^^^^^^^^^^^^^^^
+    """,
+        program.errors_had[1].pretty_print()
+    );
+}
