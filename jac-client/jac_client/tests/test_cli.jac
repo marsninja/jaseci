@@ -1007,21 +1007,21 @@ test "vite build prompts for missing client deps" {
         config_file = project_dir / "jac.toml";
         # No jac.toml -- ViteBundler.build() should prompt via ensure_client_deps
         bundler = ViteBundler(project_dir);
-        # Mock input to accept, and mock bun/vite so we don't need real installs.
+        # Mock input to accept, and mock node/jac_pm so we don't need real installs.
         with unittest.mock.patch("builtins.input", return_value="Y") {
             with unittest.mock.patch(
-                "jac_client.plugin.utils.bun_installer.ensure_bun_available",
+                "jac_client.plugin.utils.runtime_manager.ensure_node_available",
                 return_value=True
             ) {
-                with unittest.mock.patch("subprocess.run") as mock_subprocess {
-                    # bun install returns success, vite build returns failure
-                    mock_subprocess.side_effect = [
-                        type("Result", (), {"returncode": 0})(),  # bun install
-                        type("Result", (), {"returncode": 1})(),  # vite build
-
-                    ];
-                    with contextlib.suppress(Exception) {
-                        bundler.build();  # vite build failure is expected
+                with unittest.mock.patch("jac_client.plugin.utils.jac_pm.install") {
+                    with unittest.mock.patch("subprocess.run") as mock_subprocess {
+                        # vite build returns failure
+                        mock_subprocess.return_value = type(
+                            "Result", (), {"returncode": 1}
+                        )();
+                        with contextlib.suppress(Exception) {
+                            bundler.build();  # vite build failure is expected
+                        }
                     }
                 }
             }
