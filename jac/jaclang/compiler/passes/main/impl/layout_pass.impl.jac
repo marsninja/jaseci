@@ -261,7 +261,7 @@ impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
     }
 
     # Add own fields from ArchHas nodes
-    if arch.body is not None {
+    if arch.body is not None and isinstance(arch.body, Sequence) {
         for stmt in arch.body {
             if isinstance(stmt, uni.ArchHas) {
                 for var in stmt.vars {
@@ -333,7 +333,7 @@ impl LayoutPass._build_vtable_layout(
 
     # Add own methods
     arch = arch_map.get(arch_name);
-    if arch is not None and arch.body is not None {
+    if arch is not None and arch.body is not None and isinstance(arch.body, Sequence) {
         for stmt in arch.body {
             if isinstance(stmt, uni.Ability) {
                 method_name = stmt.name_ref.sym_name if stmt.name_ref else None;
@@ -354,7 +354,9 @@ impl LayoutPass._build_vtable_layout(
         owner = arch_name;
         for check_name in mro {
             check_arch = arch_map.get(check_name);
-            if check_arch is not None and check_arch.body is not None {
+            if check_arch is not None
+            and check_arch.body is not None
+            and isinstance(check_arch.body, Sequence) {
                 for stmt in check_arch.body {
                     if isinstance(stmt, uni.Ability) {
                         mn = stmt.name_ref.sym_name if stmt.name_ref else None;
