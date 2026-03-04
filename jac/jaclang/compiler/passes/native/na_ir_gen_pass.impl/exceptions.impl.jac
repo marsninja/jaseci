@@ -369,6 +369,12 @@ impl NaIRGenPass._codegen_try(nd: uni.TryStmt) -> None {
     exc_state_type = self._exc_state_type;
     exc_state_ptr = exc_state_type.as_pointer();
     func = self.builder.function;
+    # Prevent the optimizer from promoting allocas to SSA across setjmp.
+    # Without optnone, LLVM's SROA/mem2reg promotes local variables to
+    # registers even with returns_twice on setjmp, causing values modified
+    # between setjmp and longjmp to be lost (e.g. result=1 before raise).
+    func.attributes.add("optnone");
+    func.attributes.add("noinline");
     # Create basic blocks
     setup_bb = func.append_basic_block(name="try.setup");
     body_bb = func.append_basic_block(name="try.body");
