@@ -19,8 +19,9 @@ impl LayoutPass.before_pass -> None {
     }
     # Step 2: Build hierarchy (parents + MRO)
     self._build_hierarchy(arch_map);
-    # Step 3: Topological sort
+    # Step 3: Topological sort (cached in registry for backend reuse)
     topo_order = self._topo_sort(arch_map);
+    self.registry.topo_order = topo_order;
     # Step 4: Build field layouts in topo order
     for name in topo_order {
         if name in arch_map {
@@ -385,6 +386,10 @@ impl LayoutRegistry.get_layout(name: str) -> (ArchetypeLayout | None) {
 
 impl LayoutRegistry.get_mro(name: str) -> list[str] {
     return self.mro_order.get(name, [name]);
+}
+
+impl LayoutRegistry.get_topo_order -> list[str] {
+    return self.topo_order;
 }
 
 impl LayoutRegistry.get_field_index(class_name: str, field_name: str) -> (int | None) {

@@ -86,10 +86,6 @@ obj NaIRGenPass(Transform) {
     def _register_imported_struct_types -> None;
     def _register_imported_archetype(arch: uni.Archetype) -> None;
     def _register_archetypes(module: uni.Module) -> None;
-    def _topo_visit(
-        name: str, arch_map: dict, visited: set[str], order: list[str]
-    ) -> None;
-
     def _codegen_archetype(nd: uni.Archetype) -> None;
     def _forward_declare_method(arch_name: str, method: uni.Ability) -> None;
     def _codegen_method(arch_name: str, method: uni.Ability) -> None;

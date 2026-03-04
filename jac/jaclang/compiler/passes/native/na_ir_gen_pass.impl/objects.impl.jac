@@ -83,24 +83,16 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         }
         self.mro_order[arch_name] = layout_reg.get_mro(arch_name);
     }
-    # Determine which classes need vtables (any class with parents or that is a parent)
-    parents_set: set[str] = set();
-    for (child, parent_list) in self.class_parents.items() {
-        self.has_vtable[child] = True;
-        for p in parent_list {
-            parents_set.add(p);
-        }
-    }
-    for parent in parents_set {
-        self.has_vtable[parent] = True;
-    }
-    # Pass 2: Define struct bodies in topological order (all ancestors before descendants)
-    topo_processed: set[str] = set();
-    topo_order: list[str] = [];
+    # Determine which classes need vtables from LayoutRegistry
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
-        self._topo_visit(arch_name, arch_map, topo_processed, topo_order);
+        arch_layout = layout_reg.get_layout(arch_name);
+        if arch_layout is not None and arch_layout.has_vtable {
+            self.has_vtable[arch_name] = True;
+        }
     }
+    # Pass 2: Define struct bodies in topological order from LayoutRegistry
+    topo_order = layout_reg.get_topo_order();
     for topo_name in topo_order {
         if topo_name in arch_map {
             self._codegen_archetype(arch_map[topo_name]);
@@ -351,21 +343,6 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     }
     # Pass 6: Generate wrapper functions for inherited methods
     self._generate_inherited_method_wrappers();
-}
-
-"""Topological sort helper: visit a class after all its ancestors."""
-impl NaIRGenPass._topo_visit(
-    name: str, arch_map: dict, visited: set[str], order: list[str]
-) -> None {
-    if name in visited {
-        return;
-    }
-    visited.add(name);
-    mro = self.mro_order.get(name, [name]);
-    for ancestor in mro[1:] {
-        self._topo_visit(ancestor, arch_map, visited, order);
-    }
-    order.append(name);
 }
 
 """Register a struct type — define its field layout from has declarations."""
