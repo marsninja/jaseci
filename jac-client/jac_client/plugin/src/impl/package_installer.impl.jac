@@ -33,42 +33,38 @@ impl PackageInstaller.uninstall_package(
     }
     # Save the updated config
     self.config_loader.save();
-    # Regenerate package.json and run bun install to actually remove the package
+    # Regenerate package.json and reinstall to actually remove the package
     self._regenerate_and_install();
 }
 
-"""Regenerate package.json from jac.toml and run bun install."""
+"""Regenerate package.json from jac.toml and install packages."""
 impl PackageInstaller._regenerate_and_install(self: PackageInstaller) -> None {
-    import from jac_client.plugin.utils { ensure_bun_available }
+    import from jac_client.plugin.utils { ensure_node_available, jac_pm_install }
     import from jaclang.cli.console { console }
-    # Ensure bun is available before proceeding
-    if not ensure_bun_available() {
+    # Ensure Node.js is available before proceeding
+    if not ensure_node_available() {
         raise ClientBundleError(
-            'Bun is required. Install manually: https://bun.sh'
+            'Node.js is required. Install via: pip install nodejs-wheel'
         ) from None ;
     }
     # Regenerate package.json from updated jac.toml
     bundler = ViteBundler(self.project_dir);
     bundler.create_package_json();
-    # Ensure root package.json exists temporarily for bun commands
-    bundler._ensure_root_package_json();
+    # Install packages using JacPM
+    client_dir = bundler._get_client_dir();
+    configs_package_json = client_dir / 'configs' / 'package.json';
+    configs_npmrc = client_dir / 'configs' / '.npmrc';
     try {
-        # Run bun install to actually install the packages
         console.print("\n  ⏳ Installing packages...\n");
-        result = subprocess.run(
-            ['bun', 'install'], cwd=self.project_dir, check=False, text=True
-        );
-        if result.returncode != 0 {
-            raise ClientBundleError('Failed to install packages (see output above)') ;
-        }
+        npmrc_path = configs_npmrc if configs_npmrc.exists() else None;
+        jac_pm_install(configs_package_json, client_dir, npmrc_path=npmrc_path);
         console.print("\n  ✔ Packages installed");
-    } finally {
-        # Always clean up root package.json and move bun.lockb
-        bundler._cleanup_root_package_files();
+    } except Exception as e {
+        raise ClientBundleError(f'Failed to install packages: {e}') ;
     }
 }
 
-"""Install all packages from jac.toml (regenerate package.json and run bun install)."""
+"""Install all packages from jac.toml (regenerate package.json and install)."""
 impl PackageInstaller.install_all(self: PackageInstaller) -> None {
     if not self.config_file.exists() {
         raise ClientBundleError(
@@ -96,7 +92,7 @@ impl PackageInstaller.install_package(
     self.config_loader.add_dependency(package_name, package_version, is_dev);
     # Save the updated config
     self.config_loader.save();
-    # Regenerate package.json and install the package via bun
+    # Regenerate package.json and install the package
     self._regenerate_and_install();
 }
 

@@ -1406,17 +1406,12 @@ def _check_and_install_tauri_cli -> None {
         }
     } except Exception { }
 
-    # Check if bun tauri CLI is available (global install)
-    bun_tauri_ok = False;
-    try {
-        result = subprocess.run(
-            ["bun", "pm", "ls", "-g"], capture_output=True, text=True, timeout=5
-        );
-        if result.returncode == 0 and "@tauri-apps/cli" in result.stdout {
-            console.print("  ✔ Tauri CLI found (bun)", style="success");
-            return;
-        }
-    } except Exception { }
+    # Check if Tauri CLI is available via JacPM global install
+    import from jac_client.plugin.utils { is_global_installed, install_global }
+    if is_global_installed("@tauri-apps/cli") {
+        console.print("  ✔ Tauri CLI found (jac global)", style="success");
+        return;
+    }
 
     # Tauri CLI not found
     console.warning("  Tauri CLI not found");
@@ -1433,22 +1428,12 @@ def _check_and_install_tauri_cli -> None {
         cargo_available = True;
     } except Exception { }
 
-    # Check if bun is available
-    bun_available = False;
-    try {
-        subprocess.run(["bun", "--version"], capture_output=True, check=True, timeout=5);
-        bun_available = True;
-    } except Exception { }
-
-    if not cargo_available and not bun_available {
+    if not cargo_available {
         console.print(
-            "  Neither cargo nor bun is available. Cannot install Tauri CLI automatically.",
+            "  Cargo is not available. Cannot install Tauri CLI automatically.",
             style="muted"
         );
-        console.print(
-            "  Please install Rust (for cargo) or Bun (https://bun.sh) first.",
-            style="muted"
-        );
+        console.print("  Please install Rust first: https://rustup.rs", style="muted");
         return;
     }
 
@@ -1469,47 +1454,18 @@ def _check_and_install_tauri_cli -> None {
                     console.print("  ✔ Tauri CLI installed", style="success");
                     return;
                 } else {
-                    console.warning("  Failed to install via cargo. Trying npm...");
+                    console.warning("  Failed to install via cargo.");
                 }
             } except Exception as e {
                 console.warning(f"  Error installing via cargo: {e}");
             }
         }
-        if bun_available {
-            console.print("  Installing Tauri CLI via bun...", style="muted");
-            try {
-                result = subprocess.run(
-                    ["bun", "add", "-g", "@tauri-apps/cli"],
-                    check=False,
-                    timeout=300,
-                    capture_output=False  # Show output
-                );
-                if result.returncode == 0 {
-                    console.print("  ✔ Tauri CLI installed", style="success");
-                    return;
-                } else {
-                    console.warning("  Failed to install via bun");
-                }
-            } except Exception as e {
-                console.warning(f"  Error installing via bun: {e}");
-            }
-        }
         console.print("  Please install manually:", style="muted");
-        if cargo_available {
-            console.print("    cargo install tauri-cli", style="muted");
-        }
-        if bun_available {
-            console.print("    bun add -g @tauri-apps/cli", style="muted");
-        }
+        console.print("    cargo install tauri-cli", style="muted");
     } else {
         console.print("  Skipping Tauri CLI installation.", style="muted");
         console.print("  It will be needed when building. Install with:", style="muted");
-        if cargo_available {
-            console.print("    cargo install tauri-cli", style="muted");
-        }
-        if bun_available {
-            console.print("    bun add -g @tauri-apps/cli", style="muted");
-        }
+        console.print("    cargo install tauri-cli", style="muted");
     }
 }
 
@@ -1964,22 +1920,22 @@ def _run_tauri_build(tauri_dir: Path, platform: Optional[str] = None) -> Path {
         target = "x86_64-unknown-linux-gnu";
     }
 
-    # Build command - prefer cargo tauri build, fallback to bun if package.json has tauri scripts
+    # Build command - prefer cargo tauri build, use script runner if package.json has tauri scripts
     build_cmd = ["cargo", "tauri", "build"];
     if target {
         build_cmd.extend(["--target", target]);
     }
 
-    # Check if package.json has tauri scripts, use bun run if so
+    # Check if package.json has tauri scripts, use script runner if so
     package_json = tauri_dir.parent / "package.json";
-    use_bun = False;
+    use_script = False;
     if package_json.exists() {
         try {
             with open(package_json, "r") as f {
                 package_data = json.load(f);
                 scripts = package_data.get("scripts", {});
                 if "tauri" in scripts or "tauri:build" in scripts {
-                    use_bun = True;
+                    use_script = True;
                 }
             }
         } except Exception {
@@ -1987,19 +1943,18 @@ def _run_tauri_build(tauri_dir: Path, platform: Optional[str] = None) -> Path {
         }
     }
 
-    if use_bun {
-        # Ensure bun is available
-        import from jac_client.plugin.utils { ensure_bun_available }
-        if not ensure_bun_available() {
-            console.error(
-                "Bun is required for this project. Install manually: https://bun.sh"
-            );
-            raise RuntimeError("Bun is required") from None ;
+    if use_script {
+        # Use script runner to execute tauri build from package.json
+        import from jac_client.plugin.utils { ensure_node_available, run_script }
+        if not ensure_node_available() {
+            console.error("Node.js is required. Install via: pip install nodejs-wheel");
+            raise RuntimeError("Node.js is required") from None ;
         }
-        # Use bun run tauri build
-        build_cmd = ["bun", "run", "tauri", "build"];
+        script_name = "tauri:build" if "tauri:build" in scripts else "tauri";
+        # Build the script command directly since we may need to append target args
+        build_cmd = ["npx", "tauri", "build"];
         if target {
-            build_cmd.extend(["--", "--target", target]);
+            build_cmd.extend(["--target", target]);
         }
     }
 
@@ -2366,44 +2321,13 @@ def _run_tauri_dev(tauri_dir: Path) -> subprocess.Popen {
     ) {
         console.warning("Tauri CLI not found.");
         console.print("  Install manually: cargo install tauri-cli", style="muted");
-        console.print("  Or use bun: bun add -g @tauri-apps/cli", style="muted");
         raise RuntimeError(
-            "Tauri CLI not installed. Install it first:\n"
-            "  cargo install tauri-cli\n"
-            "  Or: bun add -g @tauri-apps/cli"
+            "Tauri CLI not installed. Install it first:\n" "  cargo install tauri-cli"
         ) ;
     }
 
-    # Check if package.json has tauri scripts
-    package_json = tauri_dir.parent / "package.json";
-    use_bun = False;
-    if package_json.exists() {
-        try {
-            with open(package_json, "r") as f {
-                package_data = json.load(f);
-                scripts = package_data.get("scripts", {});
-                if "tauri" in scripts or "tauri:dev" in scripts {
-                    use_bun = True;
-                }
-            }
-        } except Exception { }
-    }
-
-    if use_bun {
-        # Ensure bun is available
-        import from jac_client.plugin.utils { ensure_bun_available }
-        if not ensure_bun_available() {
-            console.error(
-                "Bun is required for this project. Install manually: https://bun.sh"
-            );
-            raise RuntimeError("Bun is required") from None ;
-        }
-        # Use bun run tauri dev
-        dev_cmd = ["bun", "run", "tauri", "dev"];
-    } else {
-        # Use cargo tauri dev directly
-        dev_cmd = ["cargo", "tauri", "dev"];
-    }
+    # Use cargo tauri dev directly
+    dev_cmd = ["cargo", "tauri", "dev"];
 
     console.print(f"  Running: {' '.join(dev_cmd)}", style="muted");
 
