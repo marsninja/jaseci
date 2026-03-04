@@ -594,7 +594,7 @@ test "webhook without mongo - requires api key" {
 
         response = client.post(
             "/webhook/MinimalWebhook",
-            data=payload,
+            content=payload,
             headers={"Content-Type": "application/json"}
         );
 
@@ -617,7 +617,7 @@ test "webhook without mongo - invalid api key" {
 
         response = client.post(
             "/webhook/MinimalWebhook",
-            data=payload,
+            content=payload,
             headers={
                 "Content-Type": "application/json",
                 "X-API-Key": "invalid_key_12345"
@@ -659,7 +659,7 @@ test "webhook without mongo - minimal webhook with valid api key" {
         signature = _generate_webhook_signature(payload_bytes, api_key);
         response = client.post(
             "/webhook/MinimalWebhook",
-            data=payload,
+            content=payload,
             headers={
                 "Content-Type": "application/json",
                 "X-API-Key": api_key,
@@ -712,7 +712,7 @@ test "webhook without mongo - payment received with fields" {
 
         response = client.post(
             "/webhook/PaymentReceived",
-            data=payload,
+            content=payload,
             headers={
                 "Content-Type": "application/json",
                 "X-API-Key": api_key,
@@ -788,7 +788,7 @@ test "webhook without mongo - revoked api key" {
         signature = _generate_webhook_signature(payload_bytes, api_key);
         response = client.post(
             "/webhook/MinimalWebhook",
-            data=payload,
+            content=payload,
             headers={
                 "Content-Type": "application/json",
                 "X-API-Key": api_key,
@@ -808,7 +808,7 @@ test "webhook without mongo - revoked api key" {
         # Try to use revoked key
         response = client.post(
             "/webhook/MinimalWebhook",
-            data=payload,
+            content=payload,
             headers={
                 "Content-Type": "application/json",
                 "X-API-Key": api_key,
