@@ -1579,6 +1579,21 @@ test "unbound_method_call" {
     );
 }
 
+"""Test that passing args to a parameterless init produces errors."""
+test "parameterless_init_with_args" {
+    program = JacProgram();
+    mod = program.compile(os.path.join(FIXTURES, "checker_parameterless_init.jac"));
+    TypeCheckPass(ir_in=mod, prog=program);
+    assert len(program.errors_had) == 2;
+    assert_error_pretty_found(
+        """Named argument 'name' does not match any parameter""",
+        program.errors_had[0].pretty_print()
+    );
+    assert_error_pretty_found(
+        """Too many positional arguments""", program.errors_had[1].pretty_print()
+    );
+}
+
 """Test bare `type` parameter accepts classes but rejects instances."""
 test "type_param_assignment" {
     program = JacProgram();
@@ -1819,4 +1834,23 @@ test "getattr_support" {
     # Expect 1 error: assigning str to int (proves __getattr__ return type is enforced)
     assert len(user_errors) == 1 , f"Expected 1 error, got {len(user_errors)}";
     assert "Cannot assign" in user_errors[0].pretty_print();
+}
+
+"""Test NamedTuple type checking: constructor accepts positional arguments for fields."""
+test "namedtuple_constructor" {
+    program = JacProgram();
+    path = os.path.join(CHECKER_FIXTURES, "checker_namedtuple.jac");
+    mod = program.compile(path);
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    user_errors = [
+        err
+        for err in program.errors_had
+        if "vendor" not in err.loc.mod_path and "typeshed" not in err.loc.mod_path
+    ];
+
+    # NamedTuple should accept positional arguments for fields - no errors expected
+    assert len(user_errors) == 0 , f"Expected 0 errors for NamedTuple, got {len(
+        user_errors
+    )}: " + "\n".join([err.pretty_print() for err in user_errors]);
 }
