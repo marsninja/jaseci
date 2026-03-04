@@ -3583,21 +3583,12 @@ impl EsastGenPass._expr_from_node(
     return self.sync_loc(es.Literal(value=`default), jac_node=(nd or self.cur_node));
 }
 
-"""Collect walker has-var field names for positional argument mapping."""
+"""Collect walker has-var field names — delegates to centralized symbol_utils."""
 impl EsastGenPass._collect_walker_field_names(
     walker_symbol: (uni.Symbol | None)
 ) -> list[str] {
-    if not walker_symbol {
-        return [];
-    }
-    decl_owner = walker_symbol.decl.name_of;
-    if (
-        isinstance(decl_owner, uni.Archetype)
-        and (decl_owner.arch_type.name == Tok.KW_WALKER)
-    ) {
-        return [field.sym_name for field in decl_owner.get_has_vars()];
-    }
-    return [];
+    import from jaclang.compiler.symbol_utils { collect_field_names }
+    return collect_field_names(walker_symbol, Tok.KW_WALKER.value);
 }
 
 """Get the main module of the program."""
@@ -3619,21 +3610,10 @@ impl EsastGenPass.search_sym_in_main_mod(expr: uni.Expr) -> (uni.Symbol | None) 
     return main_mod and main_mod.lookup(expr.sym_name);
 }
 
-"""Resolve a symbol from an expression (handles dotted access)."""
+"""Resolve a symbol from an expression — delegates to centralized symbol_utils."""
 impl EsastGenPass._resolve_expr_symbol(expr: uni.Expr) -> (uni.Symbol | None) {
-    if (isinstance(expr, uni.AstSymbolNode) and expr.sym) {
-        return expr.sym;
-    }
-    if isinstance(expr, uni.AtomTrailer) {
-        attrs = expr.as_attr_list;
-        if attrs {
-            return attrs[-1].sym;
-        }
-    }
-    if (sym := self.search_sym_in_main_mod(expr)) {
-        return sym;
-    }
-    return None;
+    import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
+    return resolve_expr_symbol(expr, self.get_main_mod());
 }
 
 """Remove Jac/ES await wrappers for spawn analysis."""

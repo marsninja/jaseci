@@ -4,7 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.11.4 (Unreleased)
 
-- 15 small refactors/changes.
+- 16 small refactors/changes.
 - **Fix: LSP Impl File Diagnostics**: Editing `.impl.jac` or `.test.jac` now shows errors correctly across all related files.
 - **Fix: Type Checker Support for `__getattr__`**: Classes defining `__getattr__` no longer produce false "has no attribute" errors. Dynamic attribute access now correctly resolves to the `__getattr__` return type, and `Any` is callable (enabling proxy patterns like `console.error("msg")`). IDE hover shows dynamic attributes as `(dynamic attribute) name: type`.
 - **HMR Terminal Output Cleanup**: Styled HMR logs with `console.success/error/warning` and stripped absolute paths from compile errors.
@@ -32,6 +32,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: `Union[]` and `Optional[]` Special Forms**: `Union[int, str]` and `Optional[str]` from `typing` now work correctly for type checking, narrowing.
 - **Fix: `py2jac` BinOp operator precedence**: `(a - b - c) // 2` was incorrectly converted to `a - b - c // 2`. Fixed by wrapping same-op chains in `AtomUnit` so parent operators bind to the whole group.
 - **New: jacpretty**: Implment an new library for enhanced CLI colors and designs.
+- **Centralized Type Layout & Symbol Resolution**: Extracted class hierarchy computation (C3 MRO, field layout, vtable structure) and symbol resolution utilities into shared modules (`layout_pass.jac`, `symbol_utils.jac`) that all backends query. The native LLVM backend and ES backend now delegate to these centralized implementations instead of maintaining independent copies of the C3 linearization algorithm, hierarchy extraction, symbol lookup, and field collection logic (~128 lines of duplicated code removed across backends).
 
 ## jaclang 0.11.3 (Latest Release)
 

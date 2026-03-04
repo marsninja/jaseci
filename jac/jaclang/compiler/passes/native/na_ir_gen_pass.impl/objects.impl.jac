@@ -64,32 +64,24 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         self.struct_types[arch_name] = struct_type;
         self.has_native_code = True;
     }
-    # Pass 1.5: Build class hierarchy (multiple inheritance)
+    # Pass 1.5 + 1.7: Read class hierarchy and MRO from centralized LayoutRegistry
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+    layout_reg = get_layout_registry(self.ir_in, self.prog);
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
         self.arch_ast_map[arch_name] = arch;
-        if arch.base_classes {
-            parents: list[str] = [];
-            for base_expr in arch.base_classes {
-                parent_name = self._get_name(base_expr);
-                if parent_name is not None and parent_name in self.struct_types {
-                    parents.append(parent_name);
-                }
-            }
-            if parents {
-                self.class_parents[arch_name] = parents;
-                self.class_hierarchy[arch_name] = parents[
-                    0
-                ];  # primary parent (backward compat)
-            }
+        parents = layout_reg.class_parents.get(arch_name, []);
+        # Filter to only include native parents (those with struct types)
+        native_parents = [
+            p
+            for p in parents
+            if p in self.struct_types
+        ];
+        if native_parents {
+            self.class_parents[arch_name] = native_parents;
+            self.class_hierarchy[arch_name] = native_parents[0];
         }
-    }
-    # Pass 1.7: Compute C3 MRO for all classes
-    for arch in archetypes {
-        arch_name = arch.name.value if arch.name else "unknown";
-        if arch_name not in self.mro_order {
-            self.mro_order[arch_name] = self._compute_c3_mro(arch_name);
-        }
+        self.mro_order[arch_name] = layout_reg.get_mro(arch_name);
     }
     # Determine which classes need vtables (any class with parents or that is a parent)
     parents_set: set[str] = set();

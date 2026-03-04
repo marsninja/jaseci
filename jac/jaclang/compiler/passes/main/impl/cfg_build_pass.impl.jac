@@ -410,6 +410,8 @@ impl CFGBuildPass.before_pass -> None {
 
 """Collect symbols that are narrowed by isinstance checks in a condition.
 This enables Pyright-style optimization: skip branches where the symbol isn't affected.
+NOTE: Canonical implementation also in jaclang.compiler.symbol_utils.collect_narrowing_symbols.
+Kept inline here to avoid circular import during compiler bootstrap.
 """
 impl CFGBuildPass._collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
     symbols: set[str] = set();
@@ -461,7 +463,10 @@ impl CFGBuildPass._collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
     return symbols;
 }
 
-"""Collect all symbols assigned in a statement (for affected_symbols tracking)."""
+"""Collect all symbols assigned in a statement (for affected_symbols tracking).
+NOTE: Canonical implementation also in jaclang.compiler.symbol_utils.collect_assigned_symbols.
+Kept inline here to avoid circular import during compiler bootstrap.
+"""
 impl CFGBuildPass._collect_assigned_symbols(nd: uni.UniNode) -> set[str] {
     symbols: set[str] = set();
     # Assignment: x = ... (target is a Sequence[Expr])
