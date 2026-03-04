@@ -151,7 +151,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
             }
         }
         for anc in mro[1:] {
-            if self._is_primary_ancestor(arch_name, anc) {
+            if layout_reg.is_primary_ancestor(arch_name, anc) {
                 anc_arch = self.arch_ast_map.get(anc);
                 if anc_arch is not None and anc_arch.body is not None {
                     for stmt in anc_arch.body {
@@ -166,7 +166,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
             }
         }
         for ancestor_name in mro[1:] {
-            if self._is_primary_ancestor(arch_name, ancestor_name) {
+            if layout_reg.is_primary_ancestor(arch_name, ancestor_name) {
                 continue;
             }
             ancestor_arch = self.arch_ast_map.get(ancestor_name);
@@ -300,7 +300,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         }
         # Methods from primary ancestor chain
         for anc in mro[1:] {
-            if self._is_primary_ancestor(arch_name, anc) {
+            if layout_reg.is_primary_ancestor(arch_name, anc) {
                 anc_arch = self.arch_ast_map.get(anc);
                 if anc_arch is not None and anc_arch.body is not None {
                     for stmt in anc_arch.body {
@@ -316,7 +316,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         }
         # Now re-compile only non-primary ancestor methods NOT already provided
         for ancestor_name in mro[1:] {
-            if self._is_primary_ancestor(arch_name, ancestor_name) {
+            if layout_reg.is_primary_ancestor(arch_name, ancestor_name) {
                 continue;
             }
             ancestor_arch = self.arch_ast_map.get(ancestor_name);

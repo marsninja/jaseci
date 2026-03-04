@@ -223,26 +223,27 @@ impl CFGBuildPass.exit_node(nd: uni.UniNode) -> None {
 
 """Enter BasicBlockStmt nodes."""
 impl CFGBuildPass.enter_node(nd: uni.UniNode) -> None {
+    import from jaclang.compiler.symbol_utils {
+        collect_narrowing_symbols,
+        collect_assigned_symbols
+    }
     if (isinstance(nd, uni.UniCFGNode) and not isinstance(nd, uni.Semi)) {
         # Collect symbols that THIS node directly affects (Pyright-style optimization).
         # Narrowing patterns: isinstance(x, T) → {'x'}, y is None → {'y'}, if z → {'z'}
         # Assignment patterns: a = 1 → {'a'}, for b in list → {'b'}
         # These enable skipping irrelevant branches during backward CFG walks.
         if isinstance(nd, (uni.IfStmt, uni.ElseIf)) {
-            narrowing_syms = self._collect_narrowing_symbols(nd.condition);
-            nd.affected_symbols.update(narrowing_syms);
+            nd.affected_symbols.update(collect_narrowing_symbols(nd.condition));
         }
         # Assert statement: collect affected symbols from isinstance checks
         if isinstance(nd, uni.AssertStmt) {
-            narrowing_syms = self._collect_narrowing_symbols(nd.condition);
-            nd.affected_symbols.update(narrowing_syms);
+            nd.affected_symbols.update(collect_narrowing_symbols(nd.condition));
         }
         # Match statement: collect affected symbols from match subject
         if isinstance(nd, uni.MatchStmt) and isinstance(nd.target, uni.Name) {
             nd.affected_symbols.add(nd.target.value);
         }
-        assigned_syms = self._collect_assigned_symbols(nd);
-        nd.affected_symbols.update(assigned_syms);
+        nd.affected_symbols.update(collect_assigned_symbols(nd));
         bb_stmts = self.get_code_block_sequence(nd.parent);
         if (
             isinstance(nd, uni.CodeBlockStmt)
@@ -406,18 +407,6 @@ impl CFGBuildPass.before_pass -> None {
     self.ability_stack: list[list[uni.UniCFGNode]] = [];
     self.to_connect: list[uni.UniCFGNode] = [];
     self.first_exit: bool = False;
-}
-
-"""Collect symbols narrowed by isinstance checks — delegates to symbol_utils."""
-impl CFGBuildPass._collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
-    import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
-    return collect_narrowing_symbols(condition);
-}
-
-"""Collect all symbols assigned in a statement — delegates to symbol_utils."""
-impl CFGBuildPass._collect_assigned_symbols(nd: uni.UniNode) -> set[str] {
-    import from jaclang.compiler.symbol_utils { collect_assigned_symbols }
-    return collect_assigned_symbols(nd);
 }
 
 """Check if a node is a break statement."""

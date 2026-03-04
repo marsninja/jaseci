@@ -1,18 +1,4 @@
 """Virtual table (vtable) support for inheritance with C3 MRO."""
-"""Compute C3 linearization (MRO) — delegates to centralized LayoutRegistry."""
-impl NaIRGenPass._compute_c3_mro(class_name: str) -> list[str] {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    return get_layout_registry(self.ir_in, self.prog).get_mro(class_name);
-}
-
-"""Check if ancestor is reachable via primary parent chain — delegates to centralized LayoutRegistry."""
-impl NaIRGenPass._is_primary_ancestor(child_name: str, ancestor_name: str) -> bool {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    return get_layout_registry(self.ir_in, self.prog).is_primary_ancestor(
-        child_name, ancestor_name
-    );
-}
-
 """Build vtable layout for a class (merge from all MRO ancestors + own methods)."""
 impl NaIRGenPass._build_vtable(arch_name: str) -> None {
     layout: list[str] = [];
