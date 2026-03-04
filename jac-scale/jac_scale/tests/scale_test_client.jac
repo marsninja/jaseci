@@ -154,6 +154,7 @@ obj ScaleTestClient {
         json: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         data: dict[str, Any] | None = None,
+        content: str | bytes | None = None,
         files: Any | None = None
     ) -> Any {
         kwargs: dict[str, Any] = {"headers": headers or {}};
@@ -162,6 +163,9 @@ obj ScaleTestClient {
         }
         if data is not None {
             kwargs["data"] = data;
+        }
+        if content is not None {
+            kwargs["content"] = content;
         }
         if files is not None {
             kwargs["files"] = files;
