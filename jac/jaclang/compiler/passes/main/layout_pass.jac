@@ -50,13 +50,13 @@ Backends call this lazily instead of LayoutPass being in the schedule.
 Avoids re-entrancy issues with the self-hosting compiler bootstrap.
 """
 def get_layout_registry(module: uni.Module, prog: Any = None) -> LayoutRegistry {
-    reg = getattr(module, '_layout_registry', None);
+    reg = module.gen.layout_registry;
     if reg is not None {
         return reg;
     }
     # Compute lazily
     pass_inst = LayoutPass(ir_in=module, prog=prog);
-    return getattr(module, '_layout_registry', LayoutRegistry());
+    return module.gen.layout_registry or LayoutRegistry();
 }
 
 """Module-level layout registry."""

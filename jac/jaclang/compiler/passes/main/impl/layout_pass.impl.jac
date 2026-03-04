@@ -14,7 +14,7 @@ impl LayoutPass.before_pass -> None {
     # Step 1: Collect all archetypes
     arch_map = self._collect_archetypes(module);
     if not arch_map {
-        setattr(module, '_layout_registry', self.registry);
+        module.gen.layout_registry = self.registry;
         return;
     }
     # Step 2: Build hierarchy (parents + MRO)
@@ -36,7 +36,7 @@ impl LayoutPass.before_pass -> None {
         }
     }
     # Store registry on module (using setattr to avoid modifying CodeGenTarget)
-    setattr(module, '_layout_registry', self.registry);
+    module.gen.layout_registry = self.registry;
 }
 
 """Collect all Archetype nodes from the module, deduplicating forward declarations."""
