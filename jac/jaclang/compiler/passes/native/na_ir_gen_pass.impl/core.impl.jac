@@ -75,6 +75,7 @@ impl NaIRGenPass.init(
     self.vtable_layouts: dict[(str, list[str])] = {};
     self.vtable_method_indices: dict[(str, dict)] = {};
     self.vtable_globals: dict[(str, ir.GlobalVariable)] = {};
+    self._non_overridden_methods: dict[str, set[str]] = {};  # class → methods never overridden by children
     # Tuple support (Phase 9)
     self.tuple_types: dict[(str, object)] = {};  # type_key → LiteralStructType
     self.var_tuple_type: dict[(str, str)] = {};  # var_name → tuple_key
