@@ -393,6 +393,23 @@ impl Parser.expect_name -> Token {
 
 impl Parser.make_uni_token(tok: Token) -> UniToken {
     # Convert parser Token into unitree UniToken
+    if not hasattr(tok.kind, 'value') {
+        import sys;
+        tokens_mod = sys.modules.get('jaclang.jac0core.parser.tokens');
+        tk_cls = getattr(tokens_mod, 'TokenKind', None) if tokens_mod else None;
+        raise AttributeError(
+            f"tok.kind is {type(tok.kind).__name__}={tok.kind!r}, "
+            f"expected TokenKind enum. "
+            f"tokens module={tokens_mod}, "
+            f"TokenKind class={tk_cls}, "
+            f"TokenKind.INT={getattr(tk_cls, 'INT', '?') if tk_cls else '?'}, "
+            f"spec_origin={getattr(
+                getattr(tokens_mod, '__spec__', None), 'origin', '?'
+            )
+                if tokens_mod
+                else '?'}"
+        ) ;
+    }
     tok_name: str = TOKEN_KIND_TO_TOK[tok.kind]
         if tok.kind in TOKEN_KIND_TO_TOK
         else tok.kind.value;
