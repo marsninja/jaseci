@@ -2220,3 +2220,62 @@ test "switch no default" {
     assert f(20) == 200 , f"switch_no_default(20) should be 200, got {f(20)}";
     assert f(99) == -1 , f"switch_no_default(99) should be -1 (unchanged), got {f(99)}";
 }
+
+# --- TestJIRBitcodeCaching ---
+test "jir bitcode cache round-trip" {
+    import struct;
+    import from jaclang.jac0core.compiler { JacCompiler }
+    import from jaclang.jac0core.jir {
+        get_module_cache_path,
+        SECTIONS_MAGIC,
+        HEADER_SIZE,
+        read_sections,
+        SEC_NATIVE_OBJ
+    }
+
+    compiler = JacCompiler();
+    fixture = str(os.path.join(FIXTURES, "arithmetic.na.jac"));
+
+    # Step 1: Compile via get_bytecode to populate JIR cache
+    prog1 = JacProgram();
+    code1 = compiler.get_bytecode(fixture, prog1);
+    assert code1 is not None , "get_bytecode should return code object";
+
+    # Step 2: Verify SEC_NATIVE_OBJ section exists in the cached JIR file
+    cache_path = get_module_cache_path(fixture);
+    assert cache_path.exists() , f"JIR cache file should exist at {cache_path}";
+    jir_data = cache_path.read_bytes();
+    magic: bytes = SECTIONS_MAGIC;
+    pos = jir_data.find(magic, HEADER_SIZE);
+    assert pos >= 0 , "JIR file should contain SECTIONS_MAGIC";
+    secs = read_sections(jir_data, pos + len(magic));
+    assert SEC_NATIVE_OBJ in secs , f"JIR should contain SEC_NATIVE_OBJ, got sections: {list(
+        secs.keys()
+    )}";
+
+    # Step 3: Verify platform header in SEC_NATIVE_OBJ
+    sec_data = secs[SEC_NATIVE_OBJ];
+    assert len(sec_data) > 2 , "SEC_NATIVE_OBJ too short";
+    (triple_len, ) = struct.unpack_from('<H', sec_data, 0);
+    cached_triple = sec_data[2:2 + triple_len].decode('utf-8');
+    import llvmlite.binding as llvm;
+    assert cached_triple == llvm.get_default_triple() , (
+        f"Triple mismatch: {cached_triple} != {llvm.get_default_triple()}"
+    );
+    bitcode_size = len(sec_data) - 2 - triple_len;
+    assert bitcode_size > 0 , "Bitcode should not be empty";
+
+    # Step 4: Load from cache with a fresh compiler and call native function
+    compiler2 = JacCompiler();
+    prog2 = JacProgram();
+    code2 = compiler2.get_bytecode(fixture, prog2);
+    assert code2 is not None , "Cache reload should return code object";
+
+    # Step 5: Verify native engine was restored via get_native_interop_setup
+    (engine, _) = compiler2.get_native_interop_setup(fixture, prog2);
+    assert engine is not None , "Native engine should be restored from bitcode cache";
+    add = get_func(engine, "add", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert add(17, 25) == 42 , f"add(17,25) via cached engine should be 42, got {add(
+        17, 25
+    )}";
+}

@@ -105,6 +105,12 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
             }
         }
 
+        # Store post-optimization bitcode for fast cache loading.
+        # This must happen AFTER optimization but BEFORE create_mcjit_compiler
+        # which consumes the module. Bitcode is faster to parse than text IR
+        # and preserves the optimization work.
+        module.gen.native_bitcode = mod.as_bitcode();
+
         engine = llvm.create_mcjit_compiler(mod, target_machine);
         module.gen.native_engine = engine;
     } except Exception as e {

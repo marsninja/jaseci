@@ -168,6 +168,7 @@ obj CodeGenTarget {
         es_ast: EsNode | Sequence[EsNode] | SliceInfo | IndexInfo | None = None,
         llvm_ir: Any = None,
         native_engine: Any = None,
+        native_bitcode: (bytes | None) = None,
         interop_manifest: InteropManifest = field(default_factory=InteropManifest),
         interop_py_funcs: dict[(str, Any)] = field(default_factory=`dict),
         _interop_callbacks: list[Any] = field(default_factory=`list),
