@@ -466,7 +466,7 @@ impl `test(
     directory: str = "",
     verbose: bool = False
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
     Jac.setup();
     failcount = Jac.run_test(
         filepath=filepath,

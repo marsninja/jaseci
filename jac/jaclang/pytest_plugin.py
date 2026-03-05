@@ -66,7 +66,7 @@ def _ensure_jac_runtime():
     if _jac_runtime_ready:
         return
     try:
-        from jaclang.jac0core.runtime import JacRuntime
+        from jaclang.runtimelib.runtime import JacRuntime
 
         JacRuntime.setup()
         _jac_runtime_ready = True
@@ -89,7 +89,7 @@ def _fresh_jac_state(*, clear_modules: bool = True):
     while test code still reads from the *old* one.
     """
     from jaclang.jac0core.program import JacProgram
-    from jaclang.jac0core.runtime import JacRuntime, JacRuntimeInterface
+    from jaclang.runtimelib.runtime import JacRuntime, JacRuntimeInterface
 
     # Close any existing execution context
     if JacRuntime.exec_ctx is not None:

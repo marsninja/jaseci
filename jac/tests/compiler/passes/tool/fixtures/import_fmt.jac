@@ -1,7 +1,7 @@
 import from datetime { datetime }
 import from uuid { UUID, uuid4 }
 import from jaclang.jac0core.constant { EdgeDir }
-import from jaclang.jac0core.plugin {
+import from jaclang.runtimelib.plugin {
     Archetype,
     ArchetypeProtocol,
     DSFunc,

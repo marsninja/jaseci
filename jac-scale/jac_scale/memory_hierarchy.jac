@@ -18,7 +18,7 @@ import from typing { Any, cast }
 import from uuid { UUID }
 import from pymongo { MongoClient, UpdateOne }
 import from pymongo.errors { ConnectionFailure }
-import from jaclang.jac0core.archetype { Anchor, NodeAnchor, Root }
+import from jaclang.runtimelib.archetype { Anchor, NodeAnchor, Root }
 import from jaclang.runtimelib.memory {
     CacheMemory,
     PersistentMemory,

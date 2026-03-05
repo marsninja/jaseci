@@ -42,7 +42,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     NOTE: This only applies to tests in jac/tests/, not to package-specific tests.
     """
-    from jaclang.jac0core.runtime import JacRuntimeImpl, plugin_manager
+    from jaclang.runtimelib.runtime import JacRuntimeImpl, plugin_manager
 
     global _external_plugins
     for name, plugin in list(plugin_manager.list_name_plugin()):
@@ -57,7 +57,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
 def pytest_unconfigure(config: pytest.Config) -> None:
     """Re-register external plugins at the end of the jac test session."""
-    from jaclang.jac0core.runtime import plugin_manager
+    from jaclang.runtimelib.runtime import plugin_manager
 
     global _external_plugins
     for name, plugin in _external_plugins:

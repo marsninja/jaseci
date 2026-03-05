@@ -17,7 +17,7 @@ def isolate_jac_context(tmp_path: Path) -> Generator[Path, None, None]:
     skip setting base_path if one is already set, so this provides
     default isolation.
     """
-    from jaclang.jac0core.runtime import JacRuntime as Jac
+    from jaclang.runtimelib.runtime import JacRuntime as Jac
 
     original_base_path = Jac.base_path_dir
     original_exec_ctx = Jac.exec_ctx

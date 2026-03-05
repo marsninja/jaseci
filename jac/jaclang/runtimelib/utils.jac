@@ -14,7 +14,7 @@ import from jaclang.jac0core.helpers {
 
 with entry {
     if TYPE_CHECKING {
-        import from jaclang.jac0core.constructs { NodeArchetype }
+        import from jaclang.runtimelib.constructs { NodeArchetype }
     }
 }
 

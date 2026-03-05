@@ -211,16 +211,48 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
     # Directory containing bootstrap .jac files (jac0core infrastructure)
     _bootstrap_dir: str = str(Path(__file__).parent / "jac0core")
 
+    # Modules outside jac0core/ that must still be compiled with jac0
+    # (the bootstrap transpiler) because they use jac0 conventions
+    # (explicit self) or are loaded eagerly during startup before the
+    # full compiler is available.
+    _runtimelib_dir: str = str(Path(__file__).parent / "runtimelib")
+    _bootstrap_runtimelib: frozenset[str] = frozenset(
+        {
+            "__init__.jac",
+            "runtime.jac",
+            "archetype.jac",
+            "constructs.jac",
+            "plugin.jac",
+            "jaclib.jac",
+        }
+    )
+    _compiler_native_dir: str = str(Path(__file__).parent / "compiler" / "native")
+
     def _is_bootstrap_jac(self, file_path: str) -> bool:
         """Check if a .jac file should be compiled with jac0 (bootstrap).
 
-        Only .jac files inside jaclang/jac0core/ are bootstrap files — they
-        are part of the compiler infrastructure and must be compiled with the
-        lightweight jac0 transpiler rather than the full Jac compiler (which
-        depends on them). Files in jaclang/compiler/ use full Jac syntax
-        and must go through the full compiler.
+        Bootstrap files include:
+        - All .jac files inside jaclang/jac0core/ (compiler infrastructure)
+        - Specific runtime files in jaclang/runtimelib/ that are loaded
+          eagerly during startup (runtime, archetype, constructs, plugin,
+          jaclib) and their impl files
+        - All .jac files inside jaclang/compiler/native/ (originally part
+          of jac0core, use jac0 conventions)
         """
-        return file_path.startswith(self._bootstrap_dir)
+        if file_path.startswith(self._bootstrap_dir):
+            return True
+        if file_path.startswith(self._compiler_native_dir):
+            return True
+        if file_path.startswith(self._runtimelib_dir):
+            basename = os.path.basename(file_path)
+            if basename in self._bootstrap_runtimelib:
+                return True
+            # impl files for bootstrap modules (e.g., archetype.impl.jac)
+            if basename.endswith(".impl.jac"):
+                head = basename[: -len(".impl.jac")] + ".jac"
+                if head in self._bootstrap_runtimelib:
+                    return True
+        return False
 
     def find_spec(
         self,
@@ -348,7 +380,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             self._exec_bootstrap(module, file_path)
             return
 
-        from jaclang.jac0core.runtime import JacRuntime as Jac
+        from jaclang.runtimelib.runtime import JacRuntime as Jac
 
         is_pkg = module.__spec__.submodule_search_locations is not None
 
@@ -389,7 +421,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             layout = compiler.get_native_layout(file_path, program)
             if layout is not None:
                 try:
-                    from jaclang.jac0core.native_marshal import (
+                    from jaclang.compiler.native.native_marshal import (
                         install_native_wrappers,
                     )
 
@@ -412,7 +444,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
 
         This method is required by runpy when using `python -m module`.
         """
-        from jaclang.jac0core.runtime import JacRuntime as Jac
+        from jaclang.runtimelib.runtime import JacRuntime as Jac
 
         # Find the .jac file for this module
         paths_to_search = get_jac_search_paths()

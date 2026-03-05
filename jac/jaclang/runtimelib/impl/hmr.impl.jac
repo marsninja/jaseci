@@ -82,7 +82,7 @@ impl HotReloader._process_change(file_path: str) -> None {
 
 """Reload server-side module in sys.modules."""
 impl HotReloader._reload_server_module(file_path: str) -> None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
     # Remove all project modules from sys.modules to refresh the full import chain
     sys.modules.pop(self.module_name, None);
     for key in list(Jac.program.mod.hub.keys()) {
@@ -128,7 +128,7 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
 
 """Recompile client declarations to JavaScript."""
 impl HotReloader._recompile_client_code(file_path: str) -> None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
     try {
         source_path = Path(file_path).resolve();
         source_key = str(source_path);

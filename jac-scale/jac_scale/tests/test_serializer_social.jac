@@ -8,7 +8,7 @@ import from jac_scale.db { close_all_db_connections }
 import from jac_scale.config_loader { reset_scale_config }
 import from testcontainers.mongodb { MongoDbContainer }
 import from uuid { uuid4 }
-import from jaclang.jac0core.archetype { NodeAnchor, EdgeAnchor }
+import from jaclang.runtimelib.archetype { NodeAnchor, EdgeAnchor }
 
 def cleanup_connections {
     with contextlib.suppress(Exception) {

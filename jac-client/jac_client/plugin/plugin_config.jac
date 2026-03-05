@@ -14,7 +14,7 @@ import subprocess;
 import json;
 import from pathlib { Path }
 import from typing { Any }
-import from jaclang.jac0core.runtime { hookimpl }
+import from jaclang.runtimelib.runtime { hookimpl }
 import from jaclang.project.config { JacConfig }
 
 """Plugin configuration hooks for jac-client."""

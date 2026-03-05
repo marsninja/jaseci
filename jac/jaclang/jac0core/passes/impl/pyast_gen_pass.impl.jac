@@ -556,7 +556,7 @@ impl PyastGenPass.exit_module(self: PyastGenPass, nd: uni.Module) -> None {
         self.preamble.append(
             self.sync(
                 ast3.ImportFrom(
-                    module='jaclang.jac0core.jaclib',
+                    module='jaclang.runtimelib.jaclib',
                     names=[
                         self.sync(ast3.alias(name=name, asname=None))
                         for name in sorted(self.jaclib_imports)

@@ -20,11 +20,13 @@ glob _logger = logging.getLogger(__name__),
 
 """Find all .na.jac files in jac0core/ that have loaded Python modules."""
 def discover_bootstrap_na_modules -> dict[str, str] {
-    jac0core_dir = Path(__file__).parent;
+    # Look in jac0core/ for .na.jac files (parser/lexer.na.jac, etc.)
+    jaclang_dir = Path(__file__).parent.parent.parent;
+    jac0core_dir = jaclang_dir / "jac0core";
     result: dict[str, str] = {};
     for na_file in jac0core_dir.rglob("*.na.jac") {
         # Derive module name from file path relative to jaclang/
-        rel = na_file.relative_to(jac0core_dir.parent);
+        rel = na_file.relative_to(jaclang_dir);
         # Strip .na.jac suffix (two suffixes)
         stem = str(rel).replace(os.sep, ".").removesuffix(".na.jac");
         mod_name = "jaclang." + stem;
@@ -40,7 +42,7 @@ def discover_bootstrap_na_modules -> dict[str, str] {
 Returns number of functions wrapped, or -1 on error.
 """
 def accelerate_module(mod_name: str, na_file: str) -> int {
-    import from jaclang.jac0core.native_marshal { install_native_wrappers }
+    import from jaclang.compiler.native.native_marshal { install_native_wrappers }
     import from jaclang.jac0core.program { JacProgram }
 
     module = sys.modules.get(mod_name);
@@ -97,6 +99,6 @@ def schedule_native_acceleration -> None {
         _acceleration_complete.set();
         return;
     }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.runtimelib.runtime { JacRuntime }
     _acceleration_future = JacRuntime.thread_run(_compile_all, modules);
 }

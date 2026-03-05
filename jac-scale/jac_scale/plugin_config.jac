@@ -7,7 +7,7 @@ configuration system, registering:
 """
 
 import from typing { Any }
-import from jaclang.jac0core.runtime { hookimpl }
+import from jaclang.runtimelib.runtime { hookimpl }
 
 """Plugin configuration hooks for jac-scale."""
 class JacScalePluginConfig {

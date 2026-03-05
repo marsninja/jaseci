@@ -4,7 +4,7 @@ import logging;
 import from enum { Enum }
 import from typing { cast }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype {
+import from jaclang.runtimelib.archetype {
     Anchor,
     NodeAnchor,
     EdgeAnchor,
@@ -12,7 +12,7 @@ import from jaclang.jac0core.archetype {
     Access,
     AccessLevel
 }
-import from jaclang.jac0core.constructs {
+import from jaclang.runtimelib.constructs {
     Archetype,
     NodeArchetype,
     WalkerArchetype,

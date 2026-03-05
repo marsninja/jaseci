@@ -16,7 +16,7 @@ glob _runtime_initialized = False;
 def _ensure_jac_runtime -> None {
     global _runtime_initialized;
     if not _runtime_initialized {
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        import from jaclang.runtimelib.runtime { JacRuntime as Jac }
         Jac.setup();
         _runtime_initialized = True;
     }
@@ -33,7 +33,7 @@ def _discover_config_from_file(filename: str) -> None {
     import from pathlib { Path }
     import from jaclang.project.config { JacConfig, get_config, set_config }
     import from jaclang.project.dependencies { add_venv_to_path }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
 
     file_path = Path(filename).resolve();
     # Store entry file path for runtime utilities (called before _proc_file)
@@ -98,7 +98,7 @@ This is the canonical function for setting up CLI execution context.
 It handles base_path setup, closing any existing context, and creating a new one.
 """
 def _proc_file(filename: str) -> tuple {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
     (base, mod) = os.path.split(filename);
     base = base or './';
     if filename.endswith('.na.jac') {
@@ -130,7 +130,7 @@ impl run(
     args: list = []
 ) -> int {
     _ensure_jac_runtime();
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
     # Re-discover config from the file's directory (handles absolute paths)
     _discover_config_from_file(filename);
     # Set sys.argv so the script can access arguments via sys.argv[1:]
@@ -245,8 +245,8 @@ impl enter(
     nd: str = ''
 ) -> int {
     _ensure_jac_runtime();
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    import from jaclang.jac0core.constructs { WalkerArchetype }
+    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+    import from jaclang.runtimelib.constructs { WalkerArchetype }
     # Re-discover config from the file's directory (handles absolute paths)
     _discover_config_from_file(filename);
     (base, mod, mach) = _proc_file(filename);
@@ -295,7 +295,7 @@ impl start(
     no_client: bool = False
 ) -> int {
     _ensure_jac_runtime();
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
     import from pathlib { Path }
     if not Path(filename).exists() {
         if filename == "main.jac" {

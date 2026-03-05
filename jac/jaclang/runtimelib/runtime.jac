@@ -28,7 +28,7 @@ import from typing {
     get_type_hints
 }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype {
+import from jaclang.runtimelib.archetype {
     GenericEdge,
     ObjectSpatialDestination,
     ObjectSpatialFunction,
@@ -36,7 +36,7 @@ import from jaclang.jac0core.archetype {
     Root
 }
 import from jaclang.jac0core.constant { EdgeDir, colors }
-import from jaclang.jac0core.constructs {
+import from jaclang.runtimelib.constructs {
     AccessLevel,
     Anchor,
     Archetype,
@@ -50,7 +50,7 @@ import from jaclang.jac0core.constructs {
 }
 import from jaclang.jac0core.modresolver { infer_language }
 import from jaclang.jac0core.mtp { MTIR, Info, MTRuntime }
-import from jaclang.jac0core { plugin }
+import from jaclang.runtimelib { plugin }
 
 with entry {
     if TYPE_CHECKING {
@@ -2624,7 +2624,7 @@ class JacRuntime(JacRuntimeInterface) {
     Core JacRuntimeImpl is preserved, only external plugins are disabled.
 
     Usage:
-        from jaclang.jac0core.runtime import without_plugins
+        from jaclang.runtimelib.runtime import without_plugins
 
         def test_something():
             with without_plugins():

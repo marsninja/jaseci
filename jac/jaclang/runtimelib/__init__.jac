@@ -1,8 +1,6 @@
-"""Core primitives for Jaseci.
+"""Jac Runtime Library.
 
-This package exists to host Jac `.jac` runtime modules.
-
-The legacy `jaclang.runtimelib.runtime` import path is now provided via an
-alias set in `jaclang.__init__` to avoid eager `.jac` compilation during
-bootstrap.
+This package contains the Jac runtime modules: archetype system, constructs,
+plugin infrastructure, runtime implementation, and standard library modules
+(memory, serialization, server, testing, etc.).
 """

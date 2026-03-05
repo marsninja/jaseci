@@ -10,7 +10,7 @@ import from collections.abc { Callable, Generator, Iterable }
 import from pickle { dumps, loads }
 import from typing { cast }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { Anchor, NodeAnchor, Root }
+import from jaclang.runtimelib.archetype { Anchor, NodeAnchor, Root }
 
 glob logger = logging.getLogger(__name__);
 

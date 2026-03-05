@@ -83,7 +83,7 @@ test "native layout functions have types" {
 
 # --- Auto-marshalling tests with arithmetic fixture ---
 test "auto-marshal arithmetic add" {
-    import from jaclang.jac0core.native_marshal {
+    import from jaclang.compiler.native.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
         wrap_native_function
@@ -103,7 +103,7 @@ test "auto-marshal arithmetic add" {
 }
 
 test "auto-marshal arithmetic float_add" {
-    import from jaclang.jac0core.native_marshal {
+    import from jaclang.compiler.native.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
         wrap_native_function
@@ -122,7 +122,7 @@ test "auto-marshal arithmetic float_add" {
 
 test "auto-marshal install_native_wrappers" {
     import types;
-    import from jaclang.jac0core.native_marshal { install_native_wrappers }
+    import from jaclang.compiler.native.native_marshal { install_native_wrappers }
     (eng, ir) = compile_fixture("arithmetic.na.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
@@ -160,7 +160,7 @@ test "native layout for string enums" {
 }
 
 test "auto-marshal string enum functions" {
-    import from jaclang.jac0core.native_marshal {
+    import from jaclang.compiler.native.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
         wrap_native_function
@@ -209,7 +209,7 @@ test "native layout tuple metadata for tokenize" {
 
 # --- Tuple/struct auto-marshalling proof of concept ---
 test "auto-marshal tuple with struct list" {
-    import from jaclang.jac0core.native_marshal {
+    import from jaclang.compiler.native.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
         wrap_native_function
@@ -250,7 +250,7 @@ test "auto-marshal tuple with struct list" {
 }
 
 test "auto-marshal struct with string field" {
-    import from jaclang.jac0core.native_marshal {
+    import from jaclang.compiler.native.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
         wrap_native_function
@@ -278,7 +278,7 @@ test "auto-marshal struct with string field" {
 
 # --- Native tokenize end-to-end tests ---
 test "native tokenize returns correct tokens" {
-    import from jaclang.jac0core.native_marshal {
+    import from jaclang.compiler.native.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
         wrap_native_function
@@ -331,7 +331,7 @@ test "native tokenize returns correct tokens" {
 }
 
 test "native tokenize matches python lexer" {
-    import from jaclang.jac0core.native_marshal {
+    import from jaclang.compiler.native.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
         wrap_native_function
@@ -383,7 +383,7 @@ test "native tokenize matches python lexer" {
 
 # --- Performance benchmark ---
 test "native tokenize performance" {
-    import from jaclang.jac0core.native_marshal {
+    import from jaclang.compiler.native.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
         wrap_native_function
@@ -443,7 +443,7 @@ test "native tokenize performance" {
 
 # --- Deferred native acceleration tests ---
 test "discover bootstrap na modules" {
-    import from jaclang.jac0core.native_accel { discover_bootstrap_na_modules }
+    import from jaclang.compiler.native.native_accel { discover_bootstrap_na_modules }
     modules = discover_bootstrap_na_modules();
     # lexer.na.jac should be discovered if it's loaded
     found_lexer = False;
@@ -456,7 +456,7 @@ test "discover bootstrap na modules" {
 }
 
 test "accelerate module compiles lexer" {
-    import from jaclang.jac0core.native_accel { accelerate_module }
+    import from jaclang.compiler.native.native_accel { accelerate_module }
     mod_name = "jaclang.jac0core.parser.lexer";
     na_file = str(
         Path(jaclang.__file__).parent / "jac0core" / "parser" / "lexer.na.jac"

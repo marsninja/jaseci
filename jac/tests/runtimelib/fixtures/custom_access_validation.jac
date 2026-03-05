@@ -1,4 +1,4 @@
-import from jaclang.jac0core.archetype { AccessLevel }
+import from jaclang.runtimelib.archetype { AccessLevel }
 
 node A {
     has val1: str = "NO_ACCESS";

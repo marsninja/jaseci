@@ -6,7 +6,7 @@ import from jaclang.cli.registry { get_registry }
 import from jaclang.cli.command { Arg, ArgKind, CommandPriority, HookContext }
 import from jaclang.cli.console { console }
 import from rich.table { Table }
-import from jaclang.jac0core.runtime { hookimpl, plugin_manager }
+import from jaclang.runtimelib.runtime { hookimpl, plugin_manager }
 import from jaclang.runtimelib.context { ExecutionContext }
 import from jaclang.runtimelib.server { JacAPIServer as JacServer }
 import from .context { JScaleExecutionContext }

@@ -47,7 +47,7 @@ impl CompilerBridge.parse_snippet(
         };
     }
     def _do_parse -> dict[str, Any] {
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        import from jaclang.runtimelib.runtime { JacRuntime as Jac }
         import from jaclang.jac0core.program { JacProgram }
 
         Jac.setup();
@@ -115,7 +115,7 @@ impl CompilerBridge.typecheck_snippet(
         };
     }
     def _do_typecheck -> dict[str, Any] {
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        import from jaclang.runtimelib.runtime { JacRuntime as Jac }
         import from jaclang.jac0core.program { JacProgram }
 
         Jac.setup();
@@ -180,7 +180,7 @@ impl CompilerBridge.format_snippet(code: str) -> dict[str, Any] {
         };
     }
     def _do_format -> dict[str, Any] {
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        import from jaclang.runtimelib.runtime { JacRuntime as Jac }
 
         Jac.setup();
         compiler = Jac.get_compiler();
@@ -242,7 +242,7 @@ impl CompilerBridge.py_to_jac(python_code: str) -> dict[str, Any] {
         };
     }
     def _do_py2jac -> dict[str, Any] {
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        import from jaclang.runtimelib.runtime { JacRuntime as Jac }
         import from jaclang.jac0core.program { JacProgram }
 
         Jac.setup();
