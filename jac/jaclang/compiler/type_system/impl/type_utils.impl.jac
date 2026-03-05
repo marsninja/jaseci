@@ -2,8 +2,13 @@
 
 This checks if a class has all the methods required by a protocol,
 including methods inherited from base classes via MRO.
+When an evaluator is provided, method signatures are compared using
+resolved types (via get_type_of_ability and _assign_callable), which
+handles complex types like generics, unions, and aliases correctly.
 """
-impl class_implements_protocol(cls: types.ClassType, proto: types.ClassType) -> bool {
+impl class_implements_protocol(
+    cls: types.ClassType, proto: types.ClassType, evaluator: Any = None
+) -> bool {
     proto_ast: uni.Archetype = proto.shared.symbol_table;
     proto_methods = {method.sym_name: method for method in proto_ast.get_methods()};
 
@@ -25,53 +30,17 @@ impl class_implements_protocol(cls: types.ClassType, proto: types.ClassType) -> 
             return False;
         }
         cls_method = cls_methods[name];
-        # Compare signatures via Ability.signature (FuncSignature)
-        # We check parameter count and type names to catch obvious mismatches.
-        # Use sym_name for type comparison (location-independent).
-        proto_sig = proto_method.signature;
-        cls_sig = cls_method.signature;
-        if isinstance(proto_sig, uni.FuncSignature)
-        and isinstance(cls_sig, uni.FuncSignature) {
-            proto_params = [
-                p
-                for p in proto_sig.params
-                if p.sym_name != "self"
-            ]
-                if proto_sig.params
-                else [];
-            cls_params = [
-                p
-                for p in cls_sig.params
-                if p.sym_name != "self"
-            ]
-                if cls_sig.params
-                else [];
-            if len(proto_params) != len(cls_params) {
-                return False;
-            }
-            # Compare parameter type annotations using sym_name
-            for (pp, cp) in zip(proto_params, cls_params) {
-                if pp.type_tag and cp.type_tag {
-                    pp_expr = pp.type_tag.tag
-                        if isinstance(pp.type_tag, uni.SubTag)
-                        else pp.type_tag;
-                    cp_expr = cp.type_tag.tag
-                        if isinstance(cp.type_tag, uni.SubTag)
-                        else cp.type_tag;
-                    if hasattr(pp_expr, "sym_name") and hasattr(cp_expr, "sym_name") {
-                        if pp_expr.sym_name != cp_expr.sym_name {
-                            return False;
-                        }
-                    }
-                }
-            }
-            # Compare return type using sym_name
-            if proto_sig.return_type and cls_sig.return_type {
-                if hasattr(proto_sig.return_type, "sym_name")
-                and hasattr(cls_sig.return_type, "sym_name") {
-                    if proto_sig.return_type.sym_name != cls_sig.return_type.sym_name {
-                        return False;
-                    }
+        # When evaluator is available, use resolved types for signature comparison.
+        # This is the proper approach: resolve each method to a FunctionType and
+        # compare using _assign_callable (which handles parameter contravariance
+        # and return type covariance correctly).
+        if evaluator is not None {
+            proto_func_type = evaluator.get_type_of_ability(proto_method);
+            cls_func_type = evaluator.get_type_of_ability(cls_method);
+            if isinstance(proto_func_type, types.FunctionType)
+            and isinstance(cls_func_type, types.FunctionType) {
+                if not evaluator._assign_callable(cls_func_type, proto_func_type) {
+                    return False;
                 }
             }
         }

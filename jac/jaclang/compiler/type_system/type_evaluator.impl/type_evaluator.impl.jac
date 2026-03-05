@@ -104,7 +104,7 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                     elem_types: list[types.TypeBase] = [];
                     for _val in expr.values {
                         elem_type = self.get_type_of_expression(_val);
-                        if isinstance(elem_type, types.ClassType)
+                        if not isinstance(elem_type, types.UnknownType)
                         and elem_type not in elem_types {
                             elem_types.append(elem_type);
                         }
@@ -545,17 +545,24 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                 if isinstance(base_type, types.ClassType)
                 and base_type.is_instantiable_class() {
                     # --- Handle other generic types ---
-                    # Collect the type arguments.
+                    # Collect the type arguments and normalize to instances.
+                    # Type args like `int` in `list[int]` represent element types
+                    # (instances), not the class itself. Normalizing here ensures
+                    # consistent comparison with type_args inferred from literals.
                     type_args: list[types.TypeBase] = [];
                     if isinstance(expr.right, uni.IndexSlice) and expr.right.slices {
                         type_args_vals = expr.right.slices[0].start;
                         if isinstance(type_args_vals, uni.TupleVal) {
                             for val in type_args_vals.values {
-                                type_arg_type = self.get_type_of_expression(val);
+                                type_arg_type = self._convert_to_instance(
+                                    self.get_type_of_expression(val)
+                                );
                                 type_args.append(type_arg_type);
                             }
                         } else {
-                            type_arg_type = self.get_type_of_expression(type_args_vals);
+                            type_arg_type = self._convert_to_instance(
+                                self.get_type_of_expression(type_args_vals)
+                            );
                             type_args.append(type_arg_type);
                         }
                     }
@@ -1168,11 +1175,12 @@ impl TypeEvaluator._assign_class(
             # Both are literals - values must match
             return src_type.get_literal_value() == dest_type.get_literal_value();
         }
-        # Check type arguments are compatible (e.g., list[int] vs list[str])
+        # Check type arguments are compatible (e.g., list[int] vs list[str]).
+        # Type args are normalized to instances at creation, but we defensively
+        # normalize here too for type_args from external sources.
         if src_type.private.type_args and dest_type.private.type_args {
             if len(src_type.private.type_args) == len(dest_type.private.type_args) {
                 for i in range(len(src_type.private.type_args)) {
-                    # Normalize to instances so assign_type can compare them properly
                     src_arg = self._convert_to_instance(src_type.private.type_args[i]);
                     dest_arg = self._convert_to_instance(dest_type.private.type_args[i]);
                     if not self.assign_type(src_arg, dest_arg) {
@@ -1197,14 +1205,14 @@ impl TypeEvaluator._assign_class(
             continue;
         }
         if base_cls.shared == self.prefetch.protocol_class.shared {
-            if type_utils.class_implements_protocol(src_type, dest_type) {
+            if type_utils.class_implements_protocol(src_type, dest_type, self) {
                 return True;
             }
             # For synthetic types like LiteralString that share symbol_table with
             # their base class, also check if any MRO class implements the protocol.
             for mro_cls in src_type.shared.mro {
                 if mro_cls.shared != src_type.shared {
-                    if type_utils.class_implements_protocol(mro_cls, dest_type) {
+                    if type_utils.class_implements_protocol(mro_cls, dest_type, self) {
                         return True;
                     }
                 }
