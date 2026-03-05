@@ -46,18 +46,9 @@ impl PyastGenPass.enter_node(self: PyastGenPass, nd: uni.UniNode) -> None {
         isinstance(nd, uni.ClientBlock)
         or (
             isinstance(nd, uni.ContextAwareNode)
-            and (nd.code_context == CodeContext.CLIENT)
+            and (nd.code_context in (CodeContext.CLIENT, CodeContext.NATIVE))
             and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
         )
-    ) {
-        self.prune();
-        return;
-    }
-    # Skip native C library imports — they have no Python equivalent
-    if (
-        isinstance(nd, uni.Import)
-        and nd.code_context == CodeContext.NATIVE
-        and (not nd.items)
     ) {
         self.prune();
         return;
@@ -76,16 +67,8 @@ impl PyastGenPass.exit_node(self: PyastGenPass, nd: uni.UniNode) -> None {
     }
     if (
         isinstance(nd, uni.ContextAwareNode)
-        and (nd.code_context == CodeContext.CLIENT)
+        and (nd.code_context in (CodeContext.CLIENT, CodeContext.NATIVE))
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
-    ) {
-        return;
-    }
-    # Skip native C library imports — they have no Python equivalent
-    if (
-        isinstance(nd, uni.Import)
-        and nd.code_context == CodeContext.NATIVE
-        and (not nd.items)
     ) {
         return;
     }

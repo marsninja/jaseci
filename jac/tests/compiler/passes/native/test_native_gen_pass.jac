@@ -2237,9 +2237,9 @@ test "jir bitcode cache round-trip" {
     fixture = str(os.path.join(FIXTURES, "arithmetic.na.jac"));
 
     # Step 1: Compile via get_bytecode to populate JIR cache
+    # .na.jac modules skip Python bytecode gen, so get_bytecode returns None
     prog1 = JacProgram();
     code1 = compiler.get_bytecode(fixture, prog1);
-    assert code1 is not None , "get_bytecode should return code object";
 
     # Step 2: Verify SEC_NATIVE_OBJ section exists in the cached JIR file
     cache_path = get_module_cache_path(fixture);
@@ -2269,7 +2269,6 @@ test "jir bitcode cache round-trip" {
     compiler2 = JacCompiler();
     prog2 = JacProgram();
     code2 = compiler2.get_bytecode(fixture, prog2);
-    assert code2 is not None , "Cache reload should return code object";
 
     # Step 5: Verify native engine was restored via get_native_interop_setup
     (engine, _) = compiler2.get_native_interop_setup(fixture, prog2);

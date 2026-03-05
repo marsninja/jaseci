@@ -476,14 +476,22 @@ obj JacCompiler {
             try {
                 jir_data = cache_path.read_bytes();
                 bc = read_bytecode_only(jir_data);
+                magic_bytes: Any = SECTIONS_MAGIC;
+                sec_pos = jir_data.find(magic_bytes, HEADER_SIZE);
                 if bc is not None {
-                    magic_bytes: Any = SECTIONS_MAGIC;
-                    sec_pos = jir_data.find(magic_bytes, HEADER_SIZE);
                     if sec_pos >= 0 {
                         secs = read_sections(jir_data, sec_pos + len(magic_bytes));
                         self._restore_sections(full_target, actual_program, secs);
                     }
                     return marshal.loads(bc);
+                }
+                # Native-only module: no bytecode but may have native sections
+                if sec_pos >= 0 {
+                    secs = read_sections(jir_data, sec_pos + len(magic_bytes));
+                    if (SEC_NATIVE_OBJ in secs) or (SEC_LLVM_IR in secs) {
+                        self._restore_sections(full_target, actual_program, secs);
+                        return None;
+                    }
                 }
             } except Exception {
                 ;
@@ -517,14 +525,16 @@ obj JacCompiler {
         result = self.compile(
             file_path=full_target, target_program=actual_program, options=options
         );
-        if result.gen.py_bytecode {
+        if result.gen.py_bytecode or result.gen.native_bitcode {
             try {
                 import from jaclang.jac0core.jir_passes { JirWriter }
                 import pickle;
                 import json;
                 import zlib;
                 sections: dict[int, bytes] = {};
-                sections[SEC_BYTECODE] = result.gen.py_bytecode;
+                if result.gen.py_bytecode {
+                    sections[SEC_BYTECODE] = result.gen.py_bytecode;
+                }
                 if actual_program.mtir_map {
                     sections[SEC_MTIR] = pickle.dumps(
                         actual_program.mtir_map, int(pickle.HIGHEST_PROTOCOL)
@@ -561,7 +571,9 @@ obj JacCompiler {
             } except Exception {
                 ;
             }
-            return marshal.loads(result.gen.py_bytecode);
+            if result.gen.py_bytecode {
+                return marshal.loads(result.gen.py_bytecode);
+            }
         }
         return None;
     }
@@ -957,10 +969,20 @@ obj JacCompiler {
             );
         }
         if (not had_parse_errors and not options.no_cgen) {
+            sched = get_py_code_gen();
+            if file_path.endswith('.na.jac') {
+                # Native-only modules: skip Python codegen passes
+                sched = [
+                    p
+                    for p in sched
+                    if p not in (PyastGenPass, PyBytecodeGenPass)
+                    and getattr(p, '__name__', '') not in ('PyJacAstLinkPass', )
+                ];
+            }
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
-                passes=get_py_code_gen(),
+                passes=sched,
                 cancel_token=options.cancel_token
             );
         }
