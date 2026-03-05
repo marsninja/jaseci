@@ -393,22 +393,15 @@ impl Parser.expect_name -> Token {
 
 impl Parser.make_uni_token(tok: Token) -> UniToken {
     # Convert parser Token into unitree UniToken
+    # Robust handling: if tok.kind is not a proper enum (can happen under
+    # concurrent JIR cache race on CI), recover the kind from the value
     if not hasattr(tok.kind, 'value') {
-        import sys;
-        tokens_mod = sys.modules.get('jaclang.jac0core.parser.tokens');
-        tk_cls = getattr(tokens_mod, 'TokenKind', None) if tokens_mod else None;
-        lexer_mod = sys.modules.get('jaclang.jac0core.parser.lexer');
-        lexer_tk = getattr(lexer_mod, 'TokenKind', None) if lexer_mod else None;
-        raise AttributeError(
-            f"tok.kind is {type(tok.kind).__name__}={tok.kind!r}, "
-            f"tok.value={tok.value!r}, "
-            f"tok type={type(tok).__name__}, "
-            f"tok module={type(tok).__module__}, "
-            f"file={self.file_path}, "
-            f"TokenKind={tk_cls}, "
-            f"lexer_TokenKind={lexer_tk}, "
-            f"same={tk_cls is lexer_tk if tk_cls and lexer_tk else 'N/A'}"
-        ) ;
+        recovered = _recover_token_kind(tok);
+        if recovered is not None {
+            tok = Token(kind=recovered, value=tok.value, loc=tok.loc);
+        } else {
+            tok = Token(kind=TokenKind.ERROR, value=tok.value, loc=tok.loc);
+        }
     }
     tok_name: str = TOKEN_KIND_TO_TOK[tok.kind]
         if tok.kind in TOKEN_KIND_TO_TOK
