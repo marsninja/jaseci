@@ -425,6 +425,18 @@ obj JacCompiler {
         return (None, None);
     }
 
+    """Get native module layout metadata for auto-marshalling."""
+    def get_native_layout(
+        full_target: str, target_program: JacProgram
+    ) -> (object | None) {
+        actual_program = self._resolve_program(full_target, target_program);
+        if (full_target in actual_program.mod.hub) {
+            mod = actual_program.mod.hub[full_target];
+            return getattr(mod.gen, 'native_layout', None);
+        }
+        return None;
+    }
+
     """Get bytecode using 2-tier cache: in-memory -> JIR -> compile.
 
         Tier 1: in-memory hub (py_bytecode already set).

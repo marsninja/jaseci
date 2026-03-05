@@ -128,6 +128,13 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
         } else {
             full_path = os.path.join(base_dir, source_mod_path);
+            # Also check if a .na.jac version exists (e.g., tokens → tokens.na.jac)
+            if not os.path.exists(full_path) {
+                na_path = os.path.join(base_dir, source_mod_path + ".na.jac");
+                if os.path.exists(na_path) {
+                    full_path = na_path;
+                }
+            }
         }
 
         if not os.path.exists(full_path) {
@@ -154,29 +161,45 @@ impl NativeCompilePass._compile_and_link_native_imports(
         }
 
         try {
-            # Parse the imported module's IR
+            # Parse the imported module's IR, renaming jac_entry to avoid
+            # duplicate symbol conflicts (each .na.jac has its own entry).
+            # LLVM IR may quote names as @"jac_entry" or use bare @jac_entry.
             imported_llvm_str = str(imported_ir.gen.llvm_ir);
+            import re;
+            safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', source_mod_path);
+            entry_rename = f"__jac_entry_{safe_name}";
+            imported_llvm_str = imported_llvm_str.replace(
+                '@"jac_entry"', f'@"{entry_rename}"'
+            );
+            imported_llvm_str = imported_llvm_str.replace(
+                "@jac_entry", f"@{entry_rename}"
+            );
             imported_mod = llvm.parse_assembly(imported_llvm_str);
 
+            # Collect exported function names BEFORE linking, because
+            # link_in consumes the module and invalidates its references
+            exported_funcs: list[str] = [];
+            for func in imported_mod.functions {
+                if not func.name.startswith("llvm.") and not func.is_declaration {
+                    exported_funcs.append(func.name);
+                }
+            }
+
             # Link the imported module into the main module at IR level
-            # This merges the imported module's functions into main_mod
+            # This merges the imported module's functions into main_mod.
+            # After this call, imported_mod is consumed and invalid.
             main_mod.link_in(imported_mod);
 
             # Create module info for tracking
             mod_info = NativeModuleInfo(
                 mod_path=full_path,
-                llvm_module=imported_mod,
+                llvm_module=None,
                 native_engine=None  # No separate engine needed - linked into main
             );
 
-            # Track exported functions
-            for func in imported_mod.functions {
-                func_name = func.name;
-                if not func_name.startswith("llvm.") and not func.is_declaration {
-                    mod_info.exported_functions[func_name] = NativeFunctionInfo(
-                        name=func_name
-                    );
-                }
+            # Track exported functions from pre-collected names
+            for fname in exported_funcs {
+                mod_info.exported_functions[fname] = NativeFunctionInfo(name=fname);
             }
 
             linked_modules[source_mod_path] = mod_info;
