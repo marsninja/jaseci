@@ -70,7 +70,8 @@ obj PrefetchedTypes {
         walker_class: TypeBase | None = None,
         jsx_element_class: TypeBase | None = None,
         # Prefetched enum base class
-        enum_class: TypeBase | None = None;
+        enum_class: TypeBase | None = None,
+        set_class: TypeBase | None = None;
 }
 
 """Represents a single entry in the symbol resolution stack."""

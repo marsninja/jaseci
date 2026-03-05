@@ -5,20 +5,78 @@ including methods inherited from base classes via MRO.
 """
 impl class_implements_protocol(cls: types.ClassType, proto: types.ClassType) -> bool {
     proto_ast: uni.Archetype = proto.shared.symbol_table;
-    # FIXME: For now I'm only checking if method names are equal
-    # However we need to check the full signature compatibility.
-    proto_method_names = {method.sym_name for method in proto_ast.get_methods()};
+    proto_methods = {method.sym_name: method for method in proto_ast.get_methods()};
 
-    # Collect method names from the class and all its MRO classes
-    cls_method_names: set[str] = set();
+    # Collect methods from the class and all its MRO classes (first found wins)
+    cls_methods: dict[str, Any] = {};
     for mro_cls in cls.shared.mro {
         if isinstance(mro_cls.shared.symbol_table, uni.Archetype) {
-            cls_method_names.update(
-                method.sym_name for method in mro_cls.shared.symbol_table.get_methods()
-            );
+            for method in mro_cls.shared.symbol_table.get_methods() {
+                if method.sym_name not in cls_methods {
+                    cls_methods[method.sym_name] = method;
+                }
+            }
         }
     }
-    return proto_method_names.issubset(cls_method_names);
+
+    # Check all protocol methods exist AND have compatible signatures
+    for (name, proto_method) in proto_methods.items() {
+        if name not in cls_methods {
+            return False;
+        }
+        cls_method = cls_methods[name];
+        # Compare signatures via Ability.signature (FuncSignature)
+        # We check parameter count and type names to catch obvious mismatches.
+        # Use sym_name for type comparison (location-independent).
+        proto_sig = proto_method.signature;
+        cls_sig = cls_method.signature;
+        if isinstance(proto_sig, uni.FuncSignature)
+        and isinstance(cls_sig, uni.FuncSignature) {
+            proto_params = [
+                p
+                for p in proto_sig.params
+                if p.sym_name != "self"
+            ]
+                if proto_sig.params
+                else [];
+            cls_params = [
+                p
+                for p in cls_sig.params
+                if p.sym_name != "self"
+            ]
+                if cls_sig.params
+                else [];
+            if len(proto_params) != len(cls_params) {
+                return False;
+            }
+            # Compare parameter type annotations using sym_name
+            for (pp, cp) in zip(proto_params, cls_params) {
+                if pp.type_tag and cp.type_tag {
+                    pp_expr = pp.type_tag.tag
+                        if isinstance(pp.type_tag, uni.SubTag)
+                        else pp.type_tag;
+                    cp_expr = cp.type_tag.tag
+                        if isinstance(cp.type_tag, uni.SubTag)
+                        else cp.type_tag;
+                    if hasattr(pp_expr, "sym_name") and hasattr(cp_expr, "sym_name") {
+                        if pp_expr.sym_name != cp_expr.sym_name {
+                            return False;
+                        }
+                    }
+                }
+            }
+            # Compare return type using sym_name
+            if proto_sig.return_type and cls_sig.return_type {
+                if hasattr(proto_sig.return_type, "sym_name")
+                and hasattr(cls_sig.return_type, "sym_name") {
+                    if proto_sig.return_type.sym_name != cls_sig.return_type.sym_name {
+                        return False;
+                    }
+                }
+            }
+        }
+    }
+    return True;
 }
 
 """Lookup a symbol in the symbol table."""
@@ -250,19 +308,66 @@ impl compute_mro_linearization(cls: types.ClassType) -> None {
     if cls.shared.mro {
         return;
     }
-    cls.shared.mro.append(cls);
+    # Ensure base classes have their MRO computed first
     for base in cls.shared.base_classes {
         if isinstance(base, types.ClassType) {
             compute_mro_linearization(base);
         }
     }
+    # C3 linearization: merge base MROs + direct base list
+    linearizations: list[list[types.ClassType]] = [];
     for base in cls.shared.base_classes {
         if isinstance(base, types.ClassType) {
-            for mro_cls in base.shared.mro {
-                if (mro_cls not in cls.shared.mro) {
-                    cls.shared.mro.append(mro_cls);
-                }
-            }
+            linearizations.append(base.shared.mro[:]);
         }
     }
+    base_list: list[types.ClassType] = [];
+    for base in cls.shared.base_classes {
+        if isinstance(base, types.ClassType) {
+            base_list.append(base);
+        }
+    }
+    if base_list {
+        linearizations.append(base_list);
+    }
+    result: list[types.ClassType] = [cls];
+    while linearizations {
+        # Find a good head: not in the tail of any linearization
+        candidate: (types.ClassType | None) = None;
+        for lin in linearizations {
+            if not lin {
+                continue;
+            }
+            head = lin[0];
+            in_tail = False;
+            for other_lin in linearizations {
+                if head in other_lin[1:] {
+                    in_tail = True;
+                    break;
+                }
+            }
+            if not in_tail {
+                candidate = head;
+                break;
+            }
+        }
+        if candidate is None {
+            break;  # Inconsistent hierarchy
+        }
+        result.append(candidate);
+        # Remove candidate from all lists
+        new_linearizations: list[list[types.ClassType]] = [];
+        for lin in linearizations {
+            new_lin = [
+                c
+                for c in lin
+                if c is not candidate
+            ];
+            if new_lin {
+                new_linearizations.append(new_lin);
+            }
+        }
+        linearizations = new_linearizations;
+    }
+    cls.shared.mro = result;
 }

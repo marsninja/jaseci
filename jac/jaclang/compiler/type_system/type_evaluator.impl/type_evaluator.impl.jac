@@ -99,17 +99,40 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
         case uni.ListVal():
             if self.prefetch and self.prefetch.list_class {
                 list_inst = self._convert_to_instance(self.prefetch.list_class);
-                # Infer element type from the list literal's elements.
+                # Infer element type from all list literal elements.
                 if isinstance(list_inst, types.ClassType) and expr.values {
+                    elem_types: list[types.TypeBase] = [];
                     for _val in expr.values {
                         elem_type = self.get_type_of_expression(_val);
-                        if isinstance(elem_type, types.ClassType) {
-                            list_inst.private.type_args = [elem_type];
-                            break;
+                        if isinstance(elem_type, types.ClassType)
+                        and elem_type not in elem_types {
+                            elem_types.append(elem_type);
                         }
+                    }
+                    if len(elem_types) == 1 {
+                        list_inst.private.type_args = [elem_types[0]];
+                    } elif len(elem_types) > 1 {
+                        list_inst.private.type_args = [
+                            types.UnionType(types=elem_types)
+                        ];
                     }
                 }
                 return list_inst;
+            }
+
+        case uni.DictVal():
+            if self.prefetch and self.prefetch.dict_class {
+                return self._convert_to_instance(self.prefetch.dict_class);
+            }
+
+        case uni.TupleVal():
+            if self.prefetch and self.prefetch.tuple_class {
+                return self._convert_to_instance(self.prefetch.tuple_class);
+            }
+
+        case uni.SetVal():
+            if self.prefetch and self.prefetch.set_class {
+                return self._convert_to_instance(self.prefetch.set_class);
             }
 
         case uni.JsxElement():
@@ -559,16 +582,49 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
         case uni.BinaryExpr():
             return operations.get_type_of_binary_operation(self, expr);
 
+        case uni.CompareExpr():
+            # Evaluate operands for side effects / error detection
+            self.get_type_of_expression(expr.left);
+            for right in expr.rights {
+                self.get_type_of_expression(right);
+            }
+            # Comparisons always return bool
+            if self.prefetch and self.prefetch.bool_class {
+                return self._convert_to_instance(self.prefetch.bool_class);
+            }
+            return types.UnknownType();
+
+        case uni.IfElseExpr():
+            self.get_type_of_expression(expr.condition);
+            true_type = self.get_type_of_expression(expr.value);
+            false_type = self.get_type_of_expression(expr.else_value);
+            if true_type == false_type {
+                return true_type;
+            }
+            unique_types: list[types.TypeBase] = [true_type];
+            if false_type not in unique_types {
+                unique_types.append(false_type);
+            }
+            if len(unique_types) == 1 {
+                return unique_types[0];
+            }
+            return types.UnionType(types=unique_types);
+
         case uni.BoolExpr():
             # AND/OR return operand values, not bool: `x and y` → y if x truthy, else x
-            # We return the last operand's type (common pattern: `cond and value` → value)
+            # The type should be the union of all operand types (Python semantics).
             # Narrowing (isinstance/truthiness) handled by TypeCheckPass.enter_bool_expr
             operand_types: list[TypeBase] = [];
             for val in expr.values {
-                operand_types.append(self.get_type_of_expression(val));
+                op_type = self.get_type_of_expression(val);
+                if op_type not in operand_types {
+                    operand_types.append(op_type);
+                }
             }
-            if operand_types {
-                return operand_types[-1];
+            if len(operand_types) == 1 {
+                return operand_types[0];
+            } elif len(operand_types) > 1 {
+                return types.UnionType(types=operand_types);
             }
             return types.UnknownType();
 
@@ -1112,7 +1168,19 @@ impl TypeEvaluator._assign_class(
             # Both are literals - values must match
             return src_type.get_literal_value() == dest_type.get_literal_value();
         }
-        # Destination is not a literal type, any instance is OK
+        # Check type arguments are compatible (e.g., list[int] vs list[str])
+        if src_type.private.type_args and dest_type.private.type_args {
+            if len(src_type.private.type_args) == len(dest_type.private.type_args) {
+                for i in range(len(src_type.private.type_args)) {
+                    # Normalize to instances so assign_type can compare them properly
+                    src_arg = self._convert_to_instance(src_type.private.type_args[i]);
+                    dest_arg = self._convert_to_instance(dest_type.private.type_args[i]);
+                    if not self.assign_type(src_arg, dest_arg) {
+                        return False;
+                    }
+                }
+            }
+        }
         return True;
     }
     # Check if src class is a subclass of dest class.
@@ -1562,6 +1630,7 @@ impl TypeEvaluator._prefetch_types{
     self.prefetch.bytes_class = get_builtin_type("bytes");
     self.prefetch.dict_class = get_builtin_type("dict");
     self.prefetch.list_class = get_builtin_type("list");
+    self.prefetch.set_class = get_builtin_type("set");
     self.prefetch.enum_class = get_enum_type("Enum");
     if isinstance(self.prefetch.enum_class, types.ClassType) {
         self.prefetch.enum_class.shared.is_enum_class = True;

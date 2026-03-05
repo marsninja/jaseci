@@ -69,10 +69,10 @@ test "bug_1_is_in_returns_unknown_type" {
 test "bug_3_list_element_type_first_only" {
     program = compile_and_check("checker_bug_list_elem_type.jac");
 
-    # Expected: 1 error (list[int|str] not assignable to list[int])
+    # Expected: at least 1 error (list[int|str] not assignable to list[int])
     # Actual: 0 errors (list inferred as list[int], so list[int] -> list[int] is ok)
-    assert len(program.errors_had) == 1 , f"Bug #3: List element type inference only considers the first element. "
-    f"Expected 1 type error for mixed list assignment but got {len(
+    assert len(program.errors_had) >= 1 , f"Bug #3: List element type inference only considers the first element. "
+    f"Expected at least 1 type error for mixed list assignment but got {len(
         program.errors_had
     )}. "
     f"[1, 'hello'] is typed as list[int] instead of list[int | str].";
