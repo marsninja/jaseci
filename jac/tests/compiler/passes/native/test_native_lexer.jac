@@ -463,12 +463,41 @@ test "accelerate module compiles lexer" {
     );
     # Ensure module is loaded
     assert mod_name in sys.modules , f"{mod_name} not loaded";
-    count = accelerate_module(mod_name, na_file);
-    assert count >= 0 , f"accelerate_module failed with {count}";
-    # Check that the engine was stored on the module
     lexer_mod = sys.modules[mod_name];
-    if count > 0 {
-        assert hasattr(lexer_mod, "__jac_native_engine__") , "Native engine not stored on module";
-        assert hasattr(lexer_mod, "__jac_native_layout__") , "Native layout not stored on module";
+
+    # Save original functions so we can restore after test
+    saved: dict = {};
+    for (name, obj) in list(lexer_mod.__dict__.items()) {
+        if callable(obj) and not name.startswith("_") {
+            saved[name] = obj;
+        }
+    }
+
+    try {
+        count = accelerate_module(mod_name, na_file);
+        assert count >= 0 , f"accelerate_module failed with {count}";
+        # Check that the engine was stored on the module
+        if count > 0 {
+            assert hasattr(lexer_mod, "__jac_native_engine__") , "Native engine not stored on module";
+            assert hasattr(lexer_mod, "__jac_native_layout__") , "Native layout not stored on module";
+        }
+    } finally {
+        # Restore original Python functions to avoid corrupting other tests
+        # in the same xdist worker (native wrappers return int ordinals
+        # instead of TokenKind enum members)
+        for (name, orig) in saved.items() {
+            if hasattr(lexer_mod.__dict__.get(name), "__wrapped__") {
+                lexer_mod.__dict__[name] = orig;
+            }
+        }
+        # Clean up native engine references
+        lexer_mod.__dict__.pop("__jac_native_engine__", None);
+        lexer_mod.__dict__.pop("__jac_native_layout__", None);
+        # Clean up _py_ prefixed backup copies
+        for name in list(lexer_mod.__dict__.keys()) {
+            if name.startswith("_py_") {
+                del lexer_mod.__dict__[name];
+            }
+        }
     }
 }

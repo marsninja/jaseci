@@ -1592,18 +1592,6 @@ impl Lexer.tokenize -> list[Token] {
     last_pos = -1;
     while True {
         token = self.next_token();
-        # Detect corrupted token kind (CI debug)
-        if not hasattr(token.kind, 'value') {
-            import sys;
-            raise RuntimeError(
-                f"Lexer produced token with non-enum kind: "
-                f"kind={token.kind!r} value={token.value!r} "
-                f"pos={self.pos} line={self.line} "
-                f"file={self.file_path} "
-                f"TokenKind={TokenKind} "
-                f"KEYWORDS_import={KEYWORDS.get('import', 'MISSING')}"
-            ) ;
-        }
         tokens.append(token);
         self.prev_token_kind = token.kind;
         if token.kind == TokenKind.EOF {

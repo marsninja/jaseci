@@ -392,17 +392,6 @@ impl Parser.expect_name -> Token {
 }
 
 impl Parser.make_uni_token(tok: Token) -> UniToken {
-    # Convert parser Token into unitree UniToken
-    # Robust handling: if tok.kind is not a proper enum (can happen under
-    # concurrent JIR cache race on CI), recover the kind from the value
-    if not hasattr(tok.kind, 'value') {
-        recovered = _recover_token_kind(tok);
-        if recovered is not None {
-            tok = Token(kind=recovered, value=tok.value, loc=tok.loc);
-        } else {
-            tok = Token(kind=TokenKind.ERROR, value=tok.value, loc=tok.loc);
-        }
-    }
     tok_name: str = TOKEN_KIND_TO_TOK[tok.kind]
         if tok.kind in TOKEN_KIND_TO_TOK
         else tok.kind.value;
