@@ -526,12 +526,14 @@ impl NaIRGenPass._register_imported_struct_types -> None {
             imported_mod = self.prog.mod.hub.get(abs_path);
         }
         # If not in hub, parse the imported file to get its AST for type extraction.
-        # Only parsing (no compilation passes) so it won't interfere with
-        # NativeCompilePass._compile_and_link_native_imports later.
+        # Use rd_parse directly (not parse_str) to avoid adding a parse-only module
+        # to the hub, which would prevent TypeCheckPass from properly compiling it
+        # with SymTabBuildPass later.
         if imported_mod is None and os.path.isfile(resolved_path) {
             try {
+                import from jaclang.jac0core.parser { parse as rd_parse }
                 source = open(resolved_path).read();
-                imported_mod = self.prog.parse_str(source, resolved_path);
+                (imported_mod, _, _) = rd_parse(source, resolved_path, prog=self.prog);
             } except Exception {
                 continue;
             }
