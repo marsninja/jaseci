@@ -95,10 +95,6 @@ obj NaIRGenPass(Transform) {
     def _register_imported_globals(nd: uni.GlobalVars) -> None;
     def _forward_declare_imported_ability(nd: uni.Ability) -> None;
     def _register_archetypes(module: uni.Module) -> None;
-    def _topo_visit(
-        name: str, arch_map: dict, visited: set[str], order: list[str]
-    ) -> None;
-
     def _codegen_archetype(nd: uni.Archetype) -> None;
     def _forward_declare_method(arch_name: str, method: uni.Ability) -> None;
     def _codegen_method(arch_name: str, method: uni.Ability) -> None;
@@ -125,8 +121,6 @@ obj NaIRGenPass(Transform) {
         target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
     ) -> None;
     # Phase 5: Inheritance, Vtables, and C3 MRO
-    def _compute_c3_mro(class_name: str) -> list[str];
-    def _is_primary_ancestor(child_name: str, ancestor_name: str) -> bool;
     def _build_vtable(arch_name: str) -> None;
     def _emit_vtable_global(arch_name: str) -> None;
     def _codegen_virtual_call(
@@ -175,6 +169,7 @@ obj NaIRGenPass(Transform) {
     ) -> (ir.Value | None);
 
     def _get_struct_size(struct_type: ir.LiteralStructType) -> int;
+    def _box_value_tuple(val: ir.Value) -> ir.Value;
     # Phase 10: Comprehensions
     def _codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None);
     def _codegen_compr_loops(
