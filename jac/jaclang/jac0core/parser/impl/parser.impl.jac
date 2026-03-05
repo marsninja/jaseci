@@ -397,17 +397,17 @@ impl Parser.make_uni_token(tok: Token) -> UniToken {
         import sys;
         tokens_mod = sys.modules.get('jaclang.jac0core.parser.tokens');
         tk_cls = getattr(tokens_mod, 'TokenKind', None) if tokens_mod else None;
+        lexer_mod = sys.modules.get('jaclang.jac0core.parser.lexer');
+        lexer_tk = getattr(lexer_mod, 'TokenKind', None) if lexer_mod else None;
         raise AttributeError(
             f"tok.kind is {type(tok.kind).__name__}={tok.kind!r}, "
-            f"expected TokenKind enum. "
-            f"tokens module={tokens_mod}, "
-            f"TokenKind class={tk_cls}, "
-            f"TokenKind.INT={getattr(tk_cls, 'INT', '?') if tk_cls else '?'}, "
-            f"spec_origin={getattr(
-                getattr(tokens_mod, '__spec__', None), 'origin', '?'
-            )
-                if tokens_mod
-                else '?'}"
+            f"tok.value={tok.value!r}, "
+            f"tok type={type(tok).__name__}, "
+            f"tok module={type(tok).__module__}, "
+            f"file={self.file_path}, "
+            f"TokenKind={tk_cls}, "
+            f"lexer_TokenKind={lexer_tk}, "
+            f"same={tk_cls is lexer_tk if tk_cls and lexer_tk else 'N/A'}"
         ) ;
     }
     tok_name: str = TOKEN_KIND_TO_TOK[tok.kind]
