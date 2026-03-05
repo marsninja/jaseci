@@ -99,28 +99,10 @@ impl check(
     }
     total_files = failed_files=total_errors=total_warnings=0;
     prog = JacProgram();
-    for path in paths {
-        path_obj = Path(path);
-        if path.endswith('.jac') {
-            if not _should_ignore(path, ignore_list) {
-                process_file_result(path, 1, 1);
-            }
-        } elif path_obj.is_dir() {
-            all_files = [
-                str(jac_file)
-                for jac_file in path_obj.glob('**/*.jac')
-                if jac_file.is_file()
-                and not _should_ignore(str(jac_file), ignore_list)
-            ];
-            total_to_check = len(all_files);
-            for (idx, jac_file_path) in enumerate(all_files, 1) {
-                process_file_result(jac_file_path, idx, total_to_check);
-            }
-        } else {
-            console.error(f"'{path}' is not a .jac file or directory.");
-            failed_files += 1;
-            total_errors += 1;
-        }
+    all_files = _iter_jac_files(paths, ignore_list);
+    total_to_check = len(all_files);
+    for (idx, jac_file_path) in enumerate(all_files, 1) {
+        process_file_result(jac_file_path, idx, total_to_check);
     }
     # Print FAILURES section and summary
     if print_errs and len(failed_results) > 0 {
@@ -224,45 +206,17 @@ impl lint(paths: list, fix: bool = False, ignore: list = []) -> int {
     failed_files = 0;
     total_errors = 0;
     total_unfixable = 0;
-    for path in paths {
-        path_obj = Path(path);
-        if path.endswith('.jac') {
-            if not _should_ignore(path, ignore_list) {
-                total_files += 1;
-                if fix {
-                    (success, errors, unfixable) = lint_fix_file(path);
-                    total_unfixable += unfixable;
-                } else {
-                    (success, errors) = lint_report_file(path);
-                }
-                total_errors += errors;
-                if not success {
-                    failed_files += 1;
-                }
-            }
-        } elif path_obj.is_dir() {
-            for jac_file in path_obj.glob('**/*.jac') {
-                if not jac_file.is_file() {
-                    continue;
-                }
-                if not _should_ignore(str(jac_file), ignore_list) {
-                    total_files += 1;
-                    if fix {
-                        (success, errors, unfixable) = lint_fix_file(str(jac_file));
-                        total_unfixable += unfixable;
-                    } else {
-                        (success, errors) = lint_report_file(str(jac_file));
-                    }
-                    total_errors += errors;
-                    if not success {
-                        failed_files += 1;
-                    }
-                }
-            }
+    for file_path in _iter_jac_files(paths, ignore_list) {
+        total_files += 1;
+        if fix {
+            (success, errors, unfixable) = lint_fix_file(file_path);
+            total_unfixable += unfixable;
         } else {
-            console.error(f"'{path}' is not a .jac file or directory.");
+            (success, errors) = lint_report_file(file_path);
+        }
+        total_errors += errors;
+        if not success {
             failed_files += 1;
-            total_errors += 1;
         }
     }
     failing_errors = total_unfixable if fix else total_errors;
@@ -370,40 +324,17 @@ impl format(
     failed_files = 0;
     changed_files = 0;
     total_errors = 0;
-    for path in paths {
-        path_obj = Path(path);
-        if path.endswith('.jac') {
-            total_files += 1;
-            (success, changed, errors) = format_single_file(path);
-            total_errors += errors;
-            if not success {
-                failed_files += 1;
-            } elif changed {
-                changed_files += 1;
-                if check {
-                    unformatted_files.append(path);
-                }
-            }
-        } elif path_obj.is_dir() {
-            for jac_file in path_obj.glob('**/*.jac') {
-                if not jac_file.is_file() {
-                    continue;
-                }
-                total_files += 1;
-                (success, changed, errors) = format_single_file(str(jac_file));
-                total_errors += errors;
-                if not success {
-                    failed_files += 1;
-                } elif changed {
-                    changed_files += 1;
-                    if check {
-                        unformatted_files.append(str(jac_file));
-                    }
-                }
-            }
-        } else {
-            console.error(f"'{path}' is not a .jac file or directory.");
+    for file_path in _iter_jac_files(paths) {
+        total_files += 1;
+        (success, changed, errors) = format_single_file(file_path);
+        total_errors += errors;
+        if not success {
             failed_files += 1;
+        } elif changed {
+            changed_files += 1;
+            if check {
+                unformatted_files.append(file_path);
+            }
         }
     }
     # In check mode, report all issues together
@@ -528,6 +459,34 @@ impl grammar(lark: bool = False, output: str = "") -> int {
         console.print(text);
     }
     return 0;
+}
+
+"""Iterate over .jac files from a list of paths (files or directories).
+
+Expands directories recursively, filters by ignore patterns.
+"""
+def _iter_jac_files(paths: list, ignore_list: list = []) -> list[str] {
+    result: list[str] = [];
+    for path in paths {
+        path_obj = Path(path);
+        if path.endswith('.jac') {
+            if not _should_ignore(path, ignore_list) {
+                result.append(path);
+            }
+        } elif path_obj.is_dir() {
+            for jac_file in path_obj.glob('**/*.jac') {
+                if not jac_file.is_file() {
+                    continue;
+                }
+                if not _should_ignore(str(jac_file), ignore_list) {
+                    result.append(str(jac_file));
+                }
+            }
+        } else {
+            console.error(f"'{path}' is not a .jac file or directory.");
+        }
+    }
+    return result;
 }
 
 """Normalize ignore patterns by stripping whitespace and trailing slashes."""
