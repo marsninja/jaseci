@@ -5,7 +5,7 @@ This module registers the `jac mcp` CLI command that starts the MCP server.
 
 import from jaclang.cli.registry { get_registry }
 import from jaclang.cli.command { Arg }
-import from jaclang.runtimelib.runtime { hookimpl }
+import from jaclang.jac0core.runtime { hookimpl }
 
 glob registry = get_registry();
 

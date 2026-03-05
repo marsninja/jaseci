@@ -23,7 +23,7 @@ import from jac_scale.jserver.jserver {
 }
 import from jac_scale.config_loader { get_scale_config }
 import from jac_scale.user_manager { UserRole }
-import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+import from jaclang.jac0core.runtime { JacRuntime as Jac }
 
 glob logger = logging.getLogger(__name__);
 

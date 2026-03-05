@@ -42,7 +42,7 @@ def discover_bootstrap_na_modules -> dict[str, str] {
 Returns number of functions wrapped, or -1 on error.
 """
 def accelerate_module(mod_name: str, na_file: str) -> int {
-    import from jaclang.compiler.native.native_marshal { install_native_wrappers }
+    import from jaclang.jac0core.native_marshal { install_native_wrappers }
     import from jaclang.jac0core.program { JacProgram }
 
     module = sys.modules.get(mod_name);
@@ -99,6 +99,6 @@ def schedule_native_acceleration -> None {
         _acceleration_complete.set();
         return;
     }
-    import from jaclang.runtimelib.runtime { JacRuntime }
+    import from jaclang.jac0core.runtime { JacRuntime }
     _acceleration_future = JacRuntime.thread_run(_compile_all, modules);
 }

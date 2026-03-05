@@ -35,7 +35,7 @@ import from jaclang.runtimelib.scheduler { Scheduler }
 
 with entry {
     if TYPE_CHECKING {
-        import from jaclang.runtimelib.constructs { Archetype, WalkerArchetype }
+        import from jaclang.jac0core.constructs { Archetype, WalkerArchetype }
     }
 }
 

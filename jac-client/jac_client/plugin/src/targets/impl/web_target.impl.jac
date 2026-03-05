@@ -87,7 +87,7 @@ impl WebTarget.build(
 ) -> Path {
     import os;
     import shutil;
-    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jac_client.plugin.client { JacClient }
     bundler = ViteBundler(project_dir=project_dir);
     # Clean dist directory for fresh build
@@ -130,7 +130,7 @@ impl WebTarget.build(
 
 """Get the first client export function name from a loaded module."""
 def _get_client_function_name(loaded_mod: types.ModuleType) -> str {
-    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
 
     mod_path = getattr(loaded_mod, '__file__', None);
     if not mod_path {

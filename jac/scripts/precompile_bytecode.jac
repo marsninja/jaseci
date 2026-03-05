@@ -147,7 +147,7 @@ Triggers the full Jac compilation pipeline (or uses cached bytecode).
 Returns the marshal'd bytecode bytes, or None on failure.
 """
 def compile_and_extract(jac_path: str) -> bytes | None {
-    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
 
     compiler = Jac.get_compiler();
     program = Jac.get_program();

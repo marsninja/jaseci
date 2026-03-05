@@ -313,7 +313,7 @@ impl JacConsole.print_watching(pattern: str, count: int) -> None {
 impl _get_console -> JacConsole {
     global _console_instance;
     if _console_instance is None {
-        import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+        import from jaclang.jac0core.runtime { JacRuntime as Jac }
         _console_instance = Jac.get_console();
         _console_instance.init();
     }

@@ -1237,7 +1237,7 @@ test "serve sync skips write access check on unchanged anchors" {
         client = make_client(tmpdir);
         client.register_user("syncuser", "pass");
         # Simulate server-restart conditions
-        import from jaclang.runtimelib.runtime { JacRuntimeInterface as Jac }
+        import from jaclang.jac0core.runtime { JacRuntimeInterface as Jac }
         ctx = Jac.get_context();
         sys_root = ctx.system_root;
         sys_root.persistent = True;
@@ -1257,7 +1257,7 @@ test "serve sync skips write access check on unchanged anchors" {
             l3.__conn__.commit();
         }
         # Capture logs
-        logger = logging.getLogger("jaclang.runtimelib.runtime");
+        logger = logging.getLogger("jaclang.jac0core.runtime");
         cap = capture_log_start(logger);
         buf = cap[0];
         handler = cap[1];

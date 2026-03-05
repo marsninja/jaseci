@@ -1,5 +1,5 @@
 """Core constructs for Jac Language - re-exports."""
-import from jaclang.runtimelib.archetype {
+import from jaclang.jac0core.archetype {
     AccessLevel,
     Anchor,
     Archetype,

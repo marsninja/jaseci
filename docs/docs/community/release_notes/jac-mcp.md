@@ -3,6 +3,7 @@
 ## jac-mcp 0.1.3 (Unreleased)
 
 - **Updated token definitions path**: Grammar resource now references `tokens.na.jac` (renamed from `tokens.jac`)
+- 1 small refactor/change.
 
 ## jac-mcp 0.1.2 (Latest Release)
 

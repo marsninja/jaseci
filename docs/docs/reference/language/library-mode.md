@@ -166,7 +166,7 @@ Run `jac jac2py friends.jac` to generate:
     ```
 
 !!! note
-    The transpiler outputs `from jaclang.runtimelib.jaclib import ...` internally. The public API `jaclang.lib` re-exports the same symbols and is the recommended import path for library-mode usage.
+    The transpiler outputs `from jaclang.jac0core.jaclib import ...` internally. The public API `jaclang.lib` re-exports the same symbols and is the recommended import path for library-mode usage.
 
 ---
 

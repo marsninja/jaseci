@@ -241,7 +241,7 @@ impl sys_path_context(path: str) -> Iterator[None] {
 impl get_name -> str | None {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
-    import from jaclang.runtimelib.runtime { JacRuntime }
+    import from jaclang.jac0core.runtime { JacRuntime }
 
     if not JacRuntime.full_target_path {
         return None;

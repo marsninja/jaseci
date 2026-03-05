@@ -411,7 +411,7 @@ Its impl file ([`impl/estree.impl.jac`](https://github.com/Jaseci-Labs/jaseci/bl
 ```jac
 """Core constructs for Jac Language - re-exports."""
 
-import from jaclang.runtimelib.archetype {
+import from jaclang.jac0core.archetype {
     AccessLevel, Anchor, Archetype, Root, ...
 }
 

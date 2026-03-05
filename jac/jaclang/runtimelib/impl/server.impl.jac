@@ -35,7 +35,7 @@ impl UserManager._ensure_connection -> None {
 
 """Create a new user with their own root node. Returns dict with user data or error."""
 impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
-    import from jaclang.runtimelib.constructs { Root }
+    import from jaclang.jac0core.constructs { Root }
     self._ensure_connection();
     # Check if user already exists
     cursor = self._conn.execute("SELECT 1 FROM users WHERE username = ?", (username, ));
@@ -235,7 +235,7 @@ impl ExecutionManager.execute_function(
 impl ExecutionManager.spawn_walker(
     walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
 ) -> dict[str, JsonValue] {
-    import from jaclang.runtimelib.constructs { NodeArchetype }
+    import from jaclang.jac0core.constructs { NodeArchetype }
     root_id = self.user_manager.get_root_id(username);
     if not root_id {
         return {'error': 'User not found'};
@@ -355,7 +355,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
         return;
     }
     import jaclang.jac0core.unitree as uni;
-    import from jaclang.runtimelib.constructs { WalkerArchetype }
+    import from jaclang.jac0core.constructs { WalkerArchetype }
     import from jaclang.jac0core.constant { Tokens as Tok }
     self._function_access = {};
     self._walker_access = {};
@@ -461,7 +461,7 @@ impl ModuleIntrospector._analyze_endpoint_effects -> None {
         return;
     }
     import jaclang.jac0core.unitree as uni;
-    import from jaclang.runtimelib.constructs { WalkerArchetype }
+    import from jaclang.jac0core.constructs { WalkerArchetype }
     import from jaclang.jac0core.constant { Tokens as Tok }
     endpoint_effects: dict = {};
     # Recursively check if an AST subtree contains write operations
@@ -621,7 +621,7 @@ impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., Any)]] {
 
 """Collect walker classes from module."""
 impl ModuleIntrospector._collect_walkers -> dict[str, type[WalkerArchetype]] {
-    import from jaclang.runtimelib.constructs { WalkerArchetype }
+    import from jaclang.jac0core.constructs { WalkerArchetype }
     if not self._module {
         return {};
     }
@@ -640,7 +640,7 @@ impl ModuleIntrospector._collect_walkers -> dict[str, type[WalkerArchetype]] {
 
 """Check if the module has been reloaded (e.g., by HMR) and refresh if needed."""
 impl ModuleIntrospector._check_module_freshness -> None {
-    import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
     if not self._module {
         return;
     }

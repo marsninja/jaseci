@@ -294,7 +294,7 @@ with entry {
 ```jac
 """Example of a Jac plugin with hookimpl."""
 
-import from jaclang.runtimelib.runtime { hookimpl }
+import from jaclang.jac0core.runtime { hookimpl }
 import from typing { Any }
 
 class MyPlugin {

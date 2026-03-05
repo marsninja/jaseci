@@ -4,7 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jac-super 0.1.6 (Unreleased)
 
-- 1 small refactor/change.
+- 2 small refactors/changes.
 
 ## jac-super 0.1.5 (Latest Release)
 

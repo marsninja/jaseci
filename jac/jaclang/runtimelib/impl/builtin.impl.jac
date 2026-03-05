@@ -141,7 +141,7 @@ impl _get_jid -> Callable[..., Any] {
 
 """Lazily get AccessLevel enum."""
 impl _get_access_level -> type[AccessLevel] {
-    import from jaclang.runtimelib.constructs { AccessLevel }
+    import from jaclang.jac0core.constructs { AccessLevel }
     return AccessLevel;
 }
 

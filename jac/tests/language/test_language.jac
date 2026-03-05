@@ -11,7 +11,7 @@ import os;
 import json;
 import from pathlib { Path }
 import jaclang;
-import from jaclang.runtimelib.runtime { JacRuntime }
+import from jaclang.jac0core.runtime { JacRuntime }
 
 glob JAC_ROOT = str(Path(jaclang.__file__).parent.parent),
      FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),

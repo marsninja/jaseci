@@ -1,7 +1,7 @@
 """Jac Library - User-friendly interface for library mode."""
 
-import jaclang.runtimelib.jaclib as _jaclib;
-include jaclang.runtimelib.jaclib;
+import jaclang.jac0core.jaclib as _jaclib;
+include jaclang.jac0core.jaclib;
 
 glob __all__ = _jaclib.__all__;
 
