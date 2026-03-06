@@ -105,7 +105,7 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                     for _val in expr.values {
                         elem_type = self.get_type_of_expression(_val);
                         if not isinstance(elem_type, types.UnknownType)
-                        and elem_type not in elem_types {
+                        and not self._type_in_list(elem_type, elem_types) {
                             elem_types.append(elem_type);
                         }
                     }
@@ -605,17 +605,17 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
             self.get_type_of_expression(expr.condition);
             true_type = self.get_type_of_expression(expr.value);
             false_type = self.get_type_of_expression(expr.else_value);
-            if true_type == false_type {
-                return true_type;
-            }
-            unique_types: list[types.TypeBase] = [true_type];
-            if false_type not in unique_types {
-                unique_types.append(false_type);
+            unique_types: list[types.TypeBase] = [];
+            for branch_type in [true_type, false_type] {
+                self._collect_unique_types(branch_type, unique_types);
             }
             if len(unique_types) == 1 {
                 return unique_types[0];
             }
-            return types.UnionType(types=unique_types);
+            if len(unique_types) > 1 {
+                return types.UnionType(types=unique_types);
+            }
+            return true_type;
 
         case uni.BoolExpr():
             # AND/OR return operand values, not bool: `x and y` → y if x truthy, else x
@@ -624,9 +624,7 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
             operand_types: list[TypeBase] = [];
             for val in expr.values {
                 op_type = self.get_type_of_expression(val);
-                if op_type not in operand_types {
-                    operand_types.append(op_type);
-                }
+                self._collect_unique_types(op_type, operand_types);
             }
             if len(operand_types) == 1 {
                 return operand_types[0];
@@ -1196,6 +1194,10 @@ impl TypeEvaluator._assign_class(
         return True;
     }
     # Integers can be used where floats are expected.
+    # Sets can be used where frozensets are expected (frozenset accepts any iterable).
+    if src_type.is_builtin("set") and dest_type.is_builtin("frozenset") {
+        return True;
+    }
     if src_type.is_builtin("int") and dest_type.is_builtin("float") {
         return True;
     }
@@ -1243,6 +1245,24 @@ impl TypeEvaluator.get_type_of_magic_method_call(
     arg_nodes: list[uni.Expr],
     node_for_error: uni.Expr | None = None,
 ) -> TypeBase | None {
+    # Handle union types by trying the method on each constituent type.
+    if isinstance(obj_type, types.UnionType) {
+        result_types: list[types.TypeBase] = [];
+        for member_type in obj_type.types {
+            result = self.get_type_of_magic_method_call(
+                member_type, method_name, arg_nodes, node_for_error
+            );
+            if result is not None and not self._type_in_list(result, result_types) {
+                result_types.append(result);
+            }
+        }
+        if len(result_types) == 1 {
+            return result_types[0];
+        } elif len(result_types) > 1 {
+            return types.UnionType(types=result_types);
+        }
+        return None;
+    }
     if obj_type.category == types.TypeCategory.Class {
         # TODO: getTypeOfBoundMember() <-- Implement this if needed, for the simple case
         # we'll directly call member lookup.
