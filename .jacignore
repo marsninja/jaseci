@@ -260,3 +260,5 @@ with_llm_deprecated_method.jac
 yield_in_parens.jac
 test_types_str.jac
 test_checker_bugs.jac
+advanced_language_features.jac
+user_manager.jac
