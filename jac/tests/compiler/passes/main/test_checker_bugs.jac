@@ -15,6 +15,8 @@ Bug index:
   #13 - IfExpr (ternary) has no handler (returns UnknownType)
   #15 - No generic type argument checking (list[int] -> list[str])
   #21 - _get_method_with_overloads doesn't specialize the base method
+  #22 - No type checking on destructuring RHS (non-iterable accepted)
+  #23 - set is assignable to frozenset (unsound mutability coercion)
 """
 
 import os;
@@ -241,4 +243,44 @@ test "bug_15_no_generic_variance_check" {
     assert len(program.errors_had) >= 1 , f"Bug #15: No generic type argument checking. "
     f"Expected at least 1 type error but got {len(program.errors_had)}. "
     f"list[int] should NOT be assignable to list[str].";
+}
+
+# =========================================================================
+# Bug #22: No type checking on destructuring RHS
+#
+# When destructuring `(a, b) = expr`, the type checker skips the
+# whole-expression assign_type check. This means non-iterable values
+# like int, bool, or None can be destructured without any error.
+#
+# Impact: `(a, b) = 5` compiles without error but crashes at runtime.
+# =========================================================================
+test "bug_22_destructure_non_iterable" {
+    program = compile_and_check("checker_bug_destructure_non_iterable.jac");
+
+    # Expected: 3 errors (int, bool, NoneType are not iterable)
+    # Actual: 0 errors (assign_type check is skipped for destructuring)
+    assert len(program.errors_had) >= 3 , f"Bug #22: No type checking on destructuring RHS. "
+    f"Expected at least 3 type errors but got {len(program.errors_had)}. "
+    f"'(a, b) = 5' should error because int is not iterable.";
+}
+
+# =========================================================================
+# Bug #23: set is assignable to frozenset without error
+#
+# _assign_class has a special case: `if src.is_builtin("set") and
+# dest.is_builtin("frozenset") { return True; }`. In strict typing
+# (mypy/pyright), set and frozenset are distinct types. A mutable set
+# should not be silently accepted where an immutable frozenset is expected.
+#
+# Impact: Code that expects frozenset immutability guarantees may receive
+#         a mutable set that can be modified through the original reference.
+# =========================================================================
+test "bug_23_set_to_frozenset_unsound" {
+    program = compile_and_check("checker_bug_set_to_frozenset.jac");
+
+    # Expected: 2 errors (set not assignable to frozenset)
+    # Actual: 0 errors (special case allows set -> frozenset)
+    assert len(program.errors_had) >= 2 , f"Bug #23: set is assignable to frozenset without error. "
+    f"Expected at least 2 type errors but got {len(program.errors_had)}. "
+    f"set should NOT be assignable to frozenset (different mutability).";
 }
