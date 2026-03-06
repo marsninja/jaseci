@@ -263,3 +263,13 @@ test_types_str.jac
 test_checker_bugs.jac
 advanced_language_features.jac
 user_manager.jac
+checker_gap_aug_assign.jac
+checker_gap_await_unknown.jac
+checker_gap_yield_unknown.jac
+checker_gap_generic_typevar.jac
+checker_gap_while_cond.jac
+checker_gap_assert_stmt.jac
+checker_gap_delete_stmt.jac
+checker_gap_walker_stmts.jac
+checker_gap_ctx_mgr_exit.jac
+checker_gap_enum_iter.jac
