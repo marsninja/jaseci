@@ -213,3 +213,4 @@ string_enums.na.jac
 test_native_lexer.jac
 cli.jac
 cli.impl.jac
+test_js_generation.jac
