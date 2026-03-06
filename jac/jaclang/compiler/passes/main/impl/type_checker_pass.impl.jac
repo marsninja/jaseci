@@ -249,7 +249,9 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: uni.Ability) -> None {
                 break;
             }
         }
-        if not is_overload {
+        # Skip generator functions (contain yield) — they don't need explicit return
+        is_generator = len(nd.get_all_sub_nodes(uni.YieldExpr)) > 0;
+        if not is_overload and not is_generator {
             ret_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
             ret_inst = self.evaluator._convert_to_instance(ret_type);
             none_type = self.evaluator._convert_to_instance(
@@ -320,6 +322,49 @@ impl TypeCheckPass._body_always_returns(
                     return True;
                 }
             }
+        }
+        if isinstance(stmt, uni.SwitchStmt) {
+            if stmt.cases {
+                has_default = False;
+                all_cases_return = True;
+                for case in stmt.cases {
+                    if case.pattern is None {
+                        has_default = True;
+                    }
+                    if not self._body_always_returns(list(case.body)) {
+                        all_cases_return = False;
+                    }
+                }
+                if has_default and all_cases_return {
+                    return True;
+                }
+            }
+        }
+        if isinstance(stmt, uni.WithStmt) {
+            if self._body_always_returns(list(stmt.body)) {
+                return True;
+            }
+        }
+        if isinstance(stmt, uni.TryStmt) {
+            try_returns = self._body_always_returns(list(stmt.body));
+            if try_returns {
+                if not stmt.excepts or len(stmt.excepts) == 0 {
+                    return True;
+                }
+                all_excepts_return = True;
+                for exc in stmt.excepts {
+                    if not self._body_always_returns(list(exc.body)) {
+                        all_excepts_return = False;
+                        break;
+                    }
+                }
+                if all_excepts_return {
+                    return True;
+                }
+            }
+        }
+        if isinstance(stmt, uni.RaiseStmt) {
+            return True;
         }
     }
     return False;
