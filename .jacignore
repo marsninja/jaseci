@@ -225,3 +225,5 @@ with_llm_lower.jac
 serve.jac
 serve.core.impl.jac
 api.cl.jac
+cli.jac
+cli.impl.jac
