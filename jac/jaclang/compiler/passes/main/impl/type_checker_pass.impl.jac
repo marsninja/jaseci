@@ -128,6 +128,8 @@ impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: uni.AtomTrailer) -
 
 """Pyright: Checker.visitAssignment(node: AssignmentNode): boolean."""
 impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> None {
+    import from jaclang.compiler.type_system { types }
+    import from jaclang.jac0core.constant { Tokens as Tok }
     if ((len(nd.target) == 1) and (nd.value is not None)) {
         target = nd.target[0];
         # For assignment targets, use the declared symbol type (not the
@@ -138,7 +140,6 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
             # Cache the type on the Name node for hover info
             target.type = left_type;
         } elif isinstance(target, (uni.TupleVal, uni.ListVal)) {
-            import from jaclang.compiler.type_system { types }
             # Tuple/list unpacking: (px, py) = p; or [a, b] = lst;
             # Individual element types are inferred by _eval_unpacking_names.
             # Skip whole-expression assign_type check since the LHS container
@@ -159,6 +160,65 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
             left_type = self.evaluator.get_type_of_expression(target);
         }
         right_type = self.evaluator.get_type_of_expression(nd.value);
+        # Check augmented assignment operator validity (+=, -=, etc.)
+        if nd.aug_op and isinstance(nd.aug_op, uni.Token) {
+            AUG_OP_TO_MAGIC: dict[str, str] = {
+                Tok.ADD_EQ: "__iadd__",
+                Tok.SUB_EQ: "__isub__",
+                Tok.MUL_EQ: "__imul__",
+                Tok.DIV_EQ: "__itruediv__",
+                Tok.FLOOR_DIV_EQ: "__ifloordiv__",
+                Tok.MOD_EQ: "__imod__",
+                Tok.STAR_POW_EQ: "__ipow__",
+                Tok.BW_AND_EQ: "__iand__",
+                Tok.BW_OR_EQ: "__ior__",
+                Tok.BW_XOR_EQ: "__ixor__",
+                Tok.LSHIFT_EQ: "__ilshift__",
+                Tok.RSHIFT_EQ: "__irshift__",
+                Tok.MATMUL_EQ: "__imatmul__"
+            };
+            # Also map to the regular binary magic method as fallback
+            AUG_OP_TO_BINARY: dict[str, str] = {
+                Tok.ADD_EQ: "__add__",
+                Tok.SUB_EQ: "__sub__",
+                Tok.MUL_EQ: "__mul__",
+                Tok.DIV_EQ: "__truediv__",
+                Tok.FLOOR_DIV_EQ: "__floordiv__",
+                Tok.MOD_EQ: "__mod__",
+                Tok.STAR_POW_EQ: "__pow__",
+                Tok.BW_AND_EQ: "__and__",
+                Tok.BW_OR_EQ: "__or__",
+                Tok.BW_XOR_EQ: "__xor__",
+                Tok.LSHIFT_EQ: "__lshift__",
+                Tok.RSHIFT_EQ: "__rshift__",
+                Tok.MATMUL_EQ: "__matmul__"
+            };
+            if (
+                nd.aug_op.name in AUG_OP_TO_MAGIC
+                and not isinstance(left_type, types.UnknownType)
+                and not isinstance(right_type, types.UnknownType)
+            ) {
+                imethod = AUG_OP_TO_MAGIC[nd.aug_op.name];
+                method = AUG_OP_TO_BINARY[nd.aug_op.name];
+                # Try in-place method first, then regular binary method
+                result = self.evaluator.get_type_of_magic_method_call(
+                    left_type, imethod, [nd.value], None
+                );
+                if result is None {
+                    result = self.evaluator.get_type_of_magic_method_call(
+                        left_type, method, [nd.value], None
+                    );
+                }
+                if result is None {
+                    self.log_error(
+                        f"Operator {nd.aug_op.value} not supported for "
+                        f"types {left_type} and {right_type}",
+                        nd
+                    );
+                }
+            }
+            return;
+        }
         if not self.evaluator.assign_type(right_type, left_type) {
             self.log_error(f"Cannot assign {right_type} to {left_type}");
         }
@@ -445,13 +505,21 @@ impl TypeCheckPass.exit_in_for_stmt(self: TypeCheckPass, nd: uni.InForStmt) -> N
     # Check that the collection is iterable
     collection_type = self.evaluator.get_type_of_expression(nd.collection);
     if not isinstance(collection_type, types.UnknownType) {
-        iter_result = self.evaluator.get_type_of_magic_method_call(
-            collection_type, "__iter__", [], nd.collection
+        # Enum classes are iterable via EnumMeta.__iter__ which is not
+        # modeled in the type system, so skip the check for enum classes.
+        is_enum = (
+            isinstance(collection_type, types.ClassType)
+            and collection_type.is_enum_class()
         );
-        if iter_result is None {
-            self.log_error(
-                f"Type {collection_type} is not iterable (no __iter__ method)", nd
+        if not is_enum {
+            iter_result = self.evaluator.get_type_of_magic_method_call(
+                collection_type, "__iter__", [], nd.collection
             );
+            if iter_result is None {
+                self.log_error(
+                    f"Type {collection_type} is not iterable (no __iter__ method)", nd
+                );
+            }
         }
     }
 }
@@ -480,7 +548,7 @@ impl TypeCheckPass.exit_raise_stmt(self: TypeCheckPass, nd: uni.RaiseStmt) -> No
     }
 }
 
-"""Type-check with statements — verify context manager protocol."""
+"""Type-check with statements — verify context manager protocol (__enter__ and __exit__)."""
 impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: uni.WithStmt) -> None {
     import from jaclang.compiler.type_system { types }
     for item in nd.exprs {
@@ -495,9 +563,71 @@ impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: uni.WithStmt) -> None
                     f"(no __enter__ method)",
                     nd
                 );
+            } else {
+                # Check __exit__ method
+                exit_result = self.evaluator.get_type_of_magic_method_call(
+                    expr_type, "__exit__", [], item.expr
+                );
+                if exit_result is None {
+                    self.log_error(
+                        f"Type {expr_type} cannot be used in 'with' statement "
+                        f"(no __exit__ method)",
+                        nd
+                    );
+                }
+                # Bind alias type from __enter__ return type
+                if item.alias and isinstance(item.alias, uni.Name) and item.alias.sym {
+                    item.alias.type = enter_result;
+                }
             }
         }
     }
+}
+
+"""Type-check while statement conditions."""
+impl TypeCheckPass.exit_while_stmt(self: TypeCheckPass, nd: uni.WhileStmt) -> None {
+    self.evaluator.get_type_of_expression(nd.condition);
+}
+
+"""Type-check assert statement conditions and error messages."""
+impl TypeCheckPass.exit_assert_stmt(self: TypeCheckPass, nd: uni.AssertStmt) -> None {
+    self.evaluator.get_type_of_expression(nd.condition);
+    if nd.error_msg {
+        self.evaluator.get_type_of_expression(nd.error_msg);
+    }
+}
+
+"""Type-check delete statement targets."""
+impl TypeCheckPass.exit_delete_stmt(self: TypeCheckPass, nd: uni.DeleteStmt) -> None {
+    self.evaluator.get_type_of_expression(nd.target);
+}
+
+"""Type-check visit statement targets — target must be a node type."""
+impl TypeCheckPass.exit_visit_stmt(self: TypeCheckPass, nd: uni.VisitStmt) -> None {
+    import from jaclang.compiler.type_system { types }
+    target_type = self.evaluator.get_type_of_expression(nd.target);
+    # Visit target must be a node type (or list/collection of nodes)
+    if not isinstance(target_type, types.UnknownType)
+    and not target_type.is_any_type() {
+        is_valid_target = False;
+        if isinstance(target_type, types.ClassType) {
+            is_valid_target = (
+                target_type.is_node_type()
+                or (
+                    target_type.is_builtin()
+                    and target_type.shared.class_name in ("list", "tuple", "set")
+                )
+            );
+        }
+        if not is_valid_target {
+            self.log_error(f"Visit target must be a node type, got {target_type}", nd);
+        }
+    }
+}
+
+"""Type-check report statement expressions."""
+impl TypeCheckPass.exit_report_stmt(self: TypeCheckPass, nd: uni.ReportStmt) -> None {
+    self.evaluator.get_type_of_expression(nd.expr);
 }
 
 """Evaluate types for each Name in a tuple/list unpacking pattern."""

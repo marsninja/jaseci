@@ -444,3 +444,8 @@ since all actual function definitions have a name.
 impl FunctionType.is_from_callable_annotation -> bool {
     return self.func_name == "";
 }
+
+"""Check if this function is a generator function (contains yield expressions)."""
+impl FunctionType.is_generator_function -> bool {
+    return bool(self.function_flags & FunctionTypeFlags.GeneratorFunction);
+}

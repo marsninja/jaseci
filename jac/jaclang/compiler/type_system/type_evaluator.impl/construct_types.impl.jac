@@ -186,6 +186,10 @@ impl TypeEvaluator.get_type_of_ability(node_: uni.Ability) -> TypeBase {
     if self._is_ability_classmethod(node_) {
         flags = flags | types.FunctionTypeFlags.ClassMethod;
     }
+    # Detect generator functions (contain yield expressions)
+    if len(node_.get_all_sub_nodes(uni.YieldExpr)) > 0 {
+        flags = flags | types.FunctionTypeFlags.GeneratorFunction;
+    }
     func_type = types.FunctionType(
         func_name=node_.name_spec.sym_name,
         return_type=return_type,

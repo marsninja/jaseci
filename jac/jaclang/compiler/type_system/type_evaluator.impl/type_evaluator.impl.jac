@@ -332,12 +332,15 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                         }
                         return value;
                     }
-                    # TODO: Re-enable after fixing TypeVar resolution.
-                    # Disabled: gives false positives on generic types (e.g., list[T].append).
-                    # self.add_diagnostic(
-                    #     expr.right,
-                    #     f'Type "{base_type}" has no attribute "{expr.right.value}"',
-                    # );
+                    # Report missing attribute for non-builtin classes.
+                    # Skip builtins (list, dict, set, etc.) to avoid false positives
+                    # on generic types whose type params aren't fully resolved.
+                    if not base_type.is_builtin() {
+                        self.add_diagnostic(
+                            expr.right,
+                            f'Type "{base_type}" has no attribute "{expr.right.value}"',
+                        );
+                    }
                     return types.UnknownType();
                 } elif base_type.is_class_instance() {
                     assert isinstance(base_type, types.ClassType);
@@ -455,12 +458,15 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                         expr.right.is_getattr_resolved = True;
                         return getattr_return;
                     }
-                    # TODO: Re-enable after fixing TypeVar resolution.
-                    # Disabled: gives false positives on generic types (e.g., list[T].append).
-                    # self.add_diagnostic(
-                    #     expr.right,
-                    #     f'"{base_type}" has no attribute "{expr.right.value}"',
-                    # );
+                    # Report missing attribute for non-builtin classes.
+                    # Skip builtins (list, dict, set, etc.) to avoid false positives
+                    # on generic types whose type params aren't fully resolved.
+                    if not base_type.is_builtin() {
+                        self.add_diagnostic(
+                            expr.right,
+                            f'"{base_type}" has no attribute "{expr.right.value}"',
+                        );
+                    }
                     return types.UnknownType();
                 } elif isinstance(base_type, types.EnumMemberType) {
                     # Handle member access on enum member instances (e.g., Color.RED.name, Color.RED.value)
@@ -700,10 +706,41 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
             return operations.get_type_of_binary_operation(self, expr);
 
         case uni.CompareExpr():
-            # Evaluate operands for side effects / error detection
-            self.get_type_of_expression(expr.left);
-            for right in expr.rights {
-                self.get_type_of_expression(right);
+            # Evaluate operands and validate comparison operators
+            left_type = self.get_type_of_expression(expr.left);
+            for (idx, right) in enumerate(expr.rights) {
+                right_type = self.get_type_of_expression(right);
+                # Validate comparison operator compatibility
+                if (
+                    idx < len(expr.ops)
+                    and not isinstance(left_type, types.UnknownType)
+                    and not isinstance(right_type, types.UnknownType)
+                    and not left_type.is_any_type()
+                    and not right_type.is_any_type()
+                ) {
+                    op = expr.ops[idx];
+                    if isinstance(op, uni.Token)
+                    and op.name in operations.BINARY_OPERATOR_MAP {
+                        (magic, rmagic) = operations.BINARY_OPERATOR_MAP[op.name];
+                        result = self.get_type_of_magic_method_call(
+                            left_type, magic, [right], None
+                        );
+                        if result is None {
+                            result = self.get_type_of_magic_method_call(
+                                right_type, rmagic, [expr.left], None
+                            );
+                        }
+                        if result is None {
+                            self.add_diagnostic(
+                                right,
+                                f'Comparison "{op.value}" not supported between '
+                                f'types {left_type} and {right_type}',
+                            );
+                        }
+                    }
+                }
+                # For chained comparisons, the next left is the current right
+                left_type = right_type;
             }
             # Comparisons always return bool
             if self.prefetch and self.prefetch.bool_class {
@@ -931,6 +968,24 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                 }
             }
 
+        case uni.AwaitExpr():
+            # Unwrap the coroutine's return type: await <coroutine> -> T
+            target_type = self.get_type_of_expression(expr.target);
+            if isinstance(target_type, types.FunctionType) {
+                # If awaiting a function call, the return type is what we get
+                return target_type.return_type or types.UnknownType();
+            }
+            # Otherwise return the target type directly (already resolved by FuncCall)
+            return target_type;
+
+        case uni.YieldExpr():
+            # Evaluate the yielded expression for error detection
+            if expr.expr {
+                self.get_type_of_expression(expr.expr);
+            }
+            # YieldExpr itself has type None (the value sent into the generator)
+            return types.UnknownType();
+
     }
     # TODO: More expressions.
     return types.UnknownType();
@@ -948,6 +1003,9 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
 
         case uni.Ability():
             return self.get_type_of_ability(node_);
+
+        case uni.TypeParam():
+            return types.TypeVarType(name=node_.name.value);
 
         case uni.ParamVar():
             if node_.type_tag {
@@ -1639,6 +1697,16 @@ impl TypeEvaluator.assign_type(src_type: TypeBase, dest_type: TypeBase) -> bool 
                 return True;
             }
         }
+    }
+    # Enum class assignment compatibility: enum classes (via EnumMeta) support
+    # __iter__, __len__, __contains__, making them compatible with Sized, Iterable, etc.
+    if (
+        isinstance(src_type, types.ClassType)
+        and src_type.is_enum_class()
+        and src_type.is_instantiable_class()
+        and isinstance(dest_type, types.ClassType)
+    ) {
+        return True;
     }
     # Enum member assignment compatibility
     if isinstance(src_type, types.EnumMemberType) {

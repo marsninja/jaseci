@@ -304,6 +304,15 @@ impl TypeEvaluator._extract_type_params(
     node_: uni.Archetype
 ) -> list[types.TypeVarType] {
     type_params: list[types.TypeVarType] = [];
+    # Handle Jac-style type params: obj Box[T] { ... }
+    if node_.type_params {
+        for tp in node_.type_params {
+            if isinstance(tp, uni.TypeParam) {
+                type_params.append(types.TypeVarType(name=tp.name.value));
+            }
+        }
+    }
+    # Also handle Python-style generic base classes: class Box(Generic[T])
     for base_class in node_.base_classes or [] {
         if (not isinstance(base_class, uni.AtomTrailer))
         or base_class.is_attr

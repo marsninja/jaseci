@@ -45,6 +45,11 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         if not arg_param_match.argument_errors {
             self.validate_arg_types(arg_param_match);
         }
+        # Generator functions return Generator[YieldType], not YieldType directly
+        if caller_type.is_generator_function() {
+            yield_type = caller_type.return_type or types.UnknownType();
+            return types.GeneratorType(yield_type=yield_type);
+        }
         return caller_type.return_type or types.UnknownType();
     }
     if isinstance(caller_type, types.OverloadedType) {

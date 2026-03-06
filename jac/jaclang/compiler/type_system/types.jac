@@ -248,6 +248,8 @@ enum FunctionTypeFlags ( IntEnum ) {
     ClassMethod = 1 << 2,
     # Function is a synthesized method (e.g., dataclass __init__)
     SynthesizedMethod = 1 << 3,
+    # Function contains yield expressions (is a generator function)
+    GeneratorFunction = 1 << 4,
 }
 
 """Represents a function parameter."""
@@ -289,6 +291,22 @@ obj FunctionType(TypeBase) {
 
     """Check if this function type was created from a Callable annotation."""
     def is_from_callable_annotation -> bool;
+
+    """Check if this function is a generator (contains yield)."""
+    def is_generator_function -> bool;
+}
+
+"""Represents a Generator[YieldType] — the return type of a generator function call."""
+obj GeneratorType(TypeBase) {
+    has yield_type: (TypeBase | None) = None;
+
+    with entry {
+        CATEGORY: ClassVar[TypeCategory] = TypeCategory.Never;
+    }
+
+    def __str__ -> str {
+        return f"Generator[{self.yield_type}]";
+    }
 }
 
 """
