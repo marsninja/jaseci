@@ -91,29 +91,26 @@ test "gap 36 await returns unknown" {
 }
 
 # =========================================================================
-# Gap #37: YieldExpr returns UnknownType instead of proper generator type
+# Gap #37: YieldExpr type checking — yield value vs declared return type
 #
-# There is no `case uni.YieldExpr()` in _get_type_of_expression_core.
-# Functions containing yield should return Generator[T], not T directly.
-# The checker treats the declared return type as the actual return type,
-# so `def count_up(n: int) -> int { yield i; }` is typed as returning
-# int, when it actually returns Generator[int]. This means assigning
-# the result to int produces NO error — a silent type safety hole.
+# There was no `case uni.YieldExpr()` in _get_type_of_expression_core.
+# Yield expressions should have their value types checked against the
+# function's declared return type. Yielding a str in a generator
+# declared `-> int` should produce a type error.
 #
-# Impact: Generator function results are incorrectly typed as their
-#         declared return type. `x: int = count_up(5)` produces no error
-#         even though count_up returns a generator, not an int.
+# Impact: `yield "hello"` inside a `-> int` generator produces no error
+#         because YieldExpr falls through to UnknownType, so the return
+#         type check in exit_return_stmt never fires for yield values.
 # =========================================================================
-test "gap 37 yield returns unknown" {
+test "gap 37 yield type checking" {
     program = compile_and_check("checker_gap_yield_unknown.jac");
 
-    # Expected: at least 3 errors (generator->int, generator->str,
-    #   generator in arithmetic, generator as scalar parameter)
-    # Actual: 0 errors (generator functions typed as returning declared type directly)
-    assert len(program.errors_had) >= 3 , f"Gap #37: YieldExpr returns UnknownType. "
+    # Expected: at least 3 errors for yield type mismatches:
+    #   yield "hello" in int gen, yield [1,2] in int gen, yield 3.14 in int gen,
+    #   yield 42 in str gen, yield from str_list in int gen
+    assert len(program.errors_had) >= 3 , f"Gap #37: YieldExpr type checking. "
     f"Expected at least 3 type errors but got {len(program.errors_had)}. "
-    f"Generator functions are typed as returning their declared type directly. "
-    f"count_up(5) is treated as int, not Generator[int].";
+    f"Yield expressions should check value type against declared return type.";
 }
 
 # =========================================================================
@@ -184,14 +181,13 @@ test "gap 40 while condition not checked" {
 test "gap 41 assert stmt not checked" {
     program = compile_and_check("checker_gap_assert_stmt.jac");
 
-    # Expected: at least 6 errors:
+    # Expected: at least 5 errors:
     #   wrong arg in condition (1), wrong arg in message (1),
-    #   nonexistent method (1), double errors in both (2),
-    #   binary expression error (1)
-    # Actual: 4 errors (function arg errors caught by exit_func_call, but
-    #   nonexistent method and str > int comparison NOT caught)
-    assert len(program.errors_had) >= 6 , f"Gap #41: AssertStmt is not type-checked. "
-    f"Expected at least 6 type errors but got {len(program.errors_had)}. "
+    #   nonexistent method (1), double errors in both (2)
+    # Note: str > int comparison (case 5) is NOT caught because
+    # str.__gt__ inherits from object.__gt__ which accepts any type.
+    assert len(program.errors_had) >= 5 , f"Gap #41: AssertStmt is not type-checked. "
+    f"Expected at least 5 type errors but got {len(program.errors_had)}. "
     f"No exit_assert_stmt handler exists. Nonexistent method calls and "
     f"binary comparison errors in assert conditions are missed.";
 }

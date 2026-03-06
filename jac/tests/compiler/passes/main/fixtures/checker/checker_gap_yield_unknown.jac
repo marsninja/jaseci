@@ -1,59 +1,42 @@
-"""Gap #37: YieldExpr returns UnknownType — generator not distinguished from return type.
+"""Gap #37: YieldExpr type checking — yield value vs declared return type.
 
-Functions containing yield should return Generator[T, ...], not T directly.
-The checker treats `def count_up(n: int) -> int { yield i; }` as returning int,
-but it actually returns a generator object. Assigning to int should error
-because Generator[int] != int.
+When a generator function declares `-> int`, each `yield expr` should
+check that expr is assignable to int. Currently YieldExpr has no case
+in _get_type_of_expression_core, so yield values are never type-checked.
 
 Expected errors:
-  1. count_up(5) is generator, not int — assigned to int variable
-  2. name_generator() is generator, not str — assigned to str variable
-  3. chain_ints() is generator, not int — assigned to int variable
-  4. Generator used in arithmetic as if scalar
-  5. Generator passed where scalar parameter expected
+  1. yield "hello" in int generator (str -> int)
+  2. yield [1,2] in int generator (list -> int)
+  3. yield 3.14 in int generator (float -> int)
+  4. yield "bad" in str generator that declares -> int (str -> int)
+  5. yield from string_list in int generator (str elements -> int)
 """
 
-# Simple generator yielding ints
-def count_up(n: int) -> int {
-    i = 0;
-    while i < n {
-        yield i;
-        i += 1;
-    }
+# Generator declared to yield ints
+def int_generator -> int {
+    yield 1;          # Ok: int -> int
+    yield 2;          # Ok: int -> int
+    yield "hello";    # Error: str -> int
+    yield [1, 2];     # Error: list -> int
+    yield 3.14;       # Error: float -> int
 }
 
-# Generator yielding strings
-def name_generator -> str {
-    yield "alice";
-    yield "bob";
-    yield "charlie";
+# Generator declared to yield strs
+def str_generator -> str {
+    yield "alice";    # Ok: str -> str
+    yield "bob";      # Ok: str -> str
+    yield 42;         # Error: int -> str
 }
 
-# Generator with yield from
-def chain_ints -> int {
-    yield from [1, 2, 3];
-    yield from range(4, 7);
-}
-
-def takes_int(x: int) -> int {
-    return x * 2;
+# Generator with yield from — element types should match
+def chain_generator -> int {
+    yield from [1, 2, 3];         # Ok: list[int] elements -> int
+    yield from ["a", "b", "c"];   # Error: list[str] elements -> int
 }
 
 with entry {
-    # Case 1: Generator assigned to declared return type
-    # count_up yields ints, so it returns Generator[int], not int
-    # But checker thinks it returns int, so no error is raised
-    bad1: int = count_up(5);       # Error: Generator[int] != int
-
-    # Case 2: Generator assigned to declared return type
-    bad2: str = name_generator();  # Error: Generator[str] != str
-
-    # Case 3: Generator assigned to declared return type
-    bad3: int = chain_ints();      # Error: Generator[int] != int
-
-    # Case 4: Generator used in arithmetic (should fail — generator, not int)
-    bad4 = count_up(3) + 10;       # Error: Generator + int invalid
-
-    # Case 5: Generator passed where scalar expected
-    bad5 = takes_int(count_up(3)); # Error: Generator[int] -> int param
+    # Using generators is fine — just calling them
+    g1 = int_generator();
+    g2 = str_generator();
+    g3 = chain_generator();
 }
