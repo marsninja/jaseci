@@ -332,21 +332,24 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                         }
                         return value;
                     }
-                    # Emit diagnostic unless the type has unresolved TypeVars
+                    # Suppress diagnostic for any-like types (Any, object, Unknown,
+                    # TypeVar) and for types with unresolved TypeVars in type_args
                     # (which cause false positives on generic types like list[T].append).
-                    _has_tvars = (
-                        isinstance(base_type, types.ClassType)
-                        and base_type.private.type_args is not None
-                        and any(
-                            isinstance(a, types.TypeVarType)
-                            for a in base_type.private.type_args
-                        )
-                    );
-                    if not _has_tvars {
-                        self.add_diagnostic(
-                            expr.right,
-                            f'Type "{base_type}" has no attribute "{expr.right.value}"',
+                    if not base_type.is_any_type() {
+                        _has_tvars = (
+                            isinstance(base_type, types.ClassType)
+                            and base_type.private.type_args is not None
+                            and any(
+                                isinstance(a, types.TypeVarType)
+                                for a in base_type.private.type_args
+                            )
                         );
+                        if not _has_tvars {
+                            self.add_diagnostic(
+                                expr.right,
+                                f'Type "{base_type}" has no attribute "{expr.right.value}"',
+                            );
+                        }
                     }
                     return types.UnknownType();
                 } elif base_type.is_class_instance() {
@@ -465,21 +468,23 @@ impl TypeEvaluator._get_type_of_expression_core(expr: uni.Expr) -> TypeBase {
                         expr.right.is_getattr_resolved = True;
                         return getattr_return;
                     }
-                    # Emit diagnostic unless the type has unresolved TypeVars
-                    # (which cause false positives on generic types like list[T].append).
-                    _has_tvars = (
-                        isinstance(base_type, types.ClassType)
-                        and base_type.private.type_args is not None
-                        and any(
-                            isinstance(a, types.TypeVarType)
-                            for a in base_type.private.type_args
-                        )
-                    );
-                    if not _has_tvars {
-                        self.add_diagnostic(
-                            expr.right,
-                            f'"{base_type}" has no attribute "{expr.right.value}"',
+                    # Suppress diagnostic for any-like types (Any, object, Unknown,
+                    # TypeVar) and for types with unresolved TypeVars in type_args.
+                    if not base_type.is_any_type() {
+                        _has_tvars = (
+                            isinstance(base_type, types.ClassType)
+                            and base_type.private.type_args is not None
+                            and any(
+                                isinstance(a, types.TypeVarType)
+                                for a in base_type.private.type_args
+                            )
                         );
+                        if not _has_tvars {
+                            self.add_diagnostic(
+                                expr.right,
+                                f'"{base_type}" has no attribute "{expr.right.value}"',
+                            );
+                        }
                     }
                     return types.UnknownType();
                 } elif isinstance(base_type, types.EnumMemberType) {

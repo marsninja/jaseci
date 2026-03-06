@@ -563,16 +563,27 @@ impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: uni.WithStmt) -> None
                     nd
                 );
             }
-            # Check __exit__ method exists (required for context manager protocol)
-            exit_result = self.evaluator.get_type_of_magic_method_call(
-                expr_type, "__exit__", [], item.expr
-            );
-            if exit_result is None {
-                self.log_error(
-                    f"Type {expr_type} cannot be used in 'with' statement "
-                    f"(no __exit__ method)",
-                    nd
+            # Check __exit__ method exists (required for context manager protocol).
+            # Use direct member lookup instead of magic method call because
+            # __exit__ takes 3 params (exc_type, exc_val, exc_tb) that we
+            # don't have at this point — magic method call would fail on
+            # argument matching even when __exit__ exists.
+            if isinstance(expr_type, types.ClassType) {
+                has_exit = (
+                    self.evaluator._lookup_class_member(
+                        expr_type, "__exit__"
+                    ) is not None
+                    or self.evaluator._lookup_object_member(
+                        expr_type, "__exit__"
+                    ) is not None
                 );
+                if not has_exit and not expr_type.is_any_type() {
+                    self.log_error(
+                        f"Type {expr_type} cannot be used in 'with' statement "
+                        f"(no __exit__ method)",
+                        nd
+                    );
+                }
             }
             # Bind alias type from __enter__ return type
             if item.alias is not None and enter_result is not None {
