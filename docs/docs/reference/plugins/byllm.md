@@ -1,6 +1,8 @@
 # byLLM Reference
 
-Complete reference for byLLM, the AI integration framework implementing Meaning-Typed Programming (MTP).
+byLLM is Jac's AI integration plugin that lets you delegate function implementations to large language models. Instead of writing procedural logic for tasks like classification, summarization, or data extraction, you declare a function signature with descriptive names and types, append `by llm`, and let the model infer the behavior at runtime. The plugin handles prompt construction, model communication, response parsing, and type validation -- turning your Jac type annotations into an enforced output schema.
+
+byLLM implements **Meaning-Typed Programming (MTP)**, a paradigm where semantic intent expressed through code structure (function names, parameter names, type hints, and optional `sem` descriptions) becomes the specification that drives AI behavior. This reference covers MTP concepts, configuration, structured outputs, tool calling, and provider setup.
 
 ---
 

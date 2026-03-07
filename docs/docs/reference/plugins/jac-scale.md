@@ -1,6 +1,8 @@
 # jac-scale Reference
 
-Complete reference for jac-scale, the cloud-native deployment and scaling plugin for Jac.
+jac-scale is the deployment plugin that transforms Jac applications into production API servers and manages cloud-native deployment. Running `jac start` with this plugin turns every walker and function with `:pub` or `:priv` access modifiers into a REST endpoint, backed by FastAPI with automatic Swagger/OpenAPI documentation, SQLite persistence, and built-in authentication. For production scaling, the `--scale` flag automates Docker image builds and Kubernetes deployment -- generating Dockerfiles, manifests, and service configurations from your Jac code.
+
+This reference covers server startup options, endpoint generation, authentication, database persistence, Kubernetes deployment, and the CLI flags for each mode.
 
 ---
 
