@@ -1,6 +1,6 @@
 # Appendices
 
-This section collects quick-lookup references for the Jac language -- the tables and summaries you reach for when you know what you're looking for but need the exact keyword, operator symbol, or syntax rule. It also includes a migration guide for Python developers and an LLM provider configuration reference for byLLM.
+Use these appendices when you need to look up a specific keyword, operator, or syntax rule. You'll also find a migration guide for Python developers and a provider configuration reference for byLLM.
 
 **In this part:**
 
