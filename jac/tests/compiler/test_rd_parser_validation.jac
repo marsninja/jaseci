@@ -184,6 +184,9 @@ glob GAP_FILES = [
          "keyword_param_break": "def foo(break: int) { }",
          "keyword_param_try": "def foo(try: int) { }",
          "keyword_param_match": "def foo(match: int) { }",
+         "keyword_param_obj": "def foo(obj: int) { }",
+         "keyword_param_node": "def foo(node: int) { }",
+         "keyword_param_override": "def foo(override: bool) { }",
          "keyword_param_in_lambda": "with entry { x = lambda if: int : if; }",
          # --- Strictness gaps: walrus LHS must be a name ---
          "walrus_complex_lhs": "with entry { (a + b) := 5; }",

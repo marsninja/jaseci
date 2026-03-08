@@ -465,21 +465,21 @@ impl ModuleIntrospector._analyze_endpoint_effects -> None {
     import from jaclang.jac0core.constant { Tokens as Tok }
     endpoint_effects: dict = {};
     # Recursively check if an AST subtree contains write operations
-    def has_write_ops(node: Any) -> bool {
-        if isinstance(node, uni.DeleteStmt) {
+    def has_write_ops(`node: Any) -> bool {
+        if isinstance(`node, uni.DeleteStmt) {
             return True;
         }
-        if isinstance(node, uni.BinaryExpr) {
-            if isinstance(node.op, (uni.ConnectOp, uni.DisconnectOp)) {
+        if isinstance(`node, uni.BinaryExpr) {
+            if isinstance(`node.op, (uni.ConnectOp, uni.DisconnectOp)) {
                 return True;
             }
-            if node.op?.name and node.op.name == Tok.KW_SPAWN {
+            if `node.op?.name and `node.op.name == Tok.KW_SPAWN {
                 return True;
             }
         }
         # Recurse into children
-        if node?.kid and node.kid {
-            for child in node.kid {
+        if `node?.kid and `node.kid {
+            for child in `node.kid {
                 if has_write_ops(child) {
                     return True;
                 }

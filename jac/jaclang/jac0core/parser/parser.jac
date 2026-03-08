@@ -503,7 +503,10 @@ obj Parser {
     def parse_nonlocal_stmt -> NonLocalStmt;
     def parse_visit_stmt -> VisitStmt;
     def parse_report_stmt -> ReportStmt;
-    def parse_assignment_with_target(target: Expr) -> Assignment;
+    def parse_assignment_with_target(
+        target: Expr, require_semi: bool = True
+    ) -> Assignment;
+
     def parse_import_stmt -> Import;
     def parse_from_path -> tuple;
     def parse_import_items(kid: list, is_clib_import: bool) -> tuple;
