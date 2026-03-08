@@ -1514,20 +1514,20 @@ test "syntax error pretty print" {
 
     program = JacProgram();
     program.compile(fixture_path("test_syntax_err.jac"));
-    assert len(program.errors_had) == 1 , (
-        f"Expected 1 error with improved error reporting, got {len(program.errors_had)}"
+    assert len(program.errors_had) == 3 , (
+        f"Expected 3 errors with improved error reporting, got {len(program.errors_had)}"
     );
     _assert_error_pretty_found(
         """
         2 |
         3 | walker w {
         4 |     can foo {
-          |             ^
-        5 |         print "Missing semicolon"
-        6 |     }
+          |
     """,
         program.errors_had[0].pretty_print()
     );
+    _assert_error_pretty_found("Missing ';'", program.errors_had[1].pretty_print());
+    _assert_error_pretty_found("Missing ';'", program.errors_had[2].pretty_print());
 }
 
 test "jac grammar" {

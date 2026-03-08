@@ -288,12 +288,11 @@ statement ::=
     | report_stmt
     | ability
     | archetype
-    | enum
     | impl_def
     | has_stmt
     | PYNLINE
     | "->" expression "{" code_block_stmts "}"
-    | expression (assignment_with_target | ";"?)
+    | expression (assignment_with_target | ";")
 
 if_stmt ::= "if" expression "{" code_block_stmts "}" (elif_stmt | else_stmt)?
 
@@ -391,7 +390,7 @@ assignment_with_target ::=
                   | ">>="
               ) (yield_stmt | expression)
           )?
-    ) ";"?
+    ) ";" ";"?
 
 import_stmt ::=
     ("include" | "import") ("from" from_path)? (
@@ -442,7 +441,10 @@ func_signature ::= ("(" func_params? ")")? ("->" pipe)?
 
 func_params ::= ("*" | "/" | param_var)*
 
-param_var ::= ("*" | "**")? (NAME | KWESC_NAME | "self") (":" pipe)? ("=" expression)?
+param_var ::=
+    ("*" | "**")?
+    (NAME | KWESC_NAME | "self" | "props" | "super" | "root" | "here" | "visitor")
+    (":" pipe)? ("=" expression)?
 
 enum ::=
     ("@" atomic_chain)* "enum" access_tag (NAME | KWESC_NAME)
@@ -484,4 +486,4 @@ type_params ::=
 
 visit_stmt ::= "visit" (":" expression ":")? expression (else_stmt | ";")?
 
-report_stmt ::= "report" expression ";"?
+report_stmt ::= "report" expression ";"
