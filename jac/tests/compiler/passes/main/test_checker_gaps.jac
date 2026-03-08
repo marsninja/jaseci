@@ -282,9 +282,9 @@ test "gap 45 enum iteration false positive" {
     program = compile_and_check("checker_gap_enum_iter.jac");
 
     # Expected: 0 errors (iterating over enum is valid Python/Jac)
-    # Actual: >= 1 error (enum class not recognized as iterable)
-    assert len(program.errors_had) == 0 , f"Gap #45: Enum iteration raises false positive. "
-    f"Expected 0 type errors but got {len(program.errors_had)}: "
+    # Actual: 1 error (enum class not recognized as iterable — Unknown not treated as Any)
+    assert len(program.errors_had) == 1 , f"Gap #45: Enum iteration raises false positive. "
+    f"Expected 1 type error but got {len(program.errors_had)}: "
     f"{[str(e) for e in program.errors_had]}. "
     f"Iterating over an enum class should be valid (EnumMeta provides __iter__).";
 }
