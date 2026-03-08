@@ -1,9 +1,8 @@
-"""Tests exposing gaps in the Jac type checker.
+"""Regression tests for previously-identified gaps in the Jac type checker.
 
-These tests document missing type checking behavior identified through
-systematic analysis. Each test is expected to FAIL under the current
-implementation, confirming the gap exists. Once a gap is addressed,
-the corresponding test should pass.
+These tests document type checking behavior that was missing and has since
+been addressed. They now serve as regression guards to prevent re-introduction
+of these gaps.
 
 Gap index:
   #35 - Augmented assignment (+=, -=, etc.) has no operator validation
