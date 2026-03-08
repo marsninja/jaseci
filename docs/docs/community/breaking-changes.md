@@ -4,48 +4,6 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ## Latest Breaking Changes
 
-### Compiler Warns on `@classmethod` and `@staticmethod` in `obj` Definitions
-
-Using `@classmethod` or `@staticmethod` decorators inside `obj`, `node`, `edge`, or `walker` definitions now produces a compiler warning. These Python-specific decorators are not part of Jac's strict archetype semantics and prevent cross-codespace portability. Use the `static` keyword instead, or switch to a `class` definition for full Python class features.
-
-**Before (produces warning):**
-
-```jac
-obj Foo {
-    @classmethod
-    def bar(cls: type) -> str {
-        return "hello";
-    }
-
-    @staticmethod
-    def baz() -> str {
-        return "world";
-    }
-}
-```
-
-**After (no warning):**
-
-```jac
-obj Foo {
-    static def bar() -> str {
-        return "hello";
-    }
-
-    static def baz() -> str {
-        return "world";
-    }
-}
-
-# Or, if you need @classmethod/@property/metaclass features:
-class Foo {
-    @classmethod
-    def bar(cls: type) -> str {
-        return "hello";
-    }
-}
-```
-
 MTLLM library is now deprecated and replaced by the byLLM package. In all place where `mtllm` was used before can be replaced with `byllm`.
 
 ### byllm 0.5.1: LiteLLM Minimum Version Raised to 1.81.15
