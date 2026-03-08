@@ -372,6 +372,7 @@ obj Parser {
     def check_peek_any(*kinds: TokenKind) -> bool;
     def check_name -> bool;
     def is_keyword_token -> bool;
+    def is_builtin_type_token -> bool;
     def get_source -> Source;
     def match_tok(kind: TokenKind) -> Token | None;
     def expect(kind: TokenKind) -> Token;

@@ -382,6 +382,22 @@ impl Parser.is_keyword_token -> bool {
     );
 }
 
+impl Parser.is_builtin_type_token -> bool {
+    return self.check_any(
+        TokenKind.TYP_STRING,
+        TokenKind.TYP_INT,
+        TokenKind.TYP_FLOAT,
+        TokenKind.TYP_LIST,
+        TokenKind.TYP_TUPLE,
+        TokenKind.TYP_SET,
+        TokenKind.TYP_DICT,
+        TokenKind.TYP_BOOL,
+        TokenKind.TYP_BYTES,
+        TokenKind.TYP_ANY,
+        TokenKind.TYP_TYPE
+    );
+}
+
 impl Parser.expect_name -> Token {
     # Expect NAME or KWESC_NAME
     if self.check_name() {
@@ -2963,6 +2979,10 @@ impl Parser.parse_lambda_param -> ParamVar | None {
     ) {
         name_tok = self.advance();
         name = SpecialVarRef(var=self.make_special_name(name_tok), is_enum_stmt=False);
+    } elif self.is_builtin_type_token() {
+        # Builtin type names (str, int, any, etc.) are contextual — allowed as param names
+        name_tok = self.advance();
+        name = self.make_name_or_special(name_tok);
     } elif self.is_keyword_token() {
         kw = self.current().value;
         self.error(
@@ -5832,6 +5852,10 @@ impl Parser.parse_param_var -> ParamVar | None {
     ) {
         name_tok = self.advance();
         name = SpecialVarRef(var=self.make_special_name(name_tok), is_enum_stmt=False);
+    } elif self.is_builtin_type_token() {
+        # Builtin type names (str, int, any, etc.) are contextual — allowed as param names
+        name_tok = self.advance();
+        name = self.make_name_or_special(name_tok);
     } elif self.is_keyword_token() {
         kw = self.current().value;
         self.error(
