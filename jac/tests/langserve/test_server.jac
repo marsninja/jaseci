@@ -186,11 +186,9 @@ test "test_go_to_definition" {
         );
         lsp.type_check_file(self_member_file);
         go_def_result = str(lsp.get_definition(self_member_file, lspt.Position(24, 14)));
-        # program field is declared via 'has' -- go-to-def should point to the declaration
-        assert (
-            "checker_impl_self_member.jac:12" in go_def_result
-            or "checker_impl_self_member.impl.jac" in go_def_result
-        ) , f"Unexpected go-to-def result: {go_def_result}";
+        # program field is declared via 'has' -- go-to-def points to the declaration
+        # (line 12, 1-indexed = line 11 in 0-indexed LSP format)
+        assert "checker_impl_self_member.jac:11" in go_def_result , f"Unexpected go-to-def result: {go_def_result}";
     } finally {
         teardown_test();
     }
