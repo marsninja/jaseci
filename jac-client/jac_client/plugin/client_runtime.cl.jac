@@ -54,11 +54,11 @@ def:pub errorOverlay(filePath: str, errors: str) -> JsxElement;
 # ============================================================================
 def:pub __getEndpointEffects -> dict;
 def:pub __getCacheState -> dict;
-def:pub __isFresh(entry: dict) -> bool;
+def:pub __isFresh(`entry: dict) -> bool;
 def:pub __cacheGet(key: str) -> dict;
 def:pub __cacheSet(key: str, data: Any, ttl: int) -> None;
 def:pub __evictOldest -> None;
-async def:pub __doWalkerFetch(walker: str, nodeId: str, fields: dict) -> Any;
+async def:pub __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> Any;
 async def:pub __doFuncFetch(function_name: str, args: dict) -> Any;
 async def:pub __cachedEndpointCall(
     endpoint_key: str, args_key: str, fetch_fn: Any
