@@ -292,7 +292,7 @@ statement ::=
     | has_stmt
     | PYNLINE
     | "->" expression "{" code_block_stmts "}"
-    | expression (assignment_with_target | ";")
+    | expression (assignment_with_target | ";"?)
 
 if_stmt ::= "if" expression "{" code_block_stmts "}" (elif_stmt | else_stmt)?
 
