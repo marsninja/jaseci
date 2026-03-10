@@ -3903,10 +3903,13 @@ impl Parser.parse_statement{
     ) {
         return self.parse_assignment_with_target(expr);
     }
-    # Wrap bare expression in ExprStmt with required Semi
-    self.expect(TokenKind.SEMI);
-    semi_tok = self.make_semi();
-    expr_kid: list = [expr, semi_tok];
+    # Wrap bare expression in ExprStmt with Semi
+    expr_kid: list = [expr];
+    if self.match_tok(TokenKind.SEMI) {
+        expr_kid.append(self.make_semi());
+    } else {
+        self.error("Missing ';'");
+    }
     return ExprStmt(expr=expr, in_fstring=False, kid=expr_kid);
 }
 
