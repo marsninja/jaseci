@@ -1,4 +1,5 @@
 """Jac Language Features."""
+import dis;
 import fnmatch;
 import html;
 import inspect;
@@ -1116,6 +1117,22 @@ class JacBasics {
             );
         }
         dataclass(eq=False)(cls);
+        # Build the set of declared has-field names for __setattr__ enforcement.
+        # Include dataclass fields plus attrs set in any method in the MRO
+        # (covers obj archetypes that inherit from class parents setting dynamic attrs).
+        allowed = set(f.name for f in dataclasses.fields(cls));
+        for klass in cls.__mro__ {
+            for attr in klass.__dict__.values() {
+                if callable(attr) and hasattr(attr, '__code__') {
+                    for instr in dis.get_instructions(attr) {
+                        if instr.opname == 'STORE_ATTR' {
+                            allowed.add(instr.argval);
+                        }
+                    }
+                }
+            }
+        }
+        cls.__jac_fields__ = frozenset(allowed);
         return cls;
     }
 

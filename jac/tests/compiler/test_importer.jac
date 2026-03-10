@@ -60,7 +60,7 @@ test "jac py import" {
     stdout_value = captured_output.getvalue();
     assert "Hello World!" in stdout_value;
     assert (
-        "{SomeObj(a=10): 'check'} [MyObj(apple=5, banana=7), MyObj(apple=5, banana=7)]" in stdout_value
+        "{SomeObj(a=10, b=20): 'check'} [MyObj(apple=5, banana=7), MyObj(apple=5, banana=7)]" in stdout_value
     );
 }
 
@@ -73,7 +73,7 @@ test "jac py import auto" {
     stdout_value = captured_output.getvalue();
     assert "Hello World!" in stdout_value;
     assert (
-        "{SomeObj(a=10): 'check'} [MyObj(apple=5, banana=7), MyObj(apple=5, banana=7)]" in stdout_value
+        "{SomeObj(a=10, b=20): 'check'} [MyObj(apple=5, banana=7), MyObj(apple=5, banana=7)]" in stdout_value
     );
 }
 

@@ -337,42 +337,28 @@ test "gap 46 impl file standalone scope resolution" {
 }
 
 # =========================================================================
-# Gap #47: Undeclared self-attribute assignment on obj/node/edge/walker
+# Gap #47 (RESOLVED): Undeclared self-attribute assignment on archetypes
 #
-# In Jac, obj/node/edge/walker archetypes have a fixed schema declared
-# via 'has'. Unlike Python classes, these archetypes do NOT allow monkey-
-# patching — assigning to self.new_attr in init where new_attr is not in
-# the 'has' block should be a type error.
+# obj/node/edge/walker archetypes have a fixed schema declared via 'has'.
+# Assigning to self.new_attr where new_attr is not in the 'has' block is
+# now a type error. class declarations still allow dynamic attributes.
 #
-# Regular Python-style 'class' declarations DO allow dynamic attributes
-# in __init__, following standard Python conventions.
-#
-# Currently, _populate_self_member_symbols() in DeclImplMatchPass
-# propagates ALL self.x = value assignments to the archetype symbol
-# table regardless of archetype kind, effectively allowing monkey
-# patching for all types.
-#
-# Impact: `self.extra = 42` in an obj's init (where 'extra' is not
-#         declared via 'has') silently succeeds. This breaks the Jac
-#         guarantee that archetype schemas are statically known.
+# Fixed by restricting _populate_self_member_symbols() in DeclImplMatchPass
+# and SymTabBuildPass to only register dynamic self.x = value assignments
+# for KW_CLASS archetypes. Runtime enforcement via __setattr__ on Archetype.
 # =========================================================================
 test "gap 47 undeclared attr assignment on archetypes" {
     program = compile_and_check("checker_gap_undeclared_attr.jac");
 
-    # Expected: at least 4 errors for undeclared attribute assignments:
+    # 4 errors for undeclared attribute assignments:
     #   1. MyObj.init: self.extra = 42           (undeclared on obj)
     #   2. MyNode.init: self.extra = "data"      (undeclared on node)
     #   3. MyEdge.init: self.extra = True        (undeclared on edge)
     #   4. MyWalker.init: self.extra = []        (undeclared on walker)
     #
     # No error for FlexibleClass (Python-style class allows dynamic attrs)
-    #
-    # Actual (gap): 0 errors — _populate_self_member_symbols adds all
-    # self.x = value assignments to the symbol table unconditionally.
-    assert len(program.errors_had) >= 4 , f"Gap #47: Undeclared attr on archetypes. "
-    f"Expected at least 4 type errors but got {len(program.errors_had)}. "
-    f"obj/node/edge/walker should not allow self.attr = value for attrs "
-    f"not declared in the 'has' block. Only 'class' allows dynamic attrs.";
+    assert len(program.errors_had) >= 4 , f"Gap #47: Expected at least 4 type errors "
+    f"but got {len(program.errors_had)}.";
 }
 
 # =========================================================================

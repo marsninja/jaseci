@@ -1,6 +1,8 @@
 import pygame;
 
 obj Spritesheet {
+    has sheet: pygame.Surface;
+
     def init(file: str);
     def get_sprite(x: int, y: int, width: int, height: int) -> pygame.Surface;
 }

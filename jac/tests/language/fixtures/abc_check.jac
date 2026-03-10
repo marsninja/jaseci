@@ -31,6 +31,8 @@ obj Shape {
 
 """Circle class inherits from Shape."""
 obj Circle(Shape) {
+    has radius: float;
+
     def init(radius: float) {
         super.init(ShapeType.CIRCLE);
         self.radius = radius;

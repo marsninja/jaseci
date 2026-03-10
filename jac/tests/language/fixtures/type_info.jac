@@ -1,6 +1,8 @@
 import pygls.server;
 
 obj ServerWrapper {
+    has file: str;
+
     def init(file: str);
     def get_server(server_ip: str, port: int) -> pygls.server.LanguageServer;
 }

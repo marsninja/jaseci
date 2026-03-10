@@ -211,6 +211,8 @@ obj Archetype {
     def __jac__(self: Archetype) -> Anchor;
 
     def __init_subclass__(cls: Any, **kwargs: object) -> None;
+    def __setattr__(self: Archetype, name: str, value: object) -> None;
+    def __delattr__(self: Archetype, name: str) -> None;
     def __repr__(self: Archetype) -> str;
     def __jac_access__(self: Archetype) -> (AccessLevel | str | int | None);
 }

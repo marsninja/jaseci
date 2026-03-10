@@ -284,6 +284,46 @@ impl Archetype.__init_subclass__(cls: Any, **kwargs: object) -> None {
     }
 }
 
+"""Restrict attribute setting to declared has-fields only.
+
+Archetypes (obj/node/edge/walker) have fixed schemas declared via 'has'.
+Only declared fields and underscore-prefixed names (framework internals)
+are allowed. This prevents monkey-patching at runtime.
+"""
+impl Archetype.__setattr__(self: Archetype, name: str, value: object) -> None {
+    if name.startswith('_') {
+        object.__setattr__(self, name, value);
+        return;
+    }
+    jac_fields = type(self).__dict__.get('__jac_fields__');
+    if jac_fields is not None and name not in jac_fields {
+        # Also allow overriding existing class attributes (e.g. method mocking)
+        if not hasattr(type(self), name) {
+            raise AttributeError(
+                f"'{type(self).__name__}' archetype does not allow setting "
+                f"undeclared attribute '{name}'. Declare it as a 'has' field."
+            );
+        }
+    }
+    object.__setattr__(self, name, value);
+}
+
+"""Restrict attribute deletion to declared has-fields only."""
+impl Archetype.__delattr__(self: Archetype, name: str) -> None {
+    if not name.startswith('_') {
+        jac_fields = type(self).__dict__.get('__jac_fields__');
+        if jac_fields is not None and name not in jac_fields {
+            if not hasattr(type(self), name) {
+                raise AttributeError(
+                    f"'{type(self).__name__}' archetype does not allow deleting "
+                    f"undeclared attribute '{name}'."
+                );
+            }
+        }
+    }
+    object.__delattr__(self, name);
+}
+
 """Override repr for archetype."""
 impl Archetype.__repr__(self: Archetype) -> str {
     return f"{self.__class__.__name__}";

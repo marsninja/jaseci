@@ -100,7 +100,7 @@ impl visit_profile.visit_profile{
 }
 
 impl load_user_profiles.load_profiles{
-    self.profiles: list = [];
+    self.profiles = [];
     for each_root in allroots() {
         profile = [each_root-->(?:Profile)][0];
         self.profiles.append({"name": profile.username, "id": jid(profile)});

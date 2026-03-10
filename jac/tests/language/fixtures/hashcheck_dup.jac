@@ -1,5 +1,6 @@
 obj SomeObj {
-    has a: int = 5;
+    has a: int = 5,
+        b: int = 0;
 }
 
 with entry {

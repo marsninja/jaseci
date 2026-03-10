@@ -67,6 +67,8 @@ walker load_user_profiles {
         static has auth: bool = False;
     }
 
+    has profiles: list = [];
+
     can load_profiles with Root entry;
     can report_profiles with exit;
 }
