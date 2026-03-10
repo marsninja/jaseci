@@ -32,7 +32,8 @@ delegate package management to the appropriate plugin handlers.
 """
 obj DependencyRegistry {
     has _types: dict[str, DependencyType] = {},
-        _flag_map: dict[str, str] = {};
+        _flag_map: dict[str, str] = {},
+        _initialized: bool = False;
 
     """Register a new dependency type from plugin hook data."""
     def register(dep_type_info: dict[(str, Any)]) -> None;

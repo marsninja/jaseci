@@ -29,6 +29,42 @@ serve = "jac_client.plugin.client:JacClient"
 cli = "jac_client.plugin.cli:JacCmd"
 plugin_config = "jac_client.plugin.plugin_config:JacClientPluginConfig"
 
+[tool.jac.hooks]
+serve = "get_client_bundle_builder,build_client_bundle,send_static_file,render_page,get_client_js,format_build_error"
+cli = "create_cmd"
+plugin_config = "get_plugin_metadata,get_config_schema,register_dependency_type,register_project_template"
+
+[tool.jac.meta]
+name = "client"
+description = "Jac client-side rendering with Vite bundling"
+
+[tool.jac.commands.build]
+help = "Build a Jac application for a specific target"
+group = "build"
+args = [
+    {name = "filename", kind = "positional", default = "main.jac", help = "Path to .jac file (default: main.jac)"},
+    {name = "client", default = "web", choices = ["web", "desktop", "pwa"], short = "", help = "Build client (web, desktop, pwa)"},
+    {name = "platform", default = "", choices = ["windows", "macos", "linux", "all"], short = "p", help = "Platform for desktop builds (windows, macos, linux, all)"},
+]
+
+[tool.jac.commands.setup]
+help = "Setup a build target (one-time initialization)"
+group = "project"
+args = [
+    {name = "target", kind = "positional", help = "Target to setup (e.g., desktop)"},
+]
+
+[tool.jac.extensions.create]
+args = [{name = "skip", kind = "flag", help = "Skip npm package installation (for --use client)"}]
+
+[tool.jac.extensions.add]
+args = [{name = "npm", kind = "flag", help = "Add as npm (client-side) dependency"}]
+
+[tool.jac.extensions.remove]
+args = [{name = "npm", kind = "flag", help = "Remove npm (client-side) dependency"}]
+
+[tool.jac.extensions.start]
+args = [{name = "client", default = "web", choices = ["web", "desktop", "pwa"], short = "", help = "Client build target for dev server (web, desktop, pwa)"}]
 
 [project.optional-dependencies]
 dev = [

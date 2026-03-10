@@ -374,27 +374,6 @@ def _describe_nodes_list(objects: Sequence) -> str {
     );
 }
 
-"""Minimal distribution facade for tracking plugin origins.
-
-    Used when manually loading entry points to maintain compatibility
-    with pluggy's list_plugin_distinfo() interface.
-    """
-obj DistFacade {
-    has _dist: (object | None);
-
-    """Get the distribution/package name."""
-    @property
-    def project_name(self: DistFacade) -> str {
-        return self._dist.name if (self._dist and self._dist?.name) else 'unknown';
-    }
-
-    """Get the distribution version."""
-    @property
-    def version(self: DistFacade) -> str {
-        return self._dist.version if (self._dist and self._dist?.version) else '0.0.0';
-    }
-}
-
 """Get list of disabled plugins from JAC_DISABLED_PLUGINS env var or jac.toml.
 
     Priority: JAC_DISABLED_PLUGINS env var > jac.toml
@@ -449,81 +428,4 @@ def get_disabled_plugins -> list {
         }
     }
     return [];
-}
-
-"""Load setuptools entry points while respecting disabled plugin list.
-
-    Supports:
-    - "*" wildcard to disable all external plugins
-    - Qualified names (package:plugin) for specific plugin disabling
-    - Package wildcards (package:*) to disable all plugins from a package
-    - Short names for backwards compatibility (affects all packages with that
-name)
-
-    This manually loads entry points to allow fine-grained control over which
-    plugins are loaded when multiple packages have plugins with the same name.
-
-    Args:
-        plugin_manager: The pluggy PluginManager instance.
-        disabled_list: List of plugin identifiers to disable.
-    """
-def load_plugins_with_disabling(
-    plugin_manager: 'pluggy.PluginManager', disabled_list: list
-) -> None {
-    import from importlib.metadata { entry_points }
-    disable_all = '*' in disabled_list;
-    disabled_qualified: set = `set();
-    disabled_packages: set = `set();
-    disabled_short: set = `set();
-    for name in disabled_list {
-        if (name == '*') {
-            continue;
-        } elif name.endswith(':*') {
-            disabled_packages.add(name[:-2]);
-        } elif (':' in name) {
-            disabled_qualified.add(name);
-        } else {
-            disabled_short.add(name);
-        }
-    }
-    if disable_all {
-        return;
-    }
-    try {
-        eps = entry_points(group='jac');
-    } except TypeError {
-        all_eps = entry_points();
-        eps = all_eps.get('jac', []);
-    }
-    for ep in eps {
-        try {
-            dist = ep.dist;
-            dist_name = dist.name if dist else 'unknown';
-        } except Exception {
-            dist = None;
-            dist_name = 'unknown';
-        }
-        qualified_name = f"{dist_name}:{ep.name}";
-        should_disable = False;
-        if (dist_name in disabled_packages) {
-            should_disable = True;
-        } elif (qualified_name in disabled_qualified) {
-            should_disable = True;
-        } elif (ep.name in disabled_short) {
-            should_disable = True;
-        }
-        if should_disable {
-            continue;
-        }
-        try {
-            plugin = ep.load();
-            if plugin_manager.is_registered(plugin) {
-                continue;
-            }
-            plugin_manager.register(plugin, name=ep.name);
-            plugin_manager._plugin_distinfo.append((plugin, DistFacade(dist)));
-        } except Exception {
-            ;
-        }
-    }
 }

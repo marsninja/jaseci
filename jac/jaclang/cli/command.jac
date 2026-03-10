@@ -76,7 +76,10 @@ obj CommandSpec {
         # Plugin extensions (populated at runtime)
         extra_args: list[Arg] = [],  # Arguments added by plugins
         pre_hooks: list[tuple[Callable, str]] = [],  # (hook, source) pairs
-        post_hooks: list[tuple[Callable, str]] = [];  # (hook, source) pairs
+        post_hooks: list[tuple[Callable, str]] = [],  # (hook, source) pairs
+        # Lazy loading support
+        _lazy: bool = False,  # Whether this is a lazy stub (not yet loaded)
+        _lazy_ep_name: str = "";  # Entry point name to load when invoked
 
     """Get all arguments (base + plugin-extended)."""
     def get_all_args -> list[Arg];

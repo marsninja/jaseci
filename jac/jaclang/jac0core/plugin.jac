@@ -6,6 +6,7 @@ that supports only the features used by the Jac ecosystem.
 
 import inspect;
 import importlib.metadata;
+import threading;
 import from collections.abc { Callable }
 import from typing { Any, TypeVar }
 
@@ -83,6 +84,30 @@ obj HookCaller {
     def __repr__ -> str;
 }
 
+"""A HookCaller that defers plugin loading until first invocation.
+
+When called, it loads any pending entry points (checking the disabled list),
+registers them with the PluginManager, then dispatches normally. Subsequent
+calls short-circuit on a bool check with no overhead.
+"""
+obj LazyHookCaller(HookCaller) {
+    has _pending: list by postinit,
+        _disabled: list by postinit,
+        _pm: (PluginManager | None) = None,
+        _loaded: bool = False,
+        _lock: threading.Lock by postinit;
+
+    def postinit -> None {
+        super.postinit();
+        self._pending = [];
+        self._disabled = [];
+        self._lock = threading.Lock();
+    }
+
+    def _ensure_loaded -> None;
+    def __call__(**kwargs: object) -> object;
+}
+
 """Namespace object for plugin_manager.hook.<name> access."""
 class HookRelay {}
 
@@ -111,6 +136,9 @@ obj PluginManager {
     def list_name_plugin -> list[tuple[(str, object)]];
     def list_plugin_distinfo -> list[tuple[(object, Any)]];
     def load_setuptools_entrypoints(group: str) -> int;
+    def register_lazy_entrypoint(
+        ep: object, hook_names: (list | None) = None, disabled: (list | None) = None
+    ) -> None;
 }
 
 def _canonical_name(plugin: object) -> str {

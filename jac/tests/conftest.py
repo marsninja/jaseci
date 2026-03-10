@@ -31,6 +31,8 @@ def disable_rich_console_formatting(monkeypatch: pytest.MonkeyPatch) -> None:
 
 # Store unregistered plugins for session-level management
 _external_plugins: list[tuple[str, Any]] = []
+# Store suppressed lazy hook state for restoration
+_saved_lazy_state: list[tuple[str, list, bool]] = []
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -40,11 +42,25 @@ def pytest_configure(config: pytest.Config) -> None:
     to ensure a clean test environment without MongoDB connections or other
     plugin-specific dependencies.
 
+    Also suppresses lazy plugin loading so no external plugins are loaded
+    when hooks are called during tests.
+
     NOTE: This only applies to tests in jac/tests/, not to package-specific tests.
     """
+    from jaclang.jac0core.plugin import LazyHookCaller
     from jaclang.jac0core.runtime import JacRuntimeImpl, plugin_manager
 
-    global _external_plugins
+    global _external_plugins, _saved_lazy_state
+
+    # Suppress lazy loading: mark all LazyHookCallers as loaded.
+    for attr_name in list(vars(plugin_manager.hook)):
+        hook = getattr(plugin_manager.hook, attr_name, None)
+        if isinstance(hook, LazyHookCaller):
+            _saved_lazy_state.append((attr_name, hook._pending, hook._loaded))
+            hook._pending = []
+            hook._loaded = True
+
+    # Unregister any already-loaded external plugins.
     for name, plugin in list(plugin_manager.list_name_plugin()):
         if plugin is JacRuntimeImpl or name in (
             "JacRuntimeImpl",
@@ -57,9 +73,20 @@ def pytest_configure(config: pytest.Config) -> None:
 
 def pytest_unconfigure(config: pytest.Config) -> None:
     """Re-register external plugins at the end of the jac test session."""
+    from jaclang.jac0core.plugin import LazyHookCaller
     from jaclang.jac0core.runtime import plugin_manager
 
-    global _external_plugins
+    global _external_plugins, _saved_lazy_state
+
+    # Restore lazy hook state.
+    for attr_name, pending, loaded in _saved_lazy_state:
+        hook = getattr(plugin_manager.hook, attr_name, None)
+        if isinstance(hook, LazyHookCaller):
+            hook._pending = pending
+            hook._loaded = loaded
+    _saved_lazy_state.clear()
+
+    # Re-register external plugins.
     for name, plugin in _external_plugins:
         with contextlib.suppress(ValueError):
             plugin_manager.register(plugin, name=name)

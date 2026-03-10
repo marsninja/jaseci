@@ -75,6 +75,38 @@ impl HookCaller.__repr__ -> str {
     return f"<HookCaller {self.name!r}>";
 }
 
+impl LazyHookCaller._ensure_loaded -> None {
+    if self._loaded {
+        return;
+    }
+    with self._lock {
+        if self._loaded {
+            return;
+        }
+        self._loaded = True;
+        pending = `list(self._pending);
+        self._pending = [];
+        for pep in pending {
+            if pep.name in self._disabled {
+                continue;
+            }
+            try {
+                plugin_cls = pep.load();
+                if self._pm is not None {
+                    self._pm.register(plugin_cls, name=pep.name);
+                }
+            } except Exception {
+                ;
+            }
+        }
+    }
+}
+
+impl LazyHookCaller.__call__(**kwargs: object) -> object {
+    self._ensure_loaded();
+    return super.__call__(**kwargs);
+}
+
 impl PluginManager.register(plugin: object, name: (str | None) = None) -> (str | None) {
     plugin_name = name or _canonical_name(plugin);
     if id(plugin) in self._plugin2name {
@@ -180,6 +212,41 @@ impl PluginManager.list_name_plugin -> list[tuple[(str, object)]] {
 
 impl PluginManager.list_plugin_distinfo -> list[tuple[(object, Any)]] {
     return `list(self._plugin_distinfo);
+}
+
+impl PluginManager.register_lazy_entrypoint(
+    ep: object, hook_names: (list | None) = None, disabled: (list | None) = None
+) -> None {
+    disabled_list = disabled if disabled is not None else [];
+    # No hook manifest → eager fallback (backwards compat).
+    if hook_names is None {
+        if ep.name not in disabled_list {
+            try {
+                plugin = ep.load();
+                self.register(plugin, name=ep.name);
+            } except Exception {
+                ;
+            }
+        }
+        return;
+    }
+    # Lazy path: attach EP as pending on LazyHookCallers.
+    for hook_name in hook_names {
+        hook = getattr(self.hook, hook_name, None);
+        if hook is None or not isinstance(hook, LazyHookCaller) {
+            lazy_hook = LazyHookCaller(hook_name, _firstresult=True, _pm=self);
+            lazy_hook._disabled = disabled_list;
+            # Preserve existing hookimpls from the original HookCaller.
+            if hook is not None {
+                for hi in hook.get_hookimpls() {
+                    lazy_hook._add_hookimpl(hi);
+                }
+            }
+            setattr(self.hook, hook_name, lazy_hook);
+            hook = lazy_hook;
+        }
+        hook._pending.append(ep);
+    }
 }
 
 impl PluginManager.load_setuptools_entrypoints(group: str) -> int {

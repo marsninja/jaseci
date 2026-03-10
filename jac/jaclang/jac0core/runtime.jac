@@ -2639,6 +2639,7 @@ class JacRuntime(JacRuntimeInterface) {
     """
 @contextmanager
 def without_plugins -> Iterator[None] {
+    import from jaclang.jac0core.plugin { LazyHookCaller }
     external_plugins: list[tuple[(str, Any)]] = [];
     for (name, plugin) in `list(plugin_manager.list_name_plugin()) {
         if ((plugin is JacRuntimeImpl) or (name == 'JacRuntimeImpl')) {
@@ -2647,9 +2648,27 @@ def without_plugins -> Iterator[None] {
         external_plugins.append((name, plugin));
         plugin_manager.unregister(plugin=plugin, name=name);
     }
+    # Suppress lazy loading: mark all LazyHookCallers as loaded with no pending.
+    saved_lazy_state: list[tuple[(str, list, bool)]] = [];
+    for attr_name in `list(vars(plugin_manager.hook)) {
+        hook = getattr(plugin_manager.hook, attr_name, None);
+        if isinstance(hook, LazyHookCaller) {
+            saved_lazy_state.append((attr_name, hook._pending, hook._loaded));
+            hook._pending = [];
+            hook._loaded = True;
+        }
+    }
     try {
         yield ;
     } finally {
+        # Restore lazy state.
+        for (attr_name, pending, loaded) in saved_lazy_state {
+            hook = getattr(plugin_manager.hook, attr_name, None);
+            if isinstance(hook, LazyHookCaller) {
+                hook._pending = pending;
+                hook._loaded = loaded;
+            }
+        }
         for (name, plugin) in external_plugins {
             with suppress(ValueError) {
                 plugin_manager.register(plugin, name=name);

@@ -34,7 +34,8 @@ via the register_project_template hook. The `jac create` command uses
 this registry to scaffold projects based on the selected template.
 """
 obj TemplateRegistry {
-    has _templates: dict[str, ProjectTemplate] = {};
+    has _templates: dict[str, ProjectTemplate] = {},
+        _initialized: bool = False;
 
     """Register a new template from plugin hook data."""
     def register(template_info: dict[str, Any]) -> None;

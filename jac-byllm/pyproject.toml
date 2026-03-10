@@ -19,6 +19,14 @@ dependencies = [
 byllm = "byllm.plugin:JacRuntime"
 byllm_plugin_config = "byllm.plugin_config:JacByllmPluginConfig"
 
+[tool.jac.hooks]
+byllm = "get_mtir,call_llm,by,by_operator,default_llm"
+byllm_plugin_config = "get_plugin_metadata,get_config_schema,on_config_loaded,validate_config"
+
+[tool.jac.meta]
+name = "byllm"
+description = "byLLM - Easy to use APIs for LLM providers with Jaclang"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.2",

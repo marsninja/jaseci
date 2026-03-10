@@ -28,6 +28,13 @@ Documentation = "https://jac-lang.org"
 [project.entry-points."jac"]
 console = "jac_super.plugin.console:JacSuperPlugin"
 
+[tool.jac.hooks]
+console = "get_console"
+
+[tool.jac.meta]
+name = "super"
+description = "Enhanced console output for Jac CLI with Rich formatting"
+
 [tool.setuptools.packages.find]
 include = ["jac_super*"]
 

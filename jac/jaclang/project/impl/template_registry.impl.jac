@@ -94,39 +94,47 @@ impl TemplateRegistry.clear -> None {
 # ===============================================================================
 # Module-level Functions Implementation
 # ===============================================================================
-"""Get or create the global template registry."""
+"""Get or create the global template registry (auto-initializes on first access)."""
 impl get_template_registry -> TemplateRegistry {
     import from jaclang.project.template_registry { TemplateRegistry }
     global _registry;
     if _registry is None {
-        _registry = TemplateRegistry();
+        reg = TemplateRegistry();
+        _registry = reg;
+    } else {
+        reg = _registry;
     }
-    return _registry;
+    if not reg._initialized {
+        reg._initialized = True;
+        _auto_initialize_template_registry(reg);
+    }
+    return reg;
 }
 
 """Initialize the registry by registering default template and calling plugin hooks."""
 impl initialize_template_registry -> None {
-    import from jaclang.jac0core.runtime { JacRuntime }
     registry = get_template_registry();
-    # Register the default template first
+}
+
+"""Auto-initialize the template registry with defaults and plugin hooks."""
+def _auto_initialize_template_registry(registry: object) -> None {
     _register_default_template(registry);
-    # Call the hook - may return a single dict or list of dicts
-    results = JacRuntime.register_project_template();
-    if results is None {
-        return;
-    }
-    # Handle both single result (dict) and multiple results (list)
-    if isinstance(results, dict) {
-        # Single plugin returned a dict
-        registry.register(results);
-    } elif isinstance(results, list) {
-        # Multiple plugins, each returning a dict
-        for result in results {
-            if result and isinstance(result, dict) {
-                registry.register(result);
+    try {
+        import from jaclang.jac0core.runtime { JacRuntime }
+        results = JacRuntime.register_project_template();
+        if results is None {
+            return;
+        }
+        if isinstance(results, dict) {
+            registry.register(results);
+        } elif isinstance(results, list) {
+            for result in results {
+                if result and isinstance(result, dict) {
+                    registry.register(result);
+                }
             }
         }
-    }
+    } except Exception { }
 }
 
 """Register the default Jac project template."""

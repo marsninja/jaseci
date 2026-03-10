@@ -25,6 +25,40 @@ dependencies = [
 scale = "jac_scale.plugin:JacCmd"
 scale_plugin_config = "jac_scale.plugin_config:JacScalePluginConfig"
 
+[tool.jac.hooks]
+scale = "create_cmd,create_j_context,create_server,get_api_server_class,get_user_manager,store"
+scale_plugin_config = "get_plugin_metadata,get_config_schema"
+
+[tool.jac.meta]
+name = "scale"
+description = "Jac Scale - Deploy and scale Jac applications with Kubernetes"
+
+[tool.jac.commands.destroy]
+help = "Remove deployment from target platform"
+group = "deployment"
+args = [
+    {name = "file_path", kind = "positional", help = "Path to .jac file"},
+    {name = "target", default = "kubernetes", help = "Deployment target (kubernetes, aws, gcp, etc.)"},
+    {name = "component", default = "", help = "Component to destroy (application, database, cache, monitoring, dashboard)"},
+]
+
+[tool.jac.commands.status]
+help = "Show deployment status of jaseci application on target platform"
+group = "deployment"
+args = [
+    {name = "file_path", kind = "positional", help = "Path to .jac file"},
+    {name = "target", default = "kubernetes", help = "Deployment target (kubernetes, aws, gcp, etc.)"},
+]
+
+[tool.jac.extensions.start]
+args = [
+    {name = "scale", kind = "flag", short = "", help = "Deploy to a target platform instead of running locally"},
+    {name = "build", kind = "flag", short = "b", help = "Build and push Docker image (with --scale)"},
+    {name = "experimental", kind = "flag", short = "e", help = "Use experimental mode (install from repo instead of PyPI)"},
+    {name = "target", default = "kubernetes", help = "Deployment target (kubernetes, aws, gcp, etc.)"},
+    {name = "registry", default = "dockerhub", help = "Image registry (dockerhub, ecr, gcr, etc.)"},
+]
+
 [tool.setuptools.packages.find]
 include = ["jac_scale*"]
 

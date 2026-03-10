@@ -22,6 +22,7 @@ import from jaclang.cli.command {
 obj CommandRegistry {
     has commands: dict[str, CommandSpec] = {},
         _pending_extensions: dict[str, list[tuple]] = {},
+        _lazy_extensions: dict[str, list[tuple[str, str, list[str]]]] = {},
         _finalized: bool = False,
         parser: argparse.ArgumentParser | None = None,
         sub_parsers: Any = None;
@@ -87,6 +88,26 @@ obj CommandRegistry {
     and extensions. After finalization, the registry is read-only.
     """
     def finalize -> argparse.ArgumentParser;
+
+    """Register a lazy command from plugin metadata (no plugin import).
+
+    The command is fully described by TOML metadata. When invoked, the
+    plugin entry point is loaded and its create_cmd is called to install
+    real handlers and hooks before execution.
+    """
+    def register_lazy_command(
+        name: str, help: str, group: str, args: list[Arg], ep_name: str, source: str
+    ) -> None;
+
+    """Register a lazy extension from plugin metadata (no plugin import).
+
+    Adds args to an existing (or pending) command. The plugin is loaded
+    only when the command is actually executed and one of the extension
+    flags is set.
+    """
+    def register_lazy_extension(
+        command_name: str, args: list[Arg], ep_name: str, source: str
+    ) -> None;
 
     """Apply any pending extensions to a command."""
     def _apply_pending_extensions(name: str) -> None;

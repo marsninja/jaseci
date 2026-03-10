@@ -10,6 +10,7 @@ import from jaclang.cli.banners { JAC_GITHUB_URL }
 impl CommandRegistry.init -> None {
     self.commands = {};
     self._pending_extensions = {};
+    self._lazy_extensions = {};
     self._finalized = False;
     self.parser = argparse.ArgumentParser(
         prog='jac',
@@ -58,8 +59,11 @@ impl CommandRegistry.command(
         # Check for existing command with same name
         if name in self.commands {
             existing = self.commands[name];
-            # Higher priority wins
-            if priority.value > existing.priority.value {
+            # Always replace lazy stubs with real commands
+            if existing._lazy {
+                self.commands[name] = spec;
+            } elif priority.value > existing.priority.value {
+                # Higher priority wins
                 self.commands[name] = spec;
             }
             # Same or lower priority - keep existing
@@ -153,6 +157,49 @@ impl CommandRegistry.finalize -> argparse.ArgumentParser {
     }
     self._finalized = True;
     return self.parser;
+}
+
+"""Register a lazy command from plugin metadata (no plugin import)."""
+impl CommandRegistry.register_lazy_command(
+    name: str, help: str, group: str, args: list[Arg], ep_name: str, source: str
+) -> None {
+    import from jaclang.cli.command { Arg, CommandSpec, CommandPriority }
+    # Don't overwrite real (non-lazy) commands
+    if name in self.commands and not self.commands[name]._lazy {
+        return;
+    }
+    # Stub handler — will be replaced before execution
+    def _lazy_stub(**kwargs: object) -> int {
+        return 0;
+    }
+    spec = CommandSpec(
+        name=name,
+        help=help,
+        args=args,
+        group=group,
+        priority=CommandPriority.PLUGIN,
+        source=source,
+        handler=_lazy_stub,
+        _lazy=True,
+        _lazy_ep_name=ep_name
+    );
+    self.commands[name] = spec;
+    # Apply any pending extensions for this command
+    self._apply_pending_extensions(name);
+}
+
+"""Register a lazy extension from plugin metadata (no plugin import)."""
+impl CommandRegistry.register_lazy_extension(
+    command_name: str, args: list[Arg], ep_name: str, source: str
+) -> None {
+    # Add the args to the command (or queue as pending)
+    self.extend_command(command_name=command_name, args=args, source=source);
+    # Track this lazy extension so we know which EP to load
+    flag_names = [a.name for a in args];
+    if command_name not in self._lazy_extensions {
+        self._lazy_extensions[command_name] = [];
+    }
+    self._lazy_extensions[command_name].append((ep_name, source, flag_names));
 }
 
 """Apply any pending extensions to a command."""

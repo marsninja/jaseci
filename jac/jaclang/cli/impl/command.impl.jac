@@ -43,6 +43,12 @@ impl CommandSpec.get_all_args -> list[Arg] {
 
 """Add an extension argument from a plugin."""
 impl CommandSpec.add_extension_arg(arg: Arg, source: str) -> None {
+    # Skip if an arg with this name already exists (prevents duplicates from lazy loading)
+    for existing in self.extra_args {
+        if existing.name == arg.name {
+            return;
+        }
+    }
     # Set the source on the arg
     arg.source = source;
     self.extra_args.append(arg);

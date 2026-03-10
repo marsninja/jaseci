@@ -14,6 +14,19 @@ dependencies = [
 [project.entry-points."jac"]
 shadcn = "jac_shadcn.plugin:JacShadcnPlugin"
 
+[tool.jac.hooks]
+shadcn = "create_cmd"
+
+[tool.jac.meta]
+name = "shadcn"
+description = "Shadcn-style UI components for Jac"
+
+[tool.jac.extensions.add]
+args = [{name = "shadcn", kind = "flag", help = "Add shadcn UI component(s) from registry"}]
+
+[tool.jac.extensions.remove]
+args = [{name = "shadcn", kind = "flag", help = "Remove shadcn UI component(s)"}]
+
 [tool.setuptools.packages.find]
 include = ["jac_shadcn*"]
 

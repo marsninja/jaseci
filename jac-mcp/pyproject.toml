@@ -17,6 +17,24 @@ dependencies = [
 mcp = "jac_mcp.plugin:JacCmd"
 mcp_plugin_config = "jac_mcp.plugin_config:JacMcpPluginConfig"
 
+[tool.jac.hooks]
+mcp = "create_cmd"
+mcp_plugin_config = "get_plugin_metadata,get_config_schema"
+
+[tool.jac.meta]
+name = "mcp"
+description = "MCP server for AI-assisted Jac development"
+
+[tool.jac.commands.mcp]
+help = "Start the MCP (Model Context Protocol) server for AI-assisted Jac development"
+group = "tools"
+args = [
+    {name = "transport", default = "stdio", choices = ["stdio", "sse", "streamable-http"], help = "Transport protocol: stdio, sse, or streamable-http"},
+    {name = "port", type = "int", default = 3001, help = "Port for SSE/HTTP transports (default: 3001)"},
+    {name = "host", default = "127.0.0.1", short = "", help = "Bind address for SSE/HTTP transports (default: 127.0.0.1)"},
+    {name = "inspect", kind = "flag", short = "", help = "Print inventory of resources, tools, and prompts then exit"},
+]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.2",

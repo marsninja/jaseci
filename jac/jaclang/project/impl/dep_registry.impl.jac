@@ -76,35 +76,47 @@ impl DependencyRegistry.clear -> None {
 # ===============================================================================
 # Module-level Functions Implementation
 # ===============================================================================
-"""Get or create the global dependency registry."""
+"""Get or create the global dependency registry (auto-initializes on first access)."""
 impl get_dependency_registry -> DependencyRegistry {
     import from jaclang.project.dep_registry { DependencyRegistry }
     global _registry;
     if _registry is None {
-        _registry = DependencyRegistry();
+        reg = DependencyRegistry();
+        _registry = reg;
+    } else {
+        reg = _registry;
     }
-    return _registry;
+    if not reg._initialized {
+        reg._initialized = True;
+        _auto_initialize_dep_registry(reg);
+    }
+    return reg;
 }
 
-"""Initialize the registry by calling plugin hooks."""
-impl initialize_dependency_registry -> None {
-    import from jaclang.jac0core.runtime { JacRuntime }
-    registry = get_dependency_registry();
-    # Call the hook - may return a single dict or list of dicts
-    results = JacRuntime.register_dependency_type();
-    if results is None {
-        return;
-    }
-    # Handle both single result (dict) and multiple results (list)
-    if isinstance(results, dict) {
-        # Single plugin returned a dict
-        registry.register(results);
-    } elif isinstance(results, list) {
-        # Multiple plugins, each returning a dict
-        for result in results {
-            if result and isinstance(result, dict) {
-                registry.register(result);
+"""Auto-initialize the dependency registry by calling plugin hooks."""
+def _auto_initialize_dep_registry(registry: object) -> None {
+    try {
+        import from jaclang.jac0core.runtime { JacRuntime }
+        results = JacRuntime.register_dependency_type();
+        if results is None {
+            return;
+        }
+        if isinstance(results, dict) {
+            registry.register(results);
+        } elif isinstance(results, list) {
+            for result in results {
+                if result and isinstance(result, dict) {
+                    registry.register(result);
+                }
             }
         }
-    }
+    } except Exception { }
+}
+
+"""Initialize the registry by calling plugin hooks.
+
+Kept for backwards compatibility — get_dependency_registry() now auto-initializes.
+"""
+impl initialize_dependency_registry -> None {
+    get_dependency_registry();
 }

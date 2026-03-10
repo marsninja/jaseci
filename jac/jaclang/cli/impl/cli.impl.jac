@@ -10,17 +10,17 @@ import from importlib.metadata { version as pkg_version }
 import from pathlib { Path }
 
 impl start_cli -> None {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.cli.registry { get_registry }
     import from jaclang.cli.executor { get_executor }
     import from jaclang.cli.help { get_help_formatter }
     import from jaclang.cli.console { console }
     # Auto-discover and load jac.toml project configuration
     _load_project_config();
-    # Load plugins which may register additional commands
-    Jac.create_cmd();
-    # Get the registry and finalize it (builds argparse parser)
+    # Register plugin commands lazily from TOML metadata (no plugin imports).
+    # Falls back to Jac.create_cmd() for plugins without command metadata.
     registry = get_registry();
+    _register_lazy_plugin_commands(registry);
+    # Finalize the registry (builds argparse parser)
     parser = registry.finalize();
     # Handle implicit 'run' command for .jac files
     # Scan past any leading flags (e.g. --autonative) to find a .jac/.py file
@@ -55,9 +55,10 @@ impl start_cli -> None {
         return;
     }
     # Get the command specification
-    command_spec = registry.get(args.command);
+    command_name = args.command;
+    command_spec = registry.get(command_name);
     if not command_spec {
-        console.error(f"Unknown command: {args.command}");
+        console.error(f"Unknown command: {command_name}");
         parser.print_help();
         return;
     }
@@ -70,6 +71,10 @@ impl start_cli -> None {
         args_dict['args'] = script_args;
     }
     _apply_profile(args_dict);
+    # Before execution, load lazy plugins if needed for this command
+    _ensure_plugins_for_command(command_name, args_dict, registry);
+    # Re-fetch spec after potential lazy loading (may have been replaced)
+    command_spec = registry.get(command_name);
     # Execute using the new executor with hook support
     executor = get_executor();
     result = executor.execute(command_spec, args_dict);
@@ -189,34 +194,8 @@ def _load_project_config -> None {
             # Add venv site-packages to Python path
             add_venv_to_path(config);
         }
-
-        # Initialize plugin-registered dependency types
-        _initialize_dependency_registry();
-
-        # Initialize plugin-registered project templates
-        _initialize_template_registry();
     } except Exception {
     # Silently ignore if project module not available or config discovery fails
-    }
-}
-
-"""Initialize the dependency registry from plugin hooks."""
-def _initialize_dependency_registry -> None {
-    try {
-        import from jaclang.project.dep_registry { initialize_dependency_registry }
-        initialize_dependency_registry();
-    } except Exception {
-    # Silently ignore if registry initialization fails
-    }
-}
-
-"""Initialize the template registry from plugin hooks."""
-def _initialize_template_registry -> None {
-    try {
-        import from jaclang.project.template_registry { initialize_template_registry }
-        initialize_template_registry();
-    } except Exception {
-    # Silently ignore if registry initialization fails
     }
 }
 
@@ -294,6 +273,184 @@ def _apply_config_defaults(config: object, args_dict: dict) -> None {
         raw = config._raw_data.get(section, {});
         if isinstance(raw, dict) and key in raw {
             args_dict[arg_name] = config_value;
+        }
+    }
+}
+
+# =============================================================================
+# Lazy Plugin Command Registration
+# =============================================================================
+"""Convert TOML arg metadata to Arg objects."""
+def _toml_args_to_arg_list(args_data: list) -> list {
+    import from jaclang.cli.command { Arg, ArgKind }
+    result: list = [];
+    type_map: dict = {"int": int, "float": float, "bool": bool, "str": str};
+    kind_map: dict = {
+        "positional": ArgKind.POSITIONAL,
+        "flag": ArgKind.FLAG,
+        "multi": ArgKind.MULTI,
+        "remainder": ArgKind.REMAINDER,
+        "option": ArgKind.OPTION
+    };
+    for a in args_data {
+        kind = kind_map.get(a.get("kind", "option"), ArgKind.OPTION);
+        typ = type_map.get(a.get("type", "str"), str);
+        # For flags, always use bool type
+        if kind == ArgKind.FLAG {
+            typ = bool;
+        }
+        arg = Arg.create(
+            name=a["name"],
+            kind=kind,
+            typ=typ,
+            default=a.get("default"),
+            help=a.get("help", ""),
+            short=a.get("short"),
+            choices=a.get("choices")
+        );
+        result.append(arg);
+    }
+    return result;
+}
+
+"""Register plugin commands and extensions from TOML metadata.
+
+Reads [tool.jac.commands] and [tool.jac.extensions] from each plugin's
+pyproject.toml manifest. Commands are registered as lazy stubs that load
+the plugin only when actually invoked.
+
+For plugins without command metadata, falls back to calling create_cmd
+eagerly (backwards compatibility).
+"""
+def _register_lazy_plugin_commands(registry: object) -> None {
+    import from jaclang { _jac_manifest }
+    import importlib.metadata;
+
+    # Collect which EPs have create_cmd (to find the EP to load for each dist)
+    # Also track which dists have command metadata (for fallback detection)
+    dists_with_cmd_metadata: set = set();
+    eps_with_create_cmd: dict = {};  # dist_name -> ep_name that has create_cmd
+
+    for (dist_name, manifest) in _jac_manifest.items() {
+        hooks = manifest.get("hooks", {});
+        for (ep_name, hook_csv) in hooks.items() {
+            hook_names = [
+                h.strip()
+                for h in hook_csv.split(",")
+                if h.strip()
+            ];
+            if "create_cmd" in hook_names {
+                eps_with_create_cmd[dist_name] = ep_name;
+            }
+        }
+
+        # Register new commands from [tool.jac.commands]
+        commands = manifest.get("commands", {});
+        if commands {
+            dists_with_cmd_metadata.add(dist_name);
+            ep_name = eps_with_create_cmd.get(dist_name, "");
+            for (cmd_name, cmd_spec) in commands.items() {
+                args = _toml_args_to_arg_list(cmd_spec.get("args", []));
+                registry.register_lazy_command(
+                    name=cmd_name,
+                    help=cmd_spec.get("help", ""),
+                    group=cmd_spec.get("group", "general"),
+                    args=args,
+                    ep_name=ep_name,
+                    source=dist_name
+                );
+            }
+        }
+
+        # Register extensions from [tool.jac.extensions]
+        extensions = manifest.get("extensions", {});
+        if extensions {
+            dists_with_cmd_metadata.add(dist_name);
+            ep_name = eps_with_create_cmd.get(dist_name, "");
+            for (cmd_name, ext_spec) in extensions.items() {
+                args = _toml_args_to_arg_list(ext_spec.get("args", []));
+                registry.register_lazy_extension(
+                    command_name=cmd_name, args=args, ep_name=ep_name, source=dist_name
+                );
+            }
+        }
+    }
+
+    # Fallback: for plugins that have create_cmd but NO command metadata,
+    # load them eagerly (backwards compatibility for third-party plugins).
+    for (dist_name, ep_name) in eps_with_create_cmd.items() {
+        if dist_name not in dists_with_cmd_metadata {
+            _load_plugin_ep(ep_name);
+        }
+    }
+}
+
+"""Load a plugin entry point by name and call its create_cmd."""
+def _load_plugin_ep(ep_name: str) -> None {
+    import importlib.metadata;
+    import from jaclang.jac0core.runtime { plugin_manager }
+
+    try {
+        jac_eps = importlib.metadata.entry_points(group="jac");
+    } except TypeError {
+        jac_eps = importlib.metadata.entry_points().get("jac", []);
+    }
+    for ep in jac_eps {
+        if ep.name == ep_name {
+            try {
+                plugin_class = ep.load();
+                # Register with plugin manager if not already registered
+                if ep.name not in plugin_manager._name2plugin {
+                    plugin_manager.register(plugin_class, name=ep.name);
+                }
+                # Call create_cmd if available
+                if hasattr(plugin_class, 'create_cmd') {
+                    plugin_class.create_cmd();
+                }
+            } except Exception as e {
+                import from jaclang.cli.console { console }
+                console.print(f"Warning: Failed to load plugin '{ep_name}': {e}");
+            }
+            break;
+        }
+    }
+}
+
+"""Load lazy plugins needed for the given command before execution.
+
+If the command itself is lazy, loads its plugin. Also checks if any
+lazy extension flags are set and loads those plugins.
+"""
+def _ensure_plugins_for_command(
+    command_name: str, args_dict: dict, registry: object
+) -> None {
+    loaded_eps: set = set();
+
+    # 1. If the command itself is lazy, load its plugin
+    spec = registry.get(command_name);
+    if spec and spec._lazy and spec._lazy_ep_name {
+        _load_plugin_ep(spec._lazy_ep_name);
+        loaded_eps.add(spec._lazy_ep_name);
+    }
+
+    # 2. Check lazy extensions for this command
+    lazy_exts = registry._lazy_extensions.get(command_name, []);
+    for (ep_name, source, flag_names) in lazy_exts {
+        if ep_name in loaded_eps {
+            continue;
+        }
+        # Only load if one of the extension's flags is set (non-default value)
+        should_load = False;
+        for flag in flag_names {
+            val = args_dict.get(flag);
+            if val is not None and val is not False and val != "" {
+                should_load = True;
+                break;
+            }
+        }
+        if should_load {
+            _load_plugin_ep(ep_name);
+            loaded_eps.add(ep_name);
         }
     }
 }
