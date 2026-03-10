@@ -367,10 +367,10 @@ impl ModuleIntrospector._extract_access_levels -> None {
         return ast;
     }
 
-    def is_public(node: (uni.AstAccessNode | None)) -> bool {
-        return node is not None
-        and node.access is not None
-        and node.access.tag.name == Tok.KW_PUB;
+    def is_public(ast_node: (uni.AstAccessNode | None)) -> bool {
+        return ast_node is not None
+        and ast_node.access is not None
+        and ast_node.access.tag.name == Tok.KW_PUB;
     }
 
     def _process_import(

@@ -799,8 +799,8 @@ test "client impl file reloads base cl.jac file" {
 }
 
 # --- TestHMRRecursiveDependency ---
+"""When app.cl.jac imports Button.cl.jac, recompiling app should also generate Button.js."""
 test "dependency compiled when imported file recompiled" {
-    """When app.cl.jac imports Button.cl.jac, recompiling app should also generate Button.js."""
     with TemporaryDirectory() as tmpdir {
         unique_dir = Path(tmpdir) / f"project_{uuid.uuid4().hex[:8]}";
         unique_dir.mkdir(parents=True, exist_ok=True);
