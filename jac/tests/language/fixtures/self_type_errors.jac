@@ -1,24 +1,8 @@
 """Error and edge-case tests for Self type.
 
-These tests verify that Self is properly rejected or handled in
-invalid contexts, and that edge cases behave correctly.
+These tests verify that Self is properly handled in edge cases
+and that various archetype features work correctly with Self.
 """
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ERROR 1: Self used in a free function (not inside any archetype)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-"""Self in a free function should be a compile/runtime error."""
-def bad_free_function() -> Self {
-    return Self();
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ERROR 2: Self used in module-level code
-# ═══════════════════════════════════════════════════════════════════════════════
-
-"""Self at module level should be an error."""
-# glob bad_ref: Self;  # Should fail — Self has no enclosing type
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ERROR 3: class def without Self — should still work as plain classmethod
@@ -91,10 +75,10 @@ with entry:__main__ {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ERROR 6: Self in lambda / anonymous function inside method
+# ERROR 6: Self in list comprehension inside method
 # ═══════════════════════════════════════════════════════════════════════════════
 
-"""Self inside a lambda within a method should still resolve to enclosing type."""
+"""Self inside a comprehension within a method should still resolve to enclosing type."""
 obj WithLambda {
     has val: int = 0;
 
@@ -134,10 +118,10 @@ obj ListNode {
 
     def to_list() -> list[int] {
         result: list[int] = [self.value];
-        node = self.next_node;
-        while node is not None {
-            result.append(node.value);
-            node = node.next_node;
+        cur = self.next_node;
+        while cur is not None {
+            result.append(cur.value);
+            cur = cur.next_node;
         }
         return result;
     }

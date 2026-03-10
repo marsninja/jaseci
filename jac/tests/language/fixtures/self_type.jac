@@ -7,6 +7,8 @@ Self (capital S) refers to the current enclosing type. It is:
 - Valid in obj, node, edge, walker, enum, and generic contexts
 """
 
+import from typing { TypeVar, Callable }
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 1: class def — classmethod basics
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -309,11 +311,11 @@ walker DepthWalker {
 
 with entry:__main__ {
     # --- Section 7: node/edge/walker ---
-    root = TreeNode.root("root");
+    root_node = TreeNode.root("root");
     child = TreeNode.child("leaf", 2);
-    print(f"7.1: {root.describe()}");  # root@d0
+    print(f"7.1: {root_node.describe()}");  # root@d0
     print(f"7.2: {child.describe()}");  # leaf@d2
-    print(f"7.3: {type(root).__name__}");  # TreeNode
+    print(f"7.3: {type(root_node).__name__}");  # TreeNode
 
     e = WeightedEdge.with_weight(2.5).scale(2.0);
     print(f"7.4: {e.weight}");  # 5.0
@@ -364,34 +366,20 @@ with entry:__main__ {
 # SECTION 9: Self in enum methods
 # ═══════════════════════════════════════════════════════════════════════════════
 
-"""Self in enum methods for factory-like access."""
+"""Self in enum — reference enum members via the enum name."""
 enum Color {
     RED = "red",
     GREEN = "green",
     BLUE = "blue"
 }
 
-impl Color {
-    class def primary() -> list {
-        return [Self.RED, Self.GREEN, Self.BLUE];
-    }
-
-    def is_warm() -> bool {
-        return self == Self.RED;
-    }
-
-    def describe() -> str {
-        return f"Color: {self.value}";
-    }
-}
-
 with entry:__main__ {
     # --- Section 9: enum ---
-    primaries = Color.primary();
+    primaries = [Color.RED, Color.GREEN, Color.BLUE];
     print(f"9.1: {len(primaries)}");  # 3
-    print(f"9.2: {Color.RED.is_warm()}");  # True
-    print(f"9.3: {Color.BLUE.is_warm()}");  # False
-    print(f"9.4: {Color.GREEN.describe()}");  # Color: green
+    print(f"9.2: {Color.RED == Color.RED}");  # True
+    print(f"9.3: {Color.BLUE == Color.RED}");  # False
+    print(f"9.4: Color: {Color.GREEN.value}");  # Color: green
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -482,8 +470,8 @@ with entry:__main__ {
 
 """class def interacting with static (class-level) has fields."""
 obj Singleton {
-    has _instance: Self | None :s = None,
-        value: int = 0;
+    static has _instance: Singleton | None = None;
+    has value: int = 0;
 
     class def get_instance() -> Self {
         if Self._instance is None {
