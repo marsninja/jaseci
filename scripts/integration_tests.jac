@@ -129,13 +129,19 @@ def run_plugin_tests(runner: IntegrationTestRunner) {
         description="jac plugins list shows installed plugins with qualified names",
     );
 
-    runner.run(
-        ["jac", "plugins", "list"],
-        check_contains=["jac-client", "jac-client:serve"],
-        description="jac-client plugins use qualified name format",
-    );
-
     result = subprocess.run(["jac", "plugins", "list"], capture_output=True, text=True);
+
+    if "jac-client" in result.stdout {
+        runner.run(
+            ["jac", "plugins", "list"],
+            check_contains=["jac-client", "jac-client:serve"],
+            description="jac-client plugins use qualified name format",
+        );
+    } else {
+        print("\n" + "=" * 60);
+        print("SKIP: jac-client plugins test (plugin not installed)");
+        print("=" * 60);
+    }
     if "jac-scale" in result.stdout {
         runner.run(
             ["jac", "plugins", "list"],
