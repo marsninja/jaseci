@@ -33,7 +33,9 @@ obj ModelNotFoundError(ByLLMError) {}
 The raw LLM output string is available via the `raw_output` attribute,
 set on the instance at the raise site.
 """
-obj OutputConversionError(ByLLMError) {}
+obj OutputConversionError(ByLLMError) {
+    has raw_output: str = "";
+}
 
 """Raised when the LLM calls a tool name that was not registered."""
 obj UnknownToolError(ByLLMError) {}
