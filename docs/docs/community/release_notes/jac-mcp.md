@@ -2,6 +2,8 @@
 
 ## jac-mcp 0.1.4 (Unreleased)
 
+- **Added plugin development docs to MCP resources**: New `jac://docs/building-plugins` resource serves the plugin development guide, making it searchable via the MCP server
+
 ## jac-mcp 0.1.3 (Latest Release)
 
 - **Updated token definitions path**: Grammar resource now references `tokens.na.jac` (renamed from `tokens.jac`)
