@@ -550,7 +550,6 @@ These production plugins in the Jaseci repository serve as excellent references:
 | **jac-client** | Full-stack web with Vite bundling, npm deps, project templates | [jac-client/](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-client) |
 | **jac-scale** | Kubernetes deployment, custom server/context/storage | [jac-scale/](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-scale) |
 | **jac-mcp** | Model Context Protocol server for AI-assisted Jac development | [jac-mcp/](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-mcp) |
-| **jac-shadcn** | shadcn/ui component management for Jac projects | [jac-shadcn/](https://github.com/Jaseci-Labs/jaseci/tree/main/jac-shadcn) |
 | **cmd-show** | Simple CLI command example (Python) | [jac/examples/plugins/cmd_show/](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/examples/plugins/cmd_show) |
 
 Key files to study in each plugin:

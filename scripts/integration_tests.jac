@@ -32,15 +32,25 @@ obj IntegrationTestRunner {
         cmd: list[str],
         check_contains: list[str] | None = None,
         check_not_contains: list[str] | None = None,
-        description: str | None = None
+        description: str | None = None,
+        env: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess {
         desc = description or " ".join(cmd);
         print(f"\n{'=' * 60}");
         print(f"TEST: {desc}");
         print(f"CMD:  {' '.join(cmd)}");
+        if env {
+            print(f"ENV:  {env}");
+        }
         print("-" * 60);
 
-        result = subprocess.run(cmd, capture_output=True, text=True);
+        run_env: dict[str, str] | None = None;
+        if env {
+            run_env = dict(os.environ);
+            run_env.update(env);
+        }
+
+        result = subprocess.run(cmd, capture_output=True, text=True, env=run_env);
 
         if result.returncode != 0 {
             print(f"FAIL: Command exited with code {result.returncode}");
@@ -191,6 +201,42 @@ def run_plugin_tests(runner: IntegrationTestRunner) {
     );
 }
 
+"""Test that disabled plugins' declarative TOML commands are hidden and blocked."""
+def run_disabled_plugin_tests(runner: IntegrationTestRunner) {
+    # First check that jac-scale is installed (it has declarative commands)
+    result = subprocess.run(["jac", "plugins", "list"], capture_output=True, text=True);
+    if "jac-scale" not in result.stdout {
+        print("\n" + "=" * 60);
+        print("SKIP: disabled plugin tests (jac-scale not installed)");
+        print("=" * 60);
+        return;
+    }
+
+    # Verify commands are visible when plugin is enabled
+    runner.run(
+        ["jac", "--help"],
+        check_contains=["status", "destroy"],
+        description="jac-scale commands visible when plugin is enabled",
+    );
+
+    # Disable jac-scale via env var and verify its commands are hidden from --help
+    disabled_env = {"JAC_DISABLED_PLUGINS": "jac-scale"};
+    runner.run(
+        ["jac", "--help"],
+        check_not_contains=["Show deployment status"],
+        env=disabled_env,
+        description="disabled plugin's declarative commands hidden from --help",
+    );
+
+    # Verify disabled plugin shows as DISABLED in plugins list
+    runner.run(
+        ["jac", "plugins", "list"],
+        check_contains=["DISABLED"],
+        env=disabled_env,
+        description="disabled plugin shows DISABLED in plugins list",
+    );
+}
+
 """Test basic CLI functionality."""
 def run_cli_tests(runner: IntegrationTestRunner) {
     runner.run(
@@ -225,6 +271,7 @@ glob runner = IntegrationTestRunner();
 
 with entry {
     run_plugin_tests(runner);
+    run_disabled_plugin_tests(runner);
     run_cli_tests(runner);
     sys.exit(runner.summary());
 }

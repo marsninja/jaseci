@@ -81,19 +81,38 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
             package_to_qualified["jaclang"].append(qualified_name);
         }
     }
-    # Get config for disabled plugins info
+    # Get config for disabled plugins info (from jac.toml and env var)
     config = get_config();
     disabled_plugins: list[str] = [];
     if config {
-        disabled_plugins = config.plugins_config.disabled;
+        disabled_plugins = list(config.plugins_config.disabled);
+    }
+    # Also include env-var-based disabled plugins
+    import from jaclang.jac0core.helpers { get_disabled_plugins }
+    env_disabled = get_disabled_plugins();
+    for d in env_disabled {
+        if d not in disabled_plugins {
+            disabled_plugins.append(d);
+        }
     }
     # Helper to check if a plugin is from an external package (can be disabled)
     def is_external_plugin(plugin: object) -> bool {
         return id(plugin) in plugin_to_dist;
     }
     # Helper to check if a qualified name is disabled
+    # Matches "dist:ep" against qualified names, dist names, or bare ep names
     def is_disabled(qualified_name: str) -> bool {
-        return qualified_name in disabled_plugins;
+        if qualified_name in disabled_plugins {
+            return True;
+        }
+        # Also check if the distribution part matches (e.g., "jac-scale" disables "jac-scale:scale")
+        if ':' in qualified_name {
+            dist_part = qualified_name.split(':')[0];
+            if dist_part in disabled_plugins {
+                return True;
+            }
+        }
+        return False;
     }
     # Handle disable action
     if action == 'disable' {
@@ -370,7 +389,7 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
 
         for (short_name, qualified_name, plugin, plugin_class_name) in plugins_in_dist {
             # Check disabled status using qualified name
-            if qualified_name in disabled_plugins {
+            if is_disabled(qualified_name) {
                 console.print(
                     f"     ✖ [dim]{qualified_name}[/dim] [red][DISABLED][/red]"
                 );

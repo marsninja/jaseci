@@ -323,7 +323,7 @@ For plugins without command metadata, falls back to calling create_cmd
 eagerly (backwards compatibility).
 """
 def _register_lazy_plugin_commands(registry: object) -> None {
-    import from jaclang { _jac_manifest }
+    import from jaclang { _jac_manifest, is_ep_disabled }
     import importlib.metadata;
 
     # Collect which EPs have create_cmd (to find the EP to load for each dist)
@@ -344,11 +344,16 @@ def _register_lazy_plugin_commands(registry: object) -> None {
             }
         }
 
+        # Skip disabled distributions
+        ep_name_for_dist = eps_with_create_cmd.get(dist_name, "");
+        if is_ep_disabled(ep_name_for_dist, dist_name=dist_name) {
+            continue;
+        }
+
         # Register new commands from [tool.jac.commands]
         commands = manifest.get("commands", {});
         if commands {
             dists_with_cmd_metadata.add(dist_name);
-            ep_name = eps_with_create_cmd.get(dist_name, "");
             for (cmd_name, cmd_spec) in commands.items() {
                 args = _toml_args_to_arg_list(cmd_spec.get("args", []));
                 registry.register_lazy_command(
@@ -356,7 +361,7 @@ def _register_lazy_plugin_commands(registry: object) -> None {
                     help=cmd_spec.get("help", ""),
                     group=cmd_spec.get("group", "general"),
                     args=args,
-                    ep_name=ep_name,
+                    ep_name=ep_name_for_dist,
                     source=dist_name
                 );
             }
@@ -366,11 +371,13 @@ def _register_lazy_plugin_commands(registry: object) -> None {
         extensions = manifest.get("extensions", {});
         if extensions {
             dists_with_cmd_metadata.add(dist_name);
-            ep_name = eps_with_create_cmd.get(dist_name, "");
             for (cmd_name, ext_spec) in extensions.items() {
                 args = _toml_args_to_arg_list(ext_spec.get("args", []));
                 registry.register_lazy_extension(
-                    command_name=cmd_name, args=args, ep_name=ep_name, source=dist_name
+                    command_name=cmd_name,
+                    args=args,
+                    ep_name=ep_name_for_dist,
+                    source=dist_name
                 );
             }
         }
@@ -379,7 +386,8 @@ def _register_lazy_plugin_commands(registry: object) -> None {
     # Fallback: for plugins that have create_cmd but NO command metadata,
     # load them eagerly (backwards compatibility for third-party plugins).
     for (dist_name, ep_name) in eps_with_create_cmd.items() {
-        if dist_name not in dists_with_cmd_metadata {
+        if dist_name not in dists_with_cmd_metadata
+        and not is_ep_disabled(ep_name, dist_name=dist_name) {
             _load_plugin_ep(ep_name);
         }
     }
@@ -388,6 +396,7 @@ def _register_lazy_plugin_commands(registry: object) -> None {
 """Load a plugin entry point by name and call its create_cmd."""
 def _load_plugin_ep(ep_name: str) -> None {
     import importlib.metadata;
+    import from jaclang { is_ep_disabled }
     import from jaclang.jac0core.runtime { plugin_manager }
 
     try {
@@ -397,6 +406,10 @@ def _load_plugin_ep(ep_name: str) -> None {
     }
     for ep in jac_eps {
         if ep.name == ep_name {
+            dist_name = getattr(getattr(ep, 'dist', None), 'name', '');
+            if is_ep_disabled(ep.name, dist_name=dist_name) {
+                break;
+            }
             try {
                 plugin_class = ep.load();
                 # Register with plugin manager if not already registered

@@ -81,6 +81,22 @@ def _read_jac_manifest() -> dict[str, dict]:
 _disabled_list = get_disabled_plugins()
 _disable_all = "*" in _disabled_list
 
+
+def is_ep_disabled(
+    ep_name: str, dist_name: str = "", disabled: list | None = None
+) -> bool:
+    """Check if an entry point is disabled.
+
+    Matches against distribution name ("jac-scale"), qualified name
+    ("jac-scale:scale"), or bare entry point name ("scale").
+    """
+    dl = disabled if disabled is not None else _disabled_list
+    if "*" in dl:
+        return True
+    qualified = f"{dist_name}:{ep_name}" if dist_name else ""
+    return ep_name in dl or dist_name in dl or (bool(qualified) and qualified in dl)
+
+
 # Read full [tool.jac] manifest from all distributions.
 # Contains hooks, commands, extensions metadata.
 _jac_manifest: dict[str, dict] = {}

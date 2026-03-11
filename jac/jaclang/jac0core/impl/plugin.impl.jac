@@ -87,7 +87,13 @@ impl LazyHookCaller._ensure_loaded -> None {
         pending = `list(self._pending);
         self._pending = [];
         for pep in pending {
-            if pep.name in self._disabled {
+            dist_name = getattr(getattr(pep, 'dist', None), 'name', '');
+            qualified = f"{dist_name}:{pep.name}" if dist_name else "";
+            if (
+                pep.name in self._disabled
+                or dist_name in self._disabled
+                or (qualified and qualified in self._disabled)
+            ) {
                 continue;
             }
             try {
@@ -248,9 +254,16 @@ impl PluginManager.register_lazy_entrypoint(
     ep: object, hook_names: (list | None) = None, disabled: (list | None) = None
 ) -> None {
     disabled_list = disabled if disabled is not None else [];
+    dist_name = getattr(getattr(ep, 'dist', None), 'name', '');
+    qualified = f"{dist_name}:{ep.name}" if dist_name else "";
+    ep_is_disabled = (
+        ep.name in disabled_list
+        or dist_name in disabled_list
+        or (qualified and qualified in disabled_list)
+    );
     # No hook manifest → eager fallback (backwards compat).
     if hook_names is None {
-        if ep.name not in disabled_list {
+        if not ep_is_disabled {
             try {
                 plugin = ep.load();
                 self.register(plugin, name=ep.name);
