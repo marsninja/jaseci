@@ -8,7 +8,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: Tuple Unpacking in For Loops**: `for (a, b, c) in list[tuple[A, B, C]]` now correctly infers types for unpacked variables instead of `UnknownType`.
 - **Refactor: `GUEST` Constant for Guest Username**: Added a `GUEST = '__guest__'` constant to `Constants` enum and replaced hardcoded `'__guest__'` strings in the stdlib HTTP server with `Con.GUEST.value` for improved maintainability and consistency.
 - **Fix: Native Cross-Module Global Variable Access**: Module-level globals declared in one `.na.jac` file are now correctly accessible from importing modules. Previously, accessing such a global caused a segfault at runtime.
-- 4 small refactors/changes.
+- 15 small refactors/changes.
 - **Fix: HMR Recursive recompilation**: Fixed client-side code recursive recompilation process, preventing cyclic recompilation, and ensuring that all dependencies are up to date.
 - **Fix: HTTP Server Authentication for Imported `:pub` Functions**: Fixed server incorrectly requiring authentication (401) for imported `:pub` functions. The server now inspects source file ASTs to determine access levels for imported function endpoints, matching the existing behavior for imported walkers.
 - **Fix: Python Package Imports**: Fixed two import bugs. (1) `import from mypkg { MyClass }` now works when `mypkg/__init__.py` re-exports via `from .mymod import *` - previously the type checker couldn't find `MyClass`. (2) `import from mypkg { subpkg }` now correctly types `subpkg` as a module - previously it failed when `subpkg` is a sub-package inside `mypkg`.
@@ -29,6 +29,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Native: Function Pointer Support for C FFI Callbacks**: Jac `def` functions can now be passed as raw function pointers to C library calls in native code, enabling callback-based C APIs (e.g. libuv timers, async I/O) to be driven directly from Jac.
 - **Fix: jacpretty Crash on Hex-like Patterns**: Fixed `ValueError` crash when `render_markup` encounters strings like `#2000"}` in JSON data. Added input validation for `rgb()`, `color()`, and hex color parsing.
 - **Fix: Match Case Crash on Empty Wildcard Body**: Fixed `list index out of range` crash when a `match`/`case` block has a bare `;` (empty statement) as its only body, e.g. `case _: ;`.
+- **Improved Internal sv Compiler Error Diagnostics**: Helper added that raises a structured ICE with source file, line, column, and node type instead of a bare `list index out of range`.
 - **Fix: jacpretty Stricter Hex Matching**: Hex colors now require exactly 6 digits (`[#ff0000]`). Patterns like `[#2000]`, `[#123]`, `[#fff]` are preserved as literal text instead of being consumed as invalid tags. Added OSC 8 hyperlink support via `[link=url]text[/link]`.
 - **Fix: Type Checker Crash on `Final[UnionType]`**: Fixed crash when type checking `Final[int | str]` annotations. Unwrapping `Final[T]` now correctly handles union types instead of failing with `'UnionType' has no attribute 'shared'`.
 
