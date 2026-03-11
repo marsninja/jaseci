@@ -94,6 +94,12 @@ impl LazyHookCaller._ensure_loaded -> None {
                 plugin_cls = pep.load();
                 if self._pm is not None {
                     self._pm.register(plugin_cls, name=pep.name);
+                    dist = getattr(pep, 'dist', None);
+                    if dist is not None {
+                        self._pm._plugin_distinfo.append(
+                            (plugin_cls, _DistFacade(_dist=dist))
+                        );
+                    }
                 }
             } except Exception {
                 ;
@@ -114,6 +120,7 @@ impl PluginManager.register(plugin: object, name: (str | None) = None) -> (str |
     }
     self._name2plugin[plugin_name] = plugin;
     self._plugin2name[id(plugin)] = plugin_name;
+    self._lazy_entrypoints.pop(plugin_name, None);
     seen: set[str] = `set();
     for klass in inspect.getmro(
         `type(plugin) if not isinstance(plugin, type) else plugin
@@ -214,6 +221,29 @@ impl PluginManager.list_plugin_distinfo -> list[tuple[(object, Any)]] {
     return `list(self._plugin_distinfo);
 }
 
+impl PluginManager.list_all_plugins -> list[tuple[(str, (object | None), Any)]] {
+    result: list[tuple[(str, (object | None), Any)]] = [];
+    # Build a lookup from plugin object to dist info.
+    dist_by_id: dict[int, Any] = {};
+    for (p, d) in self._plugin_distinfo {
+        dist_by_id[id(p)] = d;
+    }
+    # Loaded plugins.
+    for (name, plugin) in self._name2plugin.items() {
+        dist_info = dist_by_id.get(id(plugin));
+        result.append((name, plugin, dist_info));
+    }
+    # Pending lazy plugins (not yet loaded).
+    for (name, ep) in self._lazy_entrypoints.items() {
+        if name not in self._name2plugin {
+            dist = getattr(ep, 'dist', None);
+            dist_facade = _DistFacade(_dist=dist) if dist is not None else None;
+            result.append((name, None, dist_facade));
+        }
+    }
+    return result;
+}
+
 impl PluginManager.register_lazy_entrypoint(
     ep: object, hook_names: (list | None) = None, disabled: (list | None) = None
 ) -> None {
@@ -224,12 +254,18 @@ impl PluginManager.register_lazy_entrypoint(
             try {
                 plugin = ep.load();
                 self.register(plugin, name=ep.name);
+                dist = getattr(ep, 'dist', None);
+                if dist is not None {
+                    self._plugin_distinfo.append((plugin, _DistFacade(_dist=dist)));
+                }
             } except Exception {
                 ;
             }
         }
         return;
     }
+    # Track the entry point for discovery by list_all_plugins.
+    self._lazy_entrypoints[ep.name] = ep;
     # Lazy path: attach EP as pending on LazyHookCallers.
     for hook_name in hook_names {
         hook = getattr(self.hook, hook_name, None);

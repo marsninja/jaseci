@@ -59,6 +59,7 @@ nav:
       - Developer Workflow:
           - CLI Commands: "reference/cli/index.md"
           - Configuration: "reference/config/index.md"
+          - Building Plugins: "reference/plugins/developing-plugins.md"
           - Code Organization: "reference/code-organization.md"
           - Testing: "reference/testing.md"
           - Debugging: "tutorials/language/debugging.md"

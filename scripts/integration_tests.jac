@@ -129,19 +129,13 @@ def run_plugin_tests(runner: IntegrationTestRunner) {
         description="jac plugins list shows installed plugins with qualified names",
     );
 
-    result = subprocess.run(["jac", "plugins", "list"], capture_output=True, text=True);
+    runner.run(
+        ["jac", "plugins", "list"],
+        check_contains=["jac-client", "jac-client:serve"],
+        description="jac-client plugins use qualified name format",
+    );
 
-    if "jac-client" in result.stdout {
-        runner.run(
-            ["jac", "plugins", "list"],
-            check_contains=["jac-client", "jac-client:serve"],
-            description="jac-client plugins use qualified name format",
-        );
-    } else {
-        print("\n" + "=" * 60);
-        print("SKIP: jac-client plugins test (plugin not installed)");
-        print("=" * 60);
-    }
+    result = subprocess.run(["jac", "plugins", "list"], capture_output=True, text=True);
     if "jac-scale" in result.stdout {
         runner.run(
             ["jac", "plugins", "list"],
@@ -157,8 +151,8 @@ def run_plugin_tests(runner: IntegrationTestRunner) {
     if "byllm" in result.stdout {
         runner.run(
             ["jac", "plugins", "list"],
-            check_contains=["jaclang:byllm"],
-            description="byllm plugin is listed under jaclang built-ins",
+            check_contains=["byllm:byllm"],
+            description="byllm plugin is listed under its own distribution",
         );
     } else {
         print("\n" + "=" * 60);
@@ -201,8 +195,8 @@ def run_plugin_tests(runner: IntegrationTestRunner) {
 def run_cli_tests(runner: IntegrationTestRunner) {
     runner.run(
         ["jac", "--version"],
-        check_contains=["Version:"],
-        description="jac --version shows version",
+        check_contains=["Version:", "Plugins Detected"],
+        description="jac --version shows version and detected plugins",
     );
 
     runner.run(

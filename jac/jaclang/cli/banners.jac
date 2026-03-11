@@ -40,15 +40,17 @@ def print_version_banner(version: str) -> None {
     console.print(f'\n📚 Documentation: [url]{JAC_DOCS_URL}[/url]');
     console.print(f'💬 Community:     [url]{JAC_DISCORD_URL}[/url]');
     console.print(f'🐛 Issues:        [url]{JAC_ISSUES_URL}[/url]');
-    # Show installed plugins
+    # Show installed plugins (includes both loaded and lazy-pending plugins)
     try {
         import from jaclang.jac0core.runtime { plugin_manager }
         seen: dict[str, str] = {};
-        for (plugin, dist_facade) in plugin_manager.list_plugin_distinfo() {
-            name = dist_facade.project_name;
-            ver = dist_facade.version;
-            if name not in seen {
-                seen[name] = ver;
+        for (ep_name, plugin_or_none, dist_info) in plugin_manager.list_all_plugins() {
+            if dist_info is not None {
+                name = dist_info.project_name;
+                ver = dist_info.version;
+                if name not in seen {
+                    seen[name] = ver;
+                }
             }
         }
         if seen {

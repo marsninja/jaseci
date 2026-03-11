@@ -27,35 +27,34 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
     import from jaclang.cli.registry { get_registry }
     import from jaclang.project.config { get_config, JacConfig, find_project_root }
     import from pathlib { Path }
-    # Build a mapping from plugin object to its distribution info using pluggy's tracking
-    plugin_to_dist: dict[int, tuple[str, str]] = {};
-    for (plugin, dist_facade) in plugin_manager.list_plugin_distinfo() {
-        dist_name = dist_facade.project_name;
-        dist_version = dist_facade.version;
-        plugin_to_dist[id(plugin)] = (dist_name, dist_version);
-    }
-    # Build mappings for plugin identification
-    plugin_list = plugin_manager.list_name_plugin();
-    # Map: short_name -> list of (qualified_name, plugin) for detecting ambiguity
+    # Build mappings using list_all_plugins (includes both loaded and lazy plugins).
+    all_plugins = plugin_manager.list_all_plugins();
+    # Map: short_name -> list of (qualified_name, plugin_or_none) for detecting ambiguity
     short_to_qualified: dict[str, list[tuple[str, object]]] = {};
-    # Map: qualified_name -> plugin
+    # Map: qualified_name -> plugin_or_none
     qualified_to_plugin: dict[str, object] = {};
     # Map: package_name -> list of qualified_names
     package_to_qualified: dict[str, list[str]] = {};
-    for (short_name, plugin) in plugin_list {
+    # Map: plugin id -> (dist_name, dist_version)
+    plugin_to_dist: dict[int, tuple[str, str]] = {};
+    for (short_name, plugin_or_none, dist_info) in all_plugins {
         if short_name.isdigit() {
             continue;  # Skip unnamed plugins
         }
-        if id(plugin) in plugin_to_dist {
-            (pkg_name, pkg_version) = plugin_to_dist[id(plugin)];
+        if dist_info is not None {
+            pkg_name = dist_info.project_name;
+            pkg_version = dist_info.version;
             qualified_name = f"{pkg_name}:{short_name}";
+            if plugin_or_none is not None {
+                plugin_to_dist[id(plugin_or_none)] = (pkg_name, pkg_version);
+            }
             # Track qualified name
-            qualified_to_plugin[qualified_name] = plugin;
+            qualified_to_plugin[qualified_name] = plugin_or_none;
             # Track short name -> qualified mappings (for ambiguity detection)
             if short_name not in short_to_qualified {
                 short_to_qualified[short_name] = [];
             }
-            short_to_qualified[short_name].append((qualified_name, plugin));
+            short_to_qualified[short_name].append((qualified_name, plugin_or_none));
             # Track package -> qualified names
             if pkg_name not in package_to_qualified {
                 package_to_qualified[pkg_name] = [];
@@ -70,11 +69,11 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
         } else {
             # Core plugin - use jaclang:name as qualified name
             qualified_name = f"jaclang:{short_name}";
-            qualified_to_plugin[qualified_name] = plugin;
+            qualified_to_plugin[qualified_name] = plugin_or_none;
             if short_name not in short_to_qualified {
                 short_to_qualified[short_name] = [];
             }
-            short_to_qualified[short_name].append((qualified_name, plugin));
+            short_to_qualified[short_name].append((qualified_name, plugin_or_none));
             # Also track under jaclang package
             if "jaclang" not in package_to_qualified {
                 package_to_qualified["jaclang"] = [];
@@ -299,17 +298,18 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
         return 1;
     }
     # Organize plugins by PyPI distribution for display
-    # Use the already-built mappings from above
-    plugins_by_dist: dict[str, list[tuple[str, str, object, str]]] = {};  # dist_key -> [(short_name, qualified_name, plugin, class_name)]
+    # Use the already-built mappings from above (includes both loaded and lazy plugins)
+    plugins_by_dist: dict[str, list[tuple[str, str, object, str]]] = {};  # dist_key -> [(short_name, qualified_name, plugin_or_none, class_name)]
     named_plugin_count = 0;
-    for (short_name, plugin) in plugin_list {
+    for (short_name, plugin_or_none, dist_info) in all_plugins {
         if short_name.isdigit() {
             continue;
         }
         named_plugin_count += 1;
 
-        if id(plugin) in plugin_to_dist {
-            (dist_name, dist_version) = plugin_to_dist[id(plugin)];
+        if dist_info is not None {
+            dist_name = dist_info.project_name;
+            dist_version = dist_info.version;
             dist_key = f"{dist_name}=={dist_version}" if dist_version else dist_name;
             qualified_name = f"{dist_name}:{short_name}";
         } else {
@@ -320,10 +320,14 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
         if dist_key not in plugins_by_dist {
             plugins_by_dist[dist_key] = [];
         }
-        plugin_type = type(plugin);
-        plugin_class_name = plugin_type?.__name__ or str(plugin_type);
+        if plugin_or_none is not None {
+            plugin_type = type(plugin_or_none);
+            plugin_class_name = plugin_type?.__name__ or str(plugin_type);
+        } else {
+            plugin_class_name = "(lazy)";
+        }
         plugins_by_dist[dist_key].append(
-            (short_name, qualified_name, plugin, plugin_class_name)
+            (short_name, qualified_name, plugin_or_none, plugin_class_name)
         );
     }
     if not plugins_by_dist {
@@ -375,36 +379,42 @@ impl plugins(action: str = 'list', names: list = [], verbose: bool = False) -> i
             }
 
             if verbose {
-                plugin_type = type(plugin);
-                module = getattr(plugin_type, '__module__', 'unknown');
-                console.print(f"       Class: {plugin_class_name}", style="muted");
-                console.print(f"       Module: {module}", style="muted");
-                # Show implemented hooks
-                hooks = [];
-                for attr_name in dir(plugin) {
-                    if not attr_name.startswith('_') {
-                        attr = getattr(plugin, attr_name, None);
-                        if callable(attr)
-                        and attr?.__wrapped__
-                        or (hasattr(plugin_manager.hook, attr_name)) {
-                            try {
-                                hook = getattr(plugin_manager.hook, attr_name, None);
-                                if hook is not None {
-                                    impls = hook.get_hookimpls();
-                                    for impl in impls {
-                                        if impl.plugin is plugin {
-                                            hooks.append(attr_name);
-                                            break;
+                if plugin is not None {
+                    plugin_type = type(plugin);
+                    module = getattr(plugin_type, '__module__', 'unknown');
+                    console.print(f"       Class: {plugin_class_name}", style="muted");
+                    console.print(f"       Module: {module}", style="muted");
+                    # Show implemented hooks
+                    hooks = [];
+                    for attr_name in dir(plugin) {
+                        if not attr_name.startswith('_') {
+                            attr = getattr(plugin, attr_name, None);
+                            if callable(attr)
+                            and attr?.__wrapped__
+                            or (hasattr(plugin_manager.hook, attr_name)) {
+                                try {
+                                    hook = getattr(plugin_manager.hook, attr_name, None);
+                                    if hook is not None {
+                                        impls = hook.get_hookimpls();
+                                        for hi in impls {
+                                            if hi.plugin is plugin {
+                                                hooks.append(attr_name);
+                                                break;
+                                            }
                                         }
                                     }
-                                }
-                            } except Exception { }
+                                } except Exception { }
+                            }
                         }
                     }
-                }
-                if hooks {
+                    if hooks {
+                        console.print(
+                            f"       Hooks: {', '.join(sorted(hooks))}", style="muted"
+                        );
+                    }
+                } else {
                     console.print(
-                        f"       Hooks: {', '.join(sorted(hooks))}", style="muted"
+                        "       Status: not yet loaded (lazy)", style="muted"
                     );
                 }
                 console.print();

@@ -260,6 +260,11 @@ glob DOC_MAPPINGS: dict[str, tuple] = {
              "appendices.md",
              "Appendices - Additional language reference"
          ),
+         "jac://docs/building-plugins": (
+             "reference/plugins/developing-plugins.md",
+             "developing-plugins.md",
+             "Building Plugins - How to build Jac plugins"
+         ),
 
      };
 

@@ -16,13 +16,25 @@ import from jaclang.jac0core.plugin { HookCaller, HookimplMarker, PluginManager 
 # ---------------------------------------------------------------------------
 glob _hookimpl = HookimplMarker("test");
 
+"""A mock distribution for testing distinfo tracking."""
+obj MockDist {
+    has _name: str = "mock-dist",
+        _version: str = "1.0.0",
+        metadata: dict[str, str] by postinit;
+
+    def postinit -> None {
+        self.metadata = {"Name": self._name, "Version": self._version};
+    }
+}
+
 """A mock entry point that tracks whether load() was called."""
 obj MockEntryPoint {
     has group: str = "jac",
         name: str = "mock_plugin",
         load_count: int = 0,
         _plugin_class: (type | None) = None,
-        _should_fail: bool = False;
+        _should_fail: bool = False,
+        dist: (MockDist | None) = None;
 
     def load -> (type | None) {
         if self._should_fail {
@@ -285,4 +297,113 @@ test "broken plugin does not crash and others still work" {
     result_good = pm.hook.get_console();
     assert ep_good.load_count == 1 , "Good plugin should load normally";
     assert result_good == "good_console";
+}
+
+# ---------------------------------------------------------------------------
+# Test 7: list_all_plugins shows both loaded and lazy plugins
+# ---------------------------------------------------------------------------
+test "list_all_plugins includes loaded and pending lazy plugins" {
+    class CoreImpl {
+        @_hookimpl
+        static def get_mtir -> None {
+            return None;
+        }
+    }
+
+    class LazyPlugin {
+        @_hookimpl
+        static def get_mtir -> str {
+            return "lazy_result";
+        }
+    }
+
+    dist = MockDist(_name="test-pkg", _version="2.0.0");
+    ep = MockEntryPoint(name="lazy_ep", _plugin_class=LazyPlugin, dist=dist);
+
+    pm = PluginManager("test");
+    pm.register(CoreImpl);
+    pm.register_lazy_entrypoint(ep, hook_names=["get_mtir"]);
+
+    # Before triggering: list_all_plugins should show both.
+    all_plugins = pm.list_all_plugins();
+    names = [n for (n, _, _) in all_plugins];
+    assert "CoreImpl" in names , "Core plugin should be listed";
+    assert "lazy_ep" in names , "Lazy plugin should be listed";
+
+    # The lazy entry should have dist info but no plugin object.
+    for (name, plugin, dist_info) in all_plugins {
+        if name == "lazy_ep" {
+            assert plugin is None , "Lazy plugin should not be loaded yet";
+            assert dist_info is not None , "Lazy plugin should have dist info";
+            assert dist_info.project_name == "test-pkg";
+            assert dist_info.version == "2.0.0";
+        }
+    }
+
+    # After triggering: lazy plugin should be loaded.
+    pm.hook.get_mtir();
+    all_after = pm.list_all_plugins();
+    for (name, plugin, dist_info) in all_after {
+        if name == "lazy_ep" {
+            assert plugin is not None , "Lazy plugin should be loaded now";
+            assert dist_info is not None , "Dist info should persist after load";
+            assert dist_info.project_name == "test-pkg";
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Test 8: list_plugin_distinfo populated for eager and lazy paths
+# ---------------------------------------------------------------------------
+test "list_plugin_distinfo tracks distribution info" {
+    class CoreImpl {
+        @_hookimpl
+        static def get_mtir -> None {
+            return None;
+        }
+    }
+
+    class EagerPlugin {
+        @_hookimpl
+        static def get_console -> str {
+            return "eager";
+        }
+    }
+
+    class LazyPlugin {
+        @_hookimpl
+        static def get_mtir -> str {
+            return "lazy";
+        }
+    }
+
+    eager_dist = MockDist(_name="eager-pkg", _version="1.0.0");
+    lazy_dist = MockDist(_name="lazy-pkg", _version="2.0.0");
+    ep_eager = MockEntryPoint(
+        name="eager_ep", _plugin_class=EagerPlugin, dist=eager_dist
+    );
+    ep_lazy = MockEntryPoint(name="lazy_ep", _plugin_class=LazyPlugin, dist=lazy_dist);
+
+    pm = PluginManager("test");
+    pm.register(CoreImpl);
+
+    # Eager load (no manifest).
+    pm.register_lazy_entrypoint(ep_eager, hook_names=None);
+    # Lazy load (with manifest).
+    pm.register_lazy_entrypoint(ep_lazy, hook_names=["get_mtir"]);
+
+    # Eager plugin should already have distinfo.
+    distinfo = pm.list_plugin_distinfo();
+    eager_names = [d.project_name for (_, d) in distinfo];
+    assert "eager-pkg" in eager_names , "Eager plugin should have distinfo";
+    assert "lazy-pkg" not in eager_names , "Lazy plugin should not have distinfo yet";
+
+    # Trigger lazy hook.
+    pm.hook.get_mtir();
+
+    # Now both should have distinfo.
+    distinfo_after = pm.list_plugin_distinfo();
+    all_names = [d.project_name for (_, d) in distinfo_after];
+    assert "eager-pkg" in all_names , "Eager plugin distinfo should persist";
+    assert "lazy-pkg" in all_names , "Lazy plugin should now have distinfo";
 }

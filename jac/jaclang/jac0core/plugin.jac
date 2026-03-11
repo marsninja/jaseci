@@ -117,12 +117,14 @@ obj PluginManager {
         _name2plugin: dict[(str, object)] by postinit,
         _plugin2name: dict[(int, str)] by postinit,
         _plugin_distinfo: list[tuple[(object, Any)]] by postinit,
+        _lazy_entrypoints: dict[(str, object)] by postinit,
         hook: HookRelay by postinit;
 
     def postinit -> None {
         self._name2plugin = {};
         self._plugin2name = {};
         self._plugin_distinfo = [];
+        self._lazy_entrypoints = {};
         self.hook = HookRelay();
     }
 
@@ -135,6 +137,7 @@ obj PluginManager {
     def add_hookspecs(spec_class: type) -> None;
     def list_name_plugin -> list[tuple[(str, object)]];
     def list_plugin_distinfo -> list[tuple[(object, Any)]];
+    def list_all_plugins -> list[tuple[(str, (object | None), Any)]];
     def load_setuptools_entrypoints(group: str) -> int;
     def register_lazy_entrypoint(
         ep: object, hook_names: (list | None) = None, disabled: (list | None) = None
