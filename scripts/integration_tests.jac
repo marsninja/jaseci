@@ -157,8 +157,8 @@ def run_plugin_tests(runner: IntegrationTestRunner) {
     if "byllm" in result.stdout {
         runner.run(
             ["jac", "plugins", "list"],
-            check_contains=["byllm", "byllm:byllm"],
-            description="byllm plugins use qualified name format",
+            check_contains=["jaclang:byllm"],
+            description="byllm plugin is listed under jaclang built-ins",
         );
     } else {
         print("\n" + "=" * 60);
