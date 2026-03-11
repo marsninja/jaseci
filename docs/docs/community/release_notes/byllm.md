@@ -4,6 +4,8 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## byllm 0.5.6 (Unreleased)
 
+- **Fix: Declare `raw_output` field on `OutputConversionError`**: Added `has raw_output: str` to `OutputConversionError` so the attribute is properly declared rather than monkey-patched at the raise site.
+
 ## byllm 0.5.5 (Latest Release)
 
 - Small refactors/formatting fixes.
