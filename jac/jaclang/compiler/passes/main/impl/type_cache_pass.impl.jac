@@ -22,6 +22,36 @@ impl TypeCachePass.before_pass -> None {
     if isinstance(module, uni.UniScopeNode) {
         self._resolve_symbol_types(module);
     }
+
+    # Phase 3: Stamp jac_type on ALL type annotation Expr nodes in the entire
+    # AST, including those in nested method/loop scopes that Phase 2 cannot
+    # reach via kid_scope. After this phase every AstTypedVarNode.type_tag.tag
+    # and every FuncSignature return_type is guaranteed to have jac_type set,
+    # so backends do not need to re-build JacTypes from annotations at codegen.
+    for typed_nd in self.get_all_sub_nodes(
+        module, uni.AstTypedVarNode, brute_force=True
+    ) {
+        if typed_nd.type_tag and typed_nd.type_tag.tag {
+            tag = typed_nd.type_tag.tag;
+            if isinstance(tag, uni.Expr) and tag.jac_type is None {
+                self._build_jac_type(tag);
+            }
+        }
+    }
+    for sig_nd in self.get_all_sub_nodes(module, uni.FuncSignature, brute_force=True) {
+        if sig_nd.return_type and isinstance(sig_nd.return_type, uni.Expr) {
+            if sig_nd.return_type.jac_type is None {
+                self._build_jac_type(sig_nd.return_type);
+            }
+        }
+        for p in sig_nd.get_parameters() {
+            if p.type_tag and p.type_tag.tag and isinstance(p.type_tag.tag, uni.Expr) {
+                if p.type_tag.tag.jac_type is None {
+                    self._build_jac_type(p.type_tag.tag);
+                }
+            }
+        }
+    }
 }
 
 """Build a structured JacType from a type annotation AST node.
