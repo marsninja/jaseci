@@ -165,7 +165,9 @@ impl ASTValidationPass.enter_switch_stmt(
 
 """Validate import statement has at least one item."""
 impl ASTValidationPass.enter_import(self: ASTValidationPass, nd: uni.Import) -> None {
-    if nd.items is not None and len(nd.items) == 0 {
+    if nd.items is not None
+    and len(nd.items) == 0
+    and (nd.clib_decls is None or len(nd.clib_decls) == 0) {
         self.log_error(
             "import statement must specify at least one item", node_override=nd
         );
