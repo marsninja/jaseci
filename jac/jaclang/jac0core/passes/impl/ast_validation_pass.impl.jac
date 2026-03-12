@@ -68,7 +68,16 @@ impl ASTValidationPass.enter_name(self: ASTValidationPass, nd: uni.Name) -> None
     if nd.value == "pass" {
         self.log_error("'pass' keyword is not allowed in Jac", node_override=nd);
     } elif nd.value == "new" {
-        self.log_error("The 'new' keyword is not supported in Jac", node_override=nd);
+        # Only flag 'new' as a standalone identifier, not as an attribute
+        # access (e.g. hmac.new is valid Python interop).
+        is_attr = isinstance(nd.parent, uni.AtomTrailer)
+        and nd.parent.is_attr
+        and nd.parent.right is nd;
+        if not is_attr {
+            self.log_error(
+                "The 'new' keyword is not supported in Jac", node_override=nd
+            );
+        }
     }
 }
 
