@@ -121,6 +121,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "Expected augmented assignment in for...to...by step"
      ),
+     E0024 = _err(
+         "E0024",
+         Category.SYNTAX,
+         "Cannot assign to '{name}' -- it is a built-in reference, not a variable",
+         help="Use a different variable name, or use backtick escaping (e.g. `root) to create a local variable with the same name."
+     ),
      # Parser: statement-level errors
      E0030 = _err("E0030", Category.SYNTAX, "Unexpected semicolon at module level"),
      E0031 = _err(
@@ -585,6 +591,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E5040 = _err("E5040", Category.CODEGEN, "Unable to find ast for module {path}."),
      E5041 = _err("E5041", Category.CODEGEN, "Length mismatch in import names"),
      E5042 = _err("E5042", Category.CODEGEN, "Length mismatch in async for body"),
+     E5043 = _err("E5043", Category.CODEGEN, "Bytecode compilation failed: {error}"),
      # Comment injection
      W5050 = _warn(
          "W5050",

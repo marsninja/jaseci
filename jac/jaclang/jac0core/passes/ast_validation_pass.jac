@@ -15,6 +15,7 @@ import from jaclang.jac0core.diagnostics {
     E0010,
     E0020,
     E0023,
+    E0024,
     E0031,
     E0040,
     E0041,
@@ -37,4 +38,5 @@ class ASTValidationPass(UniPass) {
     def enter_import(self: ASTValidationPass, nd: uni.Import) -> None;
     def enter_enum(self: ASTValidationPass, nd: uni.Enum) -> None;
     def enter_switch_stmt(self: ASTValidationPass, nd: uni.SwitchStmt) -> None;
+    def enter_assignment(self: ASTValidationPass, nd: uni.Assignment) -> None;
 }

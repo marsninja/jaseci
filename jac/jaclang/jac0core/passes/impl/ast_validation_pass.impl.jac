@@ -145,6 +145,27 @@ impl ASTValidationPass.enter_switch_stmt(
     }
 }
 
+"""Validate assignment targets are not non-assignable built-in references."""
+impl ASTValidationPass.enter_assignment(
+    self: ASTValidationPass, nd: uni.Assignment
+) -> None {
+    # root and super compile to function calls (e.g. Jac.root()) which
+    # cannot appear on the left side of an assignment in Python.
+    non_assignable = {Tok.KW_ROOT,Tok.KW_SUPER};
+    for target in nd.target {
+        ref_node: (uni.SpecialVarRef | None) = None;
+        if isinstance(target, uni.SpecialVarRef) {
+            ref_node = target;
+        } elif isinstance(target, uni.AtomTrailer)
+        and isinstance(target.right, uni.SpecialVarRef) {
+            ref_node = target.right;
+        }
+        if ref_node is not None and ref_node.name in non_assignable {
+            self.emit(E0024, node_override=ref_node, name=ref_node.value);
+        }
+    }
+}
+
 """Validate import statement has at least one item."""
 impl ASTValidationPass.enter_import(self: ASTValidationPass, nd: uni.Import) -> None {
     if nd.items is not None
