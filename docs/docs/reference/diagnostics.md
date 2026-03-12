@@ -18,12 +18,14 @@ For example, `E1030` is a **type error** about attribute access, and `W3005` is 
 
 Add a `# jac:ignore[CODE]` comment on the same line as the diagnostic to suppress it:
 
+<!-- jac-skip -->
 ```jac
 x = some_func();  # jac:ignore[E1030]
 ```
 
 Multiple codes can be suppressed on the same line:
 
+<!-- jac-skip -->
 ```jac
 x = some_func();  # jac:ignore[E1030,W2001]
 ```

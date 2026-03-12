@@ -276,6 +276,7 @@ jac check . --ignore node_modules dist __pycache__
 
 Errors and warnings are displayed with structured diagnostic codes (e.g., `E1030`, `W2001`). You can suppress individual diagnostics inline with `# jac:ignore[CODE]`:
 
+<!-- jac-skip -->
 ```jac
 x = some_func();  # jac:ignore[E1030]
 ```
