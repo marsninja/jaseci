@@ -12,6 +12,10 @@ impl StaticAnalysisPass.after_pass -> None {
     self._check_unused_symbols(self.ir_in);
     self._check_undefined_names(self.ir_in);
     self._check_unreachable_code(self.ir_in);
+    for annex_mod in self.ir_in.impl_mod + self.ir_in.test_mod + self.ir_in.variant_mod {
+        self._check_undefined_names(annex_mod);
+        self._check_unreachable_code(annex_mod);
+    }
 }
 
 """Walk all scopes and warn on symbols that are defined but never used."""
@@ -67,17 +71,11 @@ impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
         }
         # Check unused: defined but never referenced
         if len(sym.uses) == 0 {
-            self.log_warning(f"'{name}' is defined but never used", sym.decl);
+            self.emit(W2003, node_override=sym.decl, name=name);
         }
     }
     # Recurse into child scopes
     for kid in scope.kid_scope {
-        if isinstance(kid, uni.AstImplNeedingNode) {
-            if isinstance(kid.body, uni.ImplDef) {
-                self._check_unused_symbols(kid.body);
-                continue;
-            }
-        }
         self._check_unused_symbols(kid);
     }
 }
@@ -111,7 +109,7 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
         if name_nd.find_parent_of_type(uni.ModulePath) is not None {
             continue;
         }
-        self.log_warning(f"Name '{name_nd.value}' may be undefined", name_nd);
+        self.emit(W2001, node_override=name_nd, name=name_nd.value);
     }
 }
 
@@ -120,6 +118,7 @@ impl StaticAnalysisPass._check_unreachable_code(mod: uni.Module) -> None {
     # Collect all code body containers
     container_types = [
         uni.Ability,
+        uni.ImplDef,
         uni.IfStmt,
         uni.ElseStmt,
         uni.ElseIf,
@@ -144,7 +143,7 @@ impl StaticAnalysisPass._check_unreachable_code(mod: uni.Module) -> None {
                 if isinstance(stmt, uni.Semi) {
                     continue;
                 }
-                self.log_warning("Unreachable code detected", stmt);
+                self.emit(W2002, node_override=stmt);
                 break;
             }
             if isinstance(stmt, (uni.ReturnStmt, uni.RaiseStmt)) {

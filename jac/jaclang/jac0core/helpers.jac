@@ -246,25 +246,47 @@ def pretty_print_source_location(
     return pretty_dump[:-1];
 }
 
+"""Format related diagnostic spans for display under the main error."""
+def format_related_spans(
+    related: list[tuple[str, object]], *, colors: bool = False
+) -> str {
+    result = '';
+    for (label, loc) in related {
+        mod_path = loc.mod_path;
+        first_line = loc.first_line;
+        col_start = loc.col_start;
+        if colors {
+            result += f"\n{ANSIColors.CYAN}note{ANSIColors.END}: {label}";
+        } else {
+            result += f"\nnote: {label}";
+        }
+        if (mod_path != '') {
+            result += f"\n  --> {mod_path}:{first_line}:{col_start}";
+            try {
+                source = loc.orig_src.code;
+                span_dump = pretty_print_source_location(
+                    mod_path,
+                    source,
+                    first_line,
+                    loc.pos_start,
+                    loc.pos_end,
+                    colors=colors
+                );
+                if (span_dump != '') {
+                    result += '\n' + span_dump;
+                }
+            } except Exception {
+                ;
+            }
+        }
+    }
+    return result;
+}
+
 """Jac debugger."""
 class Jdb(pdb.Pdb) {
-    """Initialize the Jac debugger."""
-    def init(self: Jdb, *args: Any, **kwargs: Any) -> None {
-        super.init(*args, **kwargs);
-        self.prompt = 'Jdb > ';
-    }
-
-    """Check for breakpoint."""
-    def has_breakpoint(self: Jdb, bytecode: bytes) -> bool {
-        code = marshal.loads(bytecode);
-        instructions = dis.get_instructions(code);
-        return `any(
-            (
-                (instruction.opname in ('LOAD_GLOBAL', 'LOAD_NAME', 'LOAD_FAST'))
-                and (instruction.argval == 'breakpoint')
-            ) for instruction in instructions
-        );
-    }
+    def init(self: Jdb, *args: Any, **kwargs: Any) -> None;
+    def has_breakpoint(self: Jdb, bytecode: bytes) -> bool;
 }
 
 glob debugger = Jdb();
@@ -382,17 +404,11 @@ def _describe_nodes_list(objects: Sequence) -> str {
 obj DistFacade {
     has _dist: (object | None);
 
-    """Get the distribution/package name."""
     @property
-    def project_name(self: DistFacade) -> str {
-        return self._dist.name if (self._dist and self._dist?.name) else 'unknown';
-    }
+    def project_name(self: DistFacade) -> str;
 
-    """Get the distribution version."""
     @property
-    def version(self: DistFacade) -> str {
-        return self._dist.version if (self._dist and self._dist?.version) else '0.0.0';
-    }
+    def version(self: DistFacade) -> str;
 }
 
 """Get list of disabled plugins from JAC_DISABLED_PLUGINS env var or jac.toml.

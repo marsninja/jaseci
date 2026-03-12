@@ -17,9 +17,12 @@ impl TypeEvaluator.validate_arg_types(
         if not self.assign_type(arg_type, param.param_type) {
             has_errors = True;
             if not checking_overload {
-                self.add_diagnostic(
+                self.emit_diag(
+                    E1053,
                     arg,
-                    f"Cannot assign {arg_type} to parameter '{param.name}' of type {param.param_type}",
+                    actual=str(arg_type),
+                    name=param.name,
+                    expected=str(param.param_type)
                 );
             }
         }
@@ -36,6 +39,47 @@ a diagnostic and sets argumentErrors to true.
 """
 impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
     caller_type = self.get_type_of_expression(expr.target);
+
+    # TypeVar handling - use bound type if available (Pyright: typeVar6)
+    if isinstance(caller_type, types.TypeVarType) {
+        if caller_type.bound {
+            # Bounded TypeVar - check if bound type has __call__
+            bound_type = caller_type.bound;
+            if isinstance(bound_type, types.ClassType) {
+                # First check if bound type has __call__ method at all
+                call_member = self._lookup_class_member(bound_type, "__call__");
+                if call_member {
+                    # Bound type is callable - validate call arguments
+                    call_type = self.get_type_of_symbol(call_member.symbol);
+                    if isinstance(call_type, types.FunctionType) {
+                        # Validate arguments against the __call__ signature
+                        arg_param_match = self.match_args_to_params(
+                            expr.params, expr, call_type
+                        );
+                        if not arg_param_match.argument_errors {
+                            self.validate_arg_types(arg_param_match);
+                        }
+                        return call_type.return_type or types.UnknownType();
+                    }
+                    # Fallback to magic method call
+                    call_ret = self.get_type_of_magic_method_call(
+                        bound_type, "__call__", expr.params, expr
+                    );
+                    if call_ret {
+                        return call_ret;
+                    }
+                    return types.UnknownType();
+                }
+                # Bound type is not callable (no __call__ method)
+                self.emit_diag(E1023, expr, type=str(bound_type));
+                return types.UnknownType();
+            }
+        }
+        # Unbounded TypeVar - not callable
+        self.emit_diag(E1023, expr, type=caller_type.name);
+        return types.UnknownType();
+    }
+
     is_unbound_call = self._is_unbound_method_call(expr);
     if isinstance(caller_type, types.FunctionType) {
         arg_param_match = self.match_args_to_params(
@@ -86,24 +130,84 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         if _fallback_result is not None {
             return _fallback_result;
         }
-        self.add_diagnostic(
-            expr,
-            "No matching overload found for the function call with the given arguments",
-        );
+        self.emit_diag(E1054, expr);
         return types.UnknownType();
     }
     if isinstance(caller_type, types.ClassType)
     and caller_type.shared == (self.prefetch and self.prefetch.type_var_class.shared) {
-        # Extract the TypeVar name from the first argument: TypeVar('T')
+        # Pyright: createTypeVarType() - Extract TypeVar name and validate constraints
         type_var_name = "";
+        first_constraint_arg: uni.Expr | None = None;
+        constraint_count = 0;
+
+        # Helper to extract string literal value from String or MultiString
+        def _get_string_lit_value(arg: uni.Expr) -> str | None {
+            if isinstance(arg, uni.String) {
+                return arg.lit_value;
+            } elif isinstance(arg, uni.MultiString) and arg.strings {
+                if isinstance(arg.strings[0], uni.String) {
+                    return arg.strings[0].lit_value;
+                }
+            }
+            return None;
+        }
+
+        is_covariant = False;
+        is_contravariant = False;
+        bound_type: types.TypeBase | None = None;
+
         if expr.params and len(expr.params) > 0 {
             first_arg = expr.params[0];
-            if isinstance(first_arg, uni.String) {
-                # Use lit_value to get the parsed string without quotes
-                type_var_name = first_arg.lit_value;
+            type_var_name = _get_string_lit_value(first_arg) or "";
+            if not type_var_name {
+                # Pyright: typeVarFirstArg
+                self.emit_diag(E1063, first_arg);
             }
+
+            # Count positional constraint arguments and extract variance kwargs
+            for i in range(1, len(expr.params)) {
+                arg = expr.params[i];
+                if isinstance(arg, uni.KWPair) {
+                    # Extract covariant=, contravariant=, and bound= keyword args
+                    if isinstance(arg.key, uni.Name) {
+                        if arg.key.value == "covariant"
+                        and isinstance(arg.value, uni.Bool) {
+                            is_covariant = arg.value.value;
+                        } elif arg.key.value == "contravariant"
+                        and isinstance(arg.value, uni.Bool) {
+                            is_contravariant = arg.value.value;
+                        } elif arg.key.value == "bound" {
+                            # Parse bound type expression
+                            bound_type = self.get_type_of_expression(arg.value);
+                            # Convert to instance type if needed
+                            if isinstance(bound_type, types.ClassType)
+                            and bound_type.is_instantiable() {
+                                bound_type = bound_type.clone_as_instance();
+                            }
+                        }
+                    }
+                    continue;
+                }
+                constraint_count += 1;
+                if first_constraint_arg is None {
+                    first_constraint_arg = arg;
+                }
+            }
+
+            # Pyright: typeVarSingleConstraint
+            if constraint_count == 1 and first_constraint_arg {
+                self.emit_diag(E1064, first_constraint_arg);
+            }
+        } else {
+            # Pyright: typeVarFirstArg
+            self.emit_diag(E1063, expr);
         }
-        return types.TypeVarType(name=type_var_name);
+        return types.TypeVarType(
+            name=type_var_name,
+            is_covariant=is_covariant,
+            is_contravariant=is_contravariant,
+            bound=bound_type
+        );
     }
     if (
         isinstance(caller_type, types.ClassType)
@@ -228,7 +332,25 @@ impl TypeEvaluator.match_args_to_params(
             }
         } except Exception as e {
             if not checking_overload {
-                self.add_diagnostic(arg, str(e));
+                err_msg = str(e);
+                if "Too many positional arguments" in err_msg {
+                    self.emit_diag(E1051, arg);
+                } elif "does not match any parameter" in err_msg {
+                    self.emit_diag(
+                        E1052,
+                        arg,
+                        name=arg.key.sym_name if isinstance(arg, uni.KWPair) else ""
+                    );
+                } elif "Positional only parameter" in err_msg {
+                    # Extract param name from "Positional only parameter 'X' cannot..."
+                    pname = err_msg.split("'")[1] if "'" in err_msg else "";
+                    self.emit_diag(E1056, arg, name=pname);
+                } elif "already matched" in err_msg {
+                    pname = err_msg.split("'")[1] if "'" in err_msg else "";
+                    self.emit_diag(E1057, arg, name=pname);
+                } elif self._pass is not None {
+                    self._pass.emit(E1051, node_override=arg);
+                }
             }
             argument_errors = True;
         }
@@ -239,10 +361,7 @@ impl TypeEvaluator.match_args_to_params(
         if not checking_overload {
             error_node = node_for_error or (arg_nodes[0] if arg_nodes else None);
             if error_node {
-                self.add_diagnostic(
-                    error_node,
-                    f"Not all required parameters were provided in the function call: {names}",
-                );
+                self.emit_diag(E1050, error_node, params=names);
             }
         }
     }
