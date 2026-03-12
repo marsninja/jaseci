@@ -138,6 +138,39 @@ obj UniNode {
     def unparse -> str;
 }
 
+"""Kind of a resolved Jac type."""
+enum TypeKind ( IntEnum ) {
+    PRIMITIVE = 0,
+    STRUCT = 1,
+    LIST = 2,
+    DICT = 3,
+    SET = 4,
+    TUPLE = 5,
+    CALLABLE = 6,
+    OPTIONAL = 7,
+    UNION = 8,
+    ENUM = 9,
+    NONE = 10,
+    UNKNOWN = 11,
+}
+
+"""Structured type descriptor for Jac types.
+
+Populated by TypeCachePass from type annotations. Backends read this
+instead of re-walking annotation AST nodes.
+"""
+obj JacType {
+    has kind: TypeKind = TypeKind.UNKNOWN,
+        name: str = "",
+        element_type: (JacType | None) = None,
+        key_type: (JacType | None) = None,
+        value_type: (JacType | None) = None,
+        members: list[JacType] = [],
+        params: list[JacType] = [],
+        return_type: (JacType | None) = None,
+        is_optional: bool = False;
+}
+
 """Symbol."""
 obj Symbol {
     """Initialize."""
@@ -410,7 +443,8 @@ are evaluated to produce a value.
 obj Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) by postinit,
         type: (TypeBase | None) by postinit,
-        attached_tokens: (list[Token] | None) by postinit;
+        attached_tokens: (list[Token] | None) by postinit,
+        resolved_type_name: (str | None) by postinit;
 
     def postinit -> None;
     """Get type symbol table."""

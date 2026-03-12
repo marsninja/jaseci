@@ -60,13 +60,12 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                         );
                     }
                 }
-                # Check for set type
-                if arg_name is not None and arg_name in self.var_set_elem_type {
-                    set_key = self.var_set_elem_type[arg_name];
-                    helpers = self.set_helpers.get(set_key);
-                    if helpers is not None {
+                # Check for set type (infer from LLVM type)
+                for (_sk, _sh) in self.set_helpers.items() {
+                    _st = self.set_types.get(_sk);
+                    if _st is not None and arg_val.type == _st.as_pointer() {
                         return self.builder.call(
-                            helpers["len"], [arg_val], name="set.len"
+                            _sh["len"], [arg_val], name="set.len"
                         );
                     }
                 }
@@ -504,11 +503,15 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
         return None;
     }
-    # Propagate return type hint for for-loop element resolution
-    if func_name in self.method_ast_sigs {
-        fn_sig = self.method_ast_sigs[func_name];
-        if fn_sig?.return_type and fn_sig.return_type is not None {
-            self._last_type_node_hint = fn_sig.return_type;
+    # Propagate return type hint for for-loop element resolution via field_jac_type
+    _rth_dot = func_name.rfind(".");
+    _rth_arch = func_name[:_rth_dot] if _rth_dot >= 0 else func_name;
+    _rth_meth = func_name[_rth_dot + 1:] if _rth_dot >= 0 else "";
+    _rth_entry = self.field_jac_type.get(_rth_arch);
+    if _rth_entry is not None and _rth_meth in _rth_entry {
+        _rth_jt = _rth_entry[_rth_meth];
+        if _rth_jt is not None and _rth_jt.return_type is not None {
+            self._last_jac_type_hint = _rth_jt.return_type;
         }
     }
     # Build arguments
@@ -538,6 +541,11 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             } else {
                 args.append(ir.Constant(expected_type, 0));
             }
+        }
+    } elif len(args) < len(func.args) {
+        while len(args) < len(func.args) {
+            expected_type = func.args[len(args)].type;
+            args.append(ir.Constant(expected_type, 0));
         }
     }
     # Type coerce arguments

@@ -95,10 +95,8 @@ impl NaIRGenPass._codegen_name(nd: uni.Name) -> (ir.Value | None) {
     var_name = nd.value;
     if var_name in self.local_vars {
         alloca = self.local_vars[var_name];
-        # Set type node hint for subsequent chained access
-        if var_name in self.var_type_node {
-            self._last_type_node_hint = self.var_type_node[var_name];
-        }
+        # Set type hint for subsequent chained access (use sym.jac_type)
+        self._last_jac_type_hint = nd.sym.jac_type if nd.sym else None;
         return self.builder.load(alloca, name=var_name);
     }
     if var_name in self.func_symtab {
@@ -633,17 +631,24 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
             }
             # Check field access on a known-type variable: self.x, p.x
-            if target_name in self.type_var_map {
-                type_name = self.type_var_map[target_name];
+            type_name: (str | None) = None;
+            if isinstance(nd.target, uni.Name) and nd.target.sym {
+                _tn = nd.target.sym.resolved_type_name;
+                if _tn is not None and _tn in self.struct_types {
+                    type_name = _tn;
+                }
+            }
+            if type_name is None {
+                type_name = self.type_var_map.get(target_name);
+            }
+            if type_name is not None {
                 obj_val = self._codegen_expr(nd.target);
                 if obj_val is not None {
                     result = self._codegen_field_access(obj_val, right_name, type_name);
-                    # Set type node hint for chained access
-                    if type_name in self.field_type_node {
-                        self._last_type_node_hint = self.field_type_node[type_name].get(
-                            right_name
-                        );
-                    }
+                    # Set type hint for chained access
+                    self._last_jac_type_hint = self.field_jac_type.get(type_name, {}).get(
+                        right_name
+                    );
                     return result;
                 }
             }
@@ -655,11 +660,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 type_name = self._infer_type_name(obj_val);
                 if type_name is not None {
                     result = self._codegen_field_access(obj_val, right_name, type_name);
-                    if type_name in self.field_type_node {
-                        self._last_type_node_hint = self.field_type_node[type_name].get(
-                            right_name
-                        );
-                    }
+                    self._last_jac_type_hint = self.field_jac_type.get(type_name, {}).get(
+                        right_name
+                    );
                     return result;
                 }
             }
@@ -735,19 +738,25 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                         );
                         # Bitcast ptr list elements to correct inner type
                         if result is not None and elem_type_name == "ptr" {
-                            var_tn = self.var_type_node.get(target_name);
-                            cast_type = self._resolve_ptr_elem_cast_type(var_tn);
-                            if cast_type is not None and result.type != cast_type {
-                                result = self.builder.bitcast(
-                                    result, cast_type, name="idx.cast"
-                                );
+                            cur_jt = self._last_jac_type_hint;
+                            # Fallback: use var_jac_type for locals whose sym is None
+                            if cur_jt is None and target_name in self.var_jac_type {
+                                vj = self.var_jac_type[target_name];
+                                if vj is not None and vj.kind == uni.TypeKind.LIST {
+                                    cur_jt = vj;
+                                }
                             }
-                            # Propagate inner type node for further chaining
-                            if var_tn is not None {
-                                (inner_node, inner_llvm, inner_elem) = self._peel_list_type(
-                                    var_tn
-                                );
-                                self._last_type_node_hint = inner_node;
+                            if cur_jt is not None
+                            and cur_jt.kind == uni.TypeKind.LIST
+                            and cur_jt.element_type is not None {
+                                cast_type = self._jac_type_to_llvm(cur_jt.element_type);
+                                if isinstance(cast_type, ir.PointerType)
+                                and result.type != cast_type {
+                                    result = self.builder.bitcast(
+                                        result, cast_type, name="idx.cast"
+                                    );
+                                }
+                                self._last_jac_type_hint = cur_jt.element_type;
                             }
                         }
                         return result;
@@ -756,12 +765,12 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             }
         } else {
             # Chained index: evaluate target expression, infer list type or string
-            # Capture the type node hint before evaluating (set by field access in chain)
-            pre_type_hint = self._last_type_node_hint;
-            self._last_type_node_hint = None;
+            # Capture the type hint before evaluating (set by field access in chain)
+            pre_type_hint = self._last_jac_type_hint;
+            self._last_jac_type_hint = None;
             target_val = self._codegen_expr(nd.target);
             # Grab the hint set during target evaluation (e.g. field access sets it)
-            chain_type_hint = self._last_type_node_hint;
+            chain_type_hint = self._last_jac_type_hint;
             if chain_type_hint is None {
                 chain_type_hint = pre_type_hint;
             }
@@ -772,8 +781,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     # If chain type hint indicates this is a list, don't string-index
                     is_list_from_hint = (
                         chain_type_hint is not None
-                        and self._get_list_elem_from_type_node(
-                            chain_type_hint
+                        and chain_type_hint.kind == uni.TypeKind.LIST
+                        and self._elem_name_from_jt(
+                            chain_type_hint.element_type
                         ) is not None
                     );
                     inner_target_name = self._get_name(nd.target)
@@ -814,20 +824,20 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             # Bitcast ptr list elements using chain type hint
                             if result is not None
                             and elem_type_name == "ptr"
-                            and chain_type_hint is not None {
-                                cast_type = self._resolve_ptr_elem_cast_type(
-                                    chain_type_hint
+                            and chain_type_hint is not None
+                            and chain_type_hint.kind == uni.TypeKind.LIST
+                            and chain_type_hint.element_type is not None {
+                                cast_type = self._jac_type_to_llvm(
+                                    chain_type_hint.element_type
                                 );
-                                if cast_type is not None and result.type != cast_type {
+                                if isinstance(cast_type, ir.PointerType)
+                                and result.type != cast_type {
                                     result = self.builder.bitcast(
                                         result, cast_type, name="chain.idx.cast"
                                     );
                                 }
-                                # Propagate inner type node for further chaining
-                                (inner_node, inner_llvm, inner_elem) = self._peel_list_type(
-                                    chain_type_hint
-                                );
-                                self._last_type_node_hint = inner_node;
+                                # Propagate inner type hint for further chaining
+                                self._last_jac_type_hint = chain_type_hint.element_type;
                             }
                             return result;
                         }

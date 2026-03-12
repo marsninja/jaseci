@@ -893,7 +893,6 @@ impl EsastGenPass.exit_index_slice(nd: uni.IndexSlice) -> None {
 
 """Process function call."""
 impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
-    import from jaclang.compiler.type_system { types as jtypes }
     args: list[(es.Expression | es.SpreadElement)] = [];
     props: list[(es.Property | es.SpreadElement)] = [];
     for param in nd.params {
@@ -1021,22 +1020,10 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         and isinstance(nd.target, uni.AtomTrailer)
     ) {
         import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
-        _obj_type = None;
-        try {
-            _te = self.prog.get_type_evaluator();
-            if _te {
-                _obj_type = _te.get_type_of_expression(nd.target.target);
-            }
-        } except Exception {
-            _obj_type = None;
-        }
+        # Use pre-computed type name from TypeCachePass
+        _type_name: (str | None) = getattr(nd.target.target, 'resolved_type_name', None);
         self._ensure_emitters();
-        if (
-            isinstance(_obj_type, jtypes.ClassType)
-            and _obj_type.shared
-            and _obj_type.shared.class_name in self._primitive_type_names
-        ) {
-            _type_name = _obj_type.shared.class_name;
+        if _type_name is not None and _type_name in self._primitive_type_names {
             _emitter = self._primitive_emitters.get(_type_name);
             _method_name = callee.property.name;
             _emit_fn_name = "emit_" + _method_name;
@@ -1104,17 +1091,15 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         }
     }
     # --- Default codegen (non-primitive or fallback) ---
-    if isinstance(nd.target, uni.Name) {
-        callee_type = self.prog.get_type_evaluator().get_type_of_expression(nd.target);
-    } else {
-        callee_type = None;
+    # Check if callee is a class constructor (STRUCT) via pre-computed jac_type
+    _is_class = False;
+    if isinstance(nd.target, uni.Name) and nd.target?.sym and nd.target.sym?.jac_type {
+        _is_class = nd.target.sym.jac_type.kind == uni.TypeKind.STRUCT;
     }
     args_obj = self.sync_loc(es.ObjectExpression(properties=props), jac_node=nd);
     callee_expr = cast(es.Expression, callee);
     call_args: list[(es.Expression | es.SpreadElement)] = [args_obj] if props else args;
-    if (
-        isinstance(callee_type, jtypes.ClassType) and isinstance(callee, es.Expression)
-    ) {
+    if _is_class and isinstance(callee, es.Expression) {
         nd.gen.es_ast = self.sync_loc(
             es.NewExpression(callee=callee_expr, arguments=call_args), jac_node=nd
         );
@@ -1448,26 +1433,13 @@ impl EsastGenPass._try_primitive_op(
     right_es: (es.Expression | None),
     jac_node: uni.UniNode
 ) -> (es.Expression | None) {
-    import from jaclang.compiler.type_system { types as jtypes }
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
-    _obj_type = None;
-    try {
-        _te = self.prog.get_type_evaluator();
-        if _te {
-            _obj_type = _te.get_type_of_expression(expr_node);
-        }
-    } except Exception {
-        _obj_type = None;
-    }
+    # Use pre-computed type name from TypeCachePass
+    _type_name: (str | None) = getattr(expr_node, 'resolved_type_name', None);
     self._ensure_emitters();
-    if not (
-        isinstance(_obj_type, jtypes.ClassType)
-        and _obj_type.shared
-        and _obj_type.shared.class_name in self._primitive_type_names
-    ) {
+    if _type_name is None or _type_name not in self._primitive_type_names {
         return None;
     }
-    _type_name = _obj_type.shared.class_name;
     _emitter = self._primitive_emitters.get(_type_name);
     _emit_fn = getattr(_emitter, emit_method, None) if _emitter else None;
     if not _emit_fn {

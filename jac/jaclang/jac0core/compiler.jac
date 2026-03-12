@@ -108,7 +108,9 @@ def get_py_code_gen -> list[type[Transform[uni.Module, uni.Module]]] {
     try {
         import from jaclang.compiler.passes.ecmascript { EsastGenPass }
         import from jaclang.compiler.passes.main.pyjac_ast_link_pass { PyJacAstLinkPass }
+        import from jaclang.compiler.passes.main.type_cache_pass { TypeCachePass }
         passes: list[type[Transform[uni.Module, uni.Module]]] = [
+            TypeCachePass,
             InteropAnalysisPass,
             EsastGenPass
         ];

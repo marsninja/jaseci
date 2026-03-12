@@ -14,10 +14,17 @@ impl NaIRGenPass._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None) {
         # For [m for m in items], infer from items' element type
         first_compr = nd.compr[0];
         coll_name = self._get_name(first_compr.collection);
-        if coll_name is not None and coll_name in self.var_type_node {
-            hint = self._get_list_elem_from_type_node(self.var_type_node[coll_name]);
-            if hint is not None {
-                elem_type_name = hint;
+        if coll_name is not None
+        and isinstance(first_compr.collection, uni.Name)
+        and first_compr.collection.sym is not None {
+            coll_jt_lc = first_compr.collection.sym.jac_type;
+            if coll_jt_lc is not None
+            and coll_jt_lc.kind == uni.TypeKind.LIST
+            and coll_jt_lc.element_type is not None {
+                hint = self._elem_name_from_jt(coll_jt_lc.element_type);
+                if hint is not None {
+                    elem_type_name = hint;
+                }
             }
         }
         # 3. If output is a TupleVal, assume ptr type
@@ -50,14 +57,17 @@ impl NaIRGenPass._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None) {
             for compr in nd.compr {
                 target_name = self._get_name(compr.target);
                 if target_name == out_name {
-                    # The output is the loop variable itself, infer from collection
-                    coll_name = self._get_name(compr.collection);
-                    if coll_name is not None and coll_name in self.var_type_node {
-                        hint = self._get_list_elem_from_type_node(
-                            self.var_type_node[coll_name]
-                        );
-                        if hint is not None {
-                            elem_type_name = hint;
+                    # The output is the loop variable itself, infer from collection sym.jac_type
+                    if isinstance(compr.collection, uni.Name)
+                    and compr.collection.sym is not None {
+                        coll_jt_lv = compr.collection.sym.jac_type;
+                        if coll_jt_lv is not None
+                        and coll_jt_lv.kind == uni.TypeKind.LIST
+                        and coll_jt_lv.element_type is not None {
+                            hint = self._elem_name_from_jt(coll_jt_lv.element_type);
+                            if hint is not None {
+                                elem_type_name = hint;
+                            }
                         }
                     }
                     break;
@@ -160,15 +170,20 @@ impl NaIRGenPass._codegen_compr_loops(
     # Allocate loop index
     idx_alloca = self._entry_alloca(i64, "compr.idx");
     self.builder.store(ir.Constant(i64, 0), idx_alloca);
-    # Resolve element type for ptr lists
+    # Resolve element type for ptr lists using JacType
     actual_elem_type = coll_helpers["elem_type"];
     inner_type: (ir.Type | None) = None;
     if coll_elem_type_name == "ptr" {
-        coll_type_node = self.var_type_node.get(coll_name) if coll_name else None;
-        if coll_type_node is not None {
-            (_, inner_type_resolved, _) = self._peel_list_type(coll_type_node);
-            if inner_type_resolved is not None {
-                inner_type = inner_type_resolved;
+        coll_elem_jt: (uni.JacType | None) = None;
+        if isinstance(collection, uni.Name) and collection.sym is not None {
+            coll_sym_jt = collection.sym.jac_type;
+            if coll_sym_jt is not None and coll_sym_jt.kind == uni.TypeKind.LIST {
+                coll_elem_jt = coll_sym_jt.element_type;
+            }
+        }
+        if coll_elem_jt is not None {
+            inner_type = self._jac_type_to_llvm(coll_elem_jt);
+            if inner_type is not None {
                 actual_elem_type = inner_type;
             }
         }
@@ -668,17 +683,27 @@ impl NaIRGenPass._codegen_set_compr_loops(
         }
     }
     # List iteration
-    self._last_type_node_hint = None;
+    self._last_jac_type_hint = None;
     coll_val = self._codegen_expr(collection);
-    coll_type_hint = self._last_type_node_hint;
+    coll_type_hint = self._last_jac_type_hint;
+    # Fallback: use var_jac_type for locals whose sym is None
+    if coll_type_hint is None {
+        coll_name_fb = self._get_name(collection);
+        if coll_name_fb is not None and coll_name_fb in self.var_jac_type {
+            coll_type_hint = self.var_jac_type[coll_name_fb];
+        }
+    }
     if coll_val is None {
         return;
     }
     coll_elem_type_name = self._infer_list_elem_type(coll_val);
     # Fallback: if coll_val is a generic ptr (e.g., from vtable dispatch),
-    # use the _last_type_node_hint (method return type AST) to infer list elem type.
-    if coll_elem_type_name is None and coll_type_hint is not None {
-        (_, inner_llvm_type, inner_elem_name) = self._peel_list_type(coll_type_hint);
+    # use the _last_jac_type_hint (method return JacType) to infer list elem type.
+    if coll_elem_type_name is None
+    and coll_type_hint is not None
+    and coll_type_hint.kind == uni.TypeKind.LIST
+    and coll_type_hint.element_type is not None {
+        inner_elem_name = self._elem_name_from_jt(coll_type_hint.element_type);
         if inner_elem_name is not None {
             coll_elem_type_name = inner_elem_name;
         }
@@ -703,9 +728,12 @@ impl NaIRGenPass._codegen_set_compr_loops(
     idx_alloca = self._entry_alloca(i64, "scompr.idx");
     self.builder.store(ir.Constant(i64, 0), idx_alloca);
     actual_elem_type = coll_helpers["elem_type"];
-    # Resolve inner element type for ptr lists (e.g., list[Move] -> Move*)
-    if coll_elem_type_name == "ptr" and coll_type_hint is not None {
-        (_, inner_llvm_type, _) = self._peel_list_type(coll_type_hint);
+    # Resolve inner element type for ptr lists using JacType
+    if coll_elem_type_name == "ptr"
+    and coll_type_hint is not None
+    and coll_type_hint.kind == uni.TypeKind.LIST
+    and coll_type_hint.element_type is not None {
+        inner_llvm_type = self._jac_type_to_llvm(coll_type_hint.element_type);
         if inner_llvm_type is not None {
             actual_elem_type = inner_llvm_type;
         }

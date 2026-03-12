@@ -291,6 +291,9 @@ impl Symbol.init(
     self.access: SymbolAccess = access;
     self.parent_tab = parent_tab;
     self.semstr: str = '';
+    self.resolved_type_name: (str | None) = None;
+    self.type_node: (UniNode | None) = None;
+    self.jac_type: (JacType | None) = None;
 }
 
 """Get decl."""
@@ -758,6 +761,8 @@ impl Expr.postinit -> None {
     self._type_sym_tab = None;
     self.type = None;
     self.attached_tokens = None;
+    self.resolved_type_name = None;
+    self.jac_type = None;
 }
 
 

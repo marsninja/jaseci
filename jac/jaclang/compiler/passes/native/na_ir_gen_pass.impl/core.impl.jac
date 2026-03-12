@@ -70,17 +70,17 @@ impl NaIRGenPass.init(
     self.struct_field_types: dict[(str, dict)] = {};
     self.struct_field_defaults: dict[(str, object)] = {};
     self.method_funcs: dict[(str, ir.Function)] = {};
-    self.method_ast_sigs: dict[(str, object)] = {};  # "Arch.method" → FuncSignature AST node
+    self.method_ast_sigs: dict[(str, object)] = {};  # "Arch.method" or "func_name" → FuncSignature AST node
     self.type_var_map: dict[(str, str)] = {};
     # List support (Phase 4)
     self.list_types: dict[(str, object)] = {};  # elem_type_name → list struct type
     self.list_helpers: dict[(str, dict)] = {};  # elem_type_name → {new, append, get, set, len}
     self.var_list_elem_type: dict[(str, str)] = {};  # var_name → elem_type_name
-    # Jac-level type tracking for nested lists and ptr list element resolution
-    self.field_type_node: dict[(str, dict)] = {};  # struct_name → {field → type AST node}
-    self.var_type_node: dict[(str, object)] = {};  # var_name → type AST node
+    # JacType-based type tracking (replaces AST-node-based field_type_node / var_type_node)
+    self.field_jac_type: dict[str, dict[str, uni.JacType]] = {};  # arch_name → {sym_name → JacType}
+    self.var_jac_type: dict[str, uni.JacType] = {};  # var_name → JacType (local var type annotations)
     self._list_type_hint: (str | None) = None;  # hint for empty list creation
-    self._last_type_node_hint: (object | None) = None;  # Jac type AST of last evaluated expr
+    self._last_jac_type_hint: (uni.JacType | None) = None;  # JacType of last evaluated expr (for chains)
     # Inheritance / vtable support (Phase 5)
     self.class_hierarchy: dict[(str, str)] = {};  # child → primary parent (backward compat)
     self.class_parents: dict[str, list[str]] = {};  # child → [parent1, parent2, ...]
@@ -129,7 +129,7 @@ impl NaIRGenPass.init(
     # Set support (Phase 13)
     self.set_types: dict[(str, object)] = {};  # elem_type_name → set struct type
     self.set_helpers: dict[(str, dict)] = {};  # elem_type_name → {new, add, contains, len}
-    self.var_set_elem_type: dict[(str, str)] = {};  # var_name → elem_type_name
+    # var_set_elem_type removed (dead code — never read)
     # Exception handling support (Phase 14)
     self._exc_state_type: (object | None) = None;  # JacExceptionState struct type
     self._exc_handler_global: (object | None) = None;  # @__jac_current_handler global
@@ -352,11 +352,42 @@ impl NaIRGenPass._export_native_layout -> None {
                     if func.function_type.return_type.pointee == ttype {
                         ret_tuple = layout.tuples.get(tkey);
                         if ret_tuple is not None {
-                            sig = self.method_ast_sigs.get(fname);
-                            if sig and sig.return_type {
-                                hints = self._extract_tuple_struct_hints(
-                                    sig.return_type
-                                );
+                            # Try to get tuple struct hints from field_jac_type
+                            fn_dot = fname.rfind(".");
+                            fn_arch_t = fname[:fn_dot] if fn_dot >= 0 else fname;
+                            fn_meth_t = fname[fn_dot + 1:] if fn_dot >= 0 else "";
+                            arch_jts_t = self.field_jac_type.get(fn_arch_t);
+                            fn_jt_t = arch_jts_t[fn_meth_t]
+                                if (
+                                    arch_jts_t is not None and fn_meth_t in arch_jts_t
+                                )
+                                else None;
+                            ret_jt_t = fn_jt_t.return_type
+                                if fn_jt_t is not None
+                                else None;
+                            # Fall back to AST-based hint extraction if no JacType
+                            hints: list = [];
+                            if ret_jt_t is not None and ret_jt_t.members {
+                                for mem_jt in ret_jt_t.members {
+                                    if mem_jt.kind == uni.TypeKind.STRUCT
+                                    and mem_jt.name in self.struct_types {
+                                        hints.append(mem_jt.name);
+                                    } elif mem_jt.kind == uni.TypeKind.LIST
+                                    and mem_jt.element_type is not None {
+                                        elem_jt_h = mem_jt.element_type;
+                                        if elem_jt_h.kind == uni.TypeKind.STRUCT
+                                        and elem_jt_h.name in self.struct_types {
+                                            hints.append(elem_jt_h.name);
+                                        } else {
+                                            hints.append(None);
+                                        }
+                                    } else {
+                                        hints.append(None);
+                                    }
+                                }
+                            }
+                            if True {  # Always run hints block (was: if sig and sig.return_type)
+                                # hints already computed above
                                 if hints
                                 and len(hints) == len(ret_tuple.element_types) {
                                     ret_tuple = NativeTupleLayout(

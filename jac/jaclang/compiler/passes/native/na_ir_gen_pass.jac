@@ -55,8 +55,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_snprintf_fmt(fmt: str) -> ir.GlobalVariable;
     # Helper methods
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
-    def _resolve_callable_type(slice: uni.IndexSlice) -> ir.Type;
-    def _resolve_func_ptr_type(sig: uni.FuncSignature) -> ir.Type;
+    def _jac_type_to_llvm(jt: uni.JacType) -> ir.Type;
     def _resolve_type_str(type_name: str) -> ir.Type;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;
@@ -168,14 +167,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     # Phase 6: Complex Chains and Type Inference
     def _infer_type_name(val: ir.Value) -> (str | None);
     def _infer_list_elem_type(val: ir.Value) -> (str | None);
-    def _peel_list_type(type_node: (object | None)) -> tuple;
-    def _get_list_elem_from_type_node(type_node: (object | None)) -> (str | None);
     def _infer_compr_elem_struct(compr: object) -> (str | None);
-    def _resolve_for_loop_elem_type(
-        coll_name: (str | None), coll_node: (object | None)
-    ) -> (ir.Type | None);
-
-    def _resolve_ptr_elem_cast_type(type_node: (object | None)) -> (ir.Type | None);
+    def _elem_name_from_jt(jt: (uni.JacType | None)) -> str;
+    def _build_jac_type(nd: (uni.UniNode | None)) -> (uni.JacType | None);
     # Phase 7: String Methods and Builtins
     def _codegen_string_index(
         target_val: ir.Value, index_val: ir.Value

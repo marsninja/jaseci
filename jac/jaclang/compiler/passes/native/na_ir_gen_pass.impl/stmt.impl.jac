@@ -277,7 +277,21 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
     self._list_type_hint = None;
     # 1. From explicit type annotation: var: list[T] = []
     if nd.type_tag and nd.type_tag.tag {
-        hint = self._get_list_elem_from_type_node(nd.type_tag.tag);
+        hint = None;
+        # Try to get list elem type hint from JacType via the tag node's sym
+        tag_node = nd.type_tag.tag;
+        if isinstance(tag_node, uni.Expr) {
+            tag_jt = tag_node.jac_type;
+            if tag_jt is None {
+                tag_jt = self._build_jac_type(tag_node);
+                # Do NOT stamp tag_node.jac_type — only use for hint; _resolve_jac_type needs its own path
+            }
+            if tag_jt is not None
+            and tag_jt.kind == uni.TypeKind.LIST
+            and tag_jt.element_type is not None {
+                hint = self._elem_name_from_jt(tag_jt.element_type);
+            }
+        }
         if hint is not None {
             self._list_type_hint = hint;
         }
@@ -293,11 +307,14 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 ct_field_name = self._get_name(ct.right);
                 if ct_target_name is not None and ct_field_name is not None {
                     ct_type_name = self.type_var_map.get(ct_target_name);
-                    if ct_type_name is not None
-                    and ct_type_name in self.field_type_node {
-                        ftn = self.field_type_node[ct_type_name].get(ct_field_name);
-                        if ftn is not None {
-                            hint = self._get_list_elem_from_type_node(ftn);
+                    if ct_type_name is not None {
+                        field_jt = self.field_jac_type.get(ct_type_name, {}).get(
+                            ct_field_name
+                        );
+                        if field_jt is not None
+                        and field_jt.kind == uni.TypeKind.LIST
+                        and field_jt.element_type is not None {
+                            hint = self._elem_name_from_jt(field_jt.element_type);
                             if hint is not None {
                                 self._list_type_hint = hint;
                             }
@@ -1050,15 +1067,22 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     tag_name = self._get_name(tag_node.left);
                 }
             }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[var_name] = tag_name;
-            }
             # Track enum type for enum-typed variables
             if tag_name is not None and tag_name in self.enum_types {
                 self.var_enum_type[var_name] = tag_name;
             }
-            # Store the full type AST node for nested type resolution
-            self.var_type_node[var_name] = tag_node;
+            # Store JacType from type annotation tag (for ptr-list inner type resolution)
+            if isinstance(tag_node, uni.Expr) {
+                jt_ann = tag_node.jac_type;
+                # TypeCachePass may not have stamped jac_type for vars in nested method scopes;
+                # build it ourselves so comprehension / for-loop type resolution works.
+                if jt_ann is None {
+                    jt_ann = self._build_jac_type(tag_node);
+                }
+                if jt_ann is not None {
+                    self.var_jac_type[var_name] = jt_ann;
+                }
+            }
         }
         # Track list element type for list variables
         for (ename, ltype) in self.list_types.items() {
@@ -1074,10 +1098,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 break;
             }
         }
-        # Track set element type for set variables
+        # Track set element type for set variables (via LLVM type inference only)
         for (ename, stype) in self.set_types.items() {
             if value.type == stype.as_pointer() {
-                self.var_set_elem_type[var_name] = ename;
                 break;
             }
         }
@@ -1411,17 +1434,23 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     # Set list type hint in case collection is a list literal
     self._list_type_hint = None;
     coll_name = self._get_name(nd.collection);
-    # Infer elem type hint from collection variable's type node
-    if coll_name is not None and coll_name in self.var_type_node {
-        coll_type_node = self.var_type_node[coll_name];
-        hint = self._get_list_elem_from_type_node(coll_type_node);
-        if hint is not None {
-            self._list_type_hint = hint;
+    # Infer elem type hint from collection variable's sym.jac_type
+    if coll_name is not None
+    and isinstance(nd.collection, uni.Name)
+    and nd.collection.sym is not None {
+        coll_jt_pre = nd.collection.sym.jac_type;
+        if coll_jt_pre is not None
+        and coll_jt_pre.kind == uni.TypeKind.LIST
+        and coll_jt_pre.element_type is not None {
+            hint_pre = self._elem_name_from_jt(coll_jt_pre.element_type);
+            if hint_pre is not None {
+                self._list_type_hint = hint_pre;
+            }
         }
     }
-    self._last_type_node_hint = None;
+    self._last_jac_type_hint = None;
     collection_val = self._codegen_expr(nd.collection);
-    coll_type_hint = self._last_type_node_hint;
+    coll_type_hint = self._last_jac_type_hint;
     self._list_type_hint = None;
     if collection_val is None {
         return;
@@ -1433,9 +1462,12 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     } else {
         elem_type_name = self._infer_list_elem_type(collection_val);
     }
-    # Fallback: use _last_type_node_hint from method call return type
-    if elem_type_name is None and coll_type_hint is not None {
-        hint_elem = self._get_list_elem_from_type_node(coll_type_hint);
+    # Fallback: use _last_jac_type_hint from method call return type
+    if elem_type_name is None
+    and coll_type_hint is not None
+    and coll_type_hint.kind == uni.TypeKind.LIST
+    and coll_type_hint.element_type is not None {
+        hint_elem = self._elem_name_from_jt(coll_type_hint.element_type);
         if hint_elem is not None {
             elem_type_name = hint_elem;
         }
@@ -1470,21 +1502,33 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     # Resolve actual element type for ptr lists (before allocating loop var)
     actual_elem_type = helpers["elem_type"];
     inner_type: (ir.Type | None) = None;
-    # Get the type node for the collection (from variable or from field access hint)
-    coll_type_node: (object | None) = None;
-    if coll_name is not None and coll_name in self.var_type_node {
-        coll_type_node = self.var_type_node[coll_name];
-    } elif coll_type_hint is not None {
-        coll_type_node = coll_type_hint;
+    # Get JacType for the collection element (from sym.jac_type, var_jac_type, or field access hint)
+    coll_elem_jt: (uni.JacType | None) = None;
+    if coll_name is not None {
+        # Try sym.jac_type first (when sym resolution is available)
+        if isinstance(nd.collection, uni.Name) and nd.collection.sym is not None {
+            coll_sym_jt = nd.collection.sym.jac_type;
+            if coll_sym_jt is not None and coll_sym_jt.kind == uni.TypeKind.LIST {
+                coll_elem_jt = coll_sym_jt.element_type;
+            }
+        }
+        # Fallback: use var_jac_type populated at assignment time from type annotation
+        if coll_elem_jt is None and coll_name in self.var_jac_type {
+            coll_var_jt = self.var_jac_type[coll_name];
+            if coll_var_jt is not None and coll_var_jt.kind == uni.TypeKind.LIST {
+                coll_elem_jt = coll_var_jt.element_type;
+            }
+        }
+    }
+    if coll_elem_jt is None
+    and coll_type_hint is not None
+    and coll_type_hint.kind == uni.TypeKind.LIST {
+        coll_elem_jt = coll_type_hint.element_type;
     }
     if elem_type_name == "ptr" {
-        inner_type = self._resolve_for_loop_elem_type(coll_name, nd.collection);
-        # Fallback: use coll_type_hint from field access
-        if inner_type is None and coll_type_node is not None {
-            (_, inner_type_from_hint, _) = self._peel_list_type(coll_type_node);
-            if inner_type_from_hint is not None {
-                inner_type = inner_type_from_hint;
-            }
+        # Resolve inner LLVM type from JacType
+        if coll_elem_jt is not None {
+            inner_type = self._jac_type_to_llvm(coll_elem_jt);
         }
         if inner_type is not None {
             actual_elem_type = inner_type;
@@ -1501,11 +1545,11 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
                     break;
                 }
             }
-            # Propagate inner type node for nested access
-            if coll_type_node is not None {
-                (inner_node, _, _) = self._peel_list_type(coll_type_node);
-                if inner_node is not None {
-                    self.var_type_node[loop_var_name] = inner_node;
+            # Propagate inner JacType for loop variable (for nested for-loops and indexing)
+            if coll_elem_jt is not None {
+                self.var_jac_type[loop_var_name] = coll_elem_jt;
+                if coll_elem_jt.kind == uni.TypeKind.LIST {
+                    self._last_jac_type_hint = coll_elem_jt;
                 }
             }
         }

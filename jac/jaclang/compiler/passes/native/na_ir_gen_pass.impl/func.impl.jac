@@ -35,7 +35,6 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
         func.args[i].name = p.name.value if p.name else f"arg{i}";
     }
     self.func_symtab[name] = func;
-    # Store AST signature for return type propagation in for-loops
     self.method_ast_sigs[name] = sig;
     self.has_native_code = True;
 }
@@ -90,7 +89,7 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     self.builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.var_dict_type = {};
-    self.var_set_elem_type = {};
+    self.var_jac_type = {};
     # Store parameters as local variables (alloca + store pattern)
     sig = (nd).signature;
     for (i, p) in enumerate(sig.get_parameters()) {
@@ -101,7 +100,6 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         self.local_vars[param_name] = alloca;
         # Track type annotations for parameters
         if p.type_tag and p.type_tag.tag {
-            self.var_type_node[param_name] = p.type_tag.tag;
             for (ename, ltype) in self.list_types.items() {
                 if arg_val.type == ltype.as_pointer() {
                     self.var_list_elem_type[param_name] = ename;
@@ -112,13 +110,6 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
             for (dkey, dtype) in self.dict_types.items() {
                 if arg_val.type == dtype.as_pointer() {
                     self.var_dict_type[param_name] = dkey;
-                    break;
-                }
-            }
-            # Track set element type for set parameters
-            for (ename, stype) in self.set_types.items() {
-                if arg_val.type == stype.as_pointer() {
-                    self.var_set_elem_type[param_name] = ename;
                     break;
                 }
             }
@@ -137,6 +128,10 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
             # Track enum type for enum-typed parameters
             if tag_name is not None and tag_name in self.enum_types {
                 self.var_enum_type[param_name] = tag_name;
+            }
+            # Track JacType for parameters (needed for for-loop element type resolution)
+            if isinstance(tag_node, uni.Expr) and tag_node.jac_type is not None {
+                self.var_jac_type[param_name] = tag_node.jac_type;
             }
         }
     }
@@ -242,7 +237,6 @@ impl NaIRGenPass._codegen_entry(nd: uni.ModuleCode) -> None {
     self.builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.var_dict_type = {};
-    self.var_set_elem_type = {};
     # Emit __jac_glob_init() (current module) and call it first.
     # This initialises all list/dict globs declared in THIS module before any
     # imported module's code can observe them.
