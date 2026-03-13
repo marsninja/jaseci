@@ -2,6 +2,6 @@
 
 obj Base { }
 
-obj Good :Base: { }  # <-- Ok
+obj Good(Base) { }  # <-- Ok
 
-obj Bad :Base:Base: { }  # <-- Error E0075: duplicate base class
+obj Bad(Base, Base) { }  # <-- Error E0075: duplicate base class

@@ -7,6 +7,6 @@ obj Singleton {
     has instance: int = 0;
 }
 
-obj Extended :Singleton: {  # <-- Error E2042: Singleton is final
+obj Extended(Singleton) {  # <-- Error E2042: Singleton is final
     has extra: str = "nope";
 }

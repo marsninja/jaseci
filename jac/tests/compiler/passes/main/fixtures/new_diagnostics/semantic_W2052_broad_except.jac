@@ -3,13 +3,13 @@
 with entry {
     try {
         x = 1 / 0;
-    } except Exception e {  # <-- Warning W2052: overly broad
+    } except Exception as e {  # <-- Warning W2052: overly broad
         print(e);
     }
 
     try {
         x = 1 / 0;
-    } except ZeroDivisionError e {  # <-- Ok: specific
+    } except ZeroDivisionError as e {  # <-- Ok: specific
         print(e);
     }
 }

@@ -6,14 +6,14 @@ with entry {
         x = 1;
     } except {
         y = 2;  # <-- Error E0071: bare except must be last
-    } except ValueError e {
+    } except ValueError as e {
         z = 3;
     }
 
     # Bare except last -- Ok
     try {
         x = 1;
-    } except ValueError e {
+    } except ValueError as e {
         y = 2;
     } except {
         z = 3;  # <-- Ok
