@@ -187,10 +187,14 @@ impl ASTValidationPass.enter_ctrl_stmt(
     if kw not in ("break", "continue") {
         return;
     }
-    # Walk parents looking for a loop
+    # Walk parents looking for a loop (or switch for break)
     parent = nd.parent;
     while parent is not None {
         if isinstance(parent, (uni.InForStmt, uni.IterForStmt, uni.WhileStmt)) {
+            return;
+        }
+        # break is also valid inside switch/match statements
+        if kw == "break" and isinstance(parent, (uni.SwitchStmt, uni.MatchStmt)) {
             return;
         }
         # Stop at function/ability/impl boundary — loop must be in same function
