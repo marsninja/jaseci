@@ -170,7 +170,8 @@ impl ASTValidationPass.enter_import(self: ASTValidationPass, nd: uni.Import) -> 
 impl ASTValidationPass.enter_yield_expr(
     self: ASTValidationPass, nd: uni.YieldExpr
 ) -> None {
-    if nd.find_parent_of_type(uni.Ability) is None {
+    if nd.find_parent_of_type(uni.Ability) is None
+    and nd.find_parent_of_type(uni.ImplDef) is None {
         self.emit(E0055, node_override=nd);
     }
 }
@@ -192,8 +193,8 @@ impl ASTValidationPass.enter_ctrl_stmt(
         if isinstance(parent, (uni.InForStmt, uni.IterForStmt, uni.WhileStmt)) {
             return;
         }
-        # Stop at function/ability boundary — loop must be in same function
-        if isinstance(parent, (uni.Ability, uni.Module)) {
+        # Stop at function/ability/impl boundary — loop must be in same function
+        if isinstance(parent, (uni.Ability, uni.ImplDef, uni.Module)) {
             break;
         }
         parent = parent.parent;
@@ -206,7 +207,8 @@ impl ASTValidationPass.enter_non_local_stmt(
     self: ASTValidationPass, nd: uni.NonLocalStmt
 ) -> None {
     # nonlocal should be inside a function, not at module/entry level
-    if nd.find_parent_of_type(uni.Ability) is None {
+    if nd.find_parent_of_type(uni.Ability) is None
+    and nd.find_parent_of_type(uni.ImplDef) is None {
         self.emit(E0062, node_override=nd);
     }
 }
