@@ -49,12 +49,11 @@ def assert_error_pretty_found(needle: str, haystack: str) {
     }
 }
 
-"""Compile a fixture and run type checking. Returns (program, module)."""
+"""Compile a fixture with type checking and static analysis. Returns (program, module)."""
 def compile_and_check(fixture_name: str) -> tuple {
     path = os.path.join(NEW_DIAG_FIXTURES, fixture_name);
     program = JacProgram();
-    mod = program.compile(path);
-    TypeCheckPass(ir_in=mod, prog=program);
+    mod = program.compile(path, type_check=True);
     return (program, mod);
 }
 
@@ -176,9 +175,8 @@ test "E0053: duplicate *args" {
 }
 
 test "E0055: yield outside function" {
-    pytest.skip("E0055 not yet implemented — needs INFRA-8");
-    (has_err, _) = parse_and_validate('with entry { yield 5; }');
-    assert has_err;
+    (has_err, prog) = parse_and_validate('with entry { yield 5; }');
+    assert has_err or (prog is not None and has_diagnostic_code(prog, "E0055"));
 }
 
 test "E0056: await outside async function" {
@@ -190,15 +188,13 @@ test "E0056: await outside async function" {
 }
 
 test "E0058: break outside loop" {
-    pytest.skip("E0058 not yet implemented — needs INFRA-8");
-    (has_err, _) = parse_and_validate('with entry { break; }');
-    assert has_err;
+    (has_err, prog) = parse_and_validate('with entry { break; }');
+    assert has_err or (prog is not None and has_diagnostic_code(prog, "E0058"));
 }
 
 test "E0058: continue outside loop" {
-    pytest.skip("E0058 not yet implemented — needs INFRA-8");
-    (has_err, _) = parse_and_validate('with entry { continue; }');
-    assert has_err;
+    (has_err, prog) = parse_and_validate('with entry { continue; }');
+    assert has_err or (prog is not None and has_diagnostic_code(prog, "E0058"));
 }
 
 test "E0058: break inside loop is valid" {
@@ -213,13 +209,11 @@ test "E0059: invalid assignment target" {
 }
 
 test "E0065: duplicate keyword argument" {
-    pytest.skip("E0065 not yet implemented");
     (prog, _) = compile_and_check("parser_E0065_duplicate_kwarg.jac");
     assert has_diagnostic_code(prog, "E0065");
 }
 
 test "E0066: positional after keyword argument" {
-    pytest.skip("E0066 not yet implemented");
     (prog, _) = compile_and_check("parser_E0066_pos_after_kw.jac");
     assert has_diagnostic_code(prog, "E0066");
 }
@@ -238,17 +232,15 @@ test "E0070: duplicate decorator" {
 }
 
 test "E0071: bare except not last" {
-    pytest.skip("E0071 not yet implemented");
-    (has_err, _) = parse_and_validate(
+    (has_err, prog) = parse_and_validate(
         'with entry { try { x=1; } except { y=2; } except ValueError as e { z=3; } }'
     );
-    assert has_err;
+    assert has_err or (prog is not None and has_diagnostic_code(prog, "E0071"));
 }
 
 test "E0075: duplicate base class" {
-    pytest.skip("E0075 not yet implemented");
-    (has_err, _) = parse_and_validate('obj Base { }\nobj Bad(Base, Base) { }');
-    assert has_err;
+    (has_err, prog) = parse_and_validate('obj Base { }\nobj Bad(Base, Base) { }');
+    assert has_err or (prog is not None and has_diagnostic_code(prog, "E0075"));
 }
 
 test "E0076: duplicate method definition" {
@@ -264,9 +256,8 @@ test "E0077: empty f-string expression" {
 }
 
 test "E0062: nonlocal at module level" {
-    pytest.skip("E0062 not yet implemented");
-    (has_err, _) = parse_and_validate('with entry { nonlocal x; }');
-    assert has_err;
+    (has_err, prog) = parse_and_validate('with entry { nonlocal x; }');
+    assert has_err or (prog is not None and has_diagnostic_code(prog, "E0062"));
 }
 
 
@@ -485,19 +476,16 @@ test "W2050: missing return on non-None function" {
 }
 
 test "W2052: overly broad except" {
-    pytest.skip("W2052 not yet implemented");
     (prog, _) = compile_and_check("semantic_W2052_broad_except.jac");
     assert has_diagnostic_code(prog, "W2052", in_warnings=True);
 }
 
 test "E2055: return in finally block" {
-    pytest.skip("E2055 not yet implemented — needs INFRA-8");
     (prog, _) = compile_and_check("context_E2055_return_in_finally.jac");
     assert has_diagnostic_code(prog, "E2055");
 }
 
 test "W2058: None comparison with ==" {
-    pytest.skip("W2058 not yet implemented");
     (prog, _) = compile_and_check("semantic_W2058_none_eq.jac");
     assert has_diagnostic_code(prog, "W2058", in_warnings=True);
 }
@@ -510,33 +498,28 @@ test "W2062: dead store" {
 }
 
 test "W2063: self-assignment" {
-    pytest.skip("W2063 not yet implemented");
     (prog, _) = compile_and_check("semantic_W2063_self_assignment.jac");
     assert has_diagnostic_code(prog, "W2063", in_warnings=True);
 }
 
 # --- Data Flow / Values ---
 test "W2070: division by zero" {
-    pytest.skip("W2070 not yet implemented");
     (prog, _) = compile_and_check("semantic_W2070_div_by_zero.jac");
     assert has_diagnostic_code(prog, "W2070", in_warnings=True);
 }
 
 test "W2074: f-string with no expressions" {
-    pytest.skip("W2074 not yet implemented");
     (prog, _) = compile_and_check("semantic_W2074_fstring_no_expr.jac");
     assert has_diagnostic_code(prog, "W2074", in_warnings=True);
 }
 
 test "W2075: redundant boolean comparison" {
-    pytest.skip("W2075 not yet implemented");
     (prog, _) = compile_and_check("semantic_W2075_redundant_bool.jac");
     assert has_diagnostic_code(prog, "W2075", in_warnings=True);
 }
 
 # --- Context Validity (INFRA-8) ---
 test "E2083: disengage outside walker" {
-    pytest.skip("E2083 not yet implemented — needs INFRA-8");
     (prog, _) = compile_and_check("context_E2083_disengage_outside_walker.jac");
     assert has_diagnostic_code(prog, "E2083");
 }
@@ -561,42 +544,36 @@ test "E2080: walker visits unhandled node type" {
 #  Milestone: 3 (Lint Pass Extensions)
 # ══════════════════════════════════════════════════════════════════
 test "W3020: unnecessary pass in non-empty body" {
-    pytest.skip("W3020 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3020_unnecessary_pass.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3020", in_warnings=True);
 }
 
 test "W3021: unnecessary else after return" {
-    pytest.skip("W3021 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3021_unnecessary_else.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3021", in_warnings=True);
 }
 
 test "W3022: nested if can be elif" {
-    pytest.skip("W3022 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3022_nested_if_to_elif.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3022", in_warnings=True);
 }
 
 test "W3023: return True/False simplification" {
-    pytest.skip("W3023 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3023_return_bool.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3023", in_warnings=True);
 }
 
 test "W3024: repeated condition in if/elif" {
-    pytest.skip("W3024 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3024_repeated_condition.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3024", in_warnings=True);
 }
 
 test "W3025: identical if/else branches" {
-    pytest.skip("W3025 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3025_identical_branches.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3025", in_warnings=True);
@@ -610,21 +587,18 @@ test "W3026: not (a == b) should be a != b" {
 }
 
 test "W3030: too many parameters" {
-    pytest.skip("W3030 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3030_too_many_params.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3030", in_warnings=True);
 }
 
 test "W3035: is with literal" {
-    pytest.skip("W3035 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3035_is_with_literal.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3035", in_warnings=True);
 }
 
 test "W3036: mutable default argument" {
-    pytest.skip("W3036 not yet implemented");
     path = os.path.join(NEW_DIAG_FIXTURES, "lint_W3036_mutable_default.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
     assert has_diagnostic_code(prog, "W3036", in_warnings=True);
@@ -693,22 +667,24 @@ glob MUST_REJECT_NEW: dict[str, str] = {
          "E0058_continue_no_loop": "with entry { continue; }"
      };
 
+glob IMPLEMENTED_REJECT: set[str] = {"E0062_nonlocal_module","E0071_bare_except_first","E0075_dup_base"},
+     IMPLEMENTED_VALIDATE: set[str] = {"E0055_yield_in_entry","E0058_break_no_loop","E0058_continue_no_loop"};
+
 def reject_test(name_snippet: tuple) -> None {
-    pytest.skip("New parser rejections not yet implemented");
     (name, snippet) = name_snippet;
-    rd_ast = None;
-    try {
-        (module, had_error) = parse(snippet, "/tmp/test.jac");
-        if not had_error {
-            rd_ast = module;
-        }
-    } except Exception { }
-    assert rd_ast is None , f"Parser must reject '{name}': {snippet}";
+    if name not in IMPLEMENTED_REJECT {
+        pytest.skip(f"{name} not yet implemented");
+    }
+    # For implemented checks, parse then validate — errors come from ASTValidationPass
+    (has_errors, _) = parse_and_validate(snippet);
+    assert has_errors , f"Validation must reject '{name}': {snippet}";
 }
 
 def validate_reject_test(name_snippet: tuple) -> None {
-    pytest.skip("New validation rejections not yet implemented");
     (name, snippet) = name_snippet;
+    if name not in IMPLEMENTED_VALIDATE {
+        pytest.skip(f"{name} not yet implemented");
+    }
     (has_errors, _) = parse_and_validate(snippet);
     assert has_errors , f"Validation must reject '{name}': {snippet}";
 }
