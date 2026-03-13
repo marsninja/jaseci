@@ -63,13 +63,15 @@ impl ASTValidationPass.enter_name(self: ASTValidationPass, nd: uni.Name) -> None
     }
 }
 
-"""Validate parameter ordering: /, *, ** must be in correct positions."""
+"""Validate parameter ordering and E0053: duplicate *args/**kwargs."""
 impl ASTValidationPass.enter_func_signature(
     self: ASTValidationPass, nd: uni.FuncSignature
 ) -> None {
     has_slash = False;
     has_star = False;
     has_kwargs = False;
+    has_star_args = False;
+    has_star_kwargs = False;
     for k in nd.kid {
         if isinstance(k, uni.Token) and k.name == Tok.DIV {
             if has_slash {
@@ -90,17 +92,25 @@ impl ASTValidationPass.enter_func_signature(
         } elif isinstance(k, uni.ParamVar) {
             if k.unpack and k.unpack?.name {
                 if k.unpack.name == Tok.STAR_MUL {
+                    if has_star_args {
+                        self.emit(E0053, node_override=k, param="*args");
+                    }
                     if has_star {
                         self.emit(E0050, node_override=k, param="*");
                     } elif has_kwargs {
                         self.emit(E0051, node_override=k, first="*", second="**kwargs");
                     }
                     has_star = True;
+                    has_star_args = True;
                 } elif k.unpack.name == Tok.STAR_POW {
+                    if has_star_kwargs {
+                        self.emit(E0053, node_override=k, param="**kwargs");
+                    }
                     if has_kwargs {
                         self.emit(E0050, node_override=k, param="**kwargs");
                     }
                     has_kwargs = True;
+                    has_star_kwargs = True;
                 }
             }
         }
@@ -136,7 +146,7 @@ impl ASTValidationPass.enter_switch_stmt(
     }
 }
 
-"""Validate assignment targets are not non-assignable built-in references."""
+"""Validate assignment targets are valid lvalues (E0024, E0059)."""
 impl ASTValidationPass.enter_assignment(
     self: ASTValidationPass, nd: uni.Assignment
 ) -> None {
@@ -153,6 +163,14 @@ impl ASTValidationPass.enter_assignment(
         }
         if ref_node is not None and ref_node.name in non_assignable {
             self.emit(E0024, node_override=ref_node, name=ref_node.value);
+        }
+        # E0059: invalid assignment target (literals, binary expressions, calls)
+        if isinstance(target, (uni.Int, uni.Float, uni.String, uni.Bool, uni.Null)) {
+            self.emit(E0059, node_override=target, target="a literal");
+        } elif isinstance(target, uni.BinaryExpr) {
+            self.emit(E0059, node_override=target, target="an expression");
+        } elif isinstance(target, uni.FuncCall) {
+            self.emit(E0059, node_override=target, target="a function call");
         }
     }
 }
@@ -249,7 +267,7 @@ impl ASTValidationPass.enter_func_call(
     }
 }
 
-"""E0071: bare except must be last. E0075: duplicate base class."""
+"""E0075: duplicate base class. E0076: duplicate method. E0070: duplicate decorator."""
 impl ASTValidationPass.enter_archetype(
     self: ASTValidationPass, nd: uni.Archetype
 ) -> None {
@@ -272,6 +290,82 @@ impl ASTValidationPass.enter_archetype(
             }
         }
     }
+    # E0076: duplicate method definition in body (skip @overload methods)
+    if nd.body is not None {
+        seen_methods: set[str] = set();
+        overloaded_methods: set[str] = set();
+        # First pass: collect methods with @overload decorator
+        for stmt in nd.body {
+            if isinstance(stmt, uni.Ability)
+            and stmt.name_ref is not None
+            and stmt.decorators is not None {
+                for dec in stmt.decorators {
+                    if isinstance(dec, uni.Name) and dec.value == "overload" {
+                        mname = stmt.name_ref.value
+                            if isinstance(stmt.name_ref, uni.Name)
+                            else str(stmt.name_ref);
+                        overloaded_methods.add(mname);
+                    }
+                }
+            }
+        }
+        # Second pass: flag duplicates (skip overloaded methods)
+        for stmt in nd.body {
+            if isinstance(stmt, uni.Ability) and stmt.name_ref is not None {
+                method_name = stmt.name_ref.value
+                    if isinstance(stmt.name_ref, uni.Name)
+                    else str(stmt.name_ref);
+                if method_name in overloaded_methods {
+                    continue;
+                }
+                if method_name in seen_methods {
+                    self.emit(E0076, node_override=stmt, name=method_name);
+                }
+                seen_methods.add(method_name);
+            }
+        }
+    }
+    # E0070: duplicate decorator
+    if nd.decorators is not None {
+        seen_decorators: set[str] = set();
+        for dec in nd.decorators {
+            dec_name: str | None = None;
+            if isinstance(dec, uni.Name) {
+                dec_name = dec.value;
+            } elif isinstance(dec, uni.AtomTrailer)
+            and isinstance(dec.right, uni.Name) {
+                dec_name = dec.right.value;
+            }
+            if dec_name is not None {
+                if dec_name in seen_decorators {
+                    self.emit(E0070, node_override=dec, name=dec_name);
+                }
+                seen_decorators.add(dec_name);
+            }
+        }
+    }
+}
+
+"""E0070: duplicate decorator on ability (function/method)."""
+impl ASTValidationPass.enter_ability(self: ASTValidationPass, nd: uni.Ability) -> None {
+    if nd.decorators is not None {
+        seen_decorators: set[str] = set();
+        for dec in nd.decorators {
+            dec_name: str | None = None;
+            if isinstance(dec, uni.Name) {
+                dec_name = dec.value;
+            } elif isinstance(dec, uni.AtomTrailer)
+            and isinstance(dec.right, uni.Name) {
+                dec_name = dec.right.value;
+            }
+            if dec_name is not None {
+                if dec_name in seen_decorators {
+                    self.emit(E0070, node_override=dec, name=dec_name);
+                }
+                seen_decorators.add(dec_name);
+            }
+        }
+    }
 }
 
 """E0071: validate bare except is the last except clause."""
@@ -285,6 +379,47 @@ impl ASTValidationPass.enter_try_stmt(
     for (i, exc) in enumerate(nd.excepts) {
         if exc.ex_type is None and i < len(nd.excepts) - 1 {
             self.emit(E0071, node_override=exc);
+        }
+    }
+}
+
+"""E0056: await outside async function."""
+impl ASTValidationPass.enter_await_expr(
+    self: ASTValidationPass, nd: uni.AwaitExpr
+) -> None {
+    parent = nd.parent;
+    while parent is not None {
+        if isinstance(parent, uni.Ability) {
+            if parent.is_async {
+                return;
+            }
+            break;
+        }
+        if isinstance(parent, uni.ImplDef) {
+            if parent.decl_link is not None
+            and isinstance(parent.decl_link, uni.Ability)
+            and parent.decl_link.is_async {
+                return;
+            }
+            break;
+        }
+        if isinstance(parent, uni.Module) {
+            break;
+        }
+        parent = parent.parent;
+    }
+    self.emit(E0056, node_override=nd);
+}
+
+"""E0077: empty f-string expression."""
+impl ASTValidationPass.enter_fstring(self: ASTValidationPass, nd: uni.FString) -> None {
+    for part in nd.parts {
+        if isinstance(part, uni.FormattedValue) {
+            if isinstance(part.format_part, uni.Name)
+            and part.format_part.value == "" {
+                self.emit(E0077, node_override=nd);
+                return;
+            }
         }
     }
 }

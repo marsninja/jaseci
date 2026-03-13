@@ -3,7 +3,7 @@
 obj Point {
     has x: int, y: int;
 
-    def __eq__(self: Point, other: object) -> bool {
+    def __eq__(other: object) -> bool {
         if isinstance(other, Point) {
             return self.x == other.x and self.y == other.y;
         }
@@ -15,14 +15,14 @@ obj Point {
 obj GoodPoint {
     has x: int, y: int;
 
-    def __eq__(self: GoodPoint, other: object) -> bool {
+    def __eq__(other: object) -> bool {
         if isinstance(other, GoodPoint) {
             return self.x == other.x and self.y == other.y;
         }
         return False;
     }
 
-    def __hash__(self: GoodPoint) -> int {
+    def __hash__ -> int {
         return hash((self.x, self.y));  # <-- Ok: both defined
     }
 }

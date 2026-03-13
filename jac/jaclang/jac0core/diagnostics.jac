@@ -191,6 +191,25 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      ),
      E0071 = _err("E0071", Category.SYNTAX, "Default 'except' clause must be last"),
      E0075 = _err("E0075", Category.SYNTAX, "Duplicate base class '{name}'"),
+     E0053 = _err(
+         "E0053",
+         Category.SYNTAX,
+         "Duplicate '{param}' parameter in function signature"
+     ),
+     E0056 = _err(
+         "E0056", Category.SYNTAX, "'await' is only valid inside an async function"
+     ),
+     E0059 = _err(
+         "E0059",
+         Category.SYNTAX,
+         "Cannot assign to {target} — not a valid assignment target"
+     ),
+     E0069 = _err("E0069", Category.SYNTAX, "Decorator cannot be applied to {target}"),
+     E0070 = _warn("E0070", Category.SYNTAX, "Duplicate decorator '{name}'"),
+     E0076 = _err(
+         "E0076", Category.SYNTAX, "Duplicate method '{name}' in archetype body"
+     ),
+     E0077 = _err("E0077", Category.SYNTAX, "Empty expression in f-string"),
      # Parser: warnings
      W0060 = _warn(
          "W0060",
@@ -208,6 +227,29 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0107 = _err(
          "E0107", Category.SYNTAX, "Lexer stuck at EOF in mode {mode} (pos={pos})"
      ),
+     # Lexer validation errors
+     E0110 = _err("E0110", Category.SYNTAX, "Invalid numeric literal: '{literal}'"),
+     E0111 = _warn("E0111", Category.SYNTAX, "Invalid escape sequence: '\\{char}'"),
+     E0112 = _warn(
+         "E0112",
+         Category.SYNTAX,
+         "Octal escape sequence — consider using \\x or \\u instead"
+     ),
+     E0113 = _err(
+         "E0113",
+         Category.SYNTAX,
+         "Unicode escape is outside the valid range (U+0000 to U+10FFFF)"
+     ),
+     E0114 = _err(
+         "E0114", Category.SYNTAX, "Consecutive underscores in numeric literal"
+     ),
+     E0115 = _warn(
+         "E0115", Category.SYNTAX, "Confusable Unicode character in identifier"
+     ),
+     E0116 = _warn(
+         "E0116", Category.SYNTAX, "Source file contains a BOM (byte order mark)"
+     ),
+     E0117 = _warn("E0117", Category.SYNTAX, "Mixed tabs and spaces in indentation"),
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      # Type errors (E1xxx) — type checker and type evaluator
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -395,6 +437,59 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.TYPE,
          "Cannot access attribute \"{attr}\" for type \"{type}\"; attribute is missing from {missing}"
      ),
+     # Null safety / type narrowing
+     E1100 = _err("E1100", Category.TYPE, "Expression is possibly None"),
+     W1102 = _warn(
+         "W1102",
+         Category.TYPE,
+         "Redundant None check — type '{type}' can never be None"
+     ),
+     W1104 = _warn("W1104", Category.TYPE, "Condition is always {value}"),
+     # Generics
+     E1110 = _warn(
+         "E1110", Category.TYPE, "Generic type '{type}' used without type parameters"
+     ),
+     E1111 = _err(
+         "E1111",
+         Category.TYPE,
+         "Expected {expected} type argument(s) for '{type}', got {got}"
+     ),
+     E1113 = _err(
+         "E1113", Category.TYPE, "Cannot instantiate abstract archetype '{name}'"
+     ),
+     E1120 = _err(
+         "E1120",
+         Category.TYPE,
+         "Type '{type}' is missing required member '{member}' for protocol '{protocol}'"
+     ),
+     E1130 = _err(
+         "E1130",
+         Category.TYPE,
+         "Not all members of union type have attribute '{attr}'"
+     ),
+     E1140 = _err("E1140", Category.TYPE, "Enum '{enum}' has no member '{member}'"),
+     W1153 = _warn(
+         "W1153",
+         Category.TYPE,
+         "Floating point equality comparison — use approximate comparison instead"
+     ),
+     E1160 = _err(
+         "E1160", Category.TYPE, "Non-exhaustive match — missing cases: {missing}"
+     ),
+     W1161 = _warn(
+         "W1161", Category.TYPE, "Unreachable match case after wildcard pattern"
+     ),
+     W1172 = _warn("W1172", Category.TYPE, "Missing 'await' on coroutine call"),
+     E1180 = _err(
+         "E1180",
+         Category.TYPE,
+         "Tuple index {index} out of range for {length}-element tuple"
+     ),
+     E1182 = _err(
+         "E1182",
+         Category.TYPE,
+         "Type '{type}' is not hashable and cannot be used as a dictionary key"
+     ),
      # Import warnings
      W1100 = _warn("W1100", Category.IMPORT, "Module not found"),
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -465,6 +560,70 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E2083",
          Category.SEMANTIC,
          "'disengage' is only valid inside a walker ability"
+     ),
+     # Name resolution / scope
+     E2020 = _err("E2020", Category.SEMANTIC, "Name '{name}' used before definition"),
+     E2022 = _err("E2022", Category.SEMANTIC, "Circular import detected"),
+     W2025 = _warn(
+         "W2025",
+         Category.SEMANTIC,
+         "Wildcard import is discouraged — import specific names instead"
+     ),
+     W2027 = _warn(
+         "W2027", Category.SEMANTIC, "Variable '{name}' shadows outer scope variable"
+     ),
+     E2029 = _err(
+         "E2029", Category.SEMANTIC, "'self' used outside of archetype method"
+     ),
+     E2030 = _err(
+         "E2030", Category.SEMANTIC, "'super' used outside of archetype method"
+     ),
+     W2031 = _warn("W2031", Category.SEMANTIC, "Imported name '{name}' is never used"),
+     W2032 = _warn("W2032", Category.SEMANTIC, "Duplicate import of '{name}'"),
+     E2034 = _err(
+         "E2034",
+         Category.SEMANTIC,
+         "Access to private member '{name}' from outside its class"
+     ),
+     E2036 = _err(
+         "E2036", Category.SEMANTIC, "Duplicate definition of '{name}' in same scope"
+     ),
+     # Archetype / OOP checks
+     W2041 = _warn(
+         "W2041",
+         Category.SEMANTIC,
+         "Method '{name}' overrides parent with incompatible signature"
+     ),
+     E2042 = _err(
+         "E2042", Category.SEMANTIC, "Cannot inherit from final archetype '{name}'"
+     ),
+     E2044 = _err(
+         "E2044",
+         Category.SEMANTIC,
+         "Abstract method '{method}' is not implemented in '{arch}'"
+     ),
+     W2047 = _warn(
+         "W2047",
+         Category.SEMANTIC,
+         "'__eq__' defined without '__hash__' — instances will be unhashable"
+     ),
+     W2050 = _warn(
+         "W2050",
+         Category.SEMANTIC,
+         "Function '{name}' declared return type but not all code paths return a value"
+     ),
+     W2062 = _warn(
+         "W2062",
+         Category.SEMANTIC,
+         "Variable '{name}' assigned but value never read before reassignment"
+     ),
+     E2080 = _err(
+         "E2080",
+         Category.SEMANTIC,
+         "Walker visits node type '{type}' but has no matching visit ability"
+     ),
+     W2085 = _warn(
+         "W2085", Category.SEMANTIC, "Walker '{name}' has no visit statements"
      ),
      # Def-impl match errors
      E2009 = _err(
@@ -584,6 +743,11 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Mutable default argument '{type}' — use None and assign inside the function [mutable-default]"
      ),
+     W3026 = _warn(
+         "W3026",
+         Category.LINT,
+         "Negated comparison can be simplified [negated-comparison]"
+     ),
      # Old kebab-case name -> code mapping for jac.toml backward compat
      LINT_ALIASES: dict[str, str] = {
          "staticmethod-to-static": "W3001",
@@ -606,8 +770,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "identical-branches": "W3025",
          "too-many-params": "W3030",
          "is-with-literal": "W3035",
-         "mutable-default": "W3036"
+         "mutable-default": "W3036",
+         "negated-comparison": "W3026"
      },
+     # Import analysis
+     E4001 = _err("E4001", Category.IMPORT, "Circular import cycle detected"),
+     W4004 = _warn("W4004", Category.IMPORT, "Imported name '{name}' is never used"),
+     W4005 = _warn("W4005", Category.IMPORT, "Duplicate import of '{name}'"),
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      # Codegen errors (E5xxx/W5xxx)
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -724,4 +893,10 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      # Internal compiler errors (E9xxx)
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     # Codegen backend limitations
+     E5080 = _err(
+         "E5080",
+         Category.CODEGEN,
+         "Feature '{feature}' is not supported in {backend} backend"
+     ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}");

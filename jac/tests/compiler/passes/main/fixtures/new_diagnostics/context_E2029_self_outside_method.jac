@@ -6,7 +6,7 @@ def standalone() -> None {
 
 obj Foo {
     has x: int = 5;
-    def method(self: Foo) -> int {
+    def method -> int {
         return self.x;  # <-- Ok
     }
 }

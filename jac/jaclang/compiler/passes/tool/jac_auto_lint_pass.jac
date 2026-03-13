@@ -42,6 +42,7 @@ import from jaclang.jac0core.diagnostics {
     W3023,
     W3024,
     W3025,
+    W3026,
     W3030,
     W3035,
     W3036
@@ -116,6 +117,8 @@ obj JacAutoLintPass(UniPass) {
     def _check_too_many_params(nd: uni.FuncSignature) -> None;
     def _check_is_with_literal(nd: uni.CompareExpr) -> None;
     def _check_mutable_default(nd: uni.ParamVar) -> None;
+    def _check_negated_comparison(nd: uni.UnaryExpr) -> None;
+    def exit_unary_expr(nd: uni.UnaryExpr) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
     def enter_else_stmt(nd: uni.ElseStmt) -> None;
     def exit_compare_expr(nd: uni.CompareExpr) -> None;

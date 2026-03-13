@@ -8,7 +8,7 @@ class Drawable(Protocol) {
 }
 
 obj Circle {
-    def draw(self: Circle) -> None { }
+    def draw -> None { }
     # Missing resize! -- should trigger E1120
 }
 

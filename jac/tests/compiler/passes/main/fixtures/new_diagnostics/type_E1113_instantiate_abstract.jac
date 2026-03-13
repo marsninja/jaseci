@@ -2,12 +2,12 @@
 
 @abstract
 obj Shape {
-    def area(self: Shape) -> float;
+    def area -> float;
 }
 
 obj Circle(Shape) {
     has radius: float;
-    def area(self: Circle) -> float {
+    def area -> float {
         return 3.14159 * self.radius * self.radius;
     }
 }

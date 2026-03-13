@@ -1831,6 +1831,34 @@ impl JacAutoLintPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
     self._check_is_with_literal(nd);
 }
 
+"""W3026: not (a == b) should be a != b."""
+impl JacAutoLintPass._check_negated_comparison(nd: uni.UnaryExpr) -> None {
+    if self._is_suppressed(W3026) {
+        return;
+    }
+    if nd.op is None or not isinstance(nd.op, uni.Token) or nd.op.value != "not" {
+        return;
+    }
+    # Check if operand contains a comparison expression
+    compare_nodes = nd.operand.get_all_sub_nodes(typ=uni.CompareExpr, brute_force=True);
+    for cmp in compare_nodes {
+        for op in cmp.ops {
+            if op.value in ("==", "!=", "<", ">", "<=", ">=") {
+                self.emit(W3026, node_override=nd);
+                return;
+            }
+        }
+    }
+}
+
+"""Visitor: check unary expressions for negated comparisons."""
+impl JacAutoLintPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
+    if not self.lint_enabled {
+        return;
+    }
+    self._check_negated_comparison(nd);
+}
+
 """Visitor: check function signatures for too many params."""
 impl JacAutoLintPass.exit_func_signature(nd: uni.FuncSignature) -> None {
     if not self.lint_enabled {

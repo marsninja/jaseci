@@ -27,7 +27,18 @@ import from jaclang.jac0core.diagnostics {
     E1092,
     E1093,
     E1094,
-    E1095
+    E1095,
+    E1100,
+    W1102,
+    E1110,
+    E1111,
+    E1113,
+    E1120,
+    E1130,
+    E1140,
+    W1172,
+    E1180,
+    E1182
 }
 
 """Type checker pass for JacLang."""
