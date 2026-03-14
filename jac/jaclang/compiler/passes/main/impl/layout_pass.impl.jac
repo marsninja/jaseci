@@ -481,6 +481,12 @@ impl LayoutPass._is_layout_compatible_type(
     if type_node is None {
         return False;
     }
+    # Unwrap parenthesized type expressions: (T | None) → T | None
+    if isinstance(type_node, uni.TupleVal)
+    and type_node.values
+    and len(type_node.values) == 1 {
+        return self._is_layout_compatible_type(type_node.values[0], arch_map);
+    }
     # Callable / function signature → function pointer
     if isinstance(type_node, uni.FuncSignature) {
         return True;

@@ -490,8 +490,9 @@ impl StaticAnalysisPass._check_scope_diagnostics(mod: uni.Module) -> None {
 """Recursively check scopes for duplicate definitions and shadowing."""
 impl StaticAnalysisPass._check_scope_defs(scope: uni.UniScopeNode) -> None {
     if id(scope) in self._checked_scopes {
-        ;
+        return;
     }
+    self._checked_scopes.add(id(scope));
 
     # E2036: Check for duplicate definitions
     seen_defs: dict[str, uni.UniNode] = {};
