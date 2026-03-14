@@ -6,6 +6,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 - **Client-Side Error Reporting**: Unhandled JavaScript errors and promise rejections in Jac client apps are now automatically captured and forwarded to the server via `POST /cl/__error__`, where they are logged through both the `jaclang.client_errors` logger and the dev console. Global error handlers (`window.onerror`, `unhandledrejection`) are installed at app initialization, and the `ErrorBoundary` fallback component also reports caught errors. Works with both the stdlib HTTP server and jac-scale (FastAPI).
 - **Centralized Source Mapping**: Added `source_mapping` module to `runtimelib` with VLQ encode/decode, source map generation/parsing, and two-layer resolution (bundle → compiled JS → .jac). Server error endpoints now resolve JS stack traces back to `.jac` file locations. The ES unparse pass tracks output-line → source-line mappings via `es_to_js_with_map()`.
+- **Fix: `jac check` and LSP Silently Swallowed Errors for Jaclang-Internal Files**: Files inside the `jaclang/` package directory (e.g., compiler test fixtures) had their type errors routed to the compiler's `internal_program` instead of the caller's `JacProgram`, causing `jac check` to report PASSED and the LSP to miss diagnostics. Added `force_target_program` option to `CompileOptions` so user-initiated operations always record errors on the correct program. Removed the LSP's `internal_program` error aggregation workaround.
 
 ## jaclang 0.12.2 (Latest Release)
 
