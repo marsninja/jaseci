@@ -131,12 +131,6 @@ impl BaseTransform.post_transform(self: BaseTransform) -> None {
     ;
 }
 
-"""Transform interface."""
-@abstractmethod
-impl BaseTransform.transform(self: BaseTransform, ir_in: T_in) -> T_out {
-    ;
-}
-
 """Log info."""
 impl BaseTransform.log_info(self: BaseTransform, msg: str) -> None {
     self.logger.info(msg);

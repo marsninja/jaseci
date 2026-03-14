@@ -427,6 +427,7 @@ class FuncDef:
     is_static: bool = False
     is_classmethod: bool = False
     is_async: bool = False
+    is_abstract: bool = False
 
 
 @dataclass
@@ -466,6 +467,7 @@ class ImplDef:
     decorators: list = field(default_factory=list)
     is_static: bool = False
     is_async: bool = False
+    is_abstract: bool = False
 
 
 @dataclass
@@ -971,8 +973,10 @@ class Parser:
     ) -> str:
         """Collect type annotation tokens."""
         stops = {TT.LBRACE, TT.SEMI, TT.COMMA, *extra_stop}
+        names = stop_names or set()
+        names = names | {"abs"}
         return self._collect_until(
-            *stops, stop_values=stop_vals or {"="}, stop_names=stop_names
+            *stops, stop_values=stop_vals or {"="}, stop_names=names
         )
 
     def _collect_dotted(self) -> str:
@@ -1314,6 +1318,9 @@ class Parser:
         return_type = ""
         if self._match(TT.ARROW):
             return_type = self._collect_type()
+        is_abstract = False
+        if self._match(TT.NAME, "abs"):
+            is_abstract = True
         if self._match(TT.SEMI):
             body = [PassStmt()]
         else:
@@ -1329,6 +1336,7 @@ class Parser:
             is_static=is_static,
             is_classmethod=is_classmethod,
             is_async=is_async,
+            is_abstract=is_abstract,
         )
 
     def _parse_params(self) -> list[Param]:
@@ -1452,9 +1460,16 @@ class Parser:
         return_type = ""
         if self._match(TT.ARROW):
             return_type = self._collect_type()
-        self._expect(TT.LBRACE)
-        body = self._parse_body()
-        self._expect(TT.RBRACE)
+        is_abstract = False
+        if self._match(TT.NAME, "abs"):
+            is_abstract = True
+        if is_abstract or self._at(TT.SEMI):
+            self._expect(TT.SEMI)
+            body = [PassStmt()]
+        else:
+            self._expect(TT.LBRACE)
+            body = self._parse_body()
+            self._expect(TT.RBRACE)
         return ImplDef(
             target=target,
             params=params,
@@ -1462,6 +1477,7 @@ class Parser:
             body=body,
             decorators=decorators,
             is_static=is_static,
+            is_abstract=is_abstract,
         )
 
     # ── With Entry ────────────────────────────────────────────────────────
@@ -1735,6 +1751,7 @@ class CodeGen:
         self.indent = 0
         self.needs_dataclass_import = False
         self.needs_enum_import = False
+        self.needs_abstractmethod_import = False
         self.impl_registry: dict[str, list[ImplDef]] = {}
         self._in_class = False
 
@@ -1766,6 +1783,8 @@ class CodeGen:
             self._line("from dataclasses import dataclass, field")
         if self.needs_enum_import:
             self._line("import enum")
+        if self.needs_abstractmethod_import:
+            self._line("from abc import abstractmethod")
         self._line()
         for node in module.body:
             self._emit(node)
@@ -1784,6 +1803,9 @@ class CodeGen:
                     self.needs_enum_import = True
             elif isinstance(node, WithEntry):
                 self._scan_needs(node.body)
+            elif isinstance(node, (FuncDef, ImplDef)):
+                if node.is_abstract:
+                    self.needs_abstractmethod_import = True
 
     def _emit(self, node: object) -> None:
         if isinstance(node, Import):
@@ -1960,6 +1982,9 @@ class CodeGen:
     def _emit_func(self, node: FuncDef) -> None:
         for dec in node.decorators:
             self._line(f"@{dec}")
+        if node.is_abstract:
+            self._line("@abstractmethod")
+            self.needs_abstractmethod_import = True
         if node.is_classmethod:
             self._line("@classmethod")
         if node.is_static:
@@ -2069,8 +2094,14 @@ class CodeGen:
                 is_classmethod = True
             if stub.is_async:
                 is_async = True
+        is_abstract = impl.is_abstract
+        if stub and stub.is_abstract:
+            is_abstract = True
         for dec in decorators:
             self._line(f"@{dec}")
+        if is_abstract:
+            self._line("@abstractmethod")
+            self.needs_abstractmethod_import = True
         if is_classmethod:
             self._line("@classmethod")
         if is_static:

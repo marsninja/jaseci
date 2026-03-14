@@ -1,6 +1,6 @@
 """Standardized transformation process and error interface."""
 import time;
-import from abc { ABC, abstractmethod }
+import from abc { ABC }
 import from threading { Event }
 import from typing { Any, TYPE_CHECKING }
 import from jaclang.jac0core.codeinfo { CodeLocInfo }
@@ -64,8 +64,7 @@ class BaseTransform[T_in, T_out](ABC) {
     def post_transform(self: BaseTransform) -> None;
 
     """Transform interface."""
-    @abstractmethod
-    def transform(self: BaseTransform, ir_in: T_in) -> T_out;
+    def transform(self: BaseTransform, ir_in: T_in) -> T_out abs;
 
     """Log info."""
     def log_info(self: BaseTransform, msg: str) -> None;
