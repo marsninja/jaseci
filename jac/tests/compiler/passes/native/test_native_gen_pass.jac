@@ -14,16 +14,21 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = str(
          Path(jaclang.__file__).parent.parent / "tests" / "compiler" / "passes" / "native" / "fixtures"
-     );
+     ),
+     _COMPILE_CACHE: dict = {};
 
-"""Compile a .na.jac fixture and return the JIT engine."""
+"""Compile a .na.jac fixture and return the JIT engine (cached per fixture)."""
 def compile_native(fixture: str) -> tuple {
+    if fixture in _COMPILE_CACHE {
+        return _COMPILE_CACHE[fixture];
+    }
     prog = JacProgram();
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;
     assert eng is not None , f"No native engine produced for {fixture}";
+    _COMPILE_CACHE[fixture] = (eng, ir);
     return (eng, ir);
 }
 

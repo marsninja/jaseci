@@ -6,6 +6,19 @@ impl EsastGenPass.init(
     super.init(ir_in, prog, cancel_token);
 }
 
+"""Get the cached type evaluator (lazily initialized on first call)."""
+impl EsastGenPass._get_te -> (object | None) {
+    if not self._cached_te_initialized {
+        try {
+            self._cached_te = self.prog.get_type_evaluator();
+        } except Exception {
+            self._cached_te = None;
+        }
+        self._cached_te_initialized = True;
+    }
+    return self._cached_te;
+}
+
 """Extract literal value from an expression."""
 impl EsastGenPass._literal_value(expr: (uni.UniNode | None)) -> (object | None) {
     if (expr is None) {
@@ -1023,7 +1036,7 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
         _obj_type = None;
         try {
-            _te = self.prog.get_type_evaluator();
+            _te = self._get_te();
             if _te {
                 _obj_type = _te.get_type_of_expression(nd.target.target);
             }
@@ -1105,7 +1118,9 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
     }
     # --- Default codegen (non-primitive or fallback) ---
     if isinstance(nd.target, uni.Name) {
-        callee_type = self.prog.get_type_evaluator().get_type_of_expression(nd.target);
+        callee_type = self._get_te().get_type_of_expression(nd.target)
+            if self._get_te()
+            else None;
     } else {
         callee_type = None;
     }
@@ -1452,7 +1467,7 @@ impl EsastGenPass._try_primitive_op(
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
     _obj_type = None;
     try {
-        _te = self.prog.get_type_evaluator();
+        _te = self._get_te();
         if _te {
             _obj_type = _te.get_type_of_expression(expr_node);
         }
@@ -3766,4 +3781,7 @@ impl EsastGenPass.before_pass -> None {
     self._builtin_emitter: object | None = None;
     self._primitive_type_names: set[str] | None = None;
     self._emitter_builtins: set[str] | None = None;
+    # Cached type evaluator (lazily initialized on first use)
+    self._cached_te: object | None = None;
+    self._cached_te_initialized: bool = False;
 }
