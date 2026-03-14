@@ -5,11 +5,19 @@ import from jaclang.jac0core.constant { Tokens as Tok }
 
 impl LayoutPass.init(ir_in: uni.Module, prog: Any, cancel_token: Any = None) -> None {
     self.registry = LayoutRegistry();
+    self.enum_names: set[str] = set();
     super.init(ir_in, prog, cancel_token);
 }
 
 impl LayoutPass.before_pass -> None {
     module = self.ir_in;
+    # Step 0: Collect all enum names (layout-compatible as i64 ordinals)
+    for nd in self.get_all_sub_nodes(module, uni.Enum, brute_force=True) {
+        ename = nd.name.value if nd.name else None;
+        if ename is not None {
+            self.enum_names.add(ename);
+        }
+    }
     # Step 1: Collect all archetypes
     arch_map = self._collect_archetypes(module);
     if not arch_map {
@@ -491,8 +499,7 @@ impl LayoutPass._is_layout_compatible_type(
             return True;
         }
         # Enum types are layout-compatible (stored as i64)
-        # Check if the name resolves to an Enum in the module
-        if tname in self.registry.layouts {
+        if tname in self.enum_names {
             return True;
         }
         # Reject 'Any', 'any', 'object', and other dynamic types
@@ -549,7 +556,7 @@ impl LayoutPass._is_layout_compatible_type(
         if tname in arch_map {
             return True;
         }
-        if tname in self.registry.layouts {
+        if tname in self.enum_names {
             return True;
         }
     }

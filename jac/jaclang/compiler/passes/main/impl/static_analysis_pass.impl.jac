@@ -534,7 +534,12 @@ impl StaticAnalysisPass._check_scope_defs(scope: uni.UniScopeNode) -> None {
                 # Check if name exists in an outer scope
                 outer_sym = scope.lookup(name, deep=False);
                 if outer_sym is not None and not outer_sym.imported {
-                    self.emit(W2027, node_override=sym.decl, name=name);
+                    # Skip when both scopes share the same declaration
+                    # (e.g. self.x = x in init hoists the param symbol
+                    # into the archetype scope — same decl, not a shadow).
+                    if outer_sym.decl is not sym.decl {
+                        self.emit(W2027, node_override=sym.decl, name=name);
+                    }
                 }
             }
         }

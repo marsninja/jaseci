@@ -87,6 +87,8 @@ obj LayoutRegistry {
 
 """Layout analysis pass."""
 obj LayoutPass(UniPass) {
+    has enum_names: set[str] = set();
+
     def init(ir_in: uni.Module, prog: Any, cancel_token: Any = None) -> None;
     def before_pass -> None;
     # Core analysis

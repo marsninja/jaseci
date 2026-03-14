@@ -309,6 +309,18 @@ impl ASTValidationPass.enter_archetype(
         seen_methods: set[str] = set();
         for stmt in nd.body {
             if isinstance(stmt, uni.Ability) and stmt.name_ref is not None {
+                # Skip @overload-decorated methods (multiple signatures expected)
+                has_overload = False;
+                if stmt.decorators is not None {
+                    for dec in stmt.decorators {
+                        if isinstance(dec, uni.Name) and dec.value == "overload" {
+                            has_overload = True;
+                        }
+                    }
+                }
+                if has_overload {
+                    continue;
+                }
                 method_name: str | None = None;
                 if isinstance(stmt.name_ref, uni.Name) {
                     method_name = stmt.name_ref.value;
