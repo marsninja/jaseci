@@ -2,22 +2,22 @@
 
 @abstract
 obj Animal {
-    def speak(self: Animal) -> str;
-    def move(self: Animal) -> str;
+    def speak() -> str;
+    def move() -> str;
 }
 
 obj Dog(Animal) {
-    def speak(self: Dog) -> str {
+    def speak() -> str {
         return "Woof";
     }
     # Missing move()!  # <-- Error E2044: Dog does not implement 'move'
 }
 
 obj Cat(Animal) {
-    def speak(self: Cat) -> str {
+    def speak() -> str {
         return "Meow";
     }
-    def move(self: Cat) -> str {
+    def move() -> str {
         return "slink";
     }
     # <-- Ok: all abstract methods implemented

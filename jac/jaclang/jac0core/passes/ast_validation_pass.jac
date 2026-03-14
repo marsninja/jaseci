@@ -24,13 +24,20 @@ import from jaclang.jac0core.diagnostics {
     E0044,
     E0050,
     E0051,
+    E0053,
     E0055,
+    E0056,
     E0058,
+    E0059,
     E0062,
     E0065,
     E0066,
+    E0070,
     E0071,
-    E0075
+    E0075,
+    E0076,
+    E0077,
+    W2025
 }
 
 """Validates structural AST invariants after parsing."""
@@ -52,4 +59,8 @@ class ASTValidationPass(UniPass) {
     def enter_non_local_stmt(self: ASTValidationPass, nd: uni.NonLocalStmt) -> None;
     def enter_func_call(self: ASTValidationPass, nd: uni.FuncCall) -> None;
     def enter_archetype(self: ASTValidationPass, nd: uni.Archetype) -> None;
+    def enter_ability(self: ASTValidationPass, nd: uni.Ability) -> None;
+    # New checks
+    def enter_await_expr(self: ASTValidationPass, nd: uni.AwaitExpr) -> None;
+    def enter_f_string(self: ASTValidationPass, nd: uni.FString) -> None;
 }

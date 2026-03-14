@@ -191,6 +191,18 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      ),
      E0071 = _err("E0071", Category.SYNTAX, "Default 'except' clause must be last"),
      E0075 = _err("E0075", Category.SYNTAX, "Duplicate base class '{name}'"),
+     E0053 = _err("E0053", Category.SYNTAX, "Duplicate '{param}' parameter"),
+     E0056 = _err(
+         "E0056", Category.SYNTAX, "'await' is only valid inside an async function"
+     ),
+     E0059 = _err("E0059", Category.SYNTAX, "Invalid assignment target"),
+     E0076 = _err(
+         "E0076",
+         Category.SYNTAX,
+         "Duplicate method definition '{name}' in archetype body"
+     ),
+     E0070 = _err("E0070", Category.SYNTAX, "Duplicate decorator '{name}'"),
+     E0077 = _err("E0077", Category.SYNTAX, "Empty expression in f-string"),
      # Parser: warnings
      W0060 = _warn(
          "W0060",
@@ -487,6 +499,75 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E2011", Category.SEMANTIC, "Parameter count mismatch for ability {name}."
      ),
      E2012 = _err("E2012", Category.SEMANTIC, "From the declaration of {name}."),
+     # Scope / name resolution
+     W2025 = _warn(
+         "W2025",
+         Category.SEMANTIC,
+         "Wildcard import 'import from {module} {{ * }}' — prefer explicit imports"
+     ),
+     W2027 = _warn(
+         "W2027",
+         Category.SEMANTIC,
+         "Variable '{name}' shadows a name from an outer scope"
+     ),
+     W2031 = _warn("W2031", Category.SEMANTIC, "Imported name '{name}' is never used"),
+     W2032 = _warn(
+         "W2032", Category.SEMANTIC, "Name '{name}' is imported more than once"
+     ),
+     E2036 = _err(
+         "E2036",
+         Category.SEMANTIC,
+         "Duplicate definition of '{name}' in the same scope"
+     ),
+     # Archetype / OOP semantics
+     E2042 = _err(
+         "E2042", Category.SEMANTIC, "Cannot inherit from final archetype '{name}'"
+     ),
+     E2044 = _err(
+         "E2044",
+         Category.SEMANTIC,
+         "Archetype '{name}' does not implement abstract ability '{method}'"
+     ),
+     W2041 = _warn(
+         "W2041",
+         Category.SEMANTIC,
+         "Method '{name}' overrides parent with incompatible signature"
+     ),
+     W2047 = _warn(
+         "W2047",
+         Category.SEMANTIC,
+         "Archetype '{name}' defines __eq__ but not __hash__"
+     ),
+     # Control flow
+     W2050 = _warn(
+         "W2050",
+         Category.SEMANTIC,
+         "Function '{name}' may not return a value on all code paths"
+     ),
+     W2062 = _warn(
+         "W2062",
+         Category.SEMANTIC,
+         "Value assigned to '{name}' is immediately overwritten"
+     ),
+     # Jac-specific
+     W2085 = _warn(
+         "W2085", Category.SEMANTIC, "Walker ability has no visit statements"
+     ),
+     # Type system additions
+     E1113 = _err(
+         "E1113", Category.TYPE, "Cannot instantiate abstract archetype '{name}'"
+     ),
+     W1153 = _warn(
+         "W1153",
+         Category.TYPE,
+         "Floating-point equality comparison — consider using approximate comparison"
+     ),
+     # Lint additions
+     W3026 = _warn(
+         "W3026",
+         Category.LINT,
+         "'not (a == b)' can be simplified to 'a != b' [simplify-negated-comparison]"
+     ),
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      # Lint warnings (W3xxx)
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -612,7 +693,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "identical-branches": "W3025",
          "too-many-params": "W3030",
          "is-with-literal": "W3035",
-         "mutable-default": "W3036"
+         "mutable-default": "W3036",
+         "simplify-negated-comparison": "W3026"
      },
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      # Codegen errors (E5xxx/W5xxx)

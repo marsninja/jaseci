@@ -1847,6 +1847,36 @@ impl JacAutoLintPass.enter_param_var(nd: uni.ParamVar) -> None {
     self._check_mutable_default(nd);
 }
 
+"""W3026: Warn on 'not (a == b)' which can be simplified to 'a != b'."""
+impl JacAutoLintPass._check_negated_comparison(nd: uni.UnaryExpr) -> None {
+    if self._is_suppressed(W3026) {
+        return;
+    }
+    if nd.op.value != "not" {
+        return;
+    }
+    operand = nd.operand;
+    if isinstance(operand, uni.AtomUnit) {
+        operand = operand.value;
+    }
+    if isinstance(operand, uni.CompareExpr) {
+        for op in operand.ops {
+            if op.value in ("==", "!=") {
+                self.emit(W3026, node_override=nd);
+                return;
+            }
+        }
+    }
+}
+
+"""Visitor: check unary expressions for negated comparisons."""
+impl JacAutoLintPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
+    if not self.lint_enabled {
+        return;
+    }
+    self._check_negated_comparison(nd);
+}
+
 """Visitor: check archetype bodies for unnecessary pass."""
 impl JacAutoLintPass.exit_archetype(nd: uni.Archetype) -> None {
     if not self.lint_enabled {

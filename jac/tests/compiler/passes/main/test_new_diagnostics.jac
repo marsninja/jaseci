@@ -169,7 +169,7 @@ test "E0117: mixed tabs and spaces" {
 #  Milestone: 1 (Context Validity) + 4 (Parser/Lexer Hardening)
 # ══════════════════════════════════════════════════════════════════
 test "E0053: duplicate *args" {
-    pytest.skip("E0053 not yet implemented");
+    # Already caught by E0050 (duplicate * in parameter list)
     (has_err, _) = parse_and_validate('def foo(*a: int, *b: str) { }');
     assert has_err;
 }
@@ -180,7 +180,6 @@ test "E0055: yield outside function" {
 }
 
 test "E0056: await outside async function" {
-    pytest.skip("E0056 not yet implemented — needs INFRA-8");
     (has_err, _) = parse_and_validate(
         'import from asyncio { sleep }\ndef foo() { await sleep(1); }'
     );
@@ -203,7 +202,6 @@ test "E0058: break inside loop is valid" {
 }
 
 test "E0059: invalid assignment target" {
-    pytest.skip("E0059 not yet implemented");
     (has_err, _) = parse_and_validate('with entry { 1 + 2 = x; }');
     assert has_err;
 }
@@ -225,10 +223,8 @@ test "E0069: decorator on invalid statement" {
 }
 
 test "E0070: duplicate decorator" {
-    pytest.skip("E0070 not yet implemented");
     (has_err, prog) = parse_and_validate('@staticmethod\n@staticmethod\ndef foo() { }');
-    assert has_err
-    or (prog is not None and has_diagnostic_code(prog, "E0070", in_warnings=True));
+    assert has_err or (prog is not None and has_diagnostic_code(prog, "E0070"));
 }
 
 test "E0071: bare except not last" {
@@ -244,13 +240,11 @@ test "E0075: duplicate base class" {
 }
 
 test "E0076: duplicate method definition" {
-    pytest.skip("E0076 not yet implemented");
     (prog, _) = compile_and_check("parser_E0076_duplicate_method.jac");
     assert has_diagnostic_code(prog, "E0076");
 }
 
 test "E0077: empty f-string expression" {
-    pytest.skip("E0077 not yet implemented");
     (has_err, _) = parse_and_validate('with entry { x = f"hello {}"; }');
     assert has_err;
 }
@@ -279,13 +273,11 @@ test "E2022: circular import" {
 }
 
 test "W2025: wildcard import warning" {
-    pytest.skip("W2025 not yet implemented");
     (_, prog) = parse_and_validate('import from os { * }');
     assert prog is not None and has_diagnostic_code(prog, "W2025", in_warnings=True);
 }
 
 test "W2027: variable shadows outer scope" {
-    pytest.skip("W2027 not yet implemented — needs INFRA-5");
     (prog, _) = compile_and_check("scope_W2027_variable_shadow.jac");
     assert has_diagnostic_code(prog, "W2027", in_warnings=True);
 }
@@ -303,13 +295,11 @@ test "E2030: super outside archetype method" {
 }
 
 test "W2031: unused import" {
-    pytest.skip("W2031 not yet implemented — needs INFRA-5");
     (prog, _) = compile_and_check("scope_W2031_unused_import.jac");
     assert has_diagnostic_code(prog, "W2031", in_warnings=True);
 }
 
 test "W2032: duplicate import" {
-    pytest.skip("W2032 not yet implemented — needs INFRA-6");
     (prog, _) = compile_and_check("scope_W2032_duplicate_import.jac");
     assert has_diagnostic_code(prog, "W2032", in_warnings=True);
 }
@@ -323,7 +313,6 @@ test "E2034: private member access" {
 }
 
 test "E2036: duplicate definition in scope" {
-    pytest.skip("E2036 not yet implemented — needs INFRA-5");
     (prog, _) = compile_and_check("scope_E2036_duplicate_def.jac");
     assert has_diagnostic_code(prog, "E2036");
 }
@@ -369,7 +358,6 @@ test "E1111: wrong type argument count" {
 }
 
 test "E1113: instantiate abstract archetype" {
-    pytest.skip("E1113 not yet implemented — needs INFRA-7");
     (prog, _) = compile_and_check("type_E1113_instantiate_abstract.jac");
     assert has_diagnostic_code(prog, "E1113");
 }
@@ -397,7 +385,6 @@ test "E1140: enum has no member" {
 
 # --- Numeric ---
 test "W1153: float equality comparison" {
-    pytest.skip("W1153 not yet implemented");
     (prog, _) = compile_and_check("type_W1153_float_equality.jac");
     assert has_diagnostic_code(prog, "W1153", in_warnings=True);
 }
@@ -445,32 +432,27 @@ test "E1182: unhashable dict key" {
 
 # --- Archetype / OOP (INFRA-7) ---
 test "E2044: unimplemented abstract abilities" {
-    pytest.skip("E2044 not yet implemented — needs INFRA-7");
     (prog, _) = compile_and_check("semantic_E2044_unimplemented_abstract.jac");
     assert has_diagnostic_code(prog, "E2044");
 }
 
 test "W2041: incompatible method override" {
-    pytest.skip("W2041 not yet implemented — needs INFRA-7");
     (prog, _) = compile_and_check("semantic_W2041_incompatible_override.jac");
     assert has_diagnostic_code(prog, "W2041", in_warnings=True);
 }
 
 test "E2042: inherit from final archetype" {
-    pytest.skip("E2042 not yet implemented — needs INFRA-7");
     (prog, _) = compile_and_check("semantic_E2042_inherit_final.jac");
     assert has_diagnostic_code(prog, "E2042");
 }
 
 test "W2047: __eq__ without __hash__" {
-    pytest.skip("W2047 not yet implemented — needs INFRA-7");
     (prog, _) = compile_and_check("semantic_W2047_eq_without_hash.jac");
     assert has_diagnostic_code(prog, "W2047", in_warnings=True);
 }
 
 # --- Control Flow (INFRA-2) ---
 test "W2050: missing return on non-None function" {
-    pytest.skip("W2050 not yet implemented — needs INFRA-2");
     (prog, _) = compile_and_check("semantic_W2050_missing_return.jac");
     assert has_diagnostic_code(prog, "W2050", in_warnings=True);
 }
@@ -492,7 +474,6 @@ test "W2058: None comparison with ==" {
 
 # --- Mutability / Assignment (INFRA-1) ---
 test "W2062: dead store" {
-    pytest.skip("W2062 not yet implemented — needs INFRA-1");
     (prog, _) = compile_and_check("semantic_W2062_dead_store.jac");
     assert has_diagnostic_code(prog, "W2062", in_warnings=True);
 }
@@ -526,7 +507,6 @@ test "E2083: disengage outside walker" {
 
 # --- Jac-Specific ---
 test "W2085: walker has no visit statements" {
-    pytest.skip("W2085 not yet implemented");
     (prog, _) = compile_and_check("semantic_W2085_walker_no_visit.jac");
     assert has_diagnostic_code(prog, "W2085", in_warnings=True);
 }
@@ -580,10 +560,10 @@ test "W3025: identical if/else branches" {
 }
 
 test "W3026: not (a == b) should be a != b" {
-    pytest.skip("W3026 not yet implemented");
-    (_, prog) = parse_and_validate('with entry { x = 5; y = not (x == 3); }');
-    # This would be a lint warning, not a parse error
-    assert prog is not None;
+    prog = JacProgram.jac_str_formatter(
+        'with entry { x = 5; y = not (x == 3); }', file_path="test.jac", auto_lint=True
+    );
+    assert has_diagnostic_code(prog, "W3026", in_warnings=True);
 }
 
 test "W3030: too many parameters" {
@@ -617,7 +597,6 @@ test "E4001: circular import" {
 }
 
 test "W4004: unused import" {
-    pytest.skip("W4004 not yet implemented — needs INFRA-5");
     (prog, _) = compile_and_check("scope_W2031_unused_import.jac");
     assert (
         has_diagnostic_code(prog, "W4004", in_warnings=True)
@@ -626,7 +605,6 @@ test "W4004: unused import" {
 }
 
 test "W4005: duplicate import" {
-    pytest.skip("W4005 not yet implemented — needs INFRA-6");
     (prog, _) = compile_and_check("scope_W2032_duplicate_import.jac");
     assert (
         has_diagnostic_code(prog, "W4005", in_warnings=True)
@@ -726,7 +704,7 @@ glob MUST_REJECT_NEW: dict[str, str] = {
          "E0058_continue_no_loop": "with entry { continue; }"
      };
 
-glob IMPLEMENTED_REJECT: set[str] = {"E0062_nonlocal_module","E0071_bare_except_first","E0075_dup_base"},
+glob IMPLEMENTED_REJECT: set[str] = {"E0053_double_args","E0053_double_kwargs","E0059_literal_lhs","E0059_binop_lhs","E0062_nonlocal_module","E0071_bare_except_first","E0075_dup_base","E0077_empty_fstring"},
      IMPLEMENTED_VALIDATE: set[str] = {"E0055_yield_in_entry","E0058_break_no_loop","E0058_continue_no_loop"};
 
 def reject_test(name_snippet: tuple) -> None {
