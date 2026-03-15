@@ -7,6 +7,33 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ---
 
+### Version 0.12.3
+
+#### 1. `root` Is No Longer a Language Keyword
+
+`root` has been removed as a reserved keyword (`KW_ROOT`) from the Jac grammar. It is now an ambient built-in name, resolved at runtime through the builtin module's lazy `__getattr__` mechanism (the same way `jid`, `jobj`, `save`, `commit`, etc. are resolved).
+
+**Impact:** Most code is **unaffected**. `root` still resolves to `Jac.root()` and works identically in walkers, graph operations, and edge expressions. However:
+
+- **Backtick escaping is no longer needed.** If you were writing `` `root` `` to use `root` as a variable or field name, you can now write `root` without backticks. Existing backtick-escaped uses still work.
+- **Code that introspects AST nodes** for `SpecialVarRef` with `KW_ROOT` will no longer find it. `root` now parses as a regular `Name` node.
+
+**Before:**
+
+```jac
+# root was a keyword, backtick needed to use as identifier
+has `root`: str = "default";
+```
+
+**After:**
+
+```jac
+# root is a regular name, no backtick needed
+has root: str = "default";
+```
+
+---
+
 ### Version 0.12.2
 
 #### 1. Filter Comprehension Syntax Changed from `(?:...)` to `[?:...]`
