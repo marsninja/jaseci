@@ -3,7 +3,10 @@ import json;
 import from abc { abstractmethod }
 import from collections.abc { Callable }
 import from enum { StrEnum }
-import from typing { TYPE_CHECKING, Any, ClassVar, override }
+import from typing { Any, ClassVar, override }
+import from enum { IntEnum }
+import from jaclang.jac0core.constructs { AccessLevel, NodeArchetype }
+import from jaclang { JacRuntimeInterface }
 
 enum APIProtocol ( StrEnum ) {
     HTTP = 'http',
@@ -15,26 +18,6 @@ enum APIProtocol ( StrEnum ) {
 enum ScheduleTrigger ( StrEnum ) {
     STATIC = 'static',
     DYNAMIC = 'dynamic'
-}
-
-with entry {
-    if TYPE_CHECKING {
-        import from enum { IntEnum }
-        import from jaclang.jac0core.constructs { AccessLevel, NodeArchetype }
-        import from jaclang { JacRuntimeInterface }
-        jid: Callable[(..., Any)];
-        jobj: Callable[(..., Any)];
-        grant: Callable[(..., Any)];
-        revoke: Callable[(..., Any)];
-        allroots: Callable[(..., Any)];
-        save: Callable[(..., Any)];
-        commit: Callable[(..., Any)];
-        store: Callable[(..., Any)];
-        NoPerm: IntEnum;
-        ReadPerm: IntEnum;
-        ConnectPerm: IntEnum;
-        WritePerm: IntEnum;
-    }
 }
 
 def _get_jac -> type[JacRuntimeInterface];

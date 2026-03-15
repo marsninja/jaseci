@@ -2,13 +2,8 @@
 import from collections.abc { Callable }
 import from pathlib { Path }
 import from types { ModuleType }
-import from typing { TYPE_CHECKING, Any }
-
-with entry {
-    if TYPE_CHECKING {
-        import from jaclang.compiler.codeinfo { ClientManifest }
-    }
-}
+import from typing { Any }
+import from jaclang.compiler.codeinfo { ClientManifest }
 
 """Handles compilation of Jac files to JavaScript."""
 obj JacToJSCompiler {

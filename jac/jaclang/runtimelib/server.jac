@@ -11,14 +11,7 @@ import from contextlib { suppress }
 import from http.server { BaseHTTPRequestHandler, HTTPServer }
 import from inspect { iscoroutine, isgenerator }
 import from pathlib { Path }
-import from typing {
-    TYPE_CHECKING,
-    Any,
-    AsyncGenerator,
-    Literal,
-    TypeAlias,
-    get_type_hints
-}
+import from typing { Any, AsyncGenerator, Literal, TypeAlias, get_type_hints }
 import from urllib.parse { parse_qs, urlparse }
 import from jaclang.runtimelib.client_bundle { ClientBundleError }
 import from jaclang.runtimelib.context { CallState }
@@ -33,12 +26,7 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang.project.config { get_config }
 import from jaclang.runtimelib.scheduler { Scheduler }
 import from jaclang.jac0core.constant { Constants as Con }
-
-with entry {
-    if TYPE_CHECKING {
-        import from jaclang.jac0core.constructs { Archetype, WalkerArchetype }
-    }
-}
+import from jaclang.jac0core.constructs { Archetype, WalkerArchetype }
 
 glob JsonValue: TypeAlias = None | str | int | float | bool | list['JsonValue'] | dict[
          (str, 'JsonValue')

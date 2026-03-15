@@ -1,18 +1,12 @@
 """Plugin for Jac's with_llm feature."""
 import from collections.abc { Callable }
-import from typing { TYPE_CHECKING }
 import from jaclang.jac0core.runtime { hookimpl, JacRuntime as Jac }
 import from jaclang.jac0core.mtp { Info }
+import from byllm.llm { Model }
+import from byllm.mtir { MTIR, MTRuntime }
 import inspect;
 import sys;
 import from pathlib { Path }
-
-with entry {
-    if TYPE_CHECKING {
-        import from byllm.llm { Model }
-        import from byllm.mtir { MTIR, MTRuntime }
-    }
-}
 
 """Fetch MTIR from the map, returning None if not found (e.g., in Python lib mode)."""
 def fetch_mtir(func: Callable) -> Info | None {
