@@ -1,4 +1,5 @@
 """Implementation for interop_analysis_pass constructs."""
+import from jaclang.jac0core.constant { CodeContext }
 
 """Initialize function definition tracking."""
 impl InteropAnalysisPass.before_pass(self: InteropAnalysisPass) -> None {
@@ -205,5 +206,143 @@ impl InteropAnalysisPass.enter_func_call(
             route=[caller_ctx, callee_ctx]
         );
         manifest.bindings[func_name] = binding;
+    }
+}
+
+"""Mark archetypes used in cross-boundary return types as SHARED."""
+impl InteropAnalysisPass.after_pass(self: InteropAnalysisPass) -> None {
+    manifest = self.ir_in.gen.interop_manifest;
+    # Collect type names referenced in cross-boundary bindings (client<->server)
+    type_names: set[str] = set();
+    for (name, binding) in manifest.bindings.items() {
+        has_client_caller = InteropContext.CLIENT in binding.callers;
+        is_server_source = binding.source_context == InteropContext.SERVER;
+        if has_client_caller and is_server_source {
+            # Collect return type and param types that might be archetypes
+            if binding.ret_type
+            and binding.ret_type not in (
+                'int',
+                'float',
+                'str',
+                'bool',
+                'None',
+                'dict',
+                'list',
+                'Any'
+            ) {
+                type_names.add(binding.ret_type);
+            }
+            for pt in binding.param_types {
+                if pt
+                and pt not in (
+                    'int',
+                    'float',
+                    'str',
+                    'bool',
+                    'None',
+                    'dict',
+                    'list',
+                    'Any'
+                ) {
+                    type_names.add(pt);
+                }
+            }
+        }
+    }
+    if not type_names {
+        return;
+    }
+    # Look up each type name in the module's symbol table and mark as SHARED
+    visited: set[str] = set();
+    for type_name in type_names {
+        if type_name in self.ir_in.names_in_scope {
+            sym = self.ir_in.names_in_scope[type_name];
+            decl_node = sym.decl;
+            # Walk up to find the Archetype AST node
+            arch_node = decl_node.find_parent_of_type(uni.Archetype);
+            if arch_node is None and isinstance(decl_node, uni.NameAtom) {
+                # The decl might be the Archetype's name directly
+                parent = decl_node.parent;
+                if isinstance(parent, uni.Archetype) {
+                    arch_node = parent;
+                }
+            }
+            if arch_node is not None and isinstance(arch_node, uni.Archetype) {
+                self._mark_archetype_shared(arch_node, visited);
+            }
+        }
+    }
+}
+
+"""Recursively mark an archetype and its field types as SHARED."""
+impl InteropAnalysisPass._mark_archetype_shared(
+    self: InteropAnalysisPass, arch: uni.Archetype, visited: set[str]
+) -> None {
+    arch_name = arch.name.value if isinstance(arch.name, uni.Name) else str(arch.name);
+    if arch_name in visited {
+        return;
+    }
+    visited.add(arch_name);
+    # Only promote SERVER archetypes to SHARED (don't touch CLIENT or NATIVE)
+    if arch.code_context == CodeContext.SERVER {
+        arch.code_context = CodeContext.SHARED;
+    }
+    # Recursively mark archetypes referenced in has-field types
+    for has_var in arch.get_has_vars() {
+        if has_var.type_tag {
+            field_type_name = self._extract_type_name(has_var.type_tag.tag);
+            if field_type_name
+            and field_type_name not in (
+                'int',
+                'float',
+                'str',
+                'bool',
+                'None',
+                'dict',
+                'list',
+                'Any'
+            ) {
+                if field_type_name in self.ir_in.names_in_scope {
+                    field_sym = self.ir_in.names_in_scope[field_type_name];
+                    field_decl = field_sym.decl;
+                    field_arch = field_decl.find_parent_of_type(uni.Archetype);
+                    if field_arch is None and isinstance(field_decl, uni.NameAtom) {
+                        parent = field_decl.parent;
+                        if isinstance(parent, uni.Archetype) {
+                            field_arch = parent;
+                        }
+                    }
+                    if field_arch is not None
+                    and isinstance(field_arch, uni.Archetype) {
+                        self._mark_archetype_shared(field_arch, visited);
+                    }
+                }
+            }
+        }
+    }
+    # Also mark base classes as SHARED
+    if arch.base_classes {
+        for base_expr in arch.base_classes {
+            base_name = None;
+            if isinstance(base_expr, uni.Name) {
+                base_name = base_expr.value;
+            } elif isinstance(base_expr, uni.NameAtom) {
+                base_name = base_expr.sym_name;
+            }
+            if base_name and base_name in self.ir_in.names_in_scope {
+                base_sym = self.ir_in.names_in_scope[base_name];
+                base_decl = base_sym.decl;
+                base_arch = base_decl.find_parent_of_type(uni.Archetype);
+                if base_arch is None and isinstance(base_decl, uni.NameAtom) {
+                    parent = base_decl.parent;
+                    if isinstance(parent, uni.Archetype) {
+                        base_arch = parent;
+                    }
+                }
+                if base_arch is not None and isinstance(base_arch, uni.Archetype) {
+                    self._mark_archetype_shared(base_arch, visited);
+                }
+            }
+        }
     }
 }

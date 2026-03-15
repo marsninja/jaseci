@@ -137,6 +137,17 @@ def useState(initialValue: Any) -> list;
 def useEffect(effectFn: Any, deps: list = []) -> None;
 
 # ============================================================================
+# Shared Type Registry and Auto-Deserialization
+# ============================================================================
+# Registry mapping type names to their JS class constructors
+glob __jacTypeRegistry: dict = {};
+# Register a shared type class for client-side deserialization
+def __jacRegisterType(name: str, cls: Any) -> None;
+# Recursively deserialize JSON data, reconstructing typed objects
+# where _jac_type metadata is present
+def __jacDeserialize(data: Any) -> Any;
+
+# ============================================================================
 # Client Error Reporting
 # ============================================================================
 # Report client-side errors to the server for logging

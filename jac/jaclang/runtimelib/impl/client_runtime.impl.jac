@@ -373,7 +373,21 @@ impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> Any {
     }
     payload = await response.json();
     # Handle TransportResponse envelope format
-    return payload["data"] if payload["data"] else payload;
+    response_data = payload["data"] if payload["data"] else payload;
+    # Auto-deserialize result and reports into typed objects
+    if response_data and __isObject(response_data) {
+        try {
+            if response_data["result"] {
+                response_data["result"] = __jacDeserialize(response_data["result"]);
+            }
+        } except Exception { }
+        try {
+            if response_data["reports"] and Array.isArray(response_data["reports"]) {
+                response_data["reports"] = __jacDeserialize(response_data["reports"]);
+            }
+        } except Exception { }
+    }
+    return response_data;
 }
 
 impl __jacCallFunction(function_name: str, args: dict = {}) -> Any {
@@ -399,7 +413,7 @@ impl __jacCallFunction(function_name: str, args: dict = {}) -> Any {
     result = None;
     try {
         if response_data["result"] {
-            result = response_data["result"];
+            result = __jacDeserialize(response_data["result"]);
         }
     } except Exception { }
     return result;
@@ -964,4 +978,87 @@ impl __jacInstallErrorHandlers -> None {
             message = "Unhandled promise rejection";
         } __jacReportError(message, stack, "", "unhandledrejection");}
     );
+}
+
+# ============================================================================
+# Shared Type Registry and Auto-Deserialization
+# ============================================================================
+impl __jacRegisterType(name: str, cls: Any) -> None {
+    __jacTypeRegistry[name] = cls;
+}
+
+impl __jacDeserialize(data: Any) -> Any {
+    # Pass through primitives and null
+    if data is None or data is undefined {
+        return data;
+    }
+    if not __isObject(data) {
+        return data;
+    }
+    # Handle arrays - deserialize each element
+    if Array.isArray(data) {
+        result = [];
+        for item in data {
+            result.push(__jacDeserialize(item));
+        }
+        return result;
+    }
+    # Check for _jac_type metadata indicating a typed object
+    type_name = None;
+    try {
+        type_name = data["_jac_type"];
+    } except Exception { }
+    if type_name and __jacHasOwn(__jacTypeRegistry, type_name) {
+        cls = __jacTypeRegistry[type_name];
+        # Build props dict from non-metadata fields, recursively deserializing
+        props = {};
+        keys = __objectKeys(data);
+        for key in keys {
+            if not key.startsWith("_jac_") {
+                props[key] = __jacDeserialize(data[key]);
+            }
+        }
+        # Construct typed instance
+        instance = None;
+        try {
+            instance = cls(props);
+        } except Exception {
+            # Fallback: create instance and assign properties
+            try {
+                instance = cls();
+            } except Exception {
+                instance = {};
+            }
+            for key in __objectKeys(props) {
+                instance[key] = props[key];
+            }
+        }
+        # Preserve Jac metadata as non-enumerable properties
+        if data["_jac_id"] {
+            Object.defineProperty(
+                instance,
+                "_jac_id",
+                {"value": data["_jac_id"], "enumerable": False, "writable": False}
+            );
+        }
+        if data["_jac_archetype"] {
+            Object.defineProperty(
+                instance,
+                "_jac_archetype",
+                {
+                    "value": data["_jac_archetype"],
+                    "enumerable": False,
+                    "writable": False
+                }
+            );
+        }
+        return instance;
+    }
+    # No type match - recursively deserialize nested values but return plain object
+    result = {};
+    keys = __objectKeys(data);
+    for key in keys {
+        result[key] = __jacDeserialize(data[key]);
+    }
+    return result;
 }

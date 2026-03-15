@@ -2696,12 +2696,62 @@ impl EsastGenPass.exit_type_param(nd: uni.TypeParam) -> None {
 
 """Process archetype (class) declaration."""
 impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
-    if nd.code_context == CodeContext.CLIENT {
+    if nd.code_context in (CodeContext.CLIENT, CodeContext.SHARED) {
         self.client_manifest.has_client = True;
         is_pub = nd.access and (nd.access.tag.name == Tok.KW_PUB);
-        if is_pub {
+        if is_pub or nd.code_context == CodeContext.SHARED {
             self.client_manifest.exports.append(nd.name.sym_name);
         }
+    }
+    # Collect shared type metadata for client-side type registry
+    if nd.code_context == CodeContext.SHARED {
+        import from jaclang.jac0core.codeinfo { SharedTypeInfo }
+        arch_name = nd.name.sym_name;
+        field_infos: list[tuple[str, str, Any]] = [];
+        for hv in nd.get_has_vars() {
+            field_name = hv.name.sym_name;
+            field_type = 'Any';
+            if hv.type_tag {
+                field_type = hv.type_tag.tag.unparse()
+                    if hv.type_tag.tag?.unparse
+                    else str(hv.type_tag.tag);
+            }
+            field_default = None;
+            if hv.value {
+                field_default = hv.value.unparse()
+                    if hv.value?.unparse
+                    else str(hv.value);
+            }
+            field_infos.append((field_name, field_type, field_default));
+        }
+        # Determine archetype kind from arch_type token
+        arch_kind = 'obj';
+        if nd.arch_type {
+            kind_val = nd.arch_type?.value or str(nd.arch_type);
+            if kind_val == 'node' {
+                arch_kind = 'node';
+            } elif kind_val == 'edge' {
+                arch_kind = 'edge';
+            } elif kind_val == 'walker' {
+                arch_kind = 'walker';
+            }
+        }
+        # Get base class name if any
+        base_name = None;
+        if nd.base_classes and len(nd.base_classes) > 0 {
+            base_expr = nd.base_classes[0];
+            if hasattr(base_expr, 'value') {
+                base_name = base_expr.value;
+            } elif hasattr(base_expr, 'sym_name') {
+                base_name = base_expr.sym_name;
+            }
+        }
+        self.client_manifest.shared_types[arch_name] = SharedTypeInfo(
+            name=arch_name,
+            fields=field_infos,
+            base_class=base_name,
+            archetype_kind=arch_kind
+        );
     }
     body_stmts: list[es.MethodDefinition | es.PropertyDefinition | es.StaticBlock] = [];
     has_members: list[uni.ArchHas] = [];
@@ -2862,7 +2912,34 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
         es.ClassDeclaration(id=class_id, superClass=super_class, body=class_body),
         jac_node=nd
     );
-    nd.gen.es_ast = class_decl;
+    # For SHARED archetypes, also emit __jacRegisterType call for client-side deserialization
+    if nd.code_context == CodeContext.SHARED {
+        self._inject_runtime_import('__jacRegisterType', nd);
+        register_call = self.sync_loc(
+            es.ExpressionStatement(
+                expression=self.sync_loc(
+                    es.CallExpression(
+                        callee=self.sync_loc(
+                            es.Identifier(name='__jacRegisterType'), jac_node=nd
+                        ),
+                        arguments=[
+                            self.sync_loc(
+                                es.Literal(value=nd.name.sym_name), jac_node=nd
+                            ),
+                            self.sync_loc(
+                                es.Identifier(name=nd.name.sym_name), jac_node=nd
+                            )
+                        ]
+                    ),
+                    jac_node=nd
+                )
+            ),
+            jac_node=nd
+        );
+        nd.gen.es_ast = [class_decl, register_call];
+    } else {
+        nd.gen.es_ast = class_decl;
+    }
 }
 
 """Process import statement."""
@@ -3082,6 +3159,202 @@ impl EsastGenPass._generate_sv_import_stubs(nd: uni.Import) -> None {
         # collect them separately and inject them into the module body).
         self.sv_import_stubs.extend(stubs);
     }
+    # Generate JS classes for imported archetypes (shared types)
+    # Also detect archetype return types from imported functions
+    if source_mod {
+        import from jaclang.jac0core.codeinfo { SharedTypeInfo }
+        arch_types_to_emit: set[str] = set();
+        for item in nd.items {
+            if not isinstance(item, uni.ModuleItem)
+            or not isinstance(item.name, uni.Name) {
+                continue;
+            }
+            item_name = item.name.sym_name;
+            sym = source_mod.lookup(item_name);
+            if not sym or not sym.defn {
+                continue;
+            }
+            defn_node = sym.defn[0];
+            # Check if the imported item is an archetype
+            arch_node = None;
+            if isinstance(defn_node, uni.Archetype) {
+                arch_node = defn_node;
+            } elif defn_node?.parent and isinstance(defn_node.parent, uni.Archetype) {
+                arch_node = defn_node.parent;
+            }
+            if arch_node and isinstance(arch_node, uni.Archetype) {
+                arch_types_to_emit.add(item_name);
+            }
+            # Check function return type for archetype references
+            ability_node = None;
+            if isinstance(defn_node, uni.Ability) {
+                ability_node = defn_node;
+            } elif defn_node?.parent and isinstance(defn_node.parent, uni.Ability) {
+                ability_node = defn_node.parent;
+            }
+            if (
+                ability_node
+                and isinstance(ability_node.signature, uni.FuncSignature)
+                and ability_node.signature.return_type
+            ) {
+                ret_name = None;
+                rt = ability_node.signature.return_type;
+                if isinstance(rt, uni.Name) {
+                    ret_name = rt.value;
+                } elif isinstance(rt, uni.NameAtom) {
+                    ret_name = rt.sym_name;
+                }
+                if ret_name
+                and ret_name not in (
+                    'int',
+                    'float',
+                    'str',
+                    'bool',
+                    'None',
+                    'dict',
+                    'list',
+                    'Any',
+                    'JsxElement'
+                ) {
+                    arch_types_to_emit.add(ret_name);
+                }
+            }
+        }
+        # Emit JS classes and registration calls for each shared archetype
+        for arch_name in arch_types_to_emit {
+            if arch_name in self._emitted_shared_types {
+                continue;
+            }
+            arch_sym = source_mod.lookup(arch_name);
+            if not arch_sym or not arch_sym.defn {
+                continue;
+            }
+            arch_defn = arch_sym.defn[0];
+            arch_nd = None;
+            if isinstance(arch_defn, uni.Archetype) {
+                arch_nd = arch_defn;
+            } elif arch_defn?.parent and isinstance(arch_defn.parent, uni.Archetype) {
+                arch_nd = arch_defn.parent;
+            }
+            if not arch_nd or not isinstance(arch_nd, uni.Archetype) {
+                continue;
+            }
+            self._emitted_shared_types.add(arch_name);
+            # Generate constructor body: this.field = props.field ?? default
+            ctor_stmts: list[es.Statement] = [];
+            field_infos: list[tuple[str, str, Any]] = [];
+            has_vars = arch_nd.get_has_vars();
+            props_id = self.sync_loc(es.Identifier(name='props'), jac_node=nd);
+            for hv in has_vars {
+                fname = hv.name.sym_name;
+                ftype = 'Any';
+                fdefault = None;
+                if hv.type_tag {
+                    ftype = hv.type_tag.tag.unparse()
+                        if hv.type_tag.tag?.unparse
+                        else str(hv.type_tag.tag);
+                }
+                if hv.value {
+                    fdefault = hv.value.unparse()
+                        if hv.value?.unparse
+                        else str(hv.value);
+                }
+                field_infos.append((fname, ftype, fdefault));
+                # this.field = props.field
+                this_member = self.sync_loc(
+                    es.MemberExpression(
+                        object=self.sync_loc(es.ThisExpression(), jac_node=nd),
+                        property=self.sync_loc(es.Identifier(name=fname), jac_node=nd),
+                        computed=False
+                    ),
+                    jac_node=nd
+                );
+                props_member = self.sync_loc(
+                    es.MemberExpression(
+                        object=props_id,
+                        property=self.sync_loc(es.Identifier(name=fname), jac_node=nd),
+                        computed=False
+                    ),
+                    jac_node=nd
+                );
+                assign = self.sync_loc(
+                    es.ExpressionStatement(
+                        expression=self.sync_loc(
+                            es.AssignmentExpression(
+                                operator='=', left=this_member, right=props_member
+                            ),
+                            jac_node=nd
+                        )
+                    ),
+                    jac_node=nd
+                );
+                ctor_stmts.append(assign);
+            }
+            ctor_body = self.sync_loc(es.BlockStatement(body=ctor_stmts), jac_node=nd);
+            ctor_func = self.sync_loc(
+                es.FunctionExpression(
+                    id=None,
+                    params=[self.sync_loc(es.Identifier(name='props'), jac_node=nd)],
+                    body=ctor_body
+                ),
+                jac_node=nd
+            );
+            ctor_method = self.sync_loc(
+                es.MethodDefinition(
+                    key=self.sync_loc(es.Identifier(name='constructor'), jac_node=nd),
+                    value=ctor_func,
+                    kind='constructor',
+                    `static=False
+                ),
+                jac_node=nd
+            );
+            class_body = self.sync_loc(es.ClassBody(body=[ctor_method]), jac_node=nd);
+            class_id = self.sync_loc(es.Identifier(name=arch_name), jac_node=nd);
+            class_decl = self.sync_loc(
+                es.ClassDeclaration(id=class_id, superClass=None, body=class_body),
+                jac_node=nd
+            );
+            # __jacRegisterType("ArchName", ArchName)
+            register_call = self.sync_loc(
+                es.ExpressionStatement(
+                    expression=self.sync_loc(
+                        es.CallExpression(
+                            callee=self.sync_loc(
+                                es.Identifier(name='__jacRegisterType'), jac_node=nd
+                            ),
+                            arguments=[
+                                self.sync_loc(es.Literal(value=arch_name), jac_node=nd),
+                                self.sync_loc(
+                                    es.Identifier(name=arch_name), jac_node=nd
+                                )
+                            ]
+                        ),
+                        jac_node=nd
+                    )
+                ),
+                jac_node=nd
+            );
+            self.sv_import_stubs.append(class_decl);
+            self.sv_import_stubs.append(register_call);
+            self._inject_runtime_import('__jacRegisterType', nd);
+            # Track in manifest
+            arch_kind = 'obj';
+            if arch_nd.arch_type {
+                kind_val = arch_nd.arch_type?.value or str(arch_nd.arch_type);
+                if kind_val == 'node' {
+                    arch_kind = 'node';
+                } elif kind_val == 'edge' {
+                    arch_kind = 'edge';
+                } elif kind_val == 'walker' {
+                    arch_kind = 'walker';
+                }
+            }
+            self.client_manifest.shared_types[arch_name] = SharedTypeInfo(
+                name=arch_name, fields=field_infos, archetype_kind=arch_kind
+            );
+            self.client_manifest.exports.append(arch_name);
+        }
+    }
 }
 
 """Process SubTag node."""
@@ -3181,7 +3454,10 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     fallback_items: list[es.Statement | list[es.Statement] | None] = [];
     for stmt in merged_body {
         if stmt.gen.es_ast {
-            if getattr(stmt, 'code_context', CodeContext.CLIENT) == CodeContext.CLIENT {
+            if getattr(stmt, 'code_context', CodeContext.CLIENT) in (
+                CodeContext.CLIENT,
+                CodeContext.SHARED
+            ) {
                 client_items.append(cast(es.Statement, stmt.gen.es_ast));
             } else {
                 ;
@@ -3694,7 +3970,7 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
     if (
         isinstance(nd, uni.ElementStmt)
         and isinstance(nd, uni.ContextAwareNode)
-        and nd.code_context != CodeContext.CLIENT
+        and nd.code_context not in (CodeContext.CLIENT, CodeContext.SHARED)
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
         # Allow sv imports to reach exit_import for __jacCallFunction stub generation
@@ -3718,7 +3994,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
     if (
         isinstance(nd, uni.ElementStmt)
         and isinstance(nd, uni.ContextAwareNode)
-        and nd.code_context != CodeContext.CLIENT
+        and nd.code_context not in (CodeContext.CLIENT, CodeContext.SHARED)
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
         # Don't prune sv imports or sv blocks - they need to reach
@@ -3733,7 +4009,10 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
         self._push_scope(nd);
     }
     if nd.gen.es_ast {
-        if not (isinstance(nd, uni.Import) and nd.code_context != CodeContext.CLIENT) {
+        if not (
+            isinstance(nd, uni.Import)
+            and nd.code_context not in (CodeContext.CLIENT, CodeContext.SHARED)
+        ) {
             self.prune();
             return;
         }
@@ -3743,7 +4022,7 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
 
 """Initialize the pass."""
 impl EsastGenPass.before_pass -> None {
-    import from jaclang.jac0core.codeinfo { ClientManifest }
+    import from jaclang.jac0core.codeinfo { ClientManifest, SharedTypeInfo }
     self.child_passes: list[EsastGenPass] = self._init_child_passes(EsastGenPass);
     self.imports: list[es.ImportDeclaration] = [];
     self.exports: list[es.ExportNamedDeclaration] = [];
@@ -3759,6 +4038,8 @@ impl EsastGenPass.before_pass -> None {
     self.injected_imports: set[str] = set();
     # Accumulate JS function stubs for def:pub functions imported via sv import
     self.sv_import_stubs: list[es.Statement] = [];
+    # Track which shared archetype types have been emitted to avoid duplicates
+    self._emitted_shared_types: set[str] = set();
     # Track whether generated code uses _jac runtime (primitive emitter produced _jac.* calls)
     self.needs_jac_runtime: bool = False;
     # Primitive emitter instances for codegen dispatch (lazily initialized to avoid circular imports)

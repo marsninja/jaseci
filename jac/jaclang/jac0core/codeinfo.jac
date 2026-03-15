@@ -13,6 +13,14 @@ with entry {
     }
 }
 
+"""Metadata for a shared archetype type (emitted to both server and client)."""
+obj SharedTypeInfo {
+    has name: str,
+        fields: list[tuple[str, str, Any]] = field(default_factory=`list),
+        base_class: str | None = None,
+        archetype_kind: str = 'obj';
+}
+
 """Client-side rendering manifest metadata."""
 obj ClientManifest {
     has exports: list = [],
@@ -21,7 +29,8 @@ obj ClientManifest {
         globals_values: dict[(str, Any)] = field(default_factory=`dict),
         has_client: bool = False,
         imports: dict[(str, str)] = field(default_factory=`dict),
-        endpoint_effects: dict[(str, dict)] = field(default_factory=`dict);
+        endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
+        shared_types: dict[(str, SharedTypeInfo)] = field(default_factory=`dict);
 }
 
 """Codespace context for interop bindings."""

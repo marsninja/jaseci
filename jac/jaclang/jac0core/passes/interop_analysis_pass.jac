@@ -5,6 +5,7 @@ Walks the module AST to detect calls between different codespace contexts
 """
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.codeinfo { InteropBinding, InteropContext }
+import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 """Identify cross-boundary function calls between sv, na, and cl contexts.
 
@@ -47,4 +48,12 @@ linking
 
     """Check if a function call crosses context boundaries."""
     def enter_func_call(self: InteropAnalysisPass, nd: uni.FuncCall) -> None;
+
+    """Mark archetypes used in cross-boundary return types as SHARED."""
+    def after_pass(self: InteropAnalysisPass) -> None;
+
+    """Recursively mark an archetype and its field types as SHARED."""
+    def _mark_archetype_shared(
+        self: InteropAnalysisPass, arch: uni.Archetype, visited: set[str]
+    ) -> None;
 }

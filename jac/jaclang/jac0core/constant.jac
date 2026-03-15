@@ -104,6 +104,7 @@ enum CodeContext {
     SERVER = 'server',
     CLIENT = 'client',
     NATIVE = 'native',
+    SHARED = 'shared',
     with entry {
         def __str__(self: CodeContext) -> str {
             return self.value;
@@ -122,6 +123,11 @@ enum CodeContext {
         @property
         def is_native(self: CodeContext) -> bool {
             return (self == CodeContext.NATIVE);
+        }
+
+        @property
+        def is_shared(self: CodeContext) -> bool {
+            return (self == CodeContext.SHARED);
         }
     }
 }
