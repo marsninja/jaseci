@@ -226,6 +226,11 @@ variables
     """Check if a name usage is in a type annotation context."""
     def _is_type_annotation_use(self: PyastGenPass, nd: uni.UniNode) -> bool;
 
+    """Check if an import has a # jac:runtime annotation."""
+    def _has_runtime_annotation(
+        self: PyastGenPass, nd: uni.Module, imp: uni.Import
+    ) -> bool;
+
     """Classify import items and separate type-only imports for TYPE_CHECKING."""
     def _process_type_only_imports(
         self: PyastGenPass, nd: uni.Module, merged_body: list

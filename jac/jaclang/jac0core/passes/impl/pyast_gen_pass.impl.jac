@@ -563,6 +563,22 @@ impl PyastGenPass._is_type_annotation_use(self: PyastGenPass, nd: uni.UniNode) -
     return False;
 }
 
+"""Check if an import has a # jac:runtime comment annotation on the same line."""
+impl PyastGenPass._has_runtime_annotation(
+    self: PyastGenPass, nd: uni.Module, imp: uni.Import
+) -> bool {
+    if (not nd.source or not imp.loc) {
+        return False;
+    }
+    imp_line = imp.loc.first_line;
+    for comment in nd.source.comments {
+        if (comment.line_no == imp_line and 'jac:runtime' in comment.value) {
+            return True;
+        }
+    }
+    return False;
+}
+
 """Classify import items and separate type-only imports for TYPE_CHECKING wrapping."""
 impl PyastGenPass._process_type_only_imports(
     self: PyastGenPass, nd: uni.Module, merged_body: list
@@ -591,6 +607,11 @@ impl PyastGenPass._process_type_only_imports(
                 filtered_body.append(item);
                 continue;
             }
+        }
+        # Skip imports annotated with # jac:runtime
+        if self._has_runtime_annotation(nd, imp) {
+            filtered_body.append(item);
+            continue;
         }
         # Classify each ModuleItem as type-only or runtime
         type_only_items: list[uni.ModuleItem] = [];
