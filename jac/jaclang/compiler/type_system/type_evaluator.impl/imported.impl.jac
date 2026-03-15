@@ -173,30 +173,25 @@ impl TypeEvaluator._import_module_from_path(path: str) -> uni.Module {
             }
             self.program.mod.hub[resolved_path] = mod;
             # Write JIR module cache for .jac files (best-effort).
-            # Only write if no valid cache exists yet — symtab-only compiles
-            # lack bytecode and must not overwrite a full cache that has it.
             if resolved_path.endswith('.jac') {
                 try {
                     import from jaclang.jac0core.jir {
                         get_module_cache_path,
-                        is_module_cache_valid,
                         SEC_BYTECODE
                     }
                     import from jaclang.jac0core.jir_passes { JirWriter }
                     cache_path = get_module_cache_path(resolved_path);
-                    if not is_module_cache_valid(resolved_path, cache_path) {
-                        cache_path.parent.mkdir(parents=True, exist_ok=True);
-                        writer = JirWriter();
-                        sections: (dict[int, bytes] | None) = None;
-                        bc = getattr(mod.gen, 'py_bytecode', None);
-                        if bc is not None {
-                            sections = {SEC_BYTECODE: bc};
-                        }
-                        jir_bytes = writer.write_module(mod, sections=sections);
-                        tmp_path = cache_path.with_suffix('.tmp');
-                        tmp_path.write_bytes(jir_bytes);
-                        tmp_path.rename(cache_path);
+                    cache_path.parent.mkdir(parents=True, exist_ok=True);
+                    writer = JirWriter();
+                    sections: (dict[int, bytes] | None) = None;
+                    bc = getattr(mod.gen, 'py_bytecode', None);
+                    if bc is not None {
+                        sections = {SEC_BYTECODE: bc};
                     }
+                    jir_bytes = writer.write_module(mod, sections=sections);
+                    tmp_path = cache_path.with_suffix('.tmp');
+                    tmp_path.write_bytes(jir_bytes);
+                    tmp_path.rename(cache_path);
                 } except Exception {
                     ;
                 }

@@ -45,8 +45,7 @@ def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
 }
 
 glob _ir_sched_loading = False,
-     _codegen_sched_loading = False,
-     _typecheck_sched_loading = False;
+     _codegen_sched_loading = False;
 
 """Full IR generation schedule.
 
@@ -95,31 +94,11 @@ def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     }
 }
 
-"""Type checking schedule.
-
-    Same re-entrancy guard as get_ir_gen_sched: when compiling the
-    pass modules that this schedule depends on (TypeCheckPass, etc.),
-    importing them would trigger recursive compilation. The guard
-    detects this and returns an empty schedule, skipping type checking
-    for only those bootstrap modules.
-    """
+"""Type checking schedule."""
 def get_type_check_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    global _typecheck_sched_loading;
-    if _typecheck_sched_loading {
-        return [];
-    }
-    _typecheck_sched_loading = True;
-    try {
-        import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-        import from jaclang.compiler.passes.main.static_analysis_pass {
-            StaticAnalysisPass
-        }
-        return [TypeCheckPass, StaticAnalysisPass];
-    } except ImportError {
-        return [];
-    } finally {
-        _typecheck_sched_loading = False;
-    }
+    import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+    import from jaclang.compiler.passes.main.static_analysis_pass { StaticAnalysisPass }
+    return [TypeCheckPass, StaticAnalysisPass];
 }
 
 """Full Python code generation schedule.
