@@ -2027,6 +2027,29 @@ test "generic_call_inference" {
     assert "Cannot assign <class Item> to <class int>" in errors_str , "Expected error for result: Item assigned to int";
 }
 
+"""Test bidirectional type inference for container literals and type[X] covariance."""
+test "bidirectional_container_inference" {
+    program = JacProgram();
+    path = os.path.join(CHECKER_FIXTURES, "checker_bidirectional_container.jac");
+    mod = program.compile(path);
+    TypeCheckPass(ir_in=mod, prog=program);
+    # 5 errors: bad_list return, bad_dict return, bad_set return,
+    # bad list assignment, bad type[int] assignment
+    assert len(program.errors_had) == 5 , f"Expected 5 type errors, got {len(
+        program.errors_had
+    )}:\n" + "\n".join(e.pretty_print() for e in program.errors_had);
+
+    errors_str = "\n".join(e.pretty_print() for e in program.errors_had);
+    # Container literal mismatches (elements don't match expected type_args)
+    assert ":38:" in errors_str , "Expected error for bad_list return";
+    assert ":48:" in errors_str , "Expected error for bad_dict return";
+    assert ":58:" in errors_str , "Expected error for bad_set return";
+    # Assignment mismatch
+    assert ":65:" in errors_str , "Expected error for bad list assignment";
+    # type[X] covariance: Dog is not subclass of int
+    assert ":69:" in errors_str , "Expected error for type[int] = Dog";
+}
+
 """Test Self type resolution in method return types."""
 test "self_type_resolution" {
     program = JacProgram();
