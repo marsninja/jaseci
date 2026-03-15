@@ -7,6 +7,44 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ---
 
+### Version 0.12.2
+
+#### 1. Filter Comprehension Syntax Changed from `(?:...)` to `[?:...]`
+
+The parenthesized filter comprehension syntax `(?:Type)` and `(?:Type, condition)` is now deprecated in favor of bracket syntax `[?:Type]` and `[?:Type, condition]`. The old syntax still parses but emits deprecation warning **W0061**. The formatter (`jac format`) automatically converts old syntax to new.
+
+**Before:**
+
+```jac
+# Standalone filter
+my_list(?:Foo, val < 3);
+
+# After edge traversal
+visit [-->](?:MyNode);
+
+# Inside edge ref chain
+visit [-->(?:MyNode)];
+```
+
+**After:**
+
+```jac
+# Standalone filter
+my_list[?:Foo, val < 3];
+
+# After edge traversal
+visit [-->][?:MyNode];
+
+# Inside edge ref chain
+visit [-->[?:MyNode]];
+```
+
+**Why:** The `[?` token sequence is unambiguous in all contexts, including nested inside edge ref chain brackets. Bracket syntax is consistent with how edge references already use `[...]`.
+
+**Migration:** Run `jac format` on your `.jac` files to auto-convert, or manually replace `(?:` with `[?:` and `(?` with `[?` (adjusting closing `)` to `]`).
+
+---
+
 ### Version 0.11.1 / byllm 0.5.1
 
 #### 1. LiteLLM Minimum Version Raised to 1.81.15
