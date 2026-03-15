@@ -175,7 +175,7 @@ can start with Root | MyNode entry {
 
 ##### Filter Comprehensions
 
-The typed filter syntax changes from `` (`?Type) `` and `` (`?Type:condition) `` to `(?:Type)` and `(?:Type, condition)`.
+The typed filter syntax changes from `` (`?Type) `` and `` (`?Type:condition) `` to `[?:Type]` and `[?:Type, condition]`.
 
 **Before:**
 
@@ -191,18 +191,22 @@ visit [-->](`?Year:year==2025);
 
 ```jac
 # Type-only filter
-visit [-->](?:MyNode);
+visit [-->][?:MyNode];
 
 # Typed filter with comparison
-visit [-->](?:Year, year==2025);
+visit [-->][?:Year, year==2025];
 ```
+
+!!! note "Parenthesized syntax `(?:Type)` is deprecated"
+    The intermediate parenthesized syntax `(?:Type)` and `(?:Type, condition)` was introduced in v0.10.0 but has been replaced by the bracket syntax `[?:Type]` and `[?:Type, condition]` for consistency with edge reference brackets. If your code uses the `(?:...)` form, migrate to `[?:...]`.
 
 **Migration Steps:**
 
 1. Replace all `` `root `` with `Root` in walker `entry`/`exit` declarations
-2. Replace `` (`?Type) `` with `(?:Type)` in filter comprehensions
-3. Replace `` (`?Type:condition) `` with `(?:Type, condition)` -- note the comma separator instead of colon
-4. The `root` keyword (lowercase, no backtick) for the root instance is unchanged -- `root spawn`, `root ++>`, etc. remain the same
+2. Replace `` (`?Type) `` with `[?:Type]` in filter comprehensions
+3. Replace `` (`?Type:condition) `` with `[?:Type, condition]` -- note the comma separator instead of colon
+4. Replace any `(?:Type)` with `[?:Type]` and `(?:Type, condition)` with `[?:Type, condition]`
+5. The `root` keyword (lowercase, no backtick) for the root instance is unchanged -- `root spawn`, `root ++>`, etc. remain the same
 
 ---
 
