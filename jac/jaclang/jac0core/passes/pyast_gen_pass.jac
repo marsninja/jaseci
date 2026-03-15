@@ -226,12 +226,6 @@ variables
     """Check if a name usage is in a type annotation context."""
     def _is_type_annotation_use(self: PyastGenPass, nd: uni.UniNode) -> bool;
 
-    """Collect all Name values from a subtree."""
-    def _collect_names_in_subtree(self: PyastGenPass, nd: uni.UniNode) -> set[str];
-
-    """Collect names used at runtime in positions the sym_tab may not track."""
-    def _collect_runtime_names(self: PyastGenPass, nd: uni.Module) -> set[str];
-
     """Classify import items and separate type-only imports for TYPE_CHECKING."""
     def _process_type_only_imports(
         self: PyastGenPass, nd: uni.Module, merged_body: list
