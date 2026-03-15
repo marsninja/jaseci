@@ -563,10 +563,51 @@ impl PyastGenPass._is_type_annotation_use(self: PyastGenPass, nd: uni.UniNode) -
     return False;
 }
 
+"""Collect all Name values from a subtree (for runtime name detection)."""
+impl PyastGenPass._collect_names_in_subtree(
+    self: PyastGenPass, nd: uni.UniNode
+) -> set[str] {
+    names: set[str] = `set();
+    if isinstance(nd, uni.Name) {
+        names.add(nd.value);
+    }
+    if hasattr(nd, 'kid') {
+        for k in nd.kid {
+            names.update(self._collect_names_in_subtree(k));
+        }
+    }
+    return names;
+}
+
+"""Collect names used at runtime in positions the sym_tab may not track.
+
+Scans module body for TypeAlias values and glob assignment values where
+names appear at runtime but may not have sym_tab use entries.
+"""
+impl PyastGenPass._collect_runtime_names(
+    self: PyastGenPass, nd: uni.Module
+) -> set[str] {
+    runtime_names: set[str] = `set();
+    for item in nd.body {
+        if isinstance(item, uni.TypeAlias) {
+            runtime_names.update(self._collect_names_in_subtree(item.value));
+        }
+        if isinstance(item, uni.GlobalVars) {
+            for asgn in item.assignments {
+                if asgn.value is not None {
+                    runtime_names.update(self._collect_names_in_subtree(asgn.value));
+                }
+            }
+        }
+    }
+    return runtime_names;
+}
+
 """Classify import items and separate type-only imports for TYPE_CHECKING wrapping."""
 impl PyastGenPass._process_type_only_imports(
     self: PyastGenPass, nd: uni.Module, merged_body: list
 ) -> tuple[(list, list[ast3.AST])] {
+    runtime_names = self._collect_runtime_names(nd);
     filtered_body: list = [];
     type_only_py_nodes: list[ast3.AST] = [];
     for item in merged_body {
@@ -605,7 +646,13 @@ impl PyastGenPass._process_type_only_imports(
             if isinstance(sym_node, uni.NameAtom) {
                 sym = sym_node.sym;
             }
-            if (sym is not None and sym.imported and len(sym.uses) > 0) {
+            sym_name = sym_node.value if isinstance(sym_node, uni.Name) else '';
+            if (
+                sym is not None
+                and sym.imported
+                and len(sym.uses) > 0
+                and sym_name not in runtime_names
+            ) {
                 all_type_only = True;
                 for use_nd in sym.uses {
                     if not self._is_type_annotation_use(use_nd) {
