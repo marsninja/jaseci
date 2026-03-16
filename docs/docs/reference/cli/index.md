@@ -109,7 +109,7 @@ jac run -e main.jac
 jac run script.jac --verbose --output result.txt
 ```
 
-> **Note**: By default, `jac run` prints a summary line showing error and warning counts (if any). Use `-e` to see the full diagnostic details without running a separate `jac check`.
+> **Note**: Use `-e` to see type check diagnostic details without running a separate `jac check`.
 
 **Passing arguments to scripts:**
 
