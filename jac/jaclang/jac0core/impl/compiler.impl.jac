@@ -191,6 +191,13 @@ impl JacCompiler.get_bytecode(
     can_typecheck = (
         'jaclang.compiler.passes.main.type_checker_pass' in sys.modules
         and 'jaclang.compiler.type_system.type_evaluator' in sys.modules
+        and hasattr(
+            sys.modules['jaclang.compiler.passes.main.type_checker_pass'],
+            'TypeCheckPass'
+        )
+        and hasattr(
+            sys.modules['jaclang.compiler.type_system.type_evaluator'], 'TypeEvaluator'
+        )
     );
     options = CompileOptions(type_check=can_typecheck);
     result = self.compile(

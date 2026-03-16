@@ -626,6 +626,46 @@ impl TypeEvaluator._get_type_of_expression_core(
                     return types.UnknownType();
                 } elif base_type.is_class_instance() {
                     assert isinstance(base_type, types.ClassType);
+                    # Handle .value/.name on enum instances — DynamicClassAttribute
+                    # is not detected by the property check, so resolve these directly.
+                    if base_type.is_enum_class() {
+                        attr_name = expr.right.value;
+                        if attr_name in ('name', '_name_') {
+                            expr.right.type = self._convert_to_instance(
+                                self.prefetch.str_class
+                            );
+                            return expr.right.type;
+                        }
+                        if attr_name in ('value', '_value_') {
+                            val_type = base_type.shared.enum_value_type;
+                            # If no explicit value type (not StrEnum/IntEnum),
+                            # infer from members' common value type.
+                            if val_type is None and base_type.shared.enum_members {
+                                member_types = [
+                                    m.value_type
+                                    for m in base_type.shared.enum_members.values()
+                                    if m.value_type is not None
+                                ];
+                                if member_types
+                                and all(
+                                    isinstance(t, types.ClassType)
+                                    and isinstance(
+                                        member_types[0], types.ClassType
+                                    )
+                                    and t.shared == member_types[0].shared
+                                    for t in member_types
+                                ) {
+                                    val_type = member_types[0];
+                                }
+                            }
+                            if val_type is not None {
+                                expr.right.type = self._convert_to_instance(val_type);
+                            } else {
+                                expr.right.type = types.AnyType();
+                            }
+                            return expr.right.type;
+                        }
+                    }
                     if member := self._lookup_object_member(
                         base_type, expr.right.value
                     ) {
