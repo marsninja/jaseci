@@ -179,6 +179,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "'{first}' must appear before '{second}' in parameter list"
      ),
+     E0052 = _err(
+         "E0052",
+         Category.SYNTAX,
+         "Parameter '{name}' is missing a type annotation",
+         help="All function and method parameters require explicit type annotations in Jac."
+     ),
      # Parser: context validity
      E0055 = _err(
          "E0055", Category.SYNTAX, "'yield' is only valid inside a function body"

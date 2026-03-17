@@ -33,7 +33,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: JIR Cache Corrupted Function Signatures**: The decl/impl matching pass replaced parameter nodes with references outside the AST tree, causing JIR serialization to drop all parameter info. Imported functions loaded from cache appeared to have zero parameters, producing false argument-count errors and incorrect semantic highlighting.
 - **Fix: JIR Cache Not Invalidated on Compiler Version Change**: `is_module_cache_valid` only checked file mtimes, so stale `.jir` caches written by a buggy compiler persisted across upgrades. The cache now reads the JIR header and rejects files whose `jaclang_version_hash` or Python version doesn't match the running compiler.
 - **Fix: False "Name may be undefined" on Keyword Arguments**: The static analysis pass (W2001) incorrectly flagged keyword argument names (e.g., `name=` in `func(name="check")`) as potentially undefined variables. Keyword argument keys are now skipped.
-
+- **Enforce Type Annotations on Function Parameters (E0052)**: The `ASTValidationPass` now reports an error when a function or method parameter is missing a type annotation. Lambda parameters are exempt (types are inferred). This catches missing annotations early during AST validation, before the type checker runs.
 - 3 small refactors/changes.
 
 ## jaclang 0.12.2 (Latest Release)

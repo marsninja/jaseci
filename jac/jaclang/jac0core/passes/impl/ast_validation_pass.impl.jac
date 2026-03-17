@@ -63,6 +63,21 @@ impl ASTValidationPass.enter_name(self: ASTValidationPass, nd: uni.Name) -> None
     }
 }
 
+"""E0052: function/method parameters must have type annotations."""
+impl ASTValidationPass.enter_param_var(
+    self: ASTValidationPass, nd: uni.ParamVar
+) -> None {
+    # Skip lambda parameters — lambdas allow type inference.
+    sig = nd.parent;
+    if isinstance(sig, uni.FuncSignature) and isinstance(sig.parent, uni.LambdaExpr) {
+        return;
+    }
+    if nd.type_tag is None {
+        param_name = nd.name.value if isinstance(nd.name, uni.Name) else str(nd.name);
+        self.emit(E0052, node_override=nd, name=param_name);
+    }
+}
+
 """Validate parameter ordering: /, *, ** must be in correct positions."""
 impl ASTValidationPass.enter_func_signature(
     self: ASTValidationPass, nd: uni.FuncSignature
