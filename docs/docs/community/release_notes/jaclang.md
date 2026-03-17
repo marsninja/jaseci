@@ -27,14 +27,12 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Improve: `jac format` Grouped Error Summary for Syntax Errors**: `jac format` now displays a grouped `FAILURES` section (file path + error messages) and a `failed files` summary when files have syntax errors, consistent with `jac check` output. Previously, errors were printed inline without grouping.
 - **Fix: Garbled Emojis and Markup in `jac --version` Banner**: Non-ASCII characters and emojis now render correctly in the version banner.
 - **CLI: `jac run --show-errors` Flag**: Added `-e` / `--show-errors` flag to `jac run` that displays type check errors and warnings after execution. A summary line with error/warning counts is always shown when diagnostics exist. Use `-e` for full details without needing a separate `jac check` step.
-<<<<<<< refactor/remove-root-keyword
 - **`root` Removed as Language Keyword**: `root` is no longer a reserved keyword (`KW_ROOT`) in the Jac grammar. It is now an ambient built-in name resolved through the runtime builtin module's lazy `__getattr__` mechanism (same as `jid`, `jobj`, `save`, etc.), returning `Jac.root()`. Existing code using `root` continues to work unchanged. Backtick escaping (`` `root` ``) is no longer necessary when using `root` as an identifier.
-=======
 - **Fix: Impl Matching with Forward Declarations**: `impl MyClass.method` now correctly matches declarations when `MyClass` has forward declarations or is reassigned elsewhere. Previously failed with E2009.
 - **Fix: Goto Definition for Import Paths and Imported Items**: Goto definition now works correctly on all parts of an import statement. Previously, intermediate path segments failed to resolve because each was resolved independently; now the full dotted path is resolved once and intermediate paths are derived by walking up the directory tree.
 - **Fix: JIR Cache Corrupted Function Signatures**: The decl/impl matching pass replaced parameter nodes with references outside the AST tree, causing JIR serialization to drop all parameter info. Imported functions loaded from cache appeared to have zero parameters, producing false argument-count errors and incorrect semantic highlighting.
-
->>>>>>> main
+- **Fix: JIR Cache Not Invalidated on Compiler Version Change**: `is_module_cache_valid` only checked file mtimes, so stale `.jir` caches written by a buggy compiler persisted across upgrades. The cache now reads the JIR header and rejects files whose `jaclang_version_hash` or Python version doesn't match the running compiler.
+- **Fix: False "Name may be undefined" on Keyword Arguments**: The static analysis pass (W2001) incorrectly flagged keyword argument names (e.g., `name=` in `func(name="check")`) as potentially undefined variables. Keyword argument keys are now skipped.
 
 - 3 small refactors/changes.
 
