@@ -125,7 +125,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E0024",
          Category.SYNTAX,
          "Cannot assign to '{name}' -- it is a built-in reference, not a variable",
-         help="Use a different variable name, or use backtick escaping (e.g. `root) to create a local variable with the same name."
+         help="Use a different variable name, or use backtick escaping (e.g. `super) to create a local variable with the same name."
      ),
      # Parser: statement-level errors
      E0030 = _err("E0030", Category.SYNTAX, "Unexpected semicolon at module level"),
@@ -208,6 +208,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "Parenthesized filter syntax '(?:...)' is deprecated. Use bracket syntax '[?:...]' instead.",
          "Replace (?:Type, cond) with [?:Type, cond]"
+     ),
+     W0062 = _warn(
+         "W0062",
+         Category.SYNTAX,
+         "Bare 'root' is deprecated. Use 'root()' instead.",
+         "'root' is now a builtin function — call it explicitly as 'root()'"
      ),
      # Lexer errors
      E0100 = _err("E0100", Category.SYNTAX, "Unterminated string literal"),
