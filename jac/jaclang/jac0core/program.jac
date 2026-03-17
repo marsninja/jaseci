@@ -15,19 +15,14 @@ with entry {
     }
 }
 
-"""Holds the state of a compiled Jac program."""
-obj JacProgram {
-    has mod: uni.ProgramModule by postinit,
-        py_raise_map: dict[(str, str)] by postinit,
-        mtir_map: dict[(str, Info)] by postinit,
-        errors_had: list[Alert] by postinit,
-        warnings_had: list[Alert] by postinit,
-        type_evaluator: (TypeEvaluator | None) = None,
-        _compiler: (JacCompiler | None) = None,
-        _compile_options: CompileOptions by postinit,
-        _native_cache: dict by postinit;
+"""Holds the state of a compiled Jac program.
 
-    def postinit -> None;
+Uses class (not obj) because JacLangServer subclasses it and calls
+JacProgram.init(self) explicitly — dataclass __init__ from obj would
+conflict with that pattern.
+"""
+class JacProgram {
+    def init(main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler -> JacCompiler;
     def get_type_evaluator -> TypeEvaluator;
     def clear_type_system(clear_hub: bool = False) -> None;

@@ -1,13 +1,15 @@
 """Implementation for program constructs."""
 
-impl JacProgram.postinit -> None {
-    self.mod = uni.ProgramModule();
-    self.py_raise_map = {};
-    self.mtir_map = {};
-    self.errors_had = [];
-    self.warnings_had = [];
-    self._compile_options = CompileOptions();
-    self._native_cache = {};
+impl JacProgram.init(main_mod: (uni.ProgramModule | None) = None) -> None {
+    self.mod: uni.ProgramModule = main_mod or uni.ProgramModule();
+    self.py_raise_map: dict[(str, str)] = {};
+    self.mtir_map: dict[(str, Info)] = {};
+    self.errors_had: list[Alert] = [];
+    self.warnings_had: list[Alert] = [];
+    self.type_evaluator: (TypeEvaluator | None) = None;
+    self._compiler: (JacCompiler | None) = None;
+    self._compile_options: CompileOptions = CompileOptions();
+    self._native_cache: dict = {};
 }
 
 impl JacProgram._get_compiler -> JacCompiler {
