@@ -90,8 +90,6 @@ impl __getattr__(name: str) -> object {
         return _get_store();
     } elif (name == 'llm') {
         return _get_llm();
-    } elif (name == 'root') {
-        return _get_jac().root();
     }
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}");
 }

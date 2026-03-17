@@ -80,7 +80,6 @@ def restspec(**specs: Any) -> Callable;
 def schedule(**kwargs: Any) -> Callable;
 
 glob __all__ = [
-         'root',
          'printgraph',
          'jid',
          'jobj',
