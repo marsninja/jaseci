@@ -244,12 +244,24 @@ def get_stub_cache_path(stub_path: str, content_hash: str) -> Path {
 
 """Get the cache directory for a module based on its origin.
 
-Files inside the active project use the project's .jac/cache/ dir.
-Standalone files (no project) use .jac/cache/ relative to the source.
-Everything else (installed packages, plugins) uses the global cache.
+1. Source inside sys.prefix or jaclang package (installed/editable) → global cache
+2. Source inside active project root → project .jac/cache/
+3. Otherwise (standalone user file) → .jac/cache/ next to source
 """
+glob _jaclang_pkg_dir: str = str(Path(__file__).resolve().parent.parent);
+
 def _get_module_cache_dir(source_path: str) -> Path {
     resolved = Path(source_path).resolve();
+    resolved_str = str(resolved);
+    # Installed or editable-installed packages always use global cache
+    if resolved_str.startswith(_jaclang_pkg_dir + os.sep) {
+        return get_jir_cache_dir() / 'modules';
+    }
+    try {
+        resolved.relative_to(sys.prefix);
+        return get_jir_cache_dir() / 'modules';
+    } except ValueError { }
+    # Check for active project context
     try {
         config_mod = __import__("jaclang.project.config", fromlist=["get_config"]);
         cfg = config_mod.get_config();
