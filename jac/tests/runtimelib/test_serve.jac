@@ -1,6 +1,5 @@
 """Tests for jac serve-related functionality (unit tests and faux mode only)."""
 
-import inspect;
 import io;
 import os;
 import socket;
@@ -145,55 +144,14 @@ test "faux flag with littlex example" {
         port = get_free_port();
         Jac.set_base_path(tmpdir);
         captured_output = io.StringIO();
-        captured_errors = io.StringIO();
         with suppress(SystemExit) {
-            with redirect_stderr(captured_errors) {
-                with redirect_stdout(captured_output) {
-                    execution.start(
-                        filename=littlex_path, port=port, main=True, faux=True
-                    );
-                }
+            with redirect_stdout(captured_output) {
+                execution.start(filename=littlex_path, port=port, main=True, faux=True);
             }
         }
         output = captured_output.getvalue();
-        errors = captured_errors.getvalue();
-        # Debug: inspect the loaded module
-        import from jaclang.jac0core.constructs { WalkerArchetype }
-        mod_name = os.path.splitext(os.path.basename(littlex_path))[0];
-        loaded_mod = Jac.loaded_modules.get(mod_name);
-        import sys as _sys;
-        debug_lines = [f"loaded_modules keys: {list(Jac.loaded_modules.keys())}"];
-        debug_lines.append(f"mod_name: {mod_name}, loaded_mod: {loaded_mod}");
-        debug_lines.append(f"in_sys_modules: {mod_name in _sys.modules}");
-        if mod_name in _sys.modules {
-            sm = _sys.modules[mod_name];
-            debug_lines.append(f"sys.modules[{mod_name}]: {sm}");
-            debug_lines.append(f"sys.modules file: {getattr(sm, '__file__', 'N/A')}");
-        }
-        if loaded_mod {
-            types_in_mod = [
-                (n, type(o).__name__, [b.__name__ for b in o.__bases__])
-                for (n, o) in inspect.getmembers(loaded_mod)
-                if isinstance(o, type) and not n.startswith('_')
-            ];
-            debug_lines.append(f"types: {types_in_mod[:10]}");
-            walker_check = [
-                (
-                    n,
-                    issubclass(o, WalkerArchetype),
-                    id(WalkerArchetype),
-                    [id(b) for b in o.__mro__]
-                )
-                for (n, o) in inspect.getmembers(loaded_mod)
-                if isinstance(o, type) and 'walker' in str(o.__bases__).lower()
-            ];
-            debug_lines.append(f"walker_check: {walker_check[:5]}");
-        }
-        debug_info = '\n'.join(debug_lines);
         # Verify that littleX endpoints are discovered
-        assert "WALKERS" in output , (
-            f"Expected 'WALKERS' in output.\nSTDOUT:\n{output}\nSTDERR:\n{errors}\nDEBUG:\n{debug_info}"
-        );
+        assert "WALKERS" in output;
         # Check for key littleX walkers
         littlex_walkers = ["update_profile", "get_profile", "create_tweet", "load_feed"];
         for w in littlex_walkers {
