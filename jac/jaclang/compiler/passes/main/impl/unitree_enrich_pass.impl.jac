@@ -19,18 +19,10 @@ with entry {
     }
 }
 
-"""Convert a TypeBase to a backend-neutral type tag string.
-
-    Uses JAC_TYPE_REGISTRY names for primitives so the tag maps directly to
-    NaIRGenPass.type_map keys. Returns None for types that backends must
-    re-derive (user archetypes, generics, unresolved types).
-    """
 impl _typebase_to_tag(t: Any) -> (str | None) {
-    # Guard: no type info available
     if t is None {
         return None;
     }
-    # Lazy import JAC_TYPE_REGISTRY for bootstrap safety
     try {
         import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
         _prim_names = {
@@ -39,7 +31,6 @@ impl _typebase_to_tag(t: Any) -> (str | None) {
             if e.na_type_spec is not None
         };
     } except ImportError {
-        # Bootstrap: type_registry not yet compiled
         _prim_names = {"int","float","bool","str","i8","u8","i16","u16","i32","u32","i64","u64","f32","f64"};
     }
     try {
@@ -52,15 +43,12 @@ impl _typebase_to_tag(t: Any) -> (str | None) {
                 return None;
             }
             class_name = t.shared.class_name;
-            # Primitive scalars: map directly to type_map keys
             if class_name in _prim_names {
                 return class_name;
             }
-            # NoneType class (Python None type → void in native)
             if class_name in ("NoneType", "None") {
                 return "void";
             }
-            # Parameterized collections: build "list[elem]", "dict[k:v]", "set[elem]"
             type_args = (t.private.type_args if t.private else None) or [];
             if class_name == "list" and len(type_args) == 1 {
                 elem_tag = _typebase_to_tag(type_args[0]);
@@ -84,7 +72,6 @@ impl _typebase_to_tag(t: Any) -> (str | None) {
                 }
                 return None;
             }
-            # Unparameterized collection or user-defined type: cannot pre-compute
             return None;
         }
         if isinstance(t, _NeverType) {
@@ -93,13 +80,10 @@ impl _typebase_to_tag(t: Any) -> (str | None) {
     } except (ImportError, Exception) {
         return None;
     }
-    # All other TypeBase subclasses (Unknown, Any, TypeVar, Function, Module,
-    # Union, Overloaded, EnumMember) → None: backends use their own derivation.
     return None;
 }
 
 
-"""Initialize pass state and delegate to UniPass.init."""
 impl UniTreeEnrichPass.init(
     ir_in: uni.Module, prog: Any, cancel_token: (Any | None) = None
 ) -> None {
@@ -107,14 +91,12 @@ impl UniTreeEnrichPass.init(
 }
 
 
-"""Initialize state for the native_compat pre-check."""
 impl UniTreeEnrichPass.before_pass -> None {
     self._native_has_disqualifier: bool = False;
     self._native_has_entry: bool = False;
 }
 
 
-"""Set backend_type_tag on every Expr from its pre-computed TypeBase."""
 impl UniTreeEnrichPass.enter_expr(nd: uni.Expr) -> None {
     if getattr(nd, 'backend_type_tag', None) is None and nd.type is not None {
         nd.backend_type_tag = _typebase_to_tag(nd.type);
@@ -122,22 +104,11 @@ impl UniTreeEnrichPass.enter_expr(nd: uni.Expr) -> None {
 }
 
 
-"""Set js_decl_kind on Name nodes for the ES backend.
-
-    "let"   — this Name node IS the declaration site of its symbol.
-    "param" — this Name is a function parameter.
-    None    — reference only; no JS declaration needed at this site.
-    """
 impl UniTreeEnrichPass.enter_name(nd: uni.Name) -> None {
     if getattr(nd, 'js_decl_kind', None) is not None {
-        return;  # already set (shouldn't happen, but be safe)
-
+        return;
     }
-    # Check if this Name is the definition site of its symbol.
-    # After SemanticAnalysisPass, name_of points to the declaration node
-    # for usages; for declarations, name_of is self.
     if nd.name_of is nd {
-        # Check if it's a function parameter (parent chain)
         parent = nd.parent;
         try {
             if isinstance(parent, uni.ParamVar) {
@@ -149,11 +120,9 @@ impl UniTreeEnrichPass.enter_name(nd: uni.Name) -> None {
         }
         nd.js_decl_kind = "let";
     }
-    # else: nd.name_of is not nd → reference, js_decl_kind stays None
 }
 
 
-# ─── native_compat disqualifying construct detectors ──────────
 impl UniTreeEnrichPass.enter_archetype(nd: uni.Archetype) -> None {
     if not self._native_has_disqualifier {
         arch_val = nd.arch_type.value if nd.arch_type else "";
@@ -215,7 +184,6 @@ impl UniTreeEnrichPass.enter_server_block(nd: uni.ServerBlock) -> None {
     self._native_has_disqualifier = True;
 }
 
-"""Track whether a 'with entry {}' block is present."""
 impl UniTreeEnrichPass.enter_module_code(nd: uni.ModuleCode) -> None {
     for k in nd.kid {
         if isinstance(k, uni.Token) and k.value == "entry" {
@@ -225,11 +193,7 @@ impl UniTreeEnrichPass.enter_module_code(nd: uni.ModuleCode) -> None {
     }
 }
 
-"""After the full walk, set gen.native_compat on the module."""
 impl UniTreeEnrichPass.exit_module(nd: uni.Module) -> None {
-    # A module is native-compatible if it has no disqualifying constructs
-    # AND has an entry block. .na.jac files are explicitly native already
-    # and don't need the flag (NativeCompatCheckPass skips them).
     nd.gen.native_compat = (
         not self._native_has_disqualifier and self._native_has_entry
     );
