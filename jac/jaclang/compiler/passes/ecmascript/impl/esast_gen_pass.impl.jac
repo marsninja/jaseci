@@ -137,8 +137,7 @@ impl EsastGenPass.exit_non_local_stmt(nd: uni.NonLocalStmt) -> None {
 impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
     if nd.code_context == CodeContext.CLIENT {
         self.client_manifest.has_client = True;
-        is_pub = nd.access and (nd.access.tag.name == Tok.KW_PUB);
-        if is_pub {
+        if nd.public_access {
             for assignment in nd.assignments {
                 for target in assignment.target {
                     if (sym_name := getattr(target, 'sym_name', None)) {
@@ -946,8 +945,7 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                 is_server_func = (
                     ability_node.code_context != CodeContext.CLIENT
                     and not ability_node.in_client_context()
-                    and ability_node.access is not None
-                    and ability_node.access.tag.name == Tok.KW_PUB
+                    and ability_node.public_access
                 );
                 if is_server_func {
                     func_name = nd.target.sym_name;
@@ -2511,8 +2509,7 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
     }
     if (nd.code_context == CodeContext.CLIENT and not nd.is_method) {
         self.client_manifest.has_client = True;
-        is_pub = nd.access and (nd.access.tag.name == Tok.KW_PUB);
-        if is_pub {
+        if nd.public_access {
             name = nd.name_ref.sym_name;
             self.client_manifest.exports.append(name);
             self.client_manifest.params[name] = [
@@ -2635,8 +2632,7 @@ impl EsastGenPass.enter_ability(nd: uni.Ability) -> None {
 impl EsastGenPass.exit_enum(nd: uni.Enum) -> None {
     if nd.code_context == CodeContext.CLIENT {
         self.client_manifest.has_client = True;
-        is_pub = nd.access and (nd.access.tag.name == Tok.KW_PUB);
-        if is_pub {
+        if nd.public_access {
             self.client_manifest.exports.append(nd.name.sym_name);
         }
     }
@@ -2698,8 +2694,7 @@ impl EsastGenPass.exit_type_param(nd: uni.TypeParam) -> None {
 impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
     if nd.code_context == CodeContext.CLIENT {
         self.client_manifest.has_client = True;
-        is_pub = nd.access and (nd.access.tag.name == Tok.KW_PUB);
-        if is_pub {
+        if nd.public_access {
             self.client_manifest.exports.append(nd.name.sym_name);
         }
     }

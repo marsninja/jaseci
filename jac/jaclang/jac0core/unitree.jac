@@ -689,7 +689,10 @@ obj FuncSignature(UniNode) {
         varargs: (ParamVar | None),
         kwonlyargs: Sequence[ParamVar],
         kwargs: (ParamVar | None),
-        return_type: (Expr | None);
+        return_type: (Expr | None),
+        return_type_tag: (str | None) by postinit,
+        param_type_tags: (list[str] | None) by postinit,
+        param_names_cached: (list[str] | None) by postinit;
 
     def postinit -> None;
     def get_parameters -> list[ParamVar];
