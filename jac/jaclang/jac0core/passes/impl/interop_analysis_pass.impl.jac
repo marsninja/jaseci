@@ -210,15 +210,25 @@ impl InteropAnalysisPass.enter_func_call(
     } else {
         sig = callee_node.signature;
         assert isinstance(sig, uni.FuncSignature);
-        ret_type = self._extract_type_name(sig.return_type);
-        param_types: list = [];
-        param_names: list = [];
-        for p in sig.params {
-            param_names.append(p.sym_name);
-            if p.type_tag {
-                param_types.append(self._extract_type_name(p.type_tag.tag));
-            } else {
-                param_types.append('int');
+        cached_ret = getattr(sig, 'return_type_tag', None);
+        ret_type = cached_ret
+            if cached_ret is not None
+            else self._extract_type_name(sig.return_type);
+        cached_ptags = getattr(sig, 'param_type_tags', None);
+        cached_pnames = getattr(sig, 'param_names_cached', None);
+        if cached_ptags is not None and cached_pnames is not None {
+            param_types = list(cached_ptags);
+            param_names = list(cached_pnames);
+        } else {
+            param_types: list = [];
+            param_names: list = [];
+            for p in sig.get_parameters() {
+                param_names.append(p.sym_name);
+                if p.type_tag {
+                    param_types.append(self._extract_type_name(p.type_tag.tag));
+                } else {
+                    param_types.append('int');
+                }
             }
         }
         binding = InteropBinding(

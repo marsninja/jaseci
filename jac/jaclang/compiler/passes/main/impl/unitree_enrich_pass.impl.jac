@@ -72,6 +72,13 @@ impl _typebase_to_tag(t: Any) -> (str | None) {
                 }
                 return None;
             }
+            if class_name == "tuple" and type_args {
+                elem_tags = [_typebase_to_tag(a) for a in type_args];
+                if all(t and t in _prim_names for t in elem_tags) {
+                    return f"tuple[{','.join(elem_tags)}]";
+                }
+                return None;
+            }
             return None;
         }
         if isinstance(t, _NeverType) {
@@ -191,6 +198,18 @@ impl UniTreeEnrichPass.enter_module_code(nd: uni.ModuleCode) -> None {
             break;
         }
     }
+}
+
+impl UniTreeEnrichPass.exit_func_signature(nd: uni.FuncSignature) -> None {
+    nd.return_type_tag = getattr(nd.return_type, 'backend_type_tag', None)
+        if nd.return_type
+        else None;
+    all_params = nd.get_parameters();
+    nd.param_names_cached = [p.sym_name for p in all_params];
+    nd.param_type_tags = [
+        getattr(p.type_tag.tag if p.type_tag else None, 'backend_type_tag', None)
+        or 'int' for p in all_params
+    ];
 }
 
 impl UniTreeEnrichPass.exit_module(nd: uni.Module) -> None {

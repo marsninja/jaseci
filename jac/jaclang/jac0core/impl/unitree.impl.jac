@@ -1534,6 +1534,9 @@ impl FuncSignature.postinit -> None {
     self.posonly_params = `list(self.posonly_params);
     self.params = `list(self.params) if self.params else [];
     self.kwonlyargs = `list(self.kwonlyargs);
+    self.return_type_tag = None;
+    self.param_type_tags = None;
+    self.param_names_cached = None;
     UniNode.postinit(self);
 }
 

@@ -27,5 +27,6 @@ obj UniTreeEnrichPass(UniPass) {
     def enter_client_block(nd: uni.ClientBlock) -> None;
     def enter_server_block(nd: uni.ServerBlock) -> None;
     def enter_module_code(nd: uni.ModuleCode) -> None;
+    def exit_func_signature(nd: uni.FuncSignature) -> None;
     def exit_module(nd: uni.Module) -> None;
 }

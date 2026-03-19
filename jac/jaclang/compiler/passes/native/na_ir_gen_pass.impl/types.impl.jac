@@ -44,6 +44,17 @@ impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
                 self._emit_set_helpers(na_spec, elem_llvm, 0);
                 return self.set_types[na_spec].as_pointer();
             }
+        } elif tag.startswith("tuple[") and tag.endswith("]") {
+            elem_names = tag[6:-1].split(",");
+            elem_llvm = [self.type_map.get(n) for n in elem_names];
+            if all(t is not None for t in elem_llvm) {
+                n = len(elem_llvm);
+                tuple_key = f"Tuple.{n}." + ".".join([str(t) for t in elem_llvm]);
+                if tuple_key not in self.tuple_types {
+                    self.tuple_types[tuple_key] = ir.LiteralStructType(elem_llvm);
+                }
+                return self.tuple_types[tuple_key].as_pointer();
+            }
         } else {
             llvm_type = self.type_map.get(tag);
             if llvm_type is not None {
@@ -419,24 +430,34 @@ Builds ir.FunctionType from the signature's parameter and return types,
 then returns a pointer to that function type.
 """
 impl NaIRGenPass._resolve_func_ptr_type(sig: uni.FuncSignature) -> ir.Type {
-    # Resolve return type
     ret_type: ir.Type = ir.VoidType();
-    if sig.return_type is not None {
+    ret_tag = getattr(sig, 'return_type_tag', None);
+    if ret_tag is not None {
+        resolved_ret = self.type_map.get(ret_tag) or ir.VoidType();
+        if not isinstance(resolved_ret, ir.VoidType) {
+            ret_type = resolved_ret;
+        }
+    } elif sig.return_type is not None {
         resolved_ret = self._resolve_jac_type(sig.return_type);
         if not isinstance(resolved_ret, ir.VoidType) {
             ret_type = resolved_ret;
         }
     }
-    # Resolve parameter types
     param_types: list[ir.Type] = [];
-    all_params = sig.get_parameters();
-    for param in all_params {
-        if param.type_tag and param.type_tag.tag {
-            ptype = self._resolve_jac_type(param.type_tag.tag);
-        } else {
-            ptype = ir.IntType(64);  # default to i64 for untyped params
+    cached_tags = getattr(sig, 'param_type_tags', None);
+    if cached_tags is not None {
+        for tag in cached_tags {
+            param_types.append(self.type_map.get(tag, ir.IntType(64)));
         }
-        param_types.append(ptype);
+    } else {
+        for param in sig.get_parameters() {
+            if param.type_tag and param.type_tag.tag {
+                ptype = self._resolve_jac_type(param.type_tag.tag);
+            } else {
+                ptype = ir.IntType(64);
+            }
+            param_types.append(ptype);
+        }
     }
     fn_type = ir.FunctionType(ret_type, param_types);
     return fn_type.as_pointer();
