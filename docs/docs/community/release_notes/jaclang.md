@@ -4,6 +4,8 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.12.3 (Unreleased)
 
+- **Compiler: Reduced Backend Analysis Redundancy**: `UniTreeEnrichPass` now pre-computes `FuncSignature.return_type_tag`, `.param_type_tags`, and `.param_names_cached` so `InteropAnalysisPass` and `NaIRGenPass` read cached values instead of re-walking signature parameters independently. `_typebase_to_tag` extended to emit `"tuple[T1,T2,...]"` tags for primitive tuple types, with a matching fast-path in `NaIRGenPass._resolve_jac_type`. ECMAScript backend now uses the existing `AstAccessNode.public_access` property instead of repeating the raw token check.
+
 - **Type Checking Enabled by Default**: All user modules are now type-checked during compilation. Bootstrap modules skip type checking automatically to avoid circular imports.
 - **Type Checker: Enum `.value`/`.name` Resolution**: Accessing `.value` or `.name` on enum instances now returns the correct type. For plain enums, the value type is inferred from members.
 - **Fix: Static Analysis False Positive on Attribute Access**: The "Name may be undefined" warning (W2001) no longer fires on attribute-access names (e.g., `obj.value`), which are member lookups, not standalone name references.
