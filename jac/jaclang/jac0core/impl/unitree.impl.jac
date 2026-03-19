@@ -1972,6 +1972,11 @@ impl FuncCall.postinit -> None {
 }
 
 
+impl Slice.postinit -> None {
+    UniNode.postinit(self);
+}
+
+
 impl IndexSlice.postinit -> None {
     UniNode.postinit(self);
     Expr.postinit(self);
