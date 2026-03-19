@@ -1,40 +1,27 @@
-"""Static analysis pass to detect native-compatible .jac modules.
+"""Native compatibility promotion pass.
 
-Walks the module AST and checks for constructs unsupported by the native
-(LLVM) backend. If the entire module is compatible, it is automatically
-promoted to native context — no .na.jac extension required.
+Reads the pre-computed gen.native_compat flag (set by UniTreeEnrichPass) and
+applies runtime conditions to decide whether to promote the module.
+
+AST analysis (which constructs disqualify native compilation) lives exclusively
+in UniTreeEnrichPass so the analysis runs once, is cached in the JIR, and is
+not repeated at codegen time.
 """
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 
-"""Check if a .jac module is fully compatible with native compilation.
+"""Promote a .jac module to native context when all conditions are met.
 
-    Runs as a UniPass visitor. Each enter_* method checks for a disqualifying
-    AST node type. If none are found and the module has an entry block,
-    the module is promoted to native context via _coerce_native_module().
+    Conditions checked here (runtime, not pre-computable by UniTreeEnrichPass):
+      1. The program explicitly requested auto-promotion (_auto_promote_native).
+      2. This module is the target file (_auto_promote_target).
+      3. The module is not already .na.jac / .impl.jac / .test.jac.
+
+    Condition checked by UniTreeEnrichPass (stored on gen.native_compat):
+      4. No disqualifying AST constructs (walkers, edges, async, etc.).
+      5. Has a 'with entry {}' block.
     """
 class NativeCompatCheckPass(UniPass) {
     def before_pass(self: NativeCompatCheckPass) -> None;
     def after_pass(self: NativeCompatCheckPass) -> None;
-    # Disqualifying visitors
-    def enter_archetype(self: NativeCompatCheckPass, nd: uni.Archetype) -> None;
-    def enter_ability(self: NativeCompatCheckPass, nd: uni.Ability) -> None;
-    def enter_visit_stmt(self: NativeCompatCheckPass, nd: uni.VisitStmt) -> None;
-    def enter_disengage_stmt(
-        self: NativeCompatCheckPass, nd: uni.DisengageStmt
-    ) -> None;
-
-    def enter_report_stmt(self: NativeCompatCheckPass, nd: uni.ReportStmt) -> None;
-    def enter_yield_expr(self: NativeCompatCheckPass, nd: uni.YieldExpr) -> None;
-    def enter_edge_op_ref(self: NativeCompatCheckPass, nd: uni.EdgeOpRef) -> None;
-    def enter_disconnect_op(self: NativeCompatCheckPass, nd: uni.DisconnectOp) -> None;
-    def enter_typed_ctx_block(
-        self: NativeCompatCheckPass, nd: uni.TypedCtxBlock
-    ) -> None;
-
-    def enter_lambda_expr(self: NativeCompatCheckPass, nd: uni.LambdaExpr) -> None;
-    def enter_py_inline_code(self: NativeCompatCheckPass, nd: uni.PyInlineCode) -> None;
-    def enter_client_block(self: NativeCompatCheckPass, nd: uni.ClientBlock) -> None;
-    def enter_server_block(self: NativeCompatCheckPass, nd: uni.ServerBlock) -> None;
-    def enter_module_code(self: NativeCompatCheckPass, nd: uni.ModuleCode) -> None;
 }
