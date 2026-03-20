@@ -264,7 +264,7 @@ impl ASTValidationPass.enter_func_call(
     }
 }
 
-"""E0071: bare except must be last. E0075: duplicate base class."""
+"""E0071: bare except must be last. E0075: duplicate base class. E0076: duplicate method."""
 impl ASTValidationPass.enter_archetype(
     self: ASTValidationPass, nd: uni.Archetype
 ) -> None {
@@ -285,6 +285,24 @@ impl ASTValidationPass.enter_archetype(
                 }
                 seen_bases.add(base_name);
             }
+        }
+    }
+    # E0076: duplicate method definition
+    body: list = [];
+    if isinstance(nd.body, (list, tuple)) {
+        body = list(nd.body);
+    } elif isinstance(nd.body, uni.ImplDef)
+    and isinstance(nd.body.body, (list, tuple)) {
+        body = list(nd.body.body);
+    }
+    seen_methods: set[str] = set();
+    for item in body {
+        if isinstance(item, uni.Ability) and item.name_ref is not None {
+            mname = item.name_ref.value;
+            if mname in seen_methods {
+                self.emit(E0076, node_override=item.name_ref, name=mname);
+            }
+            seen_methods.add(mname);
         }
     }
 }
