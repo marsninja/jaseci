@@ -121,6 +121,17 @@ obj PrefetchedTypes {
         node_class: TypeBase | None = None,
         walker_class: TypeBase | None = None,
         jsx_element_class: TypeBase | None = None,
+        # Fixed-width numeric types
+        i8_class: TypeBase | None = None,
+        u8_class: TypeBase | None = None,
+        i16_class: TypeBase | None = None,
+        u16_class: TypeBase | None = None,
+        i32_class: TypeBase | None = None,
+        u32_class: TypeBase | None = None,
+        i64_class: TypeBase | None = None,
+        u64_class: TypeBase | None = None,
+        f32_class: TypeBase | None = None,
+        f64_class: TypeBase | None = None,
         # Prefetched enum base class
         enum_class: TypeBase | None = None,
         set_class: TypeBase | None = None;

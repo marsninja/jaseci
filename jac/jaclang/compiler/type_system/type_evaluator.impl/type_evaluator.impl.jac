@@ -2787,6 +2787,17 @@ impl TypeEvaluator._prefetch_types{
     self.prefetch.node_class = get_jac_builtin_type("Node");
     self.prefetch.walker_class = get_jac_builtin_type("Walker");
     self.prefetch.jsx_element_class = get_jac_builtin_type("JsxElement");
+    # Fixed-width numeric types
+    self.prefetch.i8_class = get_jac_builtin_type("i8");
+    self.prefetch.u8_class = get_jac_builtin_type("u8");
+    self.prefetch.i16_class = get_jac_builtin_type("i16");
+    self.prefetch.u16_class = get_jac_builtin_type("u16");
+    self.prefetch.i32_class = get_jac_builtin_type("i32");
+    self.prefetch.u32_class = get_jac_builtin_type("u32");
+    self.prefetch.i64_class = get_jac_builtin_type("i64");
+    self.prefetch.u64_class = get_jac_builtin_type("u64");
+    self.prefetch.f32_class = get_jac_builtin_type("f32");
+    self.prefetch.f64_class = get_jac_builtin_type("f64");
 }
 
 """Load and return builtins stub module."""

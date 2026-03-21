@@ -4,6 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.12.3 (Unreleased)
 
+- **First-Class Fixed-Width Numeric Types**: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `f32`, and `f64` are now first-class builtin types, on par with `int` and `float`. They are recognized as keywords by the lexer, parsed as `BuiltinType` AST nodes, and prefetched by the type evaluator -- eliminating prior special-case handling where they were resolved as plain identifiers.
 - **Fix: `jac start --dev` Watchdog Installation**: Ensures watchdog is automatically installed properly in the active environment or project's environment when running `jac start --dev`, preventing failing with No module named 'watchdog'.
 - **Error: Explicit `self` in `obj`/`node`/`edge`/`walker` Methods (E2015)**: The type checker now reports an error when a method in an `obj`, `node`, `edge`, or `walker` archetype explicitly declares `self` as a parameter. In these archetypes, `self` is implicitly injected by the compiler; declaring it explicitly results in a duplicate parameter. Python-style `class` definitions are unaffected.
 - **Parallel `jac format`**: `jac format` now processes multiple files in parallel using `ProcessPoolExecutor`, significantly reducing CI time for large codebases (e.g., 11 min → ~2 min).
