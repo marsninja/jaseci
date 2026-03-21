@@ -20,6 +20,7 @@ Bug index:
   #FINAL-1 - Final[T] not unwrapped for attribute access
   #TVAR-1 - Duplicate TypeVars in _extract_type_params cause positional mismatch
   #TVAR-2 - No transitive TypeVar propagation through base_classes in build_type_var_solution
+  #TVAR-3 - Union return types with TypeVars (e.g., V | None) resolve to Unknown
 """
 
 import os;
@@ -378,4 +379,30 @@ test "bug_tvar2_transitive_typevar_propagation" {
     f"through base_classes chain. "
     f"Expected at least 1 type error but got {len(program.errors_had)}. "
     f"Without transitive propagation, V2 in BaseReader is unresolved.";
+}
+
+# =========================================================================
+# Bug #TVAR-3: Union return types with TypeVars resolve to Unknown
+#
+# When a generic method returns V | None (a union containing a TypeVar),
+# the BinaryExpr with BW_OR operator was evaluated by operations.jac which
+# checked is_any_type() on both operands BEFORE handling the union case.
+# Since TypeVarType.is_any_type() returns True, the function short-circuited
+# to UnknownType, and the union handler at line 276 was never reached.
+#
+# Fix: Move the BW_OR union-type check before the is_any_type() early return
+# and extend is_annotation_type() to recognize TypeVarType as valid.
+#
+# Impact: dict.get(), Optional-returning methods on generic classes, and any
+#         typeshed stub with `-> TypeVar | None` had Unknown return types.
+# =========================================================================
+test "bug_tvar3_typevar_union_return_type" {
+    program = compile_and_check("checker_bug_typevar_union_return.jac");
+
+    # Expected: 1 error (int | None not assignable to str for `bad: str = s.lookup("key")`)
+    # Without fix: 0 errors (V | None is Unknown, assignable to anything)
+    assert len(program.errors_had) >= 1 , f"Bug #TVAR-3: Union return types with TypeVars (V | None) resolve "
+    f"to Unknown due to is_any_type() short-circuit in operations.jac. "
+    f"Expected at least 1 type error but got {len(program.errors_had)}. "
+    f"Without the fix, dict.get() and similar methods return Unknown.";
 }
