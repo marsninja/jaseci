@@ -542,6 +542,13 @@ impl TypeEvaluator._extract_type_params(
     seen_names: set[str] = set();
 
     # First pass: find and process Generic[...] base to establish canonical order.
+    # Per PEP 484, Generic[T1, T2, ...] is the authoritative declaration of
+    # type parameter order. We detect it two ways:
+    #   1. Via is_special_form("Generic") on the resolved type (when alias_name
+    #      is set, e.g. for prefetched types).
+    #   2. Via the AST symbol name — Generic in typeshed stubs resolves to
+    #      type[_SpecialForm] without alias_name, so we fall back to checking
+    #      the Name node value, mirroring Pyright's aliasedName approach.
     generic_base: uni.AtomTrailer | None = None;
     for base_class in node_.base_classes or [] {
         if (not isinstance(base_class, uni.AtomTrailer))
@@ -550,10 +557,18 @@ impl TypeEvaluator._extract_type_params(
             continue;
         }
         target_type = self.get_type_of_expression(base_class.target);
-        if (
+        is_generic = (
             isinstance(target_type, types.ClassType)
             and target_type.is_special_form("Generic")
+        );
+        if (
+            not is_generic
+            and isinstance(base_class.target, uni.Name)
+            and base_class.target.value == "Generic"
         ) {
+            is_generic = True;
+        }
+        if is_generic {
             generic_base = base_class;
             break;
         }
