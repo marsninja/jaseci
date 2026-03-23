@@ -494,15 +494,31 @@ impl TypeEvaluator._get_type_of_expression_core(
         case uni.AtomTrailer():
             base_type = self.get_type_of_expression(expr.target);
 
-            # CFG narrowing: `if isinstance(x, Foo): x.bar` → x narrowed to Foo
-            # Walks backward through control flow to find narrowing conditions.
+            # Narrowing for Name targets: two systems may apply.
+            # - Scope narrowing: set by ternary/AND/OR handlers for inline expressions.
+            # - CFG narrowing: backward walk through control flow (statement-level).
+            # In ternary/bool contexts, scope narrowing takes priority because CFG
+            # operates at statement granularity and cannot see ternary-internal branches.
+            # In statement contexts (if/else bodies), CFG takes priority because it
+            # tracks assignments and re-narrowing that scope narrowing doesn't see.
             if isinstance(expr.target, uni.Name) and expr.target.sym {
-                if narrowed := self.get_narrowed_type(expr.target.sym, expr) {
-                    base_type = narrowed;
-                    # Also check scope narrowing for AND expressions:
-                    # `isinstance(expr, Name) and expr.value` → expr narrowed to Name
-                } elif scope_narrowed := self.get_scope_narrowing(expr.target.value) {
-                    base_type = scope_narrowed;
+                if (
+                    self._in_ternary_expr_depth > 0
+                    or self._in_bool_expr_narrowing_depth > 0
+                ) {
+                    if scope_narrowed := self.get_scope_narrowing(expr.target.value) {
+                        base_type = scope_narrowed;
+                    } elif narrowed := self.get_narrowed_type(expr.target.sym, expr) {
+                        base_type = narrowed;
+                    }
+                } else {
+                    if narrowed := self.get_narrowed_type(expr.target.sym, expr) {
+                        base_type = narrowed;
+                    } elif scope_narrowed := self.get_scope_narrowing(
+                        expr.target.value
+                    ) {
+                        base_type = scope_narrowed;
+                    }
                 }
                 # Scope narrowing: `if isinstance(a.b, Foo) and a.b.bar` → a.b narrowed to Foo
                 # Uses key like "a.b" to look up narrowed type from current if/AND scope.
@@ -1337,7 +1353,12 @@ impl TypeEvaluator._get_type_of_expression_core(
             self.push_narrowing_scope();
             if isinstance_info {
                 (narrowing_key, narrowed_type) = isinstance_info;
-                self.add_scope_narrowing(narrowing_key, narrowed_type);
+                # Refine: filter the variable's existing type to preserve generic
+                # params (e.g., isinstance(x, list) on list[int]|str → list[int]).
+                refined = self._refine_isinstance_type(
+                    narrowing_key, narrowed_type, expr.condition
+                );
+                self.add_scope_narrowing(narrowing_key, refined);
             } else {
                 self.process_condition(expr.condition);
             }
@@ -3330,9 +3351,11 @@ impl TypeEvaluator.process_condition(condition: uni.Expr) -> None {
         return;
     }
     # isinstance: `isinstance(x, Foo)` → {"x": Foo}, `isinstance(x, (A,B))` → {"x": A|B}
+    # Refine: filter the variable's existing type to preserve generic params.
     if isinstance_info := self._extract_isinstance_info(condition) {
         (narrowing_key, narrowed_type) = isinstance_info;
-        self.add_scope_narrowing(narrowing_key, narrowed_type);
+        refined = self._refine_isinstance_type(narrowing_key, narrowed_type, condition);
+        self.add_scope_narrowing(narrowing_key, refined);
         return;
     }
     # None checks: `x is not None` or `x is None`
@@ -3831,6 +3854,33 @@ impl TypeEvaluator._apply_narrowing(
         }
         return result;
     }
+}
+
+"""Refine an isinstance narrowed type by filtering the variable's declared type.
+
+When isinstance(x, list) narrows x: list[int] | str, using bare `list` loses
+the generic params. Instead, filter the declared union to keep only members
+that are instances of the isinstance class, preserving their type arguments.
+Falls back to the raw isinstance type if no union filtering is possible
+(e.g., the variable's type is not a union, or no members match).
+"""
+impl TypeEvaluator._refine_isinstance_type(
+    narrowing_key: str, isinstance_type: types.TypeBase, condition: uni.Expr
+) -> types.TypeBase {
+    sym = self._find_symbol_by_key(narrowing_key, condition);
+    if sym is not None {
+        base_type = self.get_type_of_symbol(sym);
+        # Also check if there's already a scope narrowing for this key
+        # (e.g., from an outer truthiness check in an AND chain).
+        if scope_type := self.get_scope_narrowing(narrowing_key) {
+            base_type = scope_type;
+        }
+        filtered = self._filter_union_for_isinstance(base_type, isinstance_type);
+        if filtered is not None {
+            return filtered;
+        }
+    }
+    return isinstance_type;
 }
 
 """Filter a union type to only include types that pass isinstance(x, target_type).
