@@ -1590,6 +1590,19 @@ impl TypeEvaluator._get_type_of_expression_core(
                             symbol_type = self._convert_to_instance(narrowed);
                         }
                     }
+                    # Scope narrowing for ternary/AND/OR expression contexts.
+                    # This takes priority over CFG narrowing in inline expressions
+                    # because CFG operates at statement granularity and cannot see
+                    # ternary-internal branches.  Placed here (after symbol resolution)
+                    # so .sym and .name_of are always set for the language server.
+                    if (
+                        self._in_ternary_expr_depth > 0
+                        or self._in_bool_expr_narrowing_depth > 0
+                    ) {
+                        if scope_narrowed := self.get_scope_narrowing(expr.value) {
+                            symbol_type = scope_narrowed;
+                        }
+                    }
                     if isinstance(symbol_type, types.FunctionType) {
                         overloaded_ty: types.OverloadedType | None = None;
                         overloaded_fns: list[types.FunctionType] = [symbol_type];
@@ -2676,21 +2689,28 @@ impl TypeEvaluator.get_type_of_expression(
     if isinstance(node_, uni.Ability) {
         return self.get_type_of_ability(node_);
     }
-    # Check scope narrowing for Name, NameAtom, and AtomTrailer nodes in inline
-    # expression contexts (ternary and AND/OR boolean expressions) where CFG-based
-    # narrowing does not apply. This MUST happen before the cache check because the
-    # cached type on the node is the unnarrowed type from a previous evaluation.
+    # Scope narrowing for inline expression contexts (ternary / AND / OR).
+    # For AtomTrailer: apply early return since its handler already does symbol
+    # resolution independently.  For Name/NameAtom: bypass the cache and fall
+    # through to _get_type_of_expression_core so symbol resolution (.sym, .name_of)
+    # still happens — the language server needs these for hover/go-to-definition.
+    # Scope narrowing is applied inside _get_type_of_expression_core after resolution.
     if (self._in_ternary_expr_depth > 0 or self._in_bool_expr_narrowing_depth > 0) {
-        narrowing_key: str | None = None;
-        if isinstance(node_, (uni.Name, uni.NameAtom)) {
-            narrowing_key = node_.value;
-        } elif isinstance(node_, uni.AtomTrailer) {
+        if isinstance(node_, uni.AtomTrailer) {
             narrowing_key = self.get_narrowing_key(node_);
+            if narrowing_key is not None {
+                if scope_narrowed := self.get_scope_narrowing(narrowing_key) {
+                    node_.type = scope_narrowed;
+                    return scope_narrowed;
+                }
+            }
         }
-        if narrowing_key is not None {
-            if scope_narrowed := self.get_scope_narrowing(narrowing_key) {
-                node_.type = scope_narrowed;
-                return scope_narrowed;
+        # For Name/NameAtom: bypass cache, fall through to _get_type_of_expression_core
+        if isinstance(node_, (uni.Name, uni.NameAtom)) {
+            if self.get_scope_narrowing(node_.value) is not None {
+                result = self._get_type_of_expression_core(node_, expected_type);
+                node_.type = result;
+                return result;
             }
         }
     }
