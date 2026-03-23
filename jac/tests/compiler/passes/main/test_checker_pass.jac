@@ -2593,6 +2593,7 @@ test "runtime_isinstance_preserves_generic_params" {
     )}:\n" + "\n---\n".join(e.pretty_print() for e in i4_errors);
 }
 
+
 """Total error count for runtime errors fixture — all patterns should pass."""
 test "runtime_errors_total" {
     program = JacProgram();
