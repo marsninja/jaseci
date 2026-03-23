@@ -494,15 +494,31 @@ impl TypeEvaluator._get_type_of_expression_core(
         case uni.AtomTrailer():
             base_type = self.get_type_of_expression(expr.target);
 
-            # CFG narrowing: `if isinstance(x, Foo): x.bar` → x narrowed to Foo
-            # Walks backward through control flow to find narrowing conditions.
+            # Narrowing for Name targets: two systems may apply.
+            # - Scope narrowing: set by ternary/AND/OR handlers for inline expressions.
+            # - CFG narrowing: backward walk through control flow (statement-level).
+            # In ternary/bool contexts, scope narrowing takes priority because CFG
+            # operates at statement granularity and cannot see ternary-internal branches.
+            # In statement contexts (if/else bodies), CFG takes priority because it
+            # tracks assignments and re-narrowing that scope narrowing doesn't see.
             if isinstance(expr.target, uni.Name) and expr.target.sym {
-                if narrowed := self.get_narrowed_type(expr.target.sym, expr) {
-                    base_type = narrowed;
-                    # Also check scope narrowing for AND expressions:
-                    # `isinstance(expr, Name) and expr.value` → expr narrowed to Name
-                } elif scope_narrowed := self.get_scope_narrowing(expr.target.value) {
-                    base_type = scope_narrowed;
+                if (
+                    self._in_ternary_expr_depth > 0
+                    or self._in_bool_expr_narrowing_depth > 0
+                ) {
+                    if scope_narrowed := self.get_scope_narrowing(expr.target.value) {
+                        base_type = scope_narrowed;
+                    } elif narrowed := self.get_narrowed_type(expr.target.sym, expr) {
+                        base_type = narrowed;
+                    }
+                } else {
+                    if narrowed := self.get_narrowed_type(expr.target.sym, expr) {
+                        base_type = narrowed;
+                    } elif scope_narrowed := self.get_scope_narrowing(
+                        expr.target.value
+                    ) {
+                        base_type = scope_narrowed;
+                    }
                 }
                 # Scope narrowing: `if isinstance(a.b, Foo) and a.b.bar` → a.b narrowed to Foo
                 # Uses key like "a.b" to look up narrowed type from current if/AND scope.

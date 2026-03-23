@@ -2413,11 +2413,11 @@ test "narrowing_gap_a_early_return_after_nested_if" {
     )}:\n" + "\n---\n".join(e.pretty_print() for e in gap_a_errors);
 }
 
-"""Gap B: Ternary narrowing not applied when narrowed var is a function argument.
+"""Gap B: Ternary narrowing applied to function arguments in ternary branches.
 
-In `use_foo(val) if isinstance(val, Foo) else 0`, the ternary handler now correctly
-narrows `val` in the true branch. Fixed by pruning IfElseExpr children so they are
-only evaluated inside the ternary handler with narrowing scopes active.
+In `use_foo(val) if isinstance(val, Foo) else 0`, the ternary handler correctly
+narrows `val` in the true branch. Fixed by eagerly evaluating the IfElseExpr in
+enter_if_else_expr so narrowing scopes are active before children are visited.
 """
 test "narrowing_gap_b_ternary_fn_arg" {
     program = JacProgram();
@@ -2432,10 +2432,9 @@ test "narrowing_gap_b_ternary_fn_arg" {
         for e in program.errors_had
         if e.loc and 155 <= e.loc.first_line <= 170
     ];
-    # GAP B is a known limitation: function args in ternary branches don't
-    # get narrowed types because exit_func_call fires before the type
-    # evaluator processes the IfElseExpr with narrowing scopes.
-    assert len(gap_b_errors) == 3 , f"Gap B should have 3 errors (known gap), got {len(
+    # FIXED: eagerly evaluating IfElseExpr in enter_if_else_expr caches narrowed
+    # types on child nodes before the walker visits them.
+    assert len(gap_b_errors) == 0 , f"Gap B should have 0 errors (fixed), got {len(
         gap_b_errors
     )}:\n" + "\n---\n".join(e.pretty_print() for e in gap_b_errors);
 }
@@ -2443,7 +2442,7 @@ test "narrowing_gap_b_ternary_fn_arg" {
 """Gap C: Ternary narrowing applied to attribute access on narrowed variable.
 
 In `val.attr if val else 0`, the true branch correctly narrows `val` from T|None
-to T. Fixed by pruning IfElseExpr children (same fix as Gap B).
+to T. Fixed by eagerly evaluating IfElseExpr (same fix as Gap B).
 """
 test "narrowing_gap_c_ternary_attr_access" {
     program = JacProgram();
@@ -2458,9 +2457,8 @@ test "narrowing_gap_c_ternary_attr_access" {
         for e in program.errors_had
         if e.loc and 180 <= e.loc.first_line <= 196
     ];
-    # GAP C is a known limitation (same root cause as Gap B): attribute access
-    # in ternary branches doesn't get narrowed types during walker traversal.
-    assert len(gap_c_errors) == 6 , f"Gap C should have 6 errors (known gap), got {len(
+    # FIXED: same root cause as Gap B — eagerly evaluating IfElseExpr resolves this.
+    assert len(gap_c_errors) == 0 , f"Gap C should have 0 errors (fixed), got {len(
         gap_c_errors
     )}:\n" + "\n---\n".join(e.pretty_print() for e in gap_c_errors);
 }
@@ -2499,9 +2497,8 @@ test "narrowing_gaps_total_error_count" {
     );
     TypeCheckPass(ir_in=mod, prog=program);
 
-    # Gap A fixed (CFG propagation). Gap B+C remain (ternary fn args/attr access).
-    # Total expected: 3 (Gap B) + 6 (Gap C) = 9 errors.
-    assert len(program.errors_had) == 9 , f"Expected 9 errors (Gap B+C known gaps), got {len(
+    # All gaps fixed: Gap A (CFG propagation), Gap B+C (eager IfElseExpr evaluation).
+    assert len(program.errors_had) == 0 , f"Expected 0 errors (all gaps fixed), got {len(
         program.errors_had
     )}:\n" + "\n---\n".join(e.pretty_print() for e in program.errors_had);
 }
@@ -2556,6 +2553,25 @@ test "runtime_compound_or_guard_attr_narrowing" {
     assert len(i2_errors) == 0 , f"Compound or guard narrowing should produce 0 errors, got {len(
         i2_errors
     )}:\n" + "\n---\n".join(e.pretty_print() for e in i2_errors);
+}
+
+"""Ternary isinstance narrowing should exclude generic types (list[T]) from union."""
+test "runtime_ternary_isinstance_generic_narrowing" {
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_runtime_errors.jac"), options=NO_TC
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    # Issue 3 ok_ functions: lines 195-230 (ternary isinstance with generic types)
+    i3_errors = [
+        e
+        for e in program.errors_had
+        if e.loc and 195 <= e.loc.first_line <= 230
+    ];
+    assert len(i3_errors) == 0 , f"Ternary isinstance generic narrowing should produce 0 errors, got {len(
+        i3_errors
+    )}:\n" + "\n---\n".join(e.pretty_print() for e in i3_errors);
 }
 
 """Total error count for runtime errors fixture — all patterns should pass."""

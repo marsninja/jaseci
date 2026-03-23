@@ -161,11 +161,11 @@ branches are cleared so the normal type evaluator chain (triggered by
 exit_assignment) can re-evaluate them with full symbol resolution.
 """
 impl TypeCheckPass.enter_if_else_expr(self: TypeCheckPass, nd: uni.IfElseExpr) -> None {
-    # No-op: narrowing for ternary branches is handled by the type evaluator's
-    # IfElseExpr handler. Walker-level traversal with _in_ternary_expr_depth
-    # would cache types on NameAtom nodes and block symbol resolution needed
-    # by the language server for hover/go-to-definition.
-    return;
+    # Eagerly evaluate the IfElseExpr so the type evaluator's IfElseExpr handler
+    # sets up proper narrowing scopes for both branches. This caches narrowed types
+    # on child nodes BEFORE the walker visits them (via exit_atom_trailer etc.),
+    # preventing false positive errors from un-narrowed types in ternary branches.
+    self.evaluator.get_type_of_expression(nd);
 }
 
 

@@ -173,3 +173,54 @@ def ok_compound_or_guard_attr_direct(spec: Spec | None) -> str | None {
     }
     return spec.origin;
 }
+
+# ============================================================================
+# Issue 3: Ternary isinstance narrowing with generic types (list[T])
+#
+# In `[expr.__jac__] if isinstance(expr, (A, B)) else []` where the else branch
+# of `isinstance(expr, list)` should exclude list[X] variants from the union,
+# the type checker fails because exclude_type_from_union does not recognise
+# generic specialisations (list[X]) as subtypes of the base class (list).
+#
+# Mirrors: runtime.impl.jac visit() ternary at lines 293-297
+# ============================================================================
+
+obj NodeArch {
+    has __jac__: str = "node_anchor";
+}
+
+obj EdgeArch {
+    has __jac__: str = "edge_anchor";
+}
+
+# --- ok_ functions: patterns that should work (lines 195-240) ---
+
+def ok_ternary_isinstance_excludes_generic(
+    expr: list[NodeArch] | NodeArch | EdgeArch
+) -> list[str] {
+    # After isinstance(expr, list) is false, list[X] variants should be excluded.
+    # The else branch should see expr as NodeArch | EdgeArch only.
+    return []
+        if isinstance(expr, `list)
+        else [expr.__jac__]
+            if isinstance(expr, (NodeArch, EdgeArch))
+            else [];
+}
+
+def ok_ternary_isinstance_simple_generic(
+    expr: list[int] | str
+) -> str {
+    # Simple case: isinstance(expr, list) false → expr is str
+    return ""
+        if isinstance(expr, `list)
+        else expr.upper();
+}
+
+def ok_ternary_isinstance_nested_generic(
+    expr: list[NodeArch] | NodeArch | EdgeArch
+) -> str {
+    # isinstance(expr, list) false → expr is NodeArch | EdgeArch
+    return ""
+        if isinstance(expr, `list)
+        else expr.__jac__;
+}
