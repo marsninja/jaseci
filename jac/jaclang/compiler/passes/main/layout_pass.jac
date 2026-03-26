@@ -93,7 +93,12 @@ in transform() via bulk sub-node queries, so we extend Transform
 directly instead of UniPass.
 """
 obj LayoutPass(Transform[uni.Module, uni.Module]) {
-    def init(ir_in: uni.Module, prog: Any, cancel_token: Any = None) -> None;
+    has ir_in: uni.Module,
+        prog: Any,
+        cancel_token: Any = None,
+        registry: LayoutRegistry by postinit;
+
+    def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
     # Core analysis
     def _collect_archetypes(module: uni.Module) -> dict[str, uni.Archetype];

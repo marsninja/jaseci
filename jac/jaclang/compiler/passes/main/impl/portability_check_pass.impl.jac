@@ -68,14 +68,11 @@ glob JS_GLOBALS: dict[str, str] = {
          "stringify": "str() or json.dumps()",
          "parse": "json.loads()"
      },
-     # JS-specific keywords/identifiers
+     # JS-specific keywords/identifiers that may appear as bare names
      JS_KEYWORDS: dict[str, str] = {
          "undefined": "None",
-         "null": "None",
          "typeof": "type()",
-         "instanceof": "isinstance()",
-         "void": "None",
-         "arguments": "function parameters"
+         "void": "None"
      },
      # JS-specific property accesses and their alternatives
      JS_PROPERTIES: dict[str, str] = {
@@ -86,13 +83,17 @@ glob JS_GLOBALS: dict[str, str] = {
      };
 
 
-impl PortabilityCheckPass.init(
-    ir_in: uni.Module, prog: Any, cancel_token: Any = None
-) -> None {
-    super.init(ir_in, prog, cancel_token);
+impl PortabilityCheckPass.postinit -> None {
+    super.postinit();
 }
 
-"""Run all portability checks via bulk sub-node queries (no tree traversal)."""
+"""Run all portability checks via bulk sub-node queries (no tree traversal).
+
+Warnings fire in ALL contexts (server, client, native) because Jac idioms
+are the preferred style everywhere. The ES backend translates Jac idioms
+to their JS equivalents, so there is no reason to use JS-specific patterns
+even in cl {} blocks.
+"""
 impl PortabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     self._check_js_globals(self.ir_in);
     self._check_js_methods(self.ir_in);
@@ -154,8 +155,7 @@ impl PortabilityCheckPass._check_js_methods(mod: uni.Module) -> None {
         # (i.e., it's actually being called as a method)
         parent = trailer.parent;
         is_method_call = isinstance(parent, uni.FuncCall) and parent.target is trailer;
-        # For methods that are always called (push, forEach, etc.), only warn if called
-        # For property-style methods, warn on access too
+        # Only warn if actually called as a method
         if is_method_call {
             self.emit(
                 W6002,

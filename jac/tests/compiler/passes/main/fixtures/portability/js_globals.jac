@@ -17,7 +17,7 @@ def use_json() -> None {
 
 def use_constructors() -> None {
     arr = Array(1, 2, 3);
-    obj = Object();
+    o = Object();
     m = Map();
     s = Set();
 }

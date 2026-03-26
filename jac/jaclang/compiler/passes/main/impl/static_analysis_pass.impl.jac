@@ -1,9 +1,7 @@
 """Static analysis pass implementation."""
 
-impl StaticAnalysisPass.init(
-    ir_in: uni.Module, prog: Any, cancel_token: Any = None
-) -> None {
-    super.init(ir_in, prog, cancel_token);
+impl StaticAnalysisPass.postinit -> None {
+    super.postinit();
 }
 
 """Run all static analyses via bulk sub-node queries (no tree traversal)."""
