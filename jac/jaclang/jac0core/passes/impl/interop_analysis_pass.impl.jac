@@ -289,10 +289,15 @@ impl InteropAnalysisPass._extract_subscript_inner(
             }
         }
     }
-    # ListVal -> extract first value
-    if isinstance(expr, uni.ListVal) {
+    # ListVal/TupleVal -> extract all type params (e.g. dict[str, Metric] -> "str, Metric")
+    if isinstance(expr, (uni.ListVal, uni.TupleVal)) {
         if expr.values {
-            return self._extract_type_name(expr.values[0]);
+            parts = [self._extract_type_name(v) for v in expr.values];
+            return ', '.join(
+                p
+                for p in parts
+                if p
+            );
         }
     }
     return '';
@@ -310,7 +315,7 @@ impl InteropAnalysisPass._extract_all_subscript_types(
         result.extend(self._extract_all_type_names(expr));
         return result;
     }
-    if isinstance(expr, uni.ListVal) {
+    if isinstance(expr, (uni.ListVal, uni.TupleVal)) {
         for v in expr.values {
             result.extend(self._extract_all_type_names(v));
         }

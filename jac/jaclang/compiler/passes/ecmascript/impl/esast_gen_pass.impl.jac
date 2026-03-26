@@ -967,17 +967,14 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                         if sig.return_type {
                             if isinstance(sig.return_type, uni.Name) {
                                 inline_ret_type = sig.return_type.value;
-                            } elif isinstance(sig.return_type, uni.AtomTrailer) {
-                                if isinstance(sig.return_type.target, uni.Name) {
-                                    inline_ret_type = sig.return_type.target.value;
-                                    if inline_ret_type == "list"
-                                    and sig.return_type.right {
-                                        if isinstance(
-                                            sig.return_type.right, uni.Name
-                                        ) {
-                                            inline_ret_type = f"list[{sig.return_type.right.value}]";
-                                        }
-                                    }
+                            }
+                        }
+                        # Use interop manifest for accurate return type (handles dict, list, etc.)
+                        if self.ir_in.gen.interop_manifest and not inline_ret_type {
+                            for b in self.ir_in.gen.interop_manifest.server_exports_to_client {
+                                if b.name == func_name {
+                                    inline_ret_type = b.ret_type;
+                                    break;
                                 }
                             }
                         }
@@ -1088,6 +1085,75 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                                 jac_node=nd
                             );
                         }
+                    } elif inline_ret_type.startswith("dict[")
+                    and inline_ret_type.endswith("]") {
+                        dict_params = inline_ret_type[5:-1];
+                        comma_pos = dict_params.find(', ');
+                        if comma_pos >= 0 {
+                            val_type = dict_params[comma_pos + 2:].strip();
+                            if val_type in inline_boundary
+                            and inline_boundary[val_type].kind != "enum" {
+                                entries_call = es.CallExpression(
+                                    callee=es.MemberExpression(
+                                        object=es.Identifier(name='Object'),
+                                        property=es.Identifier(name='entries'),
+                                        computed=False
+                                    ),
+                                    arguments=[result_expr]
+                                );
+                                map_call = es.CallExpression(
+                                    callee=es.MemberExpression(
+                                        object=entries_call,
+                                        property=es.Identifier(name='map'),
+                                        computed=False
+                                    ),
+                                    arguments=[
+                                        es.ArrowFunctionExpression(
+                                            params=[
+                                                es.ArrayPattern(
+                                                    elements=[
+                                                        es.Identifier(name='k'),
+                                                        es.Identifier(name='v')
+                                                    ]
+                                                )
+                                            ],
+                                            body=es.ArrayExpression(
+                                                elements=[
+                                                    es.Identifier(name='k'),
+                                                    es.CallExpression(
+                                                        callee=es.MemberExpression(
+                                                            object=es.Identifier(
+                                                                name=val_type
+                                                            ),
+                                                            property=es.Identifier(
+                                                                name='__from_wire'
+                                                            ),
+                                                            computed=False
+                                                        ),
+                                                        arguments=[
+                                                            es.Identifier(name='v')
+                                                        ]
+                                                    )
+                                                ]
+                                            ),
+                                            expression=True,
+                                            async_=False
+                                        )
+                                    ]
+                                );
+                                result_expr = self.sync_loc(
+                                    es.CallExpression(
+                                        callee=es.MemberExpression(
+                                            object=es.Identifier(name='Object'),
+                                            property=es.Identifier(name='fromEntries'),
+                                            computed=False
+                                        ),
+                                        arguments=[map_call]
+                                    ),
+                                    jac_node=nd
+                                );
+                            }
+                        }
                     }
                     # Auto-inject __jacCallFunction import if not already done
                     self._inject_runtime_import('__jacCallFunction', nd);
@@ -1189,10 +1255,16 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         }
     }
     # --- Default codegen (non-primitive or fallback) ---
+    callee_type = None;
     if isinstance(nd.target, uni.Name) {
-        callee_type = self.prog.get_type_evaluator().get_type_of_expression(nd.target);
-    } else {
-        callee_type = None;
+        try {
+            _te = self.prog.get_type_evaluator();
+            if _te {
+                callee_type = _te.get_type_of_expression(nd.target);
+            }
+        } except Exception {
+            callee_type = None;
+        }
     }
     args_obj = self.sync_loc(es.ObjectExpression(properties=props), jac_node=nd);
     callee_expr = cast(es.Expression, callee);
@@ -3108,15 +3180,28 @@ impl EsastGenPass._generate_sv_import_stubs(nd: uni.Import) -> None {
                         }
                     }
                     if sig.return_type {
-                        if isinstance(sig.return_type, uni.Name) {
-                            ret_type_name = sig.return_type.value;
-                        } elif isinstance(sig.return_type, uni.AtomTrailer) {
-                            # Handle list[Type] etc.
-                            if isinstance(sig.return_type.target, uni.Name) {
-                                ret_type_name = sig.return_type.target.value;
-                                if ret_type_name == "list" and sig.return_type.right {
-                                    if isinstance(sig.return_type.right, uni.Name) {
-                                        ret_type_name = f"list[{sig.return_type.right.value}]";
+                        # Use interop manifest binding if available (handles all types)
+                        if nd.gen.interop_manifest {
+                            for b in nd.gen.interop_manifest.server_exports_to_client {
+                                if b.name == func_name {
+                                    ret_type_name = b.ret_type;
+                                    break;
+                                }
+                            }
+                        }
+                        # Fallback: extract from AST directly
+                        if not ret_type_name {
+                            if isinstance(sig.return_type, uni.Name) {
+                                ret_type_name = sig.return_type.value;
+                            } elif isinstance(sig.return_type, uni.AtomTrailer) {
+                                if isinstance(sig.return_type.target, uni.Name) {
+                                    ret_type_name = sig.return_type.target.value;
+                                    if sig.return_type.right {
+                                        if isinstance(
+                                            sig.return_type.right, uni.Name
+                                        ) {
+                                            ret_type_name = f"{ret_type_name}[{sig.return_type.right.value}]";
+                                        }
                                     }
                                 }
                             }
@@ -3235,6 +3320,72 @@ impl EsastGenPass._generate_sv_import_stubs(nd: uni.Import) -> None {
                     ),
                     jac_node=nd
                 );
+            }
+        } elif ret_type_name.startswith("dict[") and ret_type_name.endswith("]") {
+            # dict[K, V] — extract value type (second param after comma)
+            dict_params = ret_type_name[5:-1];
+            comma_pos = dict_params.find(', ');
+            if comma_pos >= 0 {
+                val_type = dict_params[comma_pos + 2:].strip();
+                if val_type in boundary_types
+                and boundary_types[val_type].kind != "enum" {
+                    # Object.fromEntries(Object.entries(await ...).map(([k,v]) => [k, V.__from_wire(v)]))
+                    entries_call = es.CallExpression(
+                        callee=es.MemberExpression(
+                            object=es.Identifier(name='Object'),
+                            property=es.Identifier(name='entries'),
+                            computed=False
+                        ),
+                        arguments=[await_expr]
+                    );
+                    map_call = es.CallExpression(
+                        callee=es.MemberExpression(
+                            object=entries_call,
+                            property=es.Identifier(name='map'),
+                            computed=False
+                        ),
+                        arguments=[
+                            es.ArrowFunctionExpression(
+                                params=[
+                                    es.ArrayPattern(
+                                        elements=[
+                                            es.Identifier(name='k'),
+                                            es.Identifier(name='v')
+                                        ]
+                                    )
+                                ],
+                                body=es.ArrayExpression(
+                                    elements=[
+                                        es.Identifier(name='k'),
+                                        es.CallExpression(
+                                            callee=es.MemberExpression(
+                                                object=es.Identifier(name=val_type),
+                                                property=es.Identifier(
+                                                    name='__from_wire'
+                                                ),
+                                                computed=False
+                                            ),
+                                            arguments=[es.Identifier(name='v')]
+                                        )
+                                    ]
+                                ),
+                                expression=True,
+                                async_=False
+                            )
+                        ]
+                    );
+                    await_expr = self.sync_loc(
+                        es.CallExpression(
+                            callee=es.MemberExpression(
+                                object=es.Identifier(name='Object'),
+                                property=es.Identifier(name='fromEntries'),
+                                computed=False
+                            ),
+                            arguments=[map_call]
+                        ),
+                        jac_node=nd
+                    );
+                }
             }
         }
         return_stmt = self.sync_loc(
@@ -3445,23 +3596,119 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                     alternate=None
                 )
             );
-            # Hydrate nested typed fields
+            # Hydrate nested typed fields using nested_types from the analysis pass
+            nested_set = set(info.nested_types);
             for fname in field_names {
                 ftype = field_types[fname];
-                # Check if the field type is a boundary type (needs nested hydration)
+                # Check if the field type references a nested boundary type
                 inner_type = None;
                 is_list = False;
-                if ftype in manifest.boundary_types {
+                is_dict = False;
+                if ftype in nested_set {
                     inner_type = ftype;
                 } elif ftype.startswith("list[") and ftype.endswith("]") {
                     inner = ftype[5:-1];
-                    if inner in manifest.boundary_types {
+                    if inner in nested_set {
                         inner_type = inner;
                         is_list = True;
                     }
+                } elif ftype.startswith("dict[") and ftype.endswith("]") {
+                    dict_params = ftype[5:-1];
+                    comma_pos = dict_params.find(', ');
+                    if comma_pos >= 0 {
+                        val_type = dict_params[comma_pos + 2:].strip();
+                        if val_type in nested_set {
+                            inner_type = val_type;
+                            is_dict = True;
+                        }
+                    }
                 }
                 if inner_type {
-                    if is_list {
+                    if is_dict {
+                        # if (d.field) d.field = Object.fromEntries(
+                        #   Object.entries(d.field).map(([k,v]) => [k, V.__from_wire(v)]));
+                        entries_call = es.CallExpression(
+                            callee=es.MemberExpression(
+                                object=es.Identifier(name='Object'),
+                                property=es.Identifier(name='entries'),
+                                computed=False
+                            ),
+                            arguments=[
+                                es.MemberExpression(
+                                    object=es.Identifier(name='d'),
+                                    property=es.Identifier(name=fname),
+                                    computed=False
+                                )
+                            ]
+                        );
+                        map_call = es.CallExpression(
+                            callee=es.MemberExpression(
+                                object=entries_call,
+                                property=es.Identifier(name='map'),
+                                computed=False
+                            ),
+                            arguments=[
+                                es.ArrowFunctionExpression(
+                                    params=[
+                                        es.ArrayPattern(
+                                            elements=[
+                                                es.Identifier(name='k'),
+                                                es.Identifier(name='v')
+                                            ]
+                                        )
+                                    ],
+                                    body=es.ArrayExpression(
+                                        elements=[
+                                            es.Identifier(name='k'),
+                                            es.CallExpression(
+                                                callee=es.MemberExpression(
+                                                    object=es.Identifier(
+                                                        name=inner_type
+                                                    ),
+                                                    property=es.Identifier(
+                                                        name='__from_wire'
+                                                    ),
+                                                    computed=False
+                                                ),
+                                                arguments=[es.Identifier(name='v')]
+                                            )
+                                        ]
+                                    ),
+                                    expression=True,
+                                    async_=False
+                                )
+                            ]
+                        );
+                        from_entries_call = es.CallExpression(
+                            callee=es.MemberExpression(
+                                object=es.Identifier(name='Object'),
+                                property=es.Identifier(name='fromEntries'),
+                                computed=False
+                            ),
+                            arguments=[map_call]
+                        );
+                        from_wire_stmts.append(
+                            es.IfStatement(
+                                test=es.MemberExpression(
+                                    object=es.Identifier(name='d'),
+                                    property=es.Identifier(name=fname),
+                                    computed=False
+                                ),
+                                consequent=es.ExpressionStatement(
+                                    expression=es.AssignmentExpression(
+                                        operator='=',
+                                        left=es.MemberExpression(
+                                            object=es.Identifier(name='d'),
+                                            property=es.Identifier(name=fname),
+                                            computed=False
+                                        ),
+                                        right=from_entries_call
+                                    )
+                                ),
+                                alternate=None
+                            )
+                        );
+                    } elif is_list {
                         # if (d.field) d.field = d.field.map(x => InnerType.__from_wire(x));
                         from_wire_stmts.append(
                             es.IfStatement(
@@ -3598,32 +3845,28 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                     property=es.Identifier(name=fname),
                     computed=False
                 );
-                # Serialize nested typed fields
-                if ftype in manifest.boundary_types {
-                    nested_info = manifest.boundary_types[ftype];
-                    if nested_info.kind != "enum" {
-                        # this.field ? this.field.__to_wire() : null
-                        value_expr = es.ConditionalExpression(
-                            test=es.MemberExpression(
-                                object=es.ThisExpression(),
-                                property=es.Identifier(name=fname),
+                # Serialize nested typed fields using nested_types set
+                if ftype in nested_set {
+                    # this.field ? this.field.__to_wire() : null
+                    value_expr = es.ConditionalExpression(
+                        test=es.MemberExpression(
+                            object=es.ThisExpression(),
+                            property=es.Identifier(name=fname),
+                            computed=False
+                        ),
+                        consequent=es.CallExpression(
+                            callee=es.MemberExpression(
+                                object=value_expr,
+                                property=es.Identifier(name='__to_wire'),
                                 computed=False
                             ),
-                            consequent=es.CallExpression(
-                                callee=es.MemberExpression(
-                                    object=value_expr,
-                                    property=es.Identifier(name='__to_wire'),
-                                    computed=False
-                                ),
-                                arguments=[]
-                            ),
-                            alternate=es.Literal(value=None)
-                        );
-                    }
+                            arguments=[]
+                        ),
+                        alternate=es.Literal(value=None)
+                    );
                 } elif ftype.startswith("list[") and ftype.endswith("]") {
                     inner = ftype[5:-1];
-                    if inner in manifest.boundary_types
-                    and manifest.boundary_types[inner].kind != "enum" {
+                    if inner in nested_set {
                         # this.field ? this.field.map(x => x.__to_wire()) : []
                         value_expr = es.ConditionalExpression(
                             test=es.MemberExpression(
@@ -3661,6 +3904,81 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                             ),
                             alternate=es.ArrayExpression(elements=[])
                         );
+                    }
+                } elif ftype.startswith("dict[") and ftype.endswith("]") {
+                    dict_params = ftype[5:-1];
+                    comma_pos = dict_params.find(', ');
+                    if comma_pos >= 0 {
+                        val_type = dict_params[comma_pos + 2:].strip();
+                        if val_type in nested_set {
+                            # this.field ? Object.fromEntries(
+                            #   Object.entries(this.field).map(([k,v]) => [k, v.__to_wire()])) : {}
+                            this_field = es.MemberExpression(
+                                object=es.ThisExpression(),
+                                property=es.Identifier(name=fname),
+                                computed=False
+                            );
+                            entries_call = es.CallExpression(
+                                callee=es.MemberExpression(
+                                    object=es.Identifier(name='Object'),
+                                    property=es.Identifier(name='entries'),
+                                    computed=False
+                                ),
+                                arguments=[this_field]
+                            );
+                            map_call = es.CallExpression(
+                                callee=es.MemberExpression(
+                                    object=entries_call,
+                                    property=es.Identifier(name='map'),
+                                    computed=False
+                                ),
+                                arguments=[
+                                    es.ArrowFunctionExpression(
+                                        params=[
+                                            es.ArrayPattern(
+                                                elements=[
+                                                    es.Identifier(name='k'),
+                                                    es.Identifier(name='v')
+                                                ]
+                                            )
+                                        ],
+                                        body=es.ArrayExpression(
+                                            elements=[
+                                                es.Identifier(name='k'),
+                                                es.CallExpression(
+                                                    callee=es.MemberExpression(
+                                                        object=es.Identifier(name='v'),
+                                                        property=es.Identifier(
+                                                            name='__to_wire'
+                                                        ),
+                                                        computed=False
+                                                    ),
+                                                    arguments=[]
+                                                )
+                                            ]
+                                        ),
+                                        expression=True,
+                                        async_=False
+                                    )
+                                ]
+                            );
+                            value_expr = es.ConditionalExpression(
+                                test=es.MemberExpression(
+                                    object=es.ThisExpression(),
+                                    property=es.Identifier(name=fname),
+                                    computed=False
+                                ),
+                                consequent=es.CallExpression(
+                                    callee=es.MemberExpression(
+                                        object=es.Identifier(name='Object'),
+                                        property=es.Identifier(name='fromEntries'),
+                                        computed=False
+                                    ),
+                                    arguments=[map_call]
+                                ),
+                                alternate=es.ObjectExpression(properties=[])
+                            );
+                        }
                     }
                 }
                 to_wire_props.append(
@@ -4097,17 +4415,53 @@ impl EsastGenPass._resolve_spawn_walker(
 impl EsastGenPass._build_spawn_arg_object(
     call_node: uni.FuncCall, walker_symbol: (uni.Symbol | None)
 ) -> es.ObjectExpression {
-    import from jaclang.compiler.symbol_utils { collect_field_names }
+    import from jaclang.compiler.symbol_utils {
+        collect_field_names,
+        symbol_owner_archetype
+    }
     ordered_fields = collect_field_names(walker_symbol, Tok.KW_WALKER.value);
+    # Build field name -> type name map from walker archetype
+    field_type_map: dict[str, str] = {};
+    if walker_symbol {
+        arch = symbol_owner_archetype(walker_symbol);
+        if arch {
+            for field in arch.get_has_vars() {
+                if field.type_tag and field.type_tag.tag {
+                    if isinstance(field.type_tag.tag, uni.Name) {
+                        field_type_map[field.sym_name] = field.type_tag.tag.value;
+                    }
+                }
+            }
+        }
+    }
+    boundary_types = self.ir_in.gen.interop_manifest.boundary_types
+        if self.ir_in.gen.interop_manifest
+        else {};
     properties: list[(es.Property | es.SpreadElement)] = [];
     positional_index = 0;
     for param in call_node.params {
         if isinstance(param, uni.KWPair) {
             if param.key {
+                field_name = param.key.sym_name;
                 key_expr = self.sync_loc(
-                    es.Literal(value=param.key.sym_name), jac_node=param.key
+                    es.Literal(value=field_name), jac_node=param.key
                 );
                 value_expr = self._expr_from_node(param.value);
+                # Wrap typed fields with __to_wire()
+                ftype = field_type_map.get(field_name, '');
+                if ftype in boundary_types and boundary_types[ftype].kind != "enum" {
+                    value_expr = self.sync_loc(
+                        es.CallExpression(
+                            callee=es.MemberExpression(
+                                object=value_expr,
+                                property=es.Identifier(name='__to_wire'),
+                                computed=False
+                            ),
+                            arguments=[]
+                        ),
+                        jac_node=param
+                    );
+                }
                 properties.append(
                     self.sync_loc(
                         es.Property(
@@ -4140,6 +4494,21 @@ impl EsastGenPass._build_spawn_arg_object(
         positional_index += 1;
         key_expr = self.sync_loc(es.Literal(value=key_name), jac_node=param);
         value_expr = self._expr_from_node(param);
+        # Wrap typed positional fields with __to_wire()
+        ftype = field_type_map.get(key_name, '');
+        if ftype in boundary_types and boundary_types[ftype].kind != "enum" {
+            value_expr = self.sync_loc(
+                es.CallExpression(
+                    callee=es.MemberExpression(
+                        object=value_expr,
+                        property=es.Identifier(name='__to_wire'),
+                        computed=False
+                    ),
+                    arguments=[]
+                ),
+                jac_node=param
+            );
+        }
         properties.append(
             self.sync_loc(
                 es.Property(
