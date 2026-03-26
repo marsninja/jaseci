@@ -4,6 +4,9 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jac-client 0.3.9 (Unreleased)
 
+- **Updated Examples to Use Typed Interop Pattern**: The `basic-full-stack`, `full-stack-with-auth`, and `little-x` examples now use the typed object hydration pattern (`__from_wire`/`__to_wire`) for server/client communication.
+- **Simplified WebTarget Production Preview**: The `start` command for web targets now uses a simple HTTP file server for production preview instead of instantiating a full API server, reducing dependencies and startup complexity.
+
 ## jac-client 0.3.8 (Latest Release)
 
 ## jac-client 0.3.7
