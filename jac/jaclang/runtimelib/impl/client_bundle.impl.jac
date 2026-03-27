@@ -22,7 +22,6 @@ impl _ensure_js_generated(mod: Module, program: Any) -> None {
 }
 
 """Initialise the builder with an optional override for the runtime path."""
-
 impl ClientBundleBuilder.postinit -> None {
     if not self.runtime_path {
         self.runtime_path = Path(__file__).with_name('client_runtime.cl.jac');
