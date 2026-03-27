@@ -1409,7 +1409,7 @@ def setup_dev_mode_server -> subprocess.Popen {
         str(dm_test_file),
         "--port",
         str(dm_vite_port),
-        "--api-port",
+        "--api_port",
         str(dm_api_port),
         "--dev"
     ];
