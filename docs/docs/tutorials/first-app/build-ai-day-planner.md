@@ -4,18 +4,19 @@ In this tutorial, you'll build a full-stack AI day planner from scratch -- a sin
 
 **Prerequisites:** [Installation](../../quick-guide/install.md) complete.
 
-**Required Packages:** This tutorial uses **jaclang**, **jac-client**, **jac-scale**, and **byllm**. Install everything at once with:
+**Required Packages:** This tutorial uses **jaclang**, **jac-client**, **jac-scale**, and **byllm**. If you installed Jac using the [one-line installer](../../quick-guide/install.md#one-line-install-recommended), all packages are already included -- skip to the version check below. If you prefer pip:
 
 ```bash
 pip install jaseci
 ```
 
-Verify your versions meet the minimum requirements:
+Verify your installation meets the minimum requirements:
 
 ```bash
 jac --version
-pip show jac-client jac-scale byllm
 ```
+
+The `jac --version` output lists all installed plugins and their versions. Check that the following minimums are met:
 
 | Package | Minimum Version |
 |---------|----------------|
@@ -312,7 +313,7 @@ with entry {
 Run it with `jac <your-filename>.jac`. Your graph now looks like:
 
 !!! tip "Running examples multiple times"
-    Nodes connected to `root` persist between runs. If you run an example again, you'll see duplicate data. To start fresh, run `jac clean --all` to clear the graph database.
+    Nodes connected to `root` persist between runs. If you run an example again, you'll see duplicate data. To start fresh, delete the `.jac/` directory in the folder where you ran the script: `rm -rf .jac/`. (Starting in Part 3 when you create a project, you can use `jac clean --all` instead.)
 
 ```mermaid
 graph LR
@@ -472,7 +473,10 @@ jac create day-planner --use client
 cd day-planner
 ```
 
-You can delete the scaffolded `main.jac` -- you'll replace it with the code below. Also create a `styles.css` file in the project root (we'll fill it in Part 4).
+!!! note "Bun required"
+    The `--use client` template requires [Bun](https://bun.sh) for frontend bundling. If Bun isn't installed, `jac create` will offer to install it automatically.
+
+You can delete the scaffolded `main.jac` -- you'll replace it with the code below. Also create an empty `styles.css` file next to `main.jac` (we'll fill it in Part 4).
 
 **Node Identity with `jid()`**
 
