@@ -121,6 +121,7 @@ Jac compiles to JavaScript, and there are several patterns where you need to wor
 
 Jac does not have a `new` keyword. For browser built-in constructors, use `Reflect.construct()`:
 
+<!-- jac-skip -->
 ```jac
 # WebSocket
 ws = Reflect.construct(WebSocket, [url]);
@@ -152,6 +153,7 @@ terminal = Reflect.construct(XTerminal, [termConfig]);
 
 When passing callbacks that will be invoked later, use `.call(None, ...)` to avoid issues with how Jac compiles function calls:
 
+<!-- jac-skip -->
 ```jac
 # Assign callback to local variable, then use .call()
 msgHandler = onMessage;
@@ -176,6 +178,7 @@ Reflect.construct(Promise, [lambda(resolve: Any, reject: Any) {
 
 F-strings in Jac client code can have issues with certain characters. When building strings with quotes or special characters, prefer concatenation:
 
+<!-- jac-skip -->
 ```jac
 # Prefer concatenation for strings with quotes
 cmd = "[ -f \"" + path + "\" ]";
@@ -188,6 +191,7 @@ label = f"Count: {count}";
 
 Literal `"\n"` may not work as expected in compiled JavaScript. Use `String.fromCharCode()`:
 
+<!-- jac-skip -->
 ```jac
 glob _NL: str = String.fromCharCode(10);
 
@@ -222,6 +226,7 @@ async def:pub initializeOnce() -> Any {
 
 Access browser globals through `globalThis` or directly:
 
+<!-- jac-skip -->
 ```jac
 # localStorage
 localStorage.getItem("auth_token");
@@ -369,6 +374,7 @@ def:pub useDrag() -> Any {
 
 Use prefixed log messages to trace issues across components and services:
 
+<!-- jac-skip -->
 ```jac
 # Good - prefixed for easy filtering
 console.log("[useAuth] Login attempt for:", username);

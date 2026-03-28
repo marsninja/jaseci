@@ -1982,6 +1982,7 @@ Anchors provide persistent object references across sessions, allowing nodes and
 
 Jac does not have a `new` keyword. Use `Reflect.construct()` to instantiate browser built-in constructors:
 
+<!-- jac-skip -->
 ```jac
 cl {
     # WebSocket
@@ -2007,6 +2008,7 @@ cl {
 
 When passing callbacks to be invoked later, use `.call(None, ...)`:
 
+<!-- jac-skip -->
 ```jac
 cl {
     handler = myCallback;

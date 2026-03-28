@@ -123,6 +123,7 @@ def:pub TextInput() -> JsxElement {
 
 Common uses for `useRef`:
 
+<!-- jac-skip -->
 ```jac
 # DOM element reference
 scrollRef = useRef(None);
@@ -406,6 +407,7 @@ Required dependencies:
 
 shadcn uses semantic color tokens (not hardcoded hex values) so themes work automatically:
 
+<!-- jac-skip -->
 ```jac
 # Good - semantic tokens that adapt to theme
 <div className="text-foreground bg-background border-border" />
