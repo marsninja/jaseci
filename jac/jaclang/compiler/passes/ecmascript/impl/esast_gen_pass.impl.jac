@@ -1038,9 +1038,14 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                         ),
                         jac_node=nd
                     );
-                    # Wrap return with __from_wire if return type is a boundary type
+                    # Wrap return with __from_wire if return type is a boundary type.
+                    # We must await the call BEFORE wrapping with __from_wire
+                    # so __from_wire receives the resolved value, not a Promise.
                     if inline_ret_type in inline_boundary
                     and inline_boundary[inline_ret_type].kind != "enum" {
+                        result_expr = self.sync_loc(
+                            es.AwaitExpression(argument=result_expr), jac_node=nd
+                        );
                         result_expr = self.sync_loc(
                             es.CallExpression(
                                 callee=es.MemberExpression(
@@ -1057,6 +1062,13 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                         inner = inline_ret_type[5:-1];
                         if inner in inline_boundary
                         and inline_boundary[inner].kind != "enum" {
+                            # Wrap in AwaitExpression BEFORE chaining .map()
+                            # so the resolved array (not the Promise) gets mapped.
+                            # The outer exit_await_expr will see this is already
+                            # awaited and produce (await call()).map(...).
+                            result_expr = self.sync_loc(
+                                es.AwaitExpression(argument=result_expr), jac_node=nd
+                            );
                             result_expr = self.sync_loc(
                                 es.CallExpression(
                                     callee=es.MemberExpression(
@@ -1093,6 +1105,11 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                             val_type = dict_params[comma_pos + 2:].strip();
                             if val_type in inline_boundary
                             and inline_boundary[val_type].kind != "enum" {
+                                # Await before dict hydration
+                                result_expr = self.sync_loc(
+                                    es.AwaitExpression(argument=result_expr),
+                                    jac_node=nd
+                                );
                                 entries_call = es.CallExpression(
                                     callee=es.MemberExpression(
                                         object=es.Identifier(name='Object'),
