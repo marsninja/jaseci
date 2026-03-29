@@ -152,11 +152,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     # Lambda expressions (Phase 17)
     # Maps variable name → list of (cap_name, cap_alloca) for closure injection.
     # Populated during assignment of a capturing lambda, consumed during calls.
-    has lambda_captures: dict[str, list[tuple]] = {};
+    has lambda_captures: dict[str, list[tuple]] = {},
+        _pending_lambda_captures: (list[tuple] | None) = None;
     # Pending captures from the most recently compiled lambda, to be associated
     # with a variable name during assignment. Set by _codegen_lambda, consumed
     # and cleared by _codegen_assignment.
-    has _pending_lambda_captures: (list[tuple] | None) = None;
     def _codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None);
     def _find_free_vars(body: object, param_names: list[str]) -> list[str];
     # External function support (Phase 0)
