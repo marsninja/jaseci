@@ -70,7 +70,9 @@ Jac imagines what should be abstracted away from the developer and automates it 
 
 ```jac
 node Todo {
-    has title: str, done: bool = False;
+    has title: str,
+        category: str = "other",
+        done: bool = False;
 }
 
 enum Category { WORK, PERSONAL, SHOPPING, HEALTH, OTHER }
@@ -78,20 +80,20 @@ enum Category { WORK, PERSONAL, SHOPPING, HEALTH, OTHER }
 def categorize(title: str) -> Category
     by llm();
 
-def:pub get_todos -> list {
-    if not [root-->][?:Todo] {
-        root ++> Todo(title="Buy groceries");
-        root ++> Todo(title="Finish report");
-    }
-    return [{"title": t.title, "category": str(categorize(t.title)).split(".")[-1]}
-            for t in [root-->][?:Todo]];
+def:pub add_todo(title: str) -> Todo {
+    category = str(categorize(title)).split(".")[-1].lower();
+    return (root ++> Todo(title=title, category=category))[0];
 }
 
-cl def:pub app() -> JsxElement {
-    has items: list = [];
-    async can with entry { items = await get_todos(); }
-    return <div>{[<p key={i.title}>{i.title} ({i.category})</p>
-                  for i in items]}</div>;
+def:pub get_todos -> list[Todo] {
+    return [root-->][?:Todo];
+}
+
+cl def:pub app -> JsxElement {
+    has todos: list = [];
+    async can with entry { todos = await get_todos(); }
+    return <div>{[<p key={jid(t)}>{t.title} ({t.category})</p>
+                  for t in todos]}</div>;
 }
 ```
 
