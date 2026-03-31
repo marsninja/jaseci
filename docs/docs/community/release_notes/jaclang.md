@@ -5,6 +5,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 ## jaclang 0.13.4 (Unreleased)
 
 - **Type Checker: Centralized Ambient Builtins via `jac_builtins.pyi`**: All user-facing ambient names (`llm`, `jid`, `jobj`, `printgraph`, `grant`, `revoke`, `allroots`, `save`, `commit`, `store`, `destroy`, permission constants, `restspec`, `schedule`, `ScheduleTrigger`, `APIProtocol`) are now declared in `jac_builtins.pyi` as the single source of truth. The type checker resolves these through the builtins scope chain, eliminating false "undefined name" warnings (e.g., `llm` in `by llm()` expressions). Removed the redundant `TYPE_CHECKING` variable declarations from `builtin.jac`.
+- **Fix: False W2003 Warning on `by llm()` Parameters**: Parameters in GenAI abilities (`def foo(x: str) -> T by llm()`) no longer trigger spurious "defined but never used" warnings. The static analysis pass now recognizes `is_genai_ability` alongside `needs_impl` when skipping parameter usage checks.
 - **ES Codegen: `jid()` Moved to Client Runtime**: `jid()` is now a proper runtime function (`_jac.builtin.jid()`) instead of an inline property access (`x._jac_id`). This provides clear, actionable error messages when called on `null` (e.g. server returned an error) or non-node objects, with stack traces pointing to the `.jac` source line. The `assert_no_jac_keywords` test was also improved to strip string literals before scanning, preventing false positives from English words in error messages.
 
 ## jaclang 0.13.3 (Latest Release)
