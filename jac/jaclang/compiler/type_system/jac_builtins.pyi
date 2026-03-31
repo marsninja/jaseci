@@ -14,7 +14,7 @@
 # builtin.__all__ for that purpose. This file is NOT used by codegen.
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol
 
 # ── Module dunders ──────────────────────────────────────────────────
 # Injected by Python's import system; declared here for the Jac checker.
@@ -48,6 +48,10 @@ class EdgeDir:
     IN: int
     ANY: int
 
+class LLMModel(Protocol):
+    call_params: dict[str, object]
+    def __call__(self, **kwargs: object) -> LLMModel: ...
+
 # ── Fixed-width integer types ──────────────────────────────────────
 class i8(int): ...  # noqa: N801
 class u8(int): ...  # noqa: N801
@@ -71,12 +75,12 @@ def jid(obj: object) -> str: ...
 def jobj(id: str) -> object: ...
 def grant(archetype: object, level: object = None) -> None: ...
 def revoke(archetype: object) -> None: ...
-def allroots() -> list[Any]: ...
+def allroots() -> list[Root]: ...
 def save(obj: object) -> None: ...
 def commit(anchor: object = None) -> None: ...
 def store(base_path: str = "./storage", create_dirs: bool = True) -> object: ...
 
-llm: object
+llm: LLMModel
 
 def printgraph(
     nd: object = None,

@@ -12,6 +12,7 @@ import random;
 import time;
 
 import from typing { Generator }
+import from jaclang.jac0core.runtime { LLMModel }
 import from byllm.mtir { MTRuntime }
 import litellm;
 import from litellm._logging { _disable_debugging }
@@ -61,7 +62,7 @@ Provides the core interface and shared functionality for all LLM connectors.
 Subclasses must implement model_call_no_stream and model_call_with_stream
 to define how the actual LLM API is called.
 """
-obj BaseLLM {
+obj BaseLLM(LLMModel) {
     has model_name: str,
         config: dict = {},
         api_key: str = "",

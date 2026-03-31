@@ -21,6 +21,7 @@ with entry {
     if TYPE_CHECKING {
         import from enum { IntEnum }
         import from jaclang.jac0core.constructs { AccessLevel, NodeArchetype }
+        import from jaclang.jac0core.runtime { LLMModel }
         import from jaclang { JacRuntimeInterface }
     }
 }
@@ -45,7 +46,7 @@ def _get_commit -> Callable[..., Any];
 
 def _get_store -> Callable[..., Any];
 
-def _get_llm -> object;
+def _get_llm -> LLMModel;
 
 def __getattr__(name: str) -> object;
 
