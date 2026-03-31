@@ -4,6 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.13.4 (Unreleased)
 
+- **Fix: Python-Style Docstrings No Longer Become `__doc__`**: A string literal as the first statement inside a function or method body (Python-style docstring) is now stripped from the AST after emitting warning W0060. Previously the string remained in the generated Python code and Python's runtime would silently assign it to `__doc__`, despite the warning telling the user to move it before the declaration.
 - **Fix: False W2003 Warning on `by llm()` Parameters**: Parameters in GenAI abilities (`def foo(x: str) -> T by llm()`) no longer trigger spurious "defined but never used" warnings. The static analysis pass now recognizes `is_genai_ability` alongside `needs_impl` when skipping parameter usage checks.
 - **ES Codegen: `jid()` Moved to Client Runtime**: `jid()` is now a proper runtime function (`_jac.builtin.jid()`) instead of an inline property access (`x._jac_id`). This provides clear, actionable error messages when called on `null` (e.g. server returned an error) or non-node objects, with stack traces pointing to the `.jac` source line. The `assert_no_jac_keywords` test was also improved to strip string literals before scanning, preventing false positives from English words in error messages.
 

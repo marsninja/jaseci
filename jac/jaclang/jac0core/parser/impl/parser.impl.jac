@@ -3785,6 +3785,9 @@ impl Parser.parse_code_block_stmts -> list {
             }
             if is_docstring {
                 self.emit_warn(W0060, loc=self.tokens[before].loc);
+                self.match_tok(TokenKind.SEMI);
+                checked_first = True;
+                continue;
             }
             if not isinstance(stmt, Semi) {
                 checked_first = True;

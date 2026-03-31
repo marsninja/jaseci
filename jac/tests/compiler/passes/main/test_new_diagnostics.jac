@@ -745,6 +745,66 @@ test "W0061: bracket filter inside edge chain no warning" {
 
 
 # ══════════════════════════════════════════════════════════════════
+#  PARSER PYTHON-STYLE DOCSTRING WARNINGS (W0060)
+# ══════════════════════════════════════════════════════════════════
+test "W0060: python-style docstring emits warning and is stripped from body" {
+    prog = JacProgram();
+    mod = prog.compile(
+        use_str='def foo() { """not a doc"""; return 1; } with entry { print(foo.__doc__); }',
+        file_path="test.jac"
+    );
+    assert has_diagnostic_code(prog, "W0060", in_warnings=True) , "Python-style docstring as first statement should emit W0060";
+    # Execute and verify __doc__ is None (string was stripped, not treated as docstring)
+    import from builtins { compile as pycompile, exec as pyexec }
+    import io;
+    import sys;
+    old = sys.stdout;
+    buf = io.StringIO();
+    sys.stdout = buf;
+    try {
+        pyexec(pycompile(mod.gen.py_ast[0], "test.jac", "exec"));
+    } finally {
+        sys.stdout = old;
+    }
+    assert buf.getvalue().strip() == "None" , "Python-style docstring should not become __doc__";
+}
+
+test "W0060: python-style docstring does not shadow jac-style docstring" {
+    prog = JacProgram();
+    prog.compile(
+        use_str='"""real doc""" def foo() { """bogus"""; return 1; }',
+        file_path="test.jac"
+    );
+    assert has_diagnostic_code(prog, "W0060", in_warnings=True) , "Python-style docstring inside body should still warn even when jac-style is present";
+}
+
+test "W0060: no warning for non-first-statement string" {
+    prog = JacProgram();
+    prog.compile(
+        use_str='def foo() { x = 1; """not first"""; return x; }', file_path="test.jac"
+    );
+    assert not has_diagnostic_code(prog, "W0060", in_warnings=True) , "String that is not the first statement should not emit W0060";
+}
+
+test "W0060: python-style docstring in obj method body emits warning" {
+    prog = JacProgram();
+    prog.compile(
+        use_str='obj Foo { can bar -> None { """wrong place"""; } }',
+        file_path="test.jac"
+    );
+    assert has_diagnostic_code(prog, "W0060", in_warnings=True) , "Python-style docstring in method body should emit W0060";
+}
+
+test "W0060: multiple code blocks each warn independently" {
+    prog = JacProgram();
+    prog.compile(
+        use_str='def a() { """d1"""; } def b() { """d2"""; }', file_path="test.jac"
+    );
+    assert count_diagnostic_code(prog, "W0060", in_warnings=True) == 2 , "Each code block with a python-style docstring should emit its own W0060";
+}
+
+
+# ══════════════════════════════════════════════════════════════════
 #  INLINE SNIPPET PARAMETRIZED TESTS
 #  These test simple patterns that don't need fixture files
 # ══════════════════════════════════════════════════════════════════
