@@ -4,6 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.13.4 (Unreleased)
 
+- **Fix: Filter Comprehension Type Inference**: `[root-->][?:Todo]` and `[-->[?:Todo]]` now correctly infer as `list[Todo]` instead of `Unknown`. Previously, the `FilterCompr` handler in the type evaluator was missing a return statement, and `AtomTrailer` had no branch for filter comprehension trailers, causing false E1002 return-type errors and cascading E1032 attribute-access errors on the filtered results.
 - **Fix: False W2003 Warning on `by llm()` Parameters**: Parameters in GenAI abilities (`def foo(x: str) -> T by llm()`) no longer trigger spurious "defined but never used" warnings. The static analysis pass now recognizes `is_genai_ability` alongside `needs_impl` when skipping parameter usage checks.
 - **ES Codegen: `jid()` Moved to Client Runtime**: `jid()` is now a proper runtime function (`_jac.builtin.jid()`) instead of an inline property access (`x._jac_id`). This provides clear, actionable error messages when called on `null` (e.g. server returned an error) or non-node objects, with stack traces pointing to the `.jac` source line. The `assert_no_jac_keywords` test was also improved to strip string literals before scanning, preventing false positives from English words in error messages.
 
