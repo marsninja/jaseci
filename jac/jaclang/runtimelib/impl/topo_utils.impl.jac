@@ -248,6 +248,14 @@ impl batch_load_nodes(node_ids: set[UUID], origin: (list | None) = None) -> list
     }
 
     if origin {
+        # Prefetch edge anchors so the ordered walk doesn't trigger
+        # N individual DB loads for edge stubs.
+        if isinstance(ctx.mem, TieredMemory) {
+            edge_ids = [e.id for nd in origin for e in nd.__jac__.edges];
+            if edge_ids {
+                ctx.mem.batch_get(edge_ids);
+            }
+        }
         # Walk edges in order, only emit targets in the planned set
         seen: set = set();
         result = [];
