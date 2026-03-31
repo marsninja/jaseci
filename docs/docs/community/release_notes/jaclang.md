@@ -5,10 +5,13 @@ This document provides a summary of new features, improvements, and bug fixes in
 ## jaclang 0.13.4 (Unreleased)
 
 <<<<<<< feat/centralize-ambient-builtins-pyi
+
 - **Type Checker: Centralized Ambient Builtins via `jac_builtins.pyi`**: All user-facing ambient names (`llm`, `jid`, `jobj`, `printgraph`, `grant`, `revoke`, `allroots`, `save`, `commit`, `store`, `destroy`, permission constants, `restspec`, `schedule`, `ScheduleTrigger`, `APIProtocol`) are now declared in `jac_builtins.pyi` as the single source of truth. The type checker resolves these through the builtins scope chain, eliminating false "undefined name" warnings (e.g., `llm` in `by llm()` expressions). Removed the redundant `TYPE_CHECKING` variable declarations from `builtin.jac`.
 =======
 - **Feat: Topology Index Persists Across Sessions**: The topology index (`topology_index_data` on root `NodeAnchor`) now survives Serializer round-trips via base64 encoding, enabling DB-backed graphs (MongoDB, SQLite) to retain the adjacency index across sessions instead of rebuilding from scratch. The index is excluded from `_compute_hash` dirty-checking since it's a derived cache, and serialization is scoped to root anchors only to avoid overhead on regular nodes.
+
 >>>>>>> main
+
 - **Fix: False W2003 Warning on `by llm()` Parameters**: Parameters in GenAI abilities (`def foo(x: str) -> T by llm()`) no longer trigger spurious "defined but never used" warnings. The static analysis pass now recognizes `is_genai_ability` alongside `needs_impl` when skipping parameter usage checks.
 - **ES Codegen: `jid()` Moved to Client Runtime**: `jid()` is now a proper runtime function (`_jac.builtin.jid()`) instead of an inline property access (`x._jac_id`). This provides clear, actionable error messages when called on `null` (e.g. server returned an error) or non-node objects, with stack traces pointing to the `.jac` source line. The `assert_no_jac_keywords` test was also improved to strip string literals before scanning, preventing false positives from English words in error messages.
 
@@ -99,7 +102,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Lintfix Improvement**: Add lintfix format to context menu in VS Code.
 - **Improve: `jac format` Grouped Error Summary for Syntax Errors**: `jac format` now displays a grouped `FAILURES` section (file path + error messages) and a `failed files` summary when files have syntax errors, consistent with `jac check` output. Previously, errors were printed inline without grouping.
 - **Fix: Garbled Emojis and Markup in `jac --version` Banner**: Non-ASCII characters and emojis now render correctly in the version banner.
-- **CLI: `jac run --show-errors` Flag**: Added `-e` / `--show-errors` flag to `jac run` that displays type check errors and warnings after execution. A summary line with error/warning counts is always shown when diagnostics exist. Use `-e` for full details without needing a separate `jac check` step.
+- **CLI: `jac run --diagnostics` Flag**: The `-e` / `--diagnostics` flag on `jac run` now accepts a verbosity level: `error` (default -- fail on errors with full details, suppress warnings), `all` (show errors and warnings), or `none` (suppress all diagnostics). By default, `jac run` now fails with exit code 1 when compilation errors are detected, printing full diagnostic details. This can be configured project-wide via `[run].diagnostics` in `jac.toml`. Replaces the previous `--show-errors` boolean flag.
 - **`root` Removed as Language Keyword**: `root` is no longer a reserved keyword (`KW_ROOT`) in the Jac grammar. It is now an ambient built-in name resolved through the runtime builtin module's lazy `__getattr__` mechanism (same as `jid`, `jobj`, `save`, etc.), returning `Jac.root()`. Existing code using `root` continues to work unchanged. Backtick escaping (`` `root` ``) is no longer necessary when using `root` as an identifier.
 - **Fix: Impl Matching with Forward Declarations**: `impl MyClass.method` now correctly matches declarations when `MyClass` has forward declarations or is reassigned elsewhere. Previously failed with E2009.
 - **Fix: Goto Definition for Import Paths and Imported Items**: Goto definition now works correctly on all parts of an import statement. Previously, intermediate path segments failed to resolve because each was resolved independently; now the full dotted path is resolved once and intermediate paths are derived by walking up the directory tree.
