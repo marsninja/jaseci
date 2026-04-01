@@ -1869,7 +1869,9 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                         );
                         if next_type and not isinstance(next_type, types.UnknownType) {
                             elem_type = self._convert_to_instance(next_type);
-                        } elif len(iter_type.private.type_args) == 1 {
+                        } elif iter_type.private
+                        and iter_type.private.type_args
+                        and len(iter_type.private.type_args) == 1 {
                             # Fallback: try to extract from type_args
                             elem_type = iter_type.private.type_args[0];
                             # If element type is a TypeVar, specialize it using collection's type_args
@@ -2031,7 +2033,9 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                     }
 
                     # Fallback: try to extract from type_args if __next__ didn't work
-                    if len(iter_type.private.type_args) == 1 {
+                    if iter_type.private
+                    and iter_type.private.type_args
+                    and len(iter_type.private.type_args) == 1 {
                         elem_type = iter_type.private.type_args[0];
                         # If element type is already concrete (e.g. Iterator[int]
                         # from range.__iter__), use it directly.
@@ -2057,6 +2061,25 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                             }
                         }
                     }
+                }
+                # Bare generic fallback: list, dict, set, etc. without type args
+                # should be treated as list[Any], dict[Any, Any], etc. per PEP 484.
+                if (
+                    isinstance(collection_type, types.ClassType)
+                    and collection_type.shared.type_params
+                    and (
+                        not collection_type.private
+                        or not collection_type.private.type_args
+                    )
+                    and self.prefetch.any_class is not None
+                ) {
+                    self.emit_diag(
+                        W1036,
+                        node_.parent.collection,
+                        type=collection_type.shared.class_name
+                    );
+                    node_.type = self.prefetch.any_class;
+                    return self.prefetch.any_class;
                 }
                 return types.UnknownType();
             }
