@@ -824,6 +824,11 @@ test "cli error exit codes" {
     assert "not found" in stderr;
 
     # Test successful run returns exit code 0
+    # Clear stale errors from previous sub-tests so only hello.jac's
+    # own diagnostics affect the exit code.
+    _rt = __import__("jaclang.jac0core.runtime", fromlist=["JacRuntime"]);
+    _rt.JacRuntime.program.errors_had.clear();
+    _rt.JacRuntime.program.warnings_had.clear();
     captured = io.StringIO();
     old_stdout = sys.stdout;
     sys.stdout = captured;
