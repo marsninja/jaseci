@@ -1855,7 +1855,7 @@ impl JacAutoLintPass.exit_archetype(nd: uni.Archetype) -> None {
     if not self.lint_enabled {
         return;
     }
-    if nd.body is not None {
+    if nd.body is not None and isinstance(nd.body, list) {
         self._check_unnecessary_pass(list(nd.body), nd);
     }
 }
