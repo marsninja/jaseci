@@ -25,6 +25,10 @@ with entry {
     other: list = [];
     result = [o.name for o in other];  # <-- Should be OK
 
+    # Bare list subscript should also work (not just iteration)
+    first = items[0];
+    w = first.whatever;  # <-- Should be OK (Any allows attribute access)
+
     # Typed list should still catch errors
     typed: list[int] = [1, 2, 3];
     for t in typed {

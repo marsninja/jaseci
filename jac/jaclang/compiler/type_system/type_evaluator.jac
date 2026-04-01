@@ -50,7 +50,6 @@ import from jaclang.jac0core.diagnostics {
     E1033,
     E1034,
     E1035,
-    W1036,
     E1040,
     E1041,
     E1050,

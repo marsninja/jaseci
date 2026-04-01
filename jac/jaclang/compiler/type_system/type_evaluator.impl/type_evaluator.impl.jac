@@ -2062,25 +2062,6 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                         }
                     }
                 }
-                # Bare generic fallback: list, dict, set, etc. without type args
-                # should be treated as list[Any], dict[Any, Any], etc. per PEP 484.
-                if (
-                    isinstance(collection_type, types.ClassType)
-                    and collection_type.shared.type_params
-                    and (
-                        not collection_type.private
-                        or not collection_type.private.type_args
-                    )
-                    and self.prefetch.any_class is not None
-                ) {
-                    self.emit_diag(
-                        W1036,
-                        node_.parent.collection,
-                        type=collection_type.shared.class_name
-                    );
-                    node_.type = self.prefetch.any_class;
-                    return self.prefetch.any_class;
-                }
                 return types.UnknownType();
             }
 
