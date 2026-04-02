@@ -210,11 +210,10 @@ impl JacAPIServerCore.start(
         }
     }
     server_config = get_scale_config().get_server_config();
-    if server_config.get('docs_enabled', True) {
-        self.server.app.docs_url = "/docs";
-        self.server.app.openapi_url = "/openapi.json";
-        self.server.app.redoc_url = "/redoc";
-        self.server.app.setup();
+    if not server_config.get('docs_enabled', True) {
+        self.server.app.docs_url = None;
+        self.server.app.openapi_url = None;
+        self.server.app.redoc_url = None;
     }
     self._register_endpoints();
     if dev {

@@ -127,16 +127,6 @@ obj ScaleTestClient {
         self._server.register_client_js_endpoint();
         self._server.user_manager.create_user(Con.GUEST.value, '__no_password__');
 
-        # Enable docs if configured (mirrors start() behavior)
-        import from jac_scale.config_loader { get_scale_config }
-        server_config = get_scale_config().get_server_config();
-        if server_config.get('docs_enabled', True) {
-            self._server.server.app.docs_url = "/docs";
-            self._server.server.app.openapi_url = "/openapi.json";
-            self._server.server.app.redoc_url = "/redoc";
-            self._server.server.app.setup();
-        }
-
         # Execute endpoint registration (compiles JEndPoints into FastAPI routes)
         self._server.server.create_server();
 
