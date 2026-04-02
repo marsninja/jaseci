@@ -3600,26 +3600,6 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                     )
                 );
                 ctor_stmts.append(jac_id_assign);
-                # Also expose _jac_id as .id for client-side convenience.
-                # The jac-client runtime provides .id on wire objects;
-                # typed interop classes must do the same so t.id works
-                # in JSX keys and event handlers.
-                id_alias = es.ExpressionStatement(
-                    expression=es.AssignmentExpression(
-                        operator='=',
-                        left=es.MemberExpression(
-                            object=es.ThisExpression(),
-                            property=es.Identifier(name='id'),
-                            computed=False
-                        ),
-                        right=es.MemberExpression(
-                            object=es.ThisExpression(),
-                            property=es.Identifier(name='_jac_id'),
-                            computed=False
-                        )
-                    )
-                );
-                ctor_stmts.append(id_alias);
             }
             ctor = es.FunctionExpression(
                 id=None,
@@ -4290,7 +4270,7 @@ impl EsastGenPass._analyze_body_effects(body_nodes: Sequence[uni.UniNode]) -> di
     is_writer = False;
     touches: set[str] = set();
     """Recursively scan a node and its descendants for effects.""";
-    def _scan(nd: uni.UniNode) -> None {
+    def _scan(nd: uni.UniNode) {
         nonlocal is_writer;
 
         # Edge creation: BinaryExpr with ConnectOp operator (++>, <++, <++>)

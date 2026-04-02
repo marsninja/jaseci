@@ -151,8 +151,8 @@ def _start_server(
         }
 
         try {
-            response = requests.get(f"{base_url}/docs", timeout=2);
-            if response.status_code in (200, 404) {
+            response = requests.get(f"{base_url}/healthz", timeout=2);
+            if response.status_code == 200 {
                 print(f"Server started successfully on port {port}");
                 server_ready = True;
                 break;
@@ -252,6 +252,11 @@ def teardown_serve_server(sp: subprocess.Popen | None) -> None {
 test "static and schema endpoints" {
     client = make_client();
     try {
+        # Test: health check endpoint
+        response = client.get("/healthz");
+        assert response.status_code == 200 , "Health check should return 200";
+        assert response.json() == {"status": "ok"};
+
         # Test: docs are disabled in production mode
         response = client.get("/docs");
         assert response.status_code == 404 , "Docs should be disabled in production mode";
@@ -1432,8 +1437,8 @@ def setup_dev_mode_server -> subprocess.Popen {
         }
 
         try {
-            response = requests.get(f"{dm_base_url}/docs", timeout=2);
-            if response.status_code in (200, 404) {
+            response = requests.get(f"{dm_base_url}/healthz", timeout=2);
+            if response.status_code == 200 {
                 print(f"Dev mode server started successfully on API port {dm_api_port}");
                 server_ready = True;
                 break;
@@ -1618,6 +1623,70 @@ test "dev mode operations" {
     }
 }
 
+"""Test that dev mode shows named endpoints in OpenAPI spec and HMR adds new ones."""
+test "dev mode named endpoints and HMR refresh" {
+    sp = setup_dev_mode_server();
+    try {
+        # Test: OpenAPI spec shows named walker endpoints (not generic {walker_name})
+        response = requests.get(f"{dm_base_url}/openapi.json", timeout=10);
+        assert response.status_code == 200;
+        paths = response.json().get("paths", {});
+
+        # Named endpoints should exist (from test_api.jac fixture)
+        assert "/walker/CreateTask" in paths , f"Expected /walker/CreateTask in OpenAPI paths, got: {list(
+            paths.keys()
+        )}";
+        assert "/walker/ListTasks" in paths , f"Expected /walker/ListTasks in OpenAPI paths";
+        assert "/walker/PublicInfo" in paths , f"Expected /walker/PublicInfo in OpenAPI paths";
+        assert "/function/add_numbers" in paths , f"Expected /function/add_numbers in OpenAPI paths";
+
+        # Generic catch-all should NOT exist
+        assert "/walker/{walker_name}" not in paths , "Generic /walker/{walker_name} should not exist";
+        assert "/function/{function_name}" not in paths , "Generic /function/{function_name} should not exist";
+
+        # Test: HMR adds new walker to OpenAPI spec
+        # Append a new walker to the fixture file
+        greet_walker = '\nwalker:pub Greet {\n    has name: str = "World";\n\n    can greet with Root entry {\n        report {"message": "Hello, " + self.name + "!"};\n    }\n}\n';
+        with open(str(dm_test_file), 'a') as f {
+            f.write(greet_walker);
+        }
+
+        # Wait for HMR to detect the change, then trigger a request to flush it
+        time.sleep(3);
+        # Make a request to trigger the HMR middleware refresh
+        requests.get(f"{dm_base_url}/healthz", timeout=10);
+        time.sleep(1);
+
+        # Fetch updated OpenAPI spec
+        response = requests.get(f"{dm_base_url}/openapi.json", timeout=10);
+        assert response.status_code == 200;
+        paths = response.json().get("paths", {});
+
+        assert "/walker/Greet" in paths , f"Expected /walker/Greet after HMR, got: {list(
+            paths.keys()
+        )}";
+
+        # New walker should also be callable
+        response = requests.post(
+            f"{dm_base_url}/walker/Greet", json={"name": "Jaseci"}, timeout=10
+        );
+        assert response.status_code == 200;
+        data = _extract_data_dev(response.json());
+        assert data["reports"][0]["message"] == "Hello, Jaseci!";
+    } finally {
+        # Remove the appended walker from fixture file to not pollute other tests
+        with open(str(dm_test_file), 'r') as f {
+            original = f.read();
+        }
+        if greet_walker in original {
+            with open(str(dm_test_file), 'w') as f {
+                f.write(original.replace(greet_walker, ''));
+            }
+        }
+        teardown_dev_mode_server(sp);
+    }
+}
+
 # =============================================================================
 # GROUP 7: PORT FALLBACK TESTS
 # =============================================================================
@@ -1760,8 +1829,8 @@ test "server startup - port fallback integration" {
         );
 
         # Verify first server is running
-        response = requests.get(f"http://localhost:{port1}/docs", timeout=5);
-        assert response.status_code in (200, 404) , "First server should be running";
+        response = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
+        assert response.status_code == 200 , "First server should be running";
 
         # Try to start second server on same port - should fallback to next port
         jac_executable = Path(sys.executable).parent / "jac";
@@ -1795,8 +1864,10 @@ test "server startup - port fallback integration" {
             # Check if server is responding on fallback ports
             for test_port in range(port1 + 1, port1 + 5) {
                 try {
-                    resp = requests.get(f"http://localhost:{test_port}/docs", timeout=1);
-                    if resp.status_code in (200, 404) {
+                    resp = requests.get(
+                        f"http://localhost:{test_port}/healthz", timeout=1
+                    );
+                    if resp.status_code == 200 {
                         actual_port = test_port;
                         break;
                     }
