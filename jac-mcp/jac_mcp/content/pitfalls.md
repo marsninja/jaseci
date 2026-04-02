@@ -609,7 +609,7 @@ merged = {**dict1, **dict2};
 
 ### 30. Event handlers REQUIRE type annotations on lambda parameters
 
-Lambda event handlers must have type annotations. Omitting the type on the event parameter causes compilation errors.
+Lambda event handlers must have type annotations. Use ambient DOM types (`ChangeEvent`, `KeyboardEvent`, `FormEvent`, etc.) which are available without import. Omitting the type on the event parameter causes compilation errors.
 
 WRONG (missing type annotation):
 
@@ -617,16 +617,12 @@ WRONG (missing type annotation):
 <input onChange={lambda e { name = e.target.value; }} />
 ```
 
-WRONG (missing return type):
-
-```
-<input onChange={lambda e: any { name = e.target.value; }} />
-```
-
-RIGHT:
+RIGHT (use ambient DOM types -- no import needed):
 
 ```jac
-<input onChange={lambda e: any -> None { name = e.target.value; }} />
+<input onChange={lambda e: ChangeEvent { name = e.target.value; }} />
+<input onKeyDown={lambda e: KeyboardEvent { if e.key == "Enter" { submit(); } }} />
+<form onSubmit={lambda e: FormEvent { e.preventDefault(); handle(); }} />
 ```
 
 For click handlers with no event parameter:
@@ -699,7 +695,7 @@ cl {
         return <div>
             <input
                 value={query}
-                onChange={lambda e: any -> None { query = e.target.value; }}
+                onChange={lambda e: ChangeEvent { query = e.target.value; }}
             />
         </div>;
     }
@@ -999,13 +995,13 @@ cl {
         return <form>
             <input
                 value={username}
-                onChange={lambda e: any -> None { username = e.target.value; }}
+                onChange={lambda e: ChangeEvent { username = e.target.value; }}
                 placeholder="Username"
             />
             <input
                 type="password"
                 value={password}
-                onChange={lambda e: any -> None { password = e.target.value; }}
+                onChange={lambda e: ChangeEvent { password = e.target.value; }}
                 placeholder="Password"
             />
             <button type="button" onClick={lambda -> None { handleLogin(); }}>

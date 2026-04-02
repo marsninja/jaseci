@@ -217,7 +217,7 @@ cl {
 
 ### Manual useEffect
 
-You can also use `useEffect` manually by importing from React:
+The `can with entry/exit` syntax above is the idiomatic approach and should be preferred. However, you can also use `useEffect` manually by importing from React -- this is useful for complex patterns involving `useRef` or `useCallback`:
 
 ```jac
 cl {
