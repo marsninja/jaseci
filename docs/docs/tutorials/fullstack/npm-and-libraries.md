@@ -262,22 +262,56 @@ def:pub Tab(props: Any) -> JsxElement {
 
 ## shadcn/ui Integration
 
-[shadcn/ui](https://ui.shadcn.com/) is a popular component library built on Radix UI primitives and Tailwind CSS. Jac has first-class support for it via the `[jac-shadcn]` configuration.
+[shadcn/ui](https://ui.shadcn.com/) is a popular component library built on Radix UI primitives and Tailwind CSS. The `jac-shadcn` plugin provides first-class support -- install it with `pip install jac-shadcn`, then use `jac add --shadcn` to fetch pre-built, themed components from the [jac-shadcn registry](https://jac-shadcn.jaseci.org).
 
-### Configuration
+### Installation & Setup
 
-Add to your `jac.toml`:
+```bash
+pip install jac-shadcn
+```
+
+Create a new project with shadcn theming:
+
+```bash
+jac create --use 'https://jac-shadcn.jaseci.org/jacpack' myapp
+cd myapp
+jac install
+```
+
+Or add to an existing project by adding the `[jac-shadcn]` section to your `jac.toml`:
 
 ```toml
 [jac-shadcn]
 style = "nova"
 baseColor = "neutral"
-theme = "amber"
-font = "inter"
+theme = "neutral"
+font = "figtree"
 radius = "default"
 menuAccent = "subtle"
 menuColor = "default"
 registry = "https://jac-shadcn.jaseci.org"
+```
+
+Then add and use components:
+
+```bash
+jac add --shadcn button card dialog
+```
+
+This fetches resolved `.cl.jac` components into `components/ui/`, installs peer dependencies automatically, and creates the `cn()` utility if needed.
+
+### Adding Components to Your Code
+
+```jac
+cl import from "./components/ui/button" { Button }
+
+cl {
+    def:pub MyPage() -> JsxElement {
+        return <div>
+            <Button variant="outline">Click me</Button>
+        </div>;
+    }
+}
 ```
 
 ### The cn() Utility in Jac
@@ -533,7 +567,7 @@ def:pub SplitView() -> JsxElement {
 | Import package | `import from "<package>" { named_export }` |
 | Import React hooks | `import from react { useRef, useCallback }` |
 | Setup Tailwind | Add vite plugin config + CSS import |
-| Setup shadcn | Add `[jac-shadcn]` config + Radix + CVA deps |
+| Setup shadcn | `pip install jac-shadcn` + `[jac-shadcn]` in jac.toml |
 | Use cn() utility | Write in Jac with clsx + tailwind-merge |
 
 ---

@@ -74,7 +74,7 @@ triggers re-render. NEVER mutate directly (`items.append(x)` won't re-render - u
 
 **Calling server from client** (critical pattern):
   `sv import from ..main { my_walker }` - import server walker into client code
-  `response = root spawn my_walker(field=value);` - spawns walker via HTTP automatically
+  `response = root() spawn my_walker(field=value);` - spawns walker via HTTP automatically
   `data = response.reports[0][0];` - access walker report results
 
 **Client imports**: `cl import from react { useState }`,

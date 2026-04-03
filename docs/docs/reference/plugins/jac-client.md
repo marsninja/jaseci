@@ -540,7 +540,7 @@ cl {
 
         # Fetch data on component mount
         async can with entry {
-            result = root spawn get_tasks();
+            result = root() spawn get_tasks();
             if result.reports and result.reports.length > 0 {
                 tasks = result.reports[0];
             }
@@ -571,8 +571,8 @@ The `spawn` call returns a result object:
 
 | Syntax | Description |
 |--------|-------------|
-| `root spawn WalkerName()` | Spawn walker from root node |
-| `root spawn WalkerName(arg=value)` | Spawn with parameters |
+| `root() spawn WalkerName()` | Spawn walker from root node |
+| `root() spawn WalkerName(arg=value)` | Spawn with parameters |
 | `node_id spawn WalkerName()` | Spawn from specific node |
 
 The spawn call returns a result object with:
@@ -591,7 +591,7 @@ cl {
 
         # Create
         async def handle_add(title: str) -> None {
-            result = root spawn add_task(title=title);
+            result = root() spawn add_task(title=title);
             if result.reports and result.reports.length > 0 {
                 tasks = tasks + [result.reports[0]];
             }
@@ -599,7 +599,7 @@ cl {
 
         # Update
         async def handle_toggle(task_id: str) -> None {
-            result = root spawn toggle_task(task_id=task_id);
+            result = root() spawn toggle_task(task_id=task_id);
             if result.reports and result.reports[0]["success"] {
                 tasks = [
                     {**t, "completed": not t["completed"]} if t["id"] == task_id else t
@@ -610,7 +610,7 @@ cl {
 
         # Delete
         async def handle_delete(task_id: str) -> None {
-            result = root spawn delete_task(task_id=task_id);
+            result = root() spawn delete_task(task_id=task_id);
             if result.reports and result.reports[0]["success"] {
                 tasks = [t for t in tasks if t["id"] != task_id];
             }
@@ -635,7 +635,7 @@ cl {
         async can with entry {
             loading = True;
             try {
-                result = root spawn get_data();
+                result = root() spawn get_data();
                 if result.reports and result.reports.length > 0 {
                     data = result.reports[0];
                 }
@@ -669,7 +669,7 @@ cl {
         has data: any = None;
 
         async def fetch_data() -> None {
-            result = root spawn get_live_data();
+            result = root() spawn get_live_data();
             if result.reports and result.reports.length > 0 {
                 data = result.reports[0];
             }

@@ -423,9 +423,10 @@ cl {
 |---------|------------|------------------|
 | State variable | `has count: int = 0` | `useState(0)` |
 | Update state | `count = count + 1` | `setCount(count + 1)` |
-| Side effects | `useEffect(fn, deps)` | Same |
+| Effect on mount | `can with entry { ... }` | `useEffect(fn, [])` |
+| Effect with deps | `can with [dep] entry { ... }` | `useEffect(fn, [dep])` |
+| Cleanup on unmount | `can with exit { ... }` | `useEffect(() => cleanup, [])` |
 | Global state | `useContext(Ctx)` | Same |
-| Dependencies | `[var1, var2]` | Same |
 
 ---
 
