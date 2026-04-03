@@ -2753,7 +2753,6 @@ test "cross-module subscript: inline access to second item returns correct value
 }
 
 # --- Lambda Support (Phase 1: simple, no captures) ---
-
 test "lambda simple add" {
     (eng, _) = compile_native("lambdas.na.jac");
     f = get_func(eng, "apply_int_op", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
@@ -2775,8 +2774,8 @@ test "lambda no params" {
     assert f() == 42 , f"Expected 42, got {f()}";
 }
 
-# --- Lambda Closures (Phase 2: capturing outer scope) ---
 
+# --- Lambda Closures (Phase 2: capturing outer scope) ---
 test "lambda closure captures local" {
     (eng, _) = compile_native("lambdas.na.jac");
     f = get_func(eng, "add_offset", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
@@ -2787,7 +2786,15 @@ test "lambda closure captures local" {
 
 test "lambda closure captures multiple vars" {
     (eng, _) = compile_native("lambdas.na.jac");
-    f = get_func(eng, "weighted_sum", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    f = get_func(
+        eng,
+        "weighted_sum",
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64
+    );
     assert f(3, 4, 2, 5) == 26 , f"Expected 26, got {f(3, 4, 2, 5)}";
     assert f(1, 1, 10, 20) == 30 , f"Expected 30, got {f(1, 1, 10, 20)}";
 }

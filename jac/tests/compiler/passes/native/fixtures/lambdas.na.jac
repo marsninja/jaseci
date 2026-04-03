@@ -19,6 +19,7 @@ def negate_via_lambda(x: int) -> int {
     return neg(x);
 }
 
+
 # --- Phase 2: Capturing closures ---
 
 # Lambda captures a local variable from enclosing scope
