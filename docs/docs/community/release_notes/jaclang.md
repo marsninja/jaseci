@@ -4,6 +4,8 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.13.6 (Unreleased)
 
+- **Fix: ES Codegen `new` Expression for `Any`-Typed Callees**: Calling a variable typed as `Any` no longer emits `new handler(payload)` in the generated JavaScript. `Any` is internally represented as a `ClassType` with the `Instance` flag (not `Instantiable`), so the previous check in `exit_func_call` that emitted a `NewExpression` for any `ClassType` callee incorrectly constructed async callbacks as objects instead of invoking them. The check now also requires `callee_type.is_instantiable()`, so `NewExpression` is only emitted for genuine class references.
+
 ## jaclang 0.13.5 (Latest Release)
 
 - **Native: Lambda Expressions and Capturing Closures**: Added lambda expression support in the `na` (native LLVM) codespace. Simple lambdas compile to anonymous LLVM IR functions returned as function pointers. Capturing closures -- lambdas that reference variables from the enclosing scope -- pass captured values as hidden extra parameters, with automatic injection at call sites. No heap allocation required for captures. Leverages the existing indirect function pointer call infrastructure.
