@@ -127,9 +127,7 @@ On the next startup, _exec_bootstrap will find the cached bitcode and load
 the MCJIT engine immediately, so these modules run natively from boot.
 """
 def _cache_all_bootstrap_native(modules: dict[str, str]) {
-    import hashlib;
     import struct as _struct;
-    import zlib;
 
     for (mod_name, na_file) in modules.items() {
         try {
@@ -154,10 +152,15 @@ def _cache_all_bootstrap_native(modules: dict[str, str]) {
                 continue;
             }
 
-            # Build SEC_NATIVE_OBJ: [triple_len:2LE][triple][bitcode]
+            # Build SEC_NATIVE_OBJ: [ver:1][triple_len:2LE][triple][bitcode]
             import llvmlite.binding as llvm;
+            import from jaclang.meta_importer { _NATIVE_SECTION_FMT_VER }
             triple = llvm.get_default_triple().encode('utf-8');
-            native_obj_section = _struct.pack('<H', len(triple)) + triple + bitcode;
+            native_obj_section = (
+                bytes([_NATIVE_SECTION_FMT_VER]) + _struct.pack(
+                    '<H', len(triple)
+                ) + triple + bitcode
+            );
 
             # Build SEC_NATIVE_LAYOUT: JSON-encoded layout
             layout_section = serialize_native_layout(layout);
@@ -167,10 +170,9 @@ def _cache_all_bootstrap_native(modules: dict[str, str]) {
                 0x08: layout_section  # _BOOTSTRAP_SEC_NATIVE_LAYOUT
             };
 
-            # Recompute the bootstrap JIR cache key (same logic as _bootstrap_compile)
+            # Use the shared cache key computation (includes LLVM version + triple)
             import from jaclang.meta_importer {
-                _get_bootstrap_cache_dir,
-                _jac0_hash,
+                _compute_bootstrap_cache_key,
                 _jac0_discover_impls,
                 _write_bootstrap_jir,
                 _read_bootstrap_jir
@@ -186,19 +188,9 @@ def _cache_all_bootstrap_native(modules: dict[str, str]) {
                 }
             }
 
-            h = hashlib.sha256();
-            h.update(sys.version.encode());
-            h.update(_jac0_hash);
-            h.update(jac_source.encode());
-            for (src, path) in impl_sources {
-                h.update(path.encode());
-                h.update(src.encode());
-            }
-            digest = h.hexdigest()[:16];
-            source_hash = zlib.crc32(jac_source.encode()) & 0xFFFFFFFF;
-
-            base_name = os.path.splitext(os.path.basename(na_file))[0];
-            cache_file = _get_bootstrap_cache_dir() / f"{base_name}.{digest}.jir";
+            (_digest, source_hash, cache_file) = _compute_bootstrap_cache_key(
+                na_file, jac_source, impl_sources or None
+            );
 
             # Read existing JIR to get the bytecode section
             if cache_file.is_file() {
@@ -206,7 +198,6 @@ def _cache_all_bootstrap_native(modules: dict[str, str]) {
                 (bc, _) = _read_bootstrap_jir(data);
                 if bc is not None {
                     # Rewrite with bytecode + native sections
-                    import marshal;
                     jir_data = _write_bootstrap_jir(
                         bc, source_hash, extra_sections=extra_sections
                     );
@@ -238,12 +229,8 @@ def schedule_bootstrap_native_caching -> None {
     }
     # Check if all bootstrap JIR caches already have native sections.
     # If so, _exec_bootstrap will load them -- no need to recompile.
-    import hashlib;
-    import struct as _st;
-    import zlib;
     import from jaclang.meta_importer {
-        _get_bootstrap_cache_dir,
-        _jac0_hash,
+        _compute_bootstrap_cache_key,
         _jac0_discover_impls,
         _read_bootstrap_jir
     }
@@ -259,17 +246,9 @@ def schedule_bootstrap_native_caching -> None {
                     impl_sources.append((f.read(), impl_path));
                 }
             }
-            h = hashlib.sha256();
-            h.update(sys.version.encode());
-            h.update(_jac0_hash);
-            h.update(jac_source.encode());
-            for (src, path) in impl_sources {
-                h.update(path.encode());
-                h.update(src.encode());
-            }
-            digest = h.hexdigest()[:16];
-            base_name = os.path.splitext(os.path.basename(na_file))[0];
-            cache_file = _get_bootstrap_cache_dir() / f"{base_name}.{digest}.jir";
+            (_digest, _source_hash, cache_file) = _compute_bootstrap_cache_key(
+                na_file, jac_source, impl_sources or None
+            );
             if cache_file.is_file() {
                 data = cache_file.read_bytes();
                 (_, sections) = _read_bootstrap_jir(data);

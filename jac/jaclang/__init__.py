@@ -47,8 +47,14 @@ try:
     from jaclang.jac0core.native_accel import schedule_bootstrap_native_caching
 
     schedule_bootstrap_native_caching()
-except Exception:
-    pass
+except ImportError:
+    pass  # llvmlite or native_accel not available
+except Exception as _exc:
+    import logging as _logging
+
+    _logging.getLogger(__name__).debug(
+        "Bootstrap native caching setup failed: %s", _exc
+    )
 
 # Schedule deferred native acceleration if autonative is enabled in jac.toml
 try:

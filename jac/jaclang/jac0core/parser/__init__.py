@@ -24,5 +24,9 @@ try:
     from jaclang.meta_importer import JacMetaImporter
 
     JacMetaImporter.finalize_bootstrap_native()
-except Exception:
-    pass
+except ImportError:
+    pass  # llvmlite not available
+except Exception as _exc:
+    import logging as _logging
+
+    _logging.getLogger(__name__).debug("Bootstrap native finalization failed: %s", _exc)

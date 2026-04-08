@@ -59,6 +59,13 @@ _BOOTSTRAP_SEC_NATIVE_LAYOUT = 0x08
 _BOOTSTRAP_SEC_TERMINATOR = 0xFF
 _BOOTSTRAP_FLAG_BOOTSTRAP = 0x04
 
+# Native section format version — bump when the native section wire format
+# changes (e.g., new fields, different encoding).  Cached files with a
+# different version are rejected and recompiled.
+_NATIVE_SECTION_FMT_VER = 1
+
+_logger = logging.getLogger(__name__)
+
 
 def _get_bootstrap_cache_dir() -> Path:
     """Return the platform-appropriate bootstrap JIR cache directory."""
@@ -71,6 +78,53 @@ def _get_bootstrap_cache_dir() -> Path:
         xdg = os.environ.get("XDG_CACHE_HOME")
         base = Path(xdg) if xdg else (Path.home() / ".cache")
         return base / "jac" / "jir" / "bootstrap"
+
+
+def _get_llvm_version_and_triple() -> tuple[str, str]:
+    """Return (llvm_library_version, default_triple) or empty strings."""
+    try:
+        import llvmlite.binding as llvm
+
+        return llvm.llvm_version_info, llvm.get_default_triple()
+    except Exception:
+        return ("", "")
+
+
+def _compute_bootstrap_cache_key(
+    file_path: str,
+    jac_source: str,
+    impl_sources: list[tuple[str, str]] | None = None,
+) -> tuple[str, int, Path]:
+    """Compute a deterministic cache key for a bootstrap .jac file.
+
+    The key incorporates Python version, jac0 transpiler hash, all source
+    texts, LLVM library version, and target triple so that any toolchain
+    change invalidates the cache.
+
+    Returns (hex_digest, crc32_source_hash, cache_file_path).
+    """
+    import zlib
+
+    h = hashlib.sha256()
+    h.update(sys.version.encode())
+    h.update(_jac0_hash)
+    h.update(jac_source.encode())
+    if impl_sources:
+        for src, path in impl_sources:
+            h.update(path.encode())
+            h.update(src.encode())
+    # Include LLVM version + triple so bitcode caches are invalidated
+    # when the native toolchain changes (e.g., llvmlite upgrade).
+    llvm_ver, llvm_triple = _get_llvm_version_and_triple()
+    h.update(f"llvm:{llvm_ver}:{llvm_triple}".encode())
+    # Include native section format version
+    h.update(f"nsfmt:{_NATIVE_SECTION_FMT_VER}".encode())
+
+    digest = h.hexdigest()[:16]
+    source_hash = zlib.crc32(jac_source.encode()) & 0xFFFFFFFF
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    cache_file = _get_bootstrap_cache_dir() / f"{base_name}.{digest}.jir"
+    return digest, source_hash, cache_file
 
 
 def _write_bootstrap_jir(
@@ -169,23 +223,9 @@ def _bootstrap_compile(
     Returns (code_object, extra_sections) where extra_sections may contain
     SEC_NATIVE_OBJ and SEC_NATIVE_LAYOUT from a previous native caching run.
     """
-    import zlib
-
-    # Build the hash key from all source inputs + Python version + transpiler
-    h = hashlib.sha256()
-    h.update(sys.version.encode())
-    h.update(_jac0_hash)
-    h.update(jac_source.encode())
-    if impl_sources:
-        for src, path in impl_sources:
-            h.update(path.encode())
-            h.update(src.encode())
-    digest = h.hexdigest()[:16]
-    source_hash = zlib.crc32(jac_source.encode()) & 0xFFFFFFFF
-
-    # Derive a human-readable cache filename (.jir extension)
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    cache_file = _get_bootstrap_cache_dir() / f"{base_name}.{digest}.jir"
+    _digest, source_hash, cache_file = _compute_bootstrap_cache_key(
+        file_path, jac_source, impl_sources
+    )
 
     # Try loading from JIR cache
     if cache_file.is_file():
@@ -195,6 +235,7 @@ def _bootstrap_compile(
             if bc is not None:
                 return marshal.loads(bc), sections  # noqa: S302
         except Exception:
+            _logger.debug("Corrupt bootstrap cache, removing: %s", cache_file)
             cache_file.unlink(missing_ok=True)
 
     # Cache miss — transpile with jac0 and compile
@@ -374,12 +415,14 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
     def finalize_bootstrap_native() -> None:
         """Load cached native bitcode for all pending bootstrap .na.jac modules.
 
-        Uses the LARGEST cached bitcode (typically the lexer module, which has
-        tokens linked in at IR level) as the single MCJIT engine. Installs
-        native wrappers on all pending modules from this shared engine.
+        Uses init_functions metadata from the layout to determine the
+        correct initialization order.  Selects the largest cached bitcode
+        (typically the lexer module, which has tokens linked in at IR level)
+        as the single MCJIT engine.  Installs native wrappers on all pending
+        modules from this shared engine.
 
         Call this once after all bootstrap imports are complete.
-        Silently falls back to Python if anything goes wrong.
+        Falls back to Python bytecode (already executed) on any error.
         """
         pending = JacMetaImporter._pending_native
         if not pending:
@@ -405,41 +448,104 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             from jaclang.jac0core.codeinfo import deserialize_native_layout
             from jaclang.jac0core.native_marshal import install_native_wrappers
 
-            # Find the largest bitcode -- this is the module that has all
-            # cross-module imports linked in (e.g. lexer links tokens).
+            # --- Parse native object sections with full validation ----------
+            def _parse_native_obj(
+                data: bytes,
+            ) -> tuple[str, bytes] | None:
+                """Parse SEC_NATIVE_OBJ: [ver:1][triple_len:2LE][triple][bitcode].
+
+                Returns (cached_triple, bitcode) or None on validation failure.
+                """
+                # Minimum: 1 (ver) + 2 (triple_len) = 3 bytes
+                if len(data) < 3:
+                    _logger.debug("Native obj section too short (%d bytes)", len(data))
+                    return None
+                sec_ver = data[0]
+                if sec_ver != _NATIVE_SECTION_FMT_VER:
+                    _logger.debug(
+                        "Native section version mismatch: got %d, expected %d",
+                        sec_ver,
+                        _NATIVE_SECTION_FMT_VER,
+                    )
+                    return None
+                (triple_len,) = _struct.unpack_from("<H", data, 1)
+                header_end = 3 + triple_len
+                if header_end > len(data):
+                    _logger.debug(
+                        "Triple length %d exceeds section size %d",
+                        triple_len,
+                        len(data),
+                    )
+                    return None
+                try:
+                    cached_triple = data[3:header_end].decode("utf-8")
+                except UnicodeDecodeError:
+                    _logger.debug("Triple bytes are not valid UTF-8")
+                    return None
+                bitcode = data[header_end:]
+                if not bitcode:
+                    _logger.debug("Empty bitcode after header")
+                    return None
+                return cached_triple, bitcode
+
+            # --- Find the largest bitcode (has transitive deps linked) ------
             best_path = None
             best_size = 0
             for file_path, (_mod, secs) in pending.items():
-                native_obj = secs[_BOOTSTRAP_SEC_NATIVE_OBJ]
+                native_obj = secs.get(_BOOTSTRAP_SEC_NATIVE_OBJ, b"")
                 if len(native_obj) > best_size:
                     best_size = len(native_obj)
                     best_path = file_path
 
             if best_path is None:
+                _logger.debug("No pending native modules with bitcode")
                 return
 
             best_mod, best_secs = pending[best_path]
 
-            # Parse the bitcode from the largest module
-            native_obj_data = best_secs[_BOOTSTRAP_SEC_NATIVE_OBJ]
-            (triple_len,) = _struct.unpack_from("<H", native_obj_data, 0)
-            cached_triple = native_obj_data[2 : 2 + triple_len].decode("utf-8")
+            # Parse and validate the bitcode from the largest module
+            parsed = _parse_native_obj(best_secs[_BOOTSTRAP_SEC_NATIVE_OBJ])
+            if parsed is None:
+                _logger.warning(
+                    "Bootstrap native: invalid cached bitcode for %s", best_path
+                )
+                return
+            cached_triple, bitcode = parsed
+
             if cached_triple != llvm.get_default_triple():
-                return  # Platform mismatch
+                _logger.debug(
+                    "Bootstrap native: triple mismatch (%s != %s)",
+                    cached_triple,
+                    llvm.get_default_triple(),
+                )
+                return
 
-            bitcode = native_obj_data[2 + triple_len :]
+            # Parse bitcode — validates the LLVM IR is well-formed
+            try:
+                llvm_mod = llvm.parse_bitcode(bitcode)
+            except Exception as exc:
+                _logger.warning(
+                    "Bootstrap native: corrupt bitcode in %s: %s", best_path, exc
+                )
+                # Delete corrupt cache files so they're regenerated
+                for _p, (_m, _s) in pending.items():
+                    _digest, _sh, cf = _compute_bootstrap_cache_key(_p, "")
+                    if cf.is_file():
+                        cf.unlink(missing_ok=True)
+                return
 
-            # Create a single MCJIT engine from the linked bitcode.
-            # Discover ALL glob_init functions from the LLVM module before
-            # creating the engine (which consumes the module reference).
-            llvm_mod = llvm.parse_bitcode(bitcode)
+            # --- Collect init functions from the linked LLVM module ----------
+            # The linked bitcode contains transitive init functions (e.g.,
+            # __jac_glob_init_tokens_na from the tokens module linked into
+            # the lexer).  Scanning the LLVM module is the authoritative
+            # source since it reflects all linked dependencies.
             all_init_names: list[str] = []
             try:
                 for fn in llvm_mod.functions:
                     if "glob_init" in fn.name and not fn.is_declaration:
                         all_init_names.append(fn.name)
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.debug("Failed to scan LLVM module functions: %s", exc)
             # Sort: imported module inits first, __jac_glob_init last
             all_init_names.sort(key=lambda n: (n == "__jac_glob_init", n))
 
@@ -447,23 +553,49 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             target_machine = target.create_target_machine(jit=True)
             engine = llvm.create_mcjit_compiler(llvm_mod, target_machine)
 
-            # Run all global initializers
+            # Run all global initializers, validate each is present
+            missing_inits: list[str] = []
             for init_name in all_init_names:
                 addr = engine.get_function_address(init_name)
                 if addr:
                     ctypes.CFUNCTYPE(None)(addr)()
+                else:
+                    missing_inits.append(init_name)
+            if missing_inits:
+                _logger.debug(
+                    "Bootstrap native: missing init functions: %s", missing_inits
+                )
 
             # Install wrappers on ALL pending modules from this shared engine.
             # Each module gets wrappers for its own functions from the same engine.
+            total_wrapped = 0
             for _path, (mod, secs) in pending.items():
-                mod_layout_data = secs[_BOOTSTRAP_SEC_NATIVE_LAYOUT]
-                mod_layout = deserialize_native_layout(mod_layout_data)
+                mod_layout_data = secs.get(_BOOTSTRAP_SEC_NATIVE_LAYOUT, b"")
+                if not mod_layout_data:
+                    continue
+                try:
+                    mod_layout = deserialize_native_layout(mod_layout_data)
+                except Exception as exc:
+                    _logger.debug("Bootstrap native: bad layout for %s: %s", _path, exc)
+                    continue
                 count = install_native_wrappers(mod, engine, mod_layout)
                 if count > 0:
                     mod.__jac_native_engine__ = engine  # type: ignore[attr-defined]
                     mod.__jac_native_layout__ = mod_layout  # type: ignore[attr-defined]
-        except Exception:
-            pass  # Graceful fallback -- Python bytecode already executed
+                    total_wrapped += count
+
+            if total_wrapped > 0:
+                _logger.debug(
+                    "Bootstrap native: %d functions wrapped from %d modules",
+                    total_wrapped,
+                    len(pending),
+                )
+        except ImportError:
+            pass  # llvmlite not installed — expected in pure-Python setups
+        except Exception as exc:
+            _logger.debug(
+                "Bootstrap native loading failed (falling back to Python): %s", exc
+            )
 
     def exec_module(self, module: ModuleType) -> None:
         """Execute the module by loading and executing its bytecode.
