@@ -4,7 +4,6 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jac-client 0.3.12 (Unreleased)
 
-- **Directory-Based Project Templates**: Converted `client` and `fullstack` jacpack templates from bundled JSON `.jacpack` files to real project directories with `jac.toml` `[jacpack]` schema. Templates are now browsable and editable source trees. Plugin loads templates via `load_template_from_directory` instead of parsing JSON.
 - **Feat: Multi-mode Sidecar for Windows Desktop**: --jac-cli flag for CLI proxy, manual plugin registration for frozen apps, .env loading from bundled location, UTF-8/NO_COLOR for Windows.
 - **Desktop Plugin Bundling Config**: Added `get_plugins_config()` to `DesktopConfig` for reading the `[desktop.plugins]` section from `jac.toml`, controlling which Jac plugins (jac-scale, byllm, jac-coder) are bundled into desktop apps.
 - **Fix: Vite Define Skips Empty API URL**: The Vite config no longer injects `__JAC_API_BASE_URL__: undefined` when no API URL is configured, preventing conflicts with Tauri's runtime injection in desktop builds.
@@ -17,6 +16,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Standalone Sidecar Bundling via PyInstaller**: Desktop builds now bundle the Jac sidecar as a standalone executable using PyInstaller by default. The bundled sidecar includes Python, jaclang, jac-client, and configured plugins (jac-scale, byllm, jac-coder via `[desktop.plugins]` in `jac.toml`), eliminating the requirement for end users to have Python installed. Auto-installs Python dependencies from `jac.toml` before bundling. Set `JAC_SIDECAR_STANDALONE=0` to fall back to wrapper script mode.
 - **Debug Diagnostic Page**: Added a debug page to the all-in-one example app for diagnosing sidecar/API connectivity issues. Displays API base URL status, Tauri runtime detection, `get_api_url` invoke results, and interactive buttons to test walker spawning and direct HTTP fetch.
 - **Plugin Reference Docs**: Added `reference/plugins/jac-client.md` documenting jac-client CLI commands and configuration options.
+- 1 small refactor/change.
 
 ## jac-client 0.3.11 (Latest Release)
 
