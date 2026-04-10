@@ -4,6 +4,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jaclang 0.13.6 (Unreleased)
 
+- **Feat: SV-to-SV Microservice Interop**: `sv import` between two server modules now generates Python HTTP client stubs that route calls through `jaclang.runtimelib.sv_client` instead of loading the provider in-process.
 - **Fix: Console BrokenPipeError in Sidecar Mode**: Console `print()` and `flush()` now catch `BrokenPipeError`/`OSError`, preventing crashes when stdout is closed (e.g., Tauri sidecar after port discovery).
 - **Fix: Scheduler Null Safety**: `stop()` and `wait()` now guard against `None` on `_stop_event`, `_done_event`, and `_thread`, preventing `AttributeError` during early shutdown.
 - **Fix: `JAC_DATA_PATH` Environment Variable for Read-Only Deployments**: `UserManager` and `get_db_path()` now honor the `JAC_DATA_PATH` env var, redirecting writable runtime data (database, `.jac/data/`) to a specified path. Enables deployments where the base path is read-only (e.g., AppImage).

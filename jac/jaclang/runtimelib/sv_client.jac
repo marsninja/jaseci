@@ -106,7 +106,7 @@ def call(module_name: str, func_name: str, args: dict) -> Any {
         url = resolve_url(module_name);
         try {
             import httpx;
-        } except ImportError as e {
+        } except ImportError {
             raise RuntimeError(
                 "httpx is required for sv-to-sv RPC calls. " + "Install it via `pip install httpx`."
             );
