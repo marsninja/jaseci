@@ -18,6 +18,7 @@ import from pathlib { Path }
 import from typing { Any }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.runtimelib { sv_client as __jac_sv }
 import from starlette.testclient { TestClient }
 import from jac_scale.serve { JacAPIServer }
 
@@ -40,7 +41,9 @@ def make_server(mod: str, tmp: str) -> TestClient {
     srv.register_login_endpoint();
     srv.user_manager.create_user(Con.GUEST.value, '__no_password__');
     srv.server.create_server();
-    return TestClient(srv.server.app, raise_server_exceptions=False);
+    client = TestClient(srv.server.app, raise_server_exceptions=False);
+    __jac_sv.register_test_client(mod, client);
+    return client;
 }
 
 def setup_env -> str {
@@ -52,6 +55,7 @@ def setup_env -> str {
     }
     Jac.set_base_path(tmp);
     Jac.set_context(Jac.create_j_context(user_root=None));
+    __jac_sv.clear_test_clients();
     return tmp;
 }
 
