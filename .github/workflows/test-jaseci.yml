@@ -489,77 +489,24 @@ jobs:
           kill -9 ${{ env.ALGO_PID }} 2>/dev/null || true
         fi
 
-    # ========== fullstack template test ==========
-    - name: Create fullstack project from template
-      run: |
-        jac create --use fullstack fs-smoke
-        test -f fs-smoke/main.jac
-        test -f fs-smoke/endpoints.sv.jac
-        test -f fs-smoke/frontend.cl.jac
-
-    - name: Start fullstack server in background
-      working-directory: fs-smoke
-      run: |
-        timeout 600 jac start main.jac > /tmp/fullstack-server.log 2>&1 &
-        SERVER_PID=$!
-        echo "FULLSTACK_PID=$SERVER_PID" >> $GITHUB_ENV
-        echo "fullstack server starting with PID $SERVER_PID..."
-        sleep 10
-        if ! kill -0 $SERVER_PID 2>/dev/null; then
-          echo "Server process died during startup"
-          cat /tmp/fullstack-server.log
-          exit 1
-        fi
-
-    - name: Wait for fullstack server to be ready
-      run: |
-        echo "Waiting for fullstack server on port 8000..."
-        for i in $(seq 1 24); do
-          if ! kill -0 ${{ env.FULLSTACK_PID }} 2>/dev/null; then
-            echo "Server process exited unexpectedly"
-            cat /tmp/fullstack-server.log
-            exit 1
-          fi
-          if curl -sf --max-time 10 http://localhost:8000 -o /dev/null 2>&1; then
-            echo "fullstack server is ready (attempt $i)"
-            exit 0
-          fi
-          echo "Attempt $i/24: not ready, waiting 15s..."
-          sleep 15
-        done
-        echo "Server failed to respond after 24 attempts"
-        tail -100 /tmp/fullstack-server.log
-        exit 1
-
-    - name: Verify fullstack HTTP response
-      run: |
-        HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://localhost:8000)
-        echo "fullstack root endpoint: HTTP $HTTP_CODE"
-        if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
-          echo "fullstack server responding correctly"
-        else
-          echo "Unexpected HTTP $HTTP_CODE"
-          exit 1
-        fi
-
-    - name: Stop fullstack server
-      if: always()
-      run: |
-        if [ -n "${{ env.FULLSTACK_PID }}" ]; then
-          kill ${{ env.FULLSTACK_PID }} 2>/dev/null || true
-          sleep 3
-          kill -9 ${{ env.FULLSTACK_PID }} 2>/dev/null || true
-        fi
-
+    # ========== fullstack eject smoke ==========
     # Structural / codegen correctness of `jac eject` is covered by
     # jac/tests/project/test_eject.jac (21 in-process unit tests, ~0.5s).
     # The steps below are deliberately end-to-end: they exist to validate
-    # what the unit tests cannot — that the ejected backend imports cleanly
+    # what the unit tests cannot — that `jac eject` works against the real
+    # fullstack template and that the ejected backend imports cleanly
     # against the wheel-installed jaclang runtime and actually serves HTTP.
-    - name: Eject fullstack project and start ejected backend
+    # The live `jac start` path is exercised separately by the test-client
+    # job (`start dev with client does initial compilation`), so this job
+    # focuses solely on the eject pipeline.
+    - name: Create fullstack project and eject it
       run: |
+        jac create --use fullstack fs-smoke
         jac eject fs-smoke
-        cd fs-smoke-ejected
+
+    - name: Install ejected backend and start it
+      working-directory: fs-smoke-ejected
+      run: |
         pip install -r backend/requirements.txt
         PORT=8000 timeout 600 python backend/serve.py > /tmp/fullstack-ejected.log 2>&1 &
         EJECTED_PID=$!
@@ -614,14 +561,12 @@ jobs:
         path: /tmp/algo-server.log
         retention-days: 7
 
-    - name: Upload fullstack server logs
+    - name: Upload fullstack ejected backend logs
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: fullstack-test-logs
-        path: |
-          /tmp/fullstack-server.log
-          /tmp/fullstack-ejected.log
+        name: fullstack-ejected-logs
+        path: /tmp/fullstack-ejected.log
         retention-days: 7
 
     - name: Jac pack test summary
@@ -633,7 +578,6 @@ jobs:
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
         echo "| jac-gpt | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "| algo | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| fullstack (jac start) | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "| fullstack (ejected) | \`${{ job.status }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| **Trigger** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
