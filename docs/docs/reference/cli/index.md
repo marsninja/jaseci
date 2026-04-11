@@ -1145,6 +1145,17 @@ The backend listens on `PORT` (default 8000) and the Vite dev server listens on 
 - `.impl.jac` and `.test.jac` files are skipped (they have no standalone meaning); so are well-known build directories (`.jac`, `.git`, `.venv`, `node_modules`, `__pycache__`, `dist`, `build`, etc.).
 - Persistent state (users, root nodes, graph data) lives under `backend/.jac/data/` after first run, just as it would for `jac start`.
 
+**Extending eject from a plugin**
+
+Like every other command, `jac eject` is extensible through the standard plugin hook mechanism -- a plugin can add flags via `registry.extend_command("eject", ...)` and either replace the default behavior in a pre-hook (`jac-scale --scale` style) or augment the output in a post-hook (`jac-client --client desktop` style). See the [Plugin Authoring Guide](../plugin-authoring.md) for the full extension model.
+
+For eject specifically, `jaclang.cli.commands.impl.eject` exports two helpers so plugin pre/post hooks can stay in sync with whatever the default command produces:
+
+| Helper | Purpose |
+|--------|---------|
+| `resolve_eject_output(src: Path, output: str) -> Path` | Returns the resolved output directory, applying the same `<source>-ejected` fallback the command uses when `--output` is not given. |
+| `load_eject_project_metadata(src: Path) -> dict` | Parses `jac.toml` and returns a dict with `project_name`, `entry_point`, `entry_module`, and the raw `toml_data` so plugins can read sections like `[plugins.scale]` or `[dependencies.npm]` without re-parsing. |
+
 ---
 
 ### jac jac2js
