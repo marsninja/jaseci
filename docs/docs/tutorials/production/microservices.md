@@ -194,9 +194,11 @@ The core pattern is three lines:
 ```jac
 import from jaclang.runtimelib { sv_client }
 
-sv_client.clear_test_clients();
-sv_client.register_test_client("math_service", math_test_client);
-# ...the consumer's sv-imported calls into math_service now go through math_test_client
+with entry {
+    sv_client.clear_test_clients();
+    sv_client.register_test_client("math_service", math_test_client);
+    # ...the consumer's sv-imported calls into math_service now go through math_test_client
+}
 ```
 
 Always call `sv_client.clear_test_clients()` between tests to avoid bleed-over from a previous test's registrations.
