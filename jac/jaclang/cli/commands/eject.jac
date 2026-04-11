@@ -36,11 +36,13 @@ glob registry = get_registry();
             help="Overwrite output directory if it already exists",
             short="f"
         ),
+
     ],
     examples=[
         ("jac eject", "Eject the current project to ./<name>-ejected/"),
         ("jac eject . -o /tmp/myapp", "Eject current project to /tmp/myapp"),
         ("jac eject myapp --force", "Eject myapp/, overwriting existing output"),
+
     ],
     group="project"
 )

@@ -18,16 +18,12 @@ import from jaclang.cli.console { console }
 
 # File suffixes that mark a Jac file as exclusively server- or client-side.
 # Other .jac files (e.g. main.jac) may compile to both Python and JS.
-glob _SV_SUFFIX: str = ".sv.jac";
-glob _CL_SUFFIX: str = ".cl.jac";
-glob _IMPL_SUFFIX: str = ".impl.jac";
-glob _TEST_SUFFIX: str = ".test.jac";
-
-# Directories never traversed when collecting source files.
-glob _SKIP_DIRS: set = {
-    ".jac", ".git", ".venv", "venv", "node_modules", "__pycache__",
-    ".mypy_cache", ".pytest_cache", "dist", "build"
-};
+glob _SV_SUFFIX: str = ".sv.jac",
+     _CL_SUFFIX: str = ".cl.jac",
+     _IMPL_SUFFIX: str = ".impl.jac",
+     _TEST_SUFFIX: str = ".test.jac",
+     # Directories never traversed when collecting source files.
+     _SKIP_DIRS: set = {".jac",".git",".venv","venv","node_modules","__pycache__",".mypy_cache",".pytest_cache","dist","build"};
 
 
 """Eject a Jac project to standalone Python + JavaScript."""
@@ -76,16 +72,16 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
     entry_module = _strip_jac_suffix(Path(entry_point).name);
 
     # Determine output directory.
-    out = Path(output).resolve() if output else (src.parent / f"{src.name}-ejected").resolve();
+    out = Path(output).resolve()
+        if output
+        else (src.parent / f"{src.name}-ejected").resolve();
     if out == src {
         console.error("Output directory cannot be the same as the source directory.");
         return 1;
     }
     if out.exists() {
         if not force {
-            console.error(
-                f"Output directory already exists: {out}"
-            );
+            console.error(f"Output directory already exists: {out}");
             console.print("  Use --force to overwrite.", style="muted");
             return 1;
         }
@@ -167,7 +163,9 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
     }
 
     if error_count > 0 {
-        console.error(f"\n{error_count} file(s) failed to compile. Output is incomplete.");
+        console.error(
+            f"\n{error_count} file(s) failed to compile. Output is incomplete."
+        );
         return 1;
     }
 
@@ -192,12 +190,9 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
     _emit_readme(out, project_name, entry_module);
 
     console.print();
-    console.success(
-        f"Ejected '{project_name}' → {out}"
-    );
+    console.success(f"Ejected '{project_name}' → {out}");
     console.print(
-        f"  {py_count} Python file(s), {js_count} JavaScript file(s)",
-        style="muted"
+        f"  {py_count} Python file(s), {js_count} JavaScript file(s)", style="muted"
     );
     console.print();
     console.print("Next steps:", style="bold");
@@ -320,7 +315,7 @@ def _is_meaningful_python(py_code: str) -> bool {
 Always pins jaclang itself so the ejected backend can use the runtime
 helpers it imports (jaclang.jac0core.jaclib, jaclang.runtimelib.server, ...).
 """
-def _emit_requirements_txt(backend_dir: Path, toml_data: dict) -> None {
+def _emit_requirements_txt(backend_dir: Path, toml_data: dict) {
     deps = toml_data.get("dependencies", {});
     # Filter out the npm subsection (it's a sibling key, not a python dep).
     py_deps: dict[str, str] = {};
@@ -344,7 +339,9 @@ def _emit_requirements_txt(backend_dir: Path, toml_data: dict) -> None {
             lines.append(name);
         }
     }
-    (backend_dir / "requirements.txt").write_text("\n".join(lines) + "\n", encoding="utf-8");
+    (backend_dir / "requirements.txt").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    );
 }
 
 
@@ -357,7 +354,7 @@ JacAPIServer.create_handler() — bypassing the create_server plugin hook so
 the ejected app is independent of which jaclang plugins happen to be
 installed in the runtime environment.
 """
-def _emit_serve_py(backend_dir: Path, entry_module: str) -> None {
+def _emit_serve_py(backend_dir: Path, entry_module: str) {
     lines: list[str] = [
         '"""Auto-generated entry point for ejected Jac application.',
         '',
@@ -446,7 +443,7 @@ def _emit_serve_py(backend_dir: Path, entry_module: str) -> None {
 
 
 """Write frontend/package.json mapping jac.toml [dependencies.npm] to npm."""
-def _emit_package_json(frontend_dir: Path, project_name: str, toml_data: dict) -> None {
+def _emit_package_json(frontend_dir: Path, project_name: str, toml_data: dict) {
     npm_deps_root = toml_data.get("dependencies", {}).get("npm", {});
     deps: dict[str, str] = {};
     dev_deps: dict[str, str] = {};
@@ -472,11 +469,7 @@ def _emit_package_json(frontend_dir: Path, project_name: str, toml_data: dict) -
         "version": "0.1.0",
         "private": True,
         "type": "module",
-        "scripts": {
-            "dev": "vite",
-            "build": "vite build",
-            "preview": "vite preview"
-        },
+        "scripts": {"dev": "vite", "build": "vite build", "preview": "vite preview"},
         "dependencies": deps,
         "devDependencies": dev_deps
     };
@@ -493,7 +486,7 @@ Vite serves the static frontend on its dev server port; all requests under
 backend so the SPA can talk to the ejected serve.py without any CORS
 plumbing in the user's code.
 """
-def _emit_vite_config(frontend_dir: Path) -> None {
+def _emit_vite_config(frontend_dir: Path) {
     lines: list[str] = [
         '/** @type {import("vite").UserConfig} */',
         'export default {',
@@ -515,7 +508,7 @@ def _emit_vite_config(frontend_dir: Path) -> None {
 
 
 """Write a minimal frontend/index.html that bootstraps src/main.js."""
-def _emit_index_html(frontend_dir: Path, project_name: str) -> None {
+def _emit_index_html(frontend_dir: Path, project_name: str) {
     lines: list[str] = [
         '<!doctype html>',
         '<html lang="en">',
@@ -536,7 +529,7 @@ def _emit_index_html(frontend_dir: Path, project_name: str) -> None {
 
 
 """Write run.sh that boots both the backend and the frontend dev server."""
-def _emit_run_script(out: Path) -> None {
+def _emit_run_script(out: Path) {
     lines: list[str] = [
         '#!/usr/bin/env bash',
         '# Auto-generated run script for ejected Jac project.',
@@ -581,7 +574,7 @@ def _emit_run_script(out: Path) -> None {
 
 
 """Write a README explaining how to run the ejected project."""
-def _emit_readme(out: Path, project_name: str, entry_module: str) -> None {
+def _emit_readme(out: Path, project_name: str, entry_module: str) {
     lines: list[str] = [
         f"# {project_name} (ejected)",
         "",
