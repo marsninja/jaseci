@@ -33,6 +33,7 @@ This document provides a summary of new features, improvements, and bug fixes in
 - **Fix: Hover on LHS Assignment Shows Post-Write Type**: Hover on an assignment target (flat or destructuring) now reflects the post-write effective type instead of the pre-write declared type, matching pyright/pylance.
 - **Fix: NamedTuple Destructure Narrowing**: Destructuring a `NamedTuple` (`(x, _) = point`) now narrows each target to its field type, matching the behavior already available for plain tuple literals.
 - **Removed: W2052 Broad Exception Warning**: Removed the `W2052` warning that flagged `except Exception` as overly broad. Catching `Exception` is a legitimate and common pattern at system boundaries (e.g., LLM calls, network I/O), and the warning produced false positives in these cases.
+- **Fix: Formatter JSX/Lambda Inline + CLI Bracket Stripping**: `jac format -s` no longer strips bracketed Jac syntax like `[root()-->]` or `todos + [t]` under the Rich-backed console (missing `markup=False, highlight=False` on `console.print`). JSX elements with only text/expression children (`<button>Add</button>`) and single-statement `if` bodies inside lambdas (`lambda e: T { if cond { stmt; } }`) now stay flat when they fit the print width instead of force-breaking; statement-level `if` still always breaks.
 
 ## jaclang 0.13.5 (Latest Release)
 

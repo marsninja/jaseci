@@ -98,13 +98,18 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
                 and all(isinstance(child, inline_child_types) for child in nd.children)
             );
             if all_inline_children {
+                # Prettier-style rule: for JSX with only inline children
+                # (text / expression) keep the element flat when it fits the
+                # print width. Tight lines render as empty when the enclosing
+                # Group is flat and as a newline+indent when it breaks, so the
+                # Group decides rather than forcing a break.
                 inline_doc = self.concat([child.gen.doc_ir for child in nd.children]);
                 parts.append(
                     self.indent(
-                        self.concat([self.hard_line(), inline_doc]), ast_node=nd
+                        self.concat([self.tight_line(), inline_doc]), ast_node=nd
                     )
                 );
-                parts.append(self.hard_line());
+                parts.append(self.tight_line());
             } elif child_parts {
                 parts.append(
                     self.indent(
@@ -143,11 +148,13 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
     );
     parts = [opening_doc];
     if all_inline_children {
+        # Same prettier-style rule as above: tight lines let the enclosing
+        # Group decide flat vs broken based on print width.
         inline_doc = self.concat([child.gen.doc_ir for child in nd.children]);
         parts.append(
-            self.indent(self.concat([self.hard_line(), inline_doc]), ast_node=nd)
+            self.indent(self.concat([self.tight_line(), inline_doc]), ast_node=nd)
         );
-        parts.append(self.hard_line());
+        parts.append(self.tight_line());
     } elif child_parts {
         parts.append(
             self.indent(self.concat([self.hard_line(), *child_parts]), ast_node=nd)
@@ -1759,7 +1766,53 @@ impl DocIRGenPass.exit_else_if(nd: uni.ElseIf) -> None {
 
 """Generate DocIR for if statements."""
 impl DocIRGenPass.exit_if_stmt(nd: uni.IfStmt) -> None {
-    parts: list[doc.DocType] = [];
+    # Context-sensitive flat-capable detection: when an `if` statement sits
+    # directly inside a lambda body with a single trivial body statement and
+    # no else branch, emit a compact `if cond { stmt; }` shape that the
+    # enclosing Group can keep flat when it fits. For every other case —
+    # top-level, nested, multi-statement, or with an else — we fall back to
+    # the original hard-line layout so statement-level `if` blocks always
+    # break onto their own lines, matching idiomatic Jac style.
+    flat_capable = (
+        isinstance(nd.parent, uni.LambdaExpr)
+        and (nd.else_body is None)
+        and (len(nd.body) == 1)
+        and not self.has_gap(nd, nd.body[0])
+    );
+    if flat_capable {
+        # Flat-capable layout uses `self.line()` (a prettier-style soft line:
+        # a single space when flat, newline+indent when the enclosing group
+        # breaks) before and after the body statement. The Group wrapping
+        # the whole if-stmt then decides flat vs broken based on width.
+        # The opening `{` is intentionally NOT followed by a trailing space
+        # via the default-else path — the `line()` before the body provides
+        # that space in flat mode and a newline+indent in broken mode.
+        parts: list[doc.DocType] = [];
+        body_placed = False;
+        for i in nd.kid {
+            if (isinstance(i, uni.Token) and (i.name == Tok.LBRACE)) {
+                parts.append(i.gen.doc_ir);
+            } elif (isinstance(i, uni.Token) and (i.name == Tok.RBRACE)) {
+                parts.append(self.line());
+                parts.append(i.gen.doc_ir);
+            } elif (isinstance(nd.body, Sequence) and self.is_within(i, nd.body)) {
+                if not body_placed {
+                    parts.append(
+                        self.indent(
+                            self.concat([self.line(), i.gen.doc_ir]), ast_node=nd
+                        )
+                    );
+                    body_placed = True;
+                }
+            } else {
+                parts.append(i.gen.doc_ir);
+                parts.append(self.space());
+            }
+        }
+        nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
+        return;
+    }
+    parts = [];
     body_parts: list[doc.DocType] = [self.hard_line()];
     prev_body_item: (uni.UniNode | None) = None;
     for i in nd.kid {
