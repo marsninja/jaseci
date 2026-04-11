@@ -880,9 +880,11 @@ impl JacForm(props: dict) -> JsxElement {
                             type="checkbox"
                             checked={isVisible}
                             onChange={lambda e: any { setPasswordVisible(
-                                lambda prev: any -> dict { newState = Object.assign(
-                                    {}, prev
-                                );newState[fieldName] = not isVisible;return newState; }
+                                lambda prev: any -> dict {
+                                    newState = Object.assign({}, prev);
+                                    newState[fieldName] = not isVisible;
+                                    return newState;
+                                }
                             );}}
                             style={{cursor: "pointer"}}
                         />
@@ -1046,11 +1048,17 @@ impl __jacInstallErrorHandlers -> None {
     # Catch unhandled promise rejections (e.g., failed fetch, async errors)
     window.addEventListener(
         "unhandledrejection",
-        lambda event: Any { reason = event.reason;message = "";stack = "";if reason {
-            message = reason.message or str(reason);
-            stack = reason.stack or "";
-        } else {
-            message = "Unhandled promise rejection";
-        } __jacReportError(message, stack, "", "unhandledrejection");}
+        lambda event: Any {
+            reason = event.reason;
+            message = "";
+            stack = "";
+            if reason {
+                message = reason.message or str(reason);
+                stack = reason.stack or "";
+            } else {
+                message = "Unhandled promise rejection";
+            }
+            __jacReportError(message, stack, "", "unhandledrejection");
+        }
     );
 }

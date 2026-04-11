@@ -513,7 +513,9 @@ cl {
 
         if len(filteredTodos) == 0 {
             return
-                <div style={{"padding": "20px", "textAlign": "center", "color": "#999"}}>
+                <div
+                    style={{"padding": "20px", "textAlign": "center", "color": "#999"}}
+                >
                     No todos yet. Add one above!
                 </div>;
         }
@@ -545,10 +547,13 @@ cl {
 
         # Load todos on mount
         useEffect(
-            lambda { async def loadTodos {
-                result = root spawn read_todos();
-                setTodos(result.reports or []);
-            } loadTodos();},
+            lambda {
+                async def loadTodos {
+                    result = root spawn read_todos();
+                    setTodos(result.reports or []);
+                }
+                loadTodos();
+            },
             []
         );
 

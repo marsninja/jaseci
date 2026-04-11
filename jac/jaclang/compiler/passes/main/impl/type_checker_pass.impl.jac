@@ -74,7 +74,9 @@ impl TypeCheckPass.exit_return_stmt(self: TypeCheckPass, nd: uni.ReturnStmt) -> 
         return;
     }
 
-    returning_type = self.evaluator._convert_to_instance(self.evaluator.get_none_type());
+    returning_type = self.evaluator._convert_to_instance(
+        self.evaluator.get_none_type()
+    );
     if nd.expr {
         returning_type = self.evaluator.get_type_of_expression(
             nd.expr, expected_type=return_type
@@ -186,8 +188,7 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
                     and declared_type.shared
                     and declared_type.shared.type_params
                     and (
-                        not declared_type.private
-                        or not declared_type.private.type_args
+                        not declared_type.private or not declared_type.private.type_args
                     )
                 ) {
                     self.emit(
@@ -886,8 +887,7 @@ impl TypeCheckPass.exit_visit_stmt(self: TypeCheckPass, nd: uni.VisitStmt) -> No
     target_type = self.evaluator.get_type_of_expression(nd.target);
     # Validate the visit target is a node (or unknown/any which we can't check)
     if (
-        not isinstance(target_type, types.UnknownType)
-        and not target_type.is_any_type()
+        not isinstance(target_type, types.UnknownType) and not target_type.is_any_type()
     ) {
         is_valid = False;
         if isinstance(target_type, types.ClassType) {

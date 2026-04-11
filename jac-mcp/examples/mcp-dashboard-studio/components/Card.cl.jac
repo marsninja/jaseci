@@ -10,9 +10,7 @@ def:pub CardHeader(title: str, subtitle: str = "") -> JsxElement {
     return
         <div className="px-4 py-3 border-b border-slate-800">
             <h2 className="text-sm font-semibold text-white">{title}</h2>
-            {(
-                <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
-            )
+            {(<p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>)
                 if subtitle
                 else None}
         </div>;

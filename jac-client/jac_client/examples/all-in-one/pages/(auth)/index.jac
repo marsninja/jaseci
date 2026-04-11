@@ -44,11 +44,14 @@ cl {
         has message: str = "";
 
         useEffect(
-            lambda -> None { workerRef.current = Reflect.construct(
-                Worker, ["/workers/worker.js"]
-            );workerRef.current.onmessage = lambda event: Any { print(
-                "Message received from worker:", event.data
-            );message = event.data;};return (lambda { workerRef.current.terminate();}); },
+            lambda -> None {
+                workerRef.current = Reflect.construct(Worker, ["/workers/worker.js"]);
+                workerRef.current.onmessage = lambda event: Any {
+                    print("Message received from worker:", event.data);
+                    message = event.data;
+                };
+                return (lambda { workerRef.current.terminate();});
+            },
             []
         );
         handleClick = lambda { workerRef.current.postMessage("");};
@@ -249,9 +252,7 @@ cl {
                     </button>
                     {message
                     && (
-                        <p style={{marginTop: "1rem", fontWeight: "bold"}}>
-                            {message}
-                        </p>
+                        <p style={{marginTop: "1rem", fontWeight: "bold"}}>{message}</p>
                     )}
                 </div>
             </div>;

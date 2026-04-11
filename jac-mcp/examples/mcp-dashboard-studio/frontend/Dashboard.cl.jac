@@ -139,7 +139,9 @@ def:pub DashboardPage -> JsxElement {
                             className="flex-1 bg-transparent px-4 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
                         />
                         <button
-                            onClick={lambda { runTool("search_docs", {"query": query});}}
+                            onClick={lambda { runTool(
+                                "search_docs", {"query": query}
+                            );}}
                             disabled={loading != "" or not connected}
                             className={"px-5 py-2 text-sm rounded-xl font-medium transition disabled:opacity-30 disabled:cursor-not-allowed " + (
                                 "bg-orange-500/80 animate-pulse text-white"
@@ -335,11 +337,15 @@ def:pub DashboardPage -> JsxElement {
                                         Converted Jac
                                     </span>
                                     <button
-                                        onClick={lambda { navigator.clipboard.writeText(
-                                            current_result["data"]["jac_code"]
-                                        );jac_copied = True;setTimeout(
-                                            lambda { jac_copied = False;}, 2000
-                                        );}}
+                                        onClick={lambda {
+                                            navigator.clipboard.writeText(
+                                                current_result["data"]["jac_code"]
+                                            );
+                                            jac_copied = True;
+                                            setTimeout(
+                                                lambda { jac_copied = False;}, 2000
+                                            );
+                                        }}
                                         className={"px-2 py-1 text-[9px] rounded-md border transition " + (
                                             "bg-green-500/20 border-green-500/40 text-green-400"
                                                 if jac_copied

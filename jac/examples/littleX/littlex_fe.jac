@@ -94,9 +94,7 @@ cl {
                 >
                     <h1 style={{"margin": "0"}}>LittleX Feed</h1>
                 </div>
-                <div class="feed-content">
-                    {[TweetCard(tweet) for tweet in tweets]}
-                </div>
+                <div class="feed-content">{[TweetCard(tweet) for tweet in tweets]}</div>
             </div>;
     }
 

@@ -37,9 +37,11 @@ cl {
         useEffect(lambda { loadMetrics();}, []);
 
         useEffect(
-            lambda -> any { if not autoRefresh { return undefined;  }interval = setInterval(
-                lambda { loadMetrics();}, 3000
-            );return lambda { clearInterval(interval);}; },
+            lambda -> any {
+                if not autoRefresh { return undefined;  }
+                interval = setInterval(lambda { loadMetrics();}, 3000);
+                return lambda { clearInterval(interval);};
+            },
             [autoRefresh]
         );
 
@@ -289,7 +291,9 @@ cl {
                             <div
                                 className="w-3 h-3 rounded-full bg-teal-400 animate-pulse shadow-lg shadow-teal-400/50"
                             ></div>
-                            <h1 className="text-2xl font-bold text-white tracking-wider">
+                            <h1
+                                className="text-2xl font-bold text-white tracking-wider"
+                            >
                                 OBSERVABILITY DASHBOARD
                             </h1>
                         </div>
@@ -388,7 +392,9 @@ cl {
                             >
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-teal-400"></div>
+                                        <div
+                                            className="w-2 h-2 rounded-full bg-teal-400"
+                                        ></div>
                                         <span
                                             className="text-sm font-bold text-white tracking-wide"
                                         >
@@ -462,9 +468,7 @@ cl {
                                                         className="bg-teal-400 h-1 rounded-full"
                                                         style={{
                                                             "width": getBarHeight(
-                                                                req[
-                                                                    "count"
-                                                                ],
+                                                                req["count"],
                                                                 maxReqCount
                                                             )
                                                         }}

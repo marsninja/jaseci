@@ -272,9 +272,11 @@ impl createRouter(routes: list, defaultRoute: str = "/") -> dict {
     # Listen to popstate (back/forward buttons and pushState navigation)
     window.addEventListener(
         "popstate",
-        lambda event: Any { newPath = __jacGetPath();if not newPath {
-            newPath = defaultRoute;
-        }setCurrentPath(newPath);}
+        lambda event: Any {
+            newPath = __jacGetPath();
+            if not newPath { newPath = defaultRoute; }
+            setCurrentPath(newPath);
+        }
     );
     # Render method - returns component for current route
     def render -> JsxElement {
@@ -737,9 +739,12 @@ impl __jacHydrateFromDom(defaultModuleName: str) -> None {
         return;
     }
     # Set up reactive root component for automatic re-rendering
-    __jacReactiveContext.rootComponent = lambda -> Any { __jacReactiveContext.currentComponent = "__root__";result = target.apply(
-        scope, orderedArgs
-    );__jacReactiveContext.currentComponent = None;return result; };
+    __jacReactiveContext.rootComponent = lambda -> Any {
+        __jacReactiveContext.currentComponent = "__root__";
+        result = target.apply(scope, orderedArgs);
+        __jacReactiveContext.currentComponent = None;
+        return result;
+    };
     renderer = __jacResolveRenderer(scope);
     if not renderer {
         console.warn("[Jac] renderJsxTree is not available in client bundle");
@@ -951,11 +956,17 @@ impl __jacInstallErrorHandlers -> None {
     # Catch unhandled promise rejections (e.g., failed fetch, async errors)
     scope.addEventListener(
         "unhandledrejection",
-        lambda event: Any { reason = event.reason;message = "";stack = "";if reason {
-            message = reason.message or str(reason);
-            stack = reason.stack or "";
-        } else {
-            message = "Unhandled promise rejection";
-        } __jacReportError(message, stack, "", "unhandledrejection");}
+        lambda event: Any {
+            reason = event.reason;
+            message = "";
+            stack = "";
+            if reason {
+                message = reason.message or str(reason);
+                stack = reason.stack or "";
+            } else {
+                message = "Unhandled promise rejection";
+            }
+            __jacReportError(message, stack, "", "unhandledrejection");
+        }
     );
 }

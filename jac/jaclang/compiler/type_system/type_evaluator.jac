@@ -496,7 +496,10 @@ obj TypeEvaluator {
         expr: uni.Expr, operand_type: types.TypeBase, operation: str
     ) -> None;
 
-    def _get_enclosing_class_type_params(node_: uni.UniNode) -> list[types.TypeVarType];
+    def _get_enclosing_class_type_params(
+        node_: uni.UniNode
+    ) -> list[types.TypeVarType];
+
     def _get_function_type_params(func: uni.Ability) -> list[types.TypeVarType];
     def _get_outer_scope_type_params(node_: uni.UniNode) -> list[types.TypeVarType];
     # -------------------------------------------------------------------------

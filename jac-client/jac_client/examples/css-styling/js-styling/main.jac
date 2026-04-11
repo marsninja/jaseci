@@ -34,13 +34,19 @@ cl {
                     </div>
                     <div style={styles.divider}></div>
                     <div style={styles.buttonGroup}>
-                        <button style={styles.buttonDecrement} onClick={handleDecrement}>
+                        <button
+                            style={styles.buttonDecrement}
+                            onClick={handleDecrement}
+                        >
                             -
                         </button>
                         <button style={styles.buttonReset} onClick={handleReset}>
                             ↻
                         </button>
-                        <button style={styles.buttonIncrement} onClick={handleIncrement}>
+                        <button
+                            style={styles.buttonIncrement}
+                            onClick={handleIncrement}
+                        >
                             +
                         </button>
                     </div>

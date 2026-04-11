@@ -502,7 +502,9 @@ def:pub FeaturesTest -> JsxElement {
                     <p style={{"color": "#4b5563", "marginBottom": "10px"}}>
                         Process arrays/lists using walker operations.
                     </p>
-                    <div style={{"display": "flex", "gap": "10px", "marginTop": "10px"}}>
+                    <div
+                        style={{"display": "flex", "gap": "10px", "marginTop": "10px"}}
+                    >
                         <input
                             type="text"
                             value={numberList}

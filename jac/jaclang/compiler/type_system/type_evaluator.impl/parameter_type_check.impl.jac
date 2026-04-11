@@ -56,7 +56,9 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         if caller_type.constraints {
             for constraint_type in caller_type.constraints {
                 if isinstance(constraint_type, types.ClassType) {
-                    call_member = self._lookup_class_member(constraint_type, "__call__");
+                    call_member = self._lookup_class_member(
+                        constraint_type, "__call__"
+                    );
                     if call_member {
                         # Validate call arguments against this constraint's __call__
                         call_type = self.get_type_of_symbol(call_member.symbol);
@@ -310,7 +312,9 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         );
     }
     if isinstance(caller_type, types.ClassType)
-    and caller_type.shared == (self.prefetch and self.prefetch.param_spec_class.shared) {
+    and caller_type.shared == (
+        self.prefetch and self.prefetch.param_spec_class.shared
+    ) {
         # Handle ParamSpec("P", bound=..., covariant=..., contravariant=...)
         # ParamSpec accepts only a name and optional bound/variance kwargs (no positional constraints).
         param_spec_name = "";
@@ -388,8 +392,7 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         return types.TypeVarType(name=tvt_name, is_param_spec=False);
     }
     if (
-        isinstance(caller_type, types.ClassType)
-        and caller_type.is_instantiable_class()
+        isinstance(caller_type, types.ClassType) and caller_type.is_instantiable_class()
     ) {
         matched_method: types.FunctionType | None = None;
         # NamedTuple: use synthesized __new__ with field parameters (not inherited tuple.__new__)
@@ -807,7 +810,9 @@ impl TypeEvaluator._infer_type_args_from_method(
 
     # Find the raw constructor method that matches the call arguments.
     # We need the RAW version (with TypeVars preserved) for inference.
-    init_method = self._find_matching_raw_constructor(caller_type, expr, matched_method);
+    init_method = self._find_matching_raw_constructor(
+        caller_type, expr, matched_method
+    );
     if not init_method {
         return [];
     }
@@ -968,9 +973,7 @@ impl TypeEvaluator._find_overload_by_arg_count(
         positional_params = sum(
             1
             for p in ovl.parameters
-            if not p.is_self
-            and not p.is_cls
-            and p.param_kind != types.ParamKind.KWONLY
+            if not p.is_self and not p.is_cls and p.param_kind != types.ParamKind.KWONLY
         );
         if positional_params == arg_count {
             return ovl;

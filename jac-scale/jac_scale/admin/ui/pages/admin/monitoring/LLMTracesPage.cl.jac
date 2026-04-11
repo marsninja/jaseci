@@ -46,9 +46,11 @@ cl {
         useEffect(lambda { loadTraces();}, []);
 
         useEffect(
-            lambda -> any { if not autoRefresh { return undefined;  }interval = setInterval(
-                lambda { loadTraces();}, 15000
-            );return lambda { clearInterval(interval);}; },
+            lambda -> any {
+                if not autoRefresh { return undefined;  }
+                interval = setInterval(lambda { loadTraces();}, 15000);
+                return lambda { clearInterval(interval);};
+            },
             [autoRefresh]
         );
 
@@ -103,7 +105,10 @@ cl {
                 <div className="space-y-4">
                     <div className="flex items-center gap-3">
                         <Button
-                            onClick={lambda { showDetail = False;selectedTrace = {};}}
+                            onClick={lambda {
+                                showDetail = False;
+                                selectedTrace = {};
+                            }}
                             variant="secondary"
                         >
                             Back to Traces
@@ -302,7 +307,10 @@ cl {
                             Auto-refresh
                         </label>
                         <Button
-                            onClick={lambda { isLoading = True;loadTraces();}}
+                            onClick={lambda {
+                                isLoading = True;
+                                loadTraces();
+                            }}
                             variant="secondary"
                         >
                             Refresh

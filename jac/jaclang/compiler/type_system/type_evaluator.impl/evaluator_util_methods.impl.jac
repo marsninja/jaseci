@@ -473,7 +473,9 @@ impl TypeEvaluator._set_symbol_to_expr(expr: uni.Expr, sym: uni.Symbol) -> TypeB
 
 """Resolve the imported symbols to the actual symbol."""
 impl TypeEvaluator.resolve_imported_symbols(sym: uni.Symbol) -> uni.Symbol {
-    if (isinstance(sym.decl, uni.Name) and sym.decl.find_parent_of_type(uni.ModuleItem)) {
+    if (
+        isinstance(sym.decl, uni.Name) and sym.decl.find_parent_of_type(uni.ModuleItem)
+    ) {
         mod_item = sym.decl.find_parent_of_type(uni.ModuleItem);
         assert (mod_item is not None);
         self.get_type_of_module(mod_item.from_mod_path);
@@ -1303,7 +1305,9 @@ impl TypeEvaluator.validate_typevar_scope(
                         return;  # Valid: module-level TypeVar in function signature
 
                     }
-                    if isinstance(sig_check, (uni.Ability, uni.Archetype, uni.Module)) {
+                    if isinstance(
+                        sig_check, (uni.Ability, uni.Archetype, uni.Module)
+                    ) {
                         break;  # Reached a scope boundary without finding signature
                     }
                     sig_check = sig_check.parent;
