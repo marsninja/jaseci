@@ -844,14 +844,22 @@ What doesn't:
 
 Failures (network errors, missing service, error envelope from the provider) raise `RuntimeError` with a message of the form `sv-to-sv RPC '{module}.{func}' failed: {msg}`.
 
+### Eager Startup Discovery
+
+Every `sv import` in a consumer module emits a compile-time `_declare_consumer_provider(<consumer>, <provider>)` call into the consumer's import-time stubs. At consumer server startup, `JacAPIServer._ensure_sv_siblings()` walks that compile-time-recorded provider list and dispatches every provider through `sv_client.ensure_all(...)` **before** serving the first request. The pass does a BFS over siblings' provider lists to pick up transitive dependencies: if A imports B and B imports C, the root consumer's startup brings up both B and C in order.
+
+`ensure_all` resolves providers in parallel through a bounded `ThreadPoolExecutor(max_workers=8)` and is **fail-fast**: the first resolution failure cancels pending spawns and re-raises, so misconfiguration surfaces at deploy time rather than at first request.
+
+The hook lives in `JacAPIServer.start()`, which only fires under `jac start`. `jac run` does not go through `JacAPIServer` and falls back to lazy per-call resolution via `_ensure_available`.
+
 ### Service Discovery
 
-When a stub is invoked, `sv_client._ensure_available(module_name)` resolves the target service in this order. The first hit wins:
+When a stub is invoked (or eager startup dispatches it), `sv_client._ensure_available(module_name)` resolves the target service in this order. The first hit wins:
 
 1. **In-process `TestClient`** -- if a `starlette.testclient.TestClient` was registered via `sv_client.register_test_client(module_name, client)`, calls route through it directly with no HTTP. Used by tests for fast in-process runs.
 2. **Explicit URL registration** -- a URL registered via `sv_client.register(module_name, url)`. Useful when an orchestrator (e.g. a service mesh sidecar, custom plugin) knows where each service lives.
-3. **`JAC_SV_<MODULE>_URL` environment variable** -- automatically consulted using the upper-cased module name. The most common production knob.
-4. **`JacAPIServer.ensure_sv_service` plugin hook** -- last-resort fallback that the default jac-scale impl uses to spawn a sibling service in a background daemon thread on a deterministic free port in the range `18000-18999`. Plugins can override this to spawn services in containers, K8s jobs, or anywhere else.
+3. **`JAC_SV_<MODULE>_URL` environment variable** -- automatically consulted using the upper-cased module name. The most common production knob when the provider lives on a different host.
+4. **`JacAPIServer.ensure_sv_service` plugin hook** -- the default jac-scale impl spawns a sibling service in a background daemon thread on a deterministic free port in the range `18000-18999`. Spawned siblings carry `is_sv_sibling=True`, which makes them skip their own eager-spawn pass so the root consumer is the sole source of spawns (no cold-start race, no double-spawn on cycles). Plugins can override this to spawn services in containers, K8s jobs, or anywhere else.
 
 The auto-spawned sibling binds `127.0.0.1` only -- it is reachable from inside the consumer process but not from outside. It exists for in-process convenience (single-binary local dev, tests that span service boundaries), not for serving traffic to other hosts. For real multi-host deployments, use path 2 or 3.
 
@@ -892,7 +900,7 @@ export JAC_SV_MATH_SERVICE_URL=http://localhost:8002
 jac start order_service.jac --port 8000
 ```
 
-Alternatively, omit the env vars and let the default `ensure_sv_service` hook auto-spawn each missing service as a background daemon thread on its first call. This is convenient for prototyping but is not recommended for production: services share a process, the spawned listener is loopback-only, and there's no health monitoring beyond the initial readiness poll.
+Alternatively, omit the env vars entirely and let the eager-spawn pass bring up every sv-imported provider at consumer startup. `jac start order_service.jac` alone is enough: before serving the first request, the consumer's startup walks its compile-time provider list, BFSes any transitive providers, and auto-spawns each as a sibling daemon thread. This is a supported deployment mode for **single-host** setups (one process, many logical services). For **multi-host** deployments, use the `JAC_SV_*_URL` env var path instead, since auto-spawned siblings bind `127.0.0.1` only and cannot serve traffic to other hosts.
 
 #### Troubleshooting
 
@@ -953,21 +961,24 @@ The `jaclang.runtimelib.sv_client` module exposes a small public surface for run
 | `clear_test_clients()` | Drop all `TestClient` registrations. Call between tests. |
 | `resolve_url(module_name: str) -> str` | Look up the registered URL or `JAC_SV_<MOD>_URL` env var. |
 | `call(module_name, func_name, args: dict) -> Any` | Manual RPC dispatch. The compiler generates calls to this. |
+| `ensure_all(module_names: list[str])` | Resolve every named provider in parallel (max 8 workers), fail-fast. Used by the eager startup pass. |
+| `get_consumer_providers(consumer_name: str) -> list[str]` | Return the compile-time provider list for a consumer module. |
+| `clear_consumer_providers()` | Drop all `_declare_consumer_provider` registrations. Call between tests. |
 
 ### Plugin Hook: `ensure_sv_service`
 
-`JacAPIServer.ensure_sv_service(module_name: str, base_path: str) -> None` is the last-resort step in the resolution chain. Plugins override it to spawn services in their own infrastructure -- Docker containers, Kubernetes Jobs, systemd units, or anything else.
+`JacAPIServer.ensure_sv_service(module_name: str, base_path: str) -> None` is the spawn step in the resolution chain. Plugins override it to spawn services in their own infrastructure -- Docker containers, Kubernetes Jobs, systemd units, or anything else. The signature is stable; plugin overrides written against earlier versions continue to work.
 
 The default jac-scale implementation:
 
 1. Picks a deterministic free port starting at `18000 + (hash(module_name) % 1000)`.
-2. Builds a base `JacAPIServer` (not plugin-resolved, to avoid recursion) with `port=0`.
+2. Builds a base `JacAPIServer` with `is_sv_sibling=True`. The sibling flag makes the spawned server skip its own eager-spawn pass at startup, so the parent consumer remains the sole source of spawns and cycles / transitive dependencies converge cleanly.
 3. Wires up a vanilla `http.server.HTTPServer` bound to `127.0.0.1` with the base server's request handler.
 4. Runs `serve_forever` in a daemon thread.
 5. Polls the new server until it returns any non-5xx response (10s deadline). The poll target is `/functions` but a 404 is sufficient -- the check is "the listener is up and serving HTTP", not "this specific endpoint exists".
 6. Calls `sv_client.register(module_name, base_url)` so subsequent calls skip the hook.
 
-A custom plugin replaces this with whatever spawn / health-check / registration logic suits its target environment, then ends with the same `sv_client.register` call.
+A custom plugin replaces this with whatever spawn / health-check / registration logic suits its target environment, then ends with the same `sv_client.register` call. The only behavioral change plugin authors need to be aware of: under the eager-spawn pass, the hook is called at consumer startup (in parallel, up to 8 at a time) instead of lazily on first call, so overrides must be idempotent and safe to run concurrently. Both properties were already requirements of the original lazy contract (two in-flight stub calls can race into `_ensure_available` on main today), so compliant plugins are unaffected.
 
 ## Storage
 

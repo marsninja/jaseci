@@ -187,9 +187,9 @@ Both error and success cases survive the boundary intact. The `_jac_type` metada
 
 ---
 
-## 6. Auto-Spawn Fallback (Prototyping)
+## 6. Single-Command Mode
 
-For fast local iteration you can skip the second `jac start` entirely. If no `JAC_SV_*_URL` env var is set, the consumer's first call to a missing service triggers `JacAPIServer.ensure_sv_service`, which spawns the provider as a background daemon thread inside the consumer process and registers it under `127.0.0.1` on a port in the 18000-18999 range.
+For single-host setups (one process, many logical services) you can skip the second `jac start` entirely. When the consumer starts, its compile-time-recorded provider list drives an eager spawn pass that brings up every `sv import`-ed provider as a sibling daemon thread **before** serving the first request. A BFS picks up transitive providers too: if A imports B and B imports C, starting A is enough to bring up all three.
 
 Stop both services from the previous step, clear any leftover state, and start only the consumer:
 
@@ -198,7 +198,7 @@ rm -rf .jac/data/
 jac start calculator_service.jac --port 8002
 ```
 
-Now hit `sum_list` again:
+The consumer's startup logs the readiness poll against the eagerly-spawned `math_service` sibling before the "Server ready" banner appears. Hit `sum_list` immediately:
 
 ```bash
 curl -X POST http://localhost:8002/function/sum_list \
@@ -210,11 +210,11 @@ curl -X POST http://localhost:8002/function/sum_list \
 {"ok":true,"data":{"result":6,"reports":[]},...}
 ```
 
-The first call takes a fraction of a second longer because the consumer is spawning the sibling listener and polling it for readiness; subsequent calls are direct.
+First-call latency matches subsequent calls: the sibling was already running when the request arrived. The eager pass is **fail-fast** -- if any provider fails to spawn (missing source file, syntax error, etc.) the consumer crashes at startup, not at first request, so misconfiguration surfaces at deploy time.
 
-> **The auto-spawned sibling is loopback-only.** It binds `127.0.0.1`, not `0.0.0.0`. That makes it convenient for single-binary local dev and tests, but it cannot serve traffic to other hosts. For real deployments, run each service as its own `jac start` and wire them with `JAC_SV_*_URL` env vars (or [override the plugin hook](../../reference/plugins/jac-scale.md#plugin-hook-ensure_sv_service)).
+> **The auto-spawned sibling is loopback-only.** It binds `127.0.0.1`, not `0.0.0.0`. That makes it a supported deployment mode for **single-host** setups -- one `jac start` serves the whole logical cluster -- but it cannot serve traffic to other hosts. For **multi-host** deployments, run each service as its own `jac start` and wire them with `JAC_SV_*_URL` env vars (see section 8), or [override the plugin hook](../../reference/plugins/jac-scale.md#plugin-hook-ensure_sv_service) to spawn siblings in your own infra.
 
-The auto-spawn fallback also requires both services to live in the same directory: it loads the missing module from the consumer's `base_path_dir`, so `jac start` from the project root works, but `jac start /some/abs/path/calc.jac` from an unrelated cwd does not.
+The eager spawn requires every service to live in the same directory: the spawner loads each missing module from the consumer's `base_path_dir`, so `jac start` from the project root works, but `jac start /some/abs/path/calc.jac` from an unrelated cwd does not.
 
 ---
 
@@ -353,7 +353,7 @@ Each consumer process picks up its `JAC_SV_*_URL` vars at the moment of the firs
 ## Common Pitfalls
 
 - **`{"detail":"Invalid anchor id ..."}` 500s.** Stale anchor data persisted from a previous run with a different schema. Stop the server, `rm -rf .jac/data/`, and restart. Not specific to sv-to-sv -- any `def:pub` call can hit this after a schema change.
-- **`No module named '<provider>'` from the auto-spawn fallback.** The consumer's `base_path_dir` does not contain the provider source. Run the consumer from the project root, or set `JAC_SV_<MODULE>_URL` so the fallback never runs.
+- **Consumer crashes at startup with `ModuleNotFoundError: No module named '<provider>'`.** The eager-spawn pass could not find the provider source in the consumer's `base_path_dir`. Run the consumer from the project root (so cwd contains every service's `.jac` file), or set `JAC_SV_<MODULE>_URL` to point at a provider that is already running elsewhere.
 - **Stub call returns 404.** The provider function is not declared `def:pub`. Walkers similarly need `walker:pub`.
 - **`Error: No jac.toml found`.** `jac start <relative-path>` requires a `jac.toml` in the current directory. Run `jac create` (or just create an empty one), or pass an absolute path.
 - **Cross-service errors arrive as `RuntimeError`.** Network failures, missing services, and provider-side error envelopes all surface in the consumer as `RuntimeError("sv-to-sv RPC '{module}.{func}' failed: {msg}")`. Catch them at boundaries where you want graceful degradation.
