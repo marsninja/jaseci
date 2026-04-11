@@ -395,11 +395,13 @@ From any plugin code (a CLI hook, a runtime hook, anywhere):
 ```jac
 import from jaclang.project.config { get_config }
 
-cfg = get_config();
-if cfg {
-    myplugin_cfg = cfg.get_plugin_config("myplugin");
-    endpoint = myplugin_cfg.get("endpoint", "https://api.example.com");
-    retries = myplugin_cfg.get("max_retries", 3);
+with entry {
+    cfg = get_config();
+    if cfg {
+        myplugin_cfg = cfg.get_plugin_config("myplugin");
+        endpoint = myplugin_cfg.get("endpoint", "https://api.example.com");
+        retries = myplugin_cfg.get("max_retries", 3);
+    }
 }
 ```
 
@@ -457,7 +459,7 @@ class JacMypluginPluginConfig {
 """Post-create hook called after the template is scaffolded on disk."""
 def _post_create_starter(project_path: Any, project_name: str) -> None {
     # Run `npm install`, copy assets, anything else.
-    pass;
+    return;
 }
 ```
 
