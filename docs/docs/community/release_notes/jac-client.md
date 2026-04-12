@@ -4,7 +4,6 @@ This document provides a summary of new features, improvements, and bug fixes in
 
 ## jac-client 0.3.12 (Unreleased)
 
-- **Refactor: Button Template Uses Typed Event Handler**: The `Button.cl.jac` template now annotates `onClick` as `MouseEventHandler` instead of `any`, enabling compile-time type checking for event handler props.
 - **Jacpack Template Cleanup**: The `client` and `fullstack` scaffolds drop their leftover React usage, return `JsxElement` from their component roots, and use idiomatic Jac state/effect/event patterns so freshly-created projects pass `jac check` out of the box.
 - **Feat: Multi-mode Sidecar for Windows Desktop**: --jac-cli flag for CLI proxy, manual plugin registration for frozen apps, .env loading from bundled location, UTF-8/NO_COLOR for Windows.
 - **Desktop Plugin Bundling Config**: Added `get_plugins_config()` to `DesktopConfig` for reading the `[desktop.plugins]` section from `jac.toml`, controlling which Jac plugins (jac-scale, byllm, jac-coder) are bundled into desktop apps.
