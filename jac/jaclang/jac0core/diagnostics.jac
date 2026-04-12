@@ -424,6 +424,28 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.TYPE,
          "Cannot access attribute \"{attr}\" for type \"{type}\"; attribute is missing from {missing}"
      ),
+     # JSX type errors
+     E1100 = _err(
+         "E1100",
+         Category.TYPE,
+         "Cannot assign {actual} to JSX prop '{name}' of type {expected}"
+     ),
+     E1101 = _err(
+         "E1101", Category.TYPE, "Component '{component}' has no prop '{name}'"
+     ),
+     E1102 = _err(
+         "E1102", Category.TYPE, "Component '{component}' requires prop '{name}'"
+     ),
+     E1103 = _err(
+         "E1103",
+         Category.TYPE,
+         "Cannot assign {actual} to intrinsic prop '{name}' of type {expected}"
+     ),
+     E1104 = _err(
+         "E1104",
+         Category.TYPE,
+         "Cannot spread type {actual} into '{component}' (expected dict)"
+     ),
      # Import warnings
      W1100 = _warn("W1100", Category.IMPORT, "Module not found"),
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
