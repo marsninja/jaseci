@@ -67,6 +67,9 @@ def _candidate_from(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
         if os.path.isfile(os.path.join(candidate, '__init__.py')) {
             return (os.path.join(candidate, '__init__.py'), 'py');
         }
+        if os.path.isfile(os.path.join(candidate, '__init__.pyi')) {
+            return (os.path.join(candidate, '__init__.pyi'), 'pyi');
+        }
     }
     if os.path.isfile((candidate + '.jac')) {
         return ((candidate + '.jac'), 'jac');
@@ -82,6 +85,12 @@ def _candidate_from(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
     }
     if os.path.isfile((candidate + '.py')) {
         return ((candidate + '.py'), 'py');
+    }
+    # .pyi after .py so co-located stubs defer to real sources;
+    # essential for relative imports inside typeshed packages
+    # (e.g. `from .path import ...` in os/__init__.pyi).
+    if os.path.isfile((candidate + '.pyi')) {
+        return ((candidate + '.pyi'), 'pyi');
     }
     if os.path.isfile((candidate + '.js')) {
         return ((candidate + '.js'), 'js');
