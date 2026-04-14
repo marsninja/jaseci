@@ -56,7 +56,7 @@ def:pub Greeting(props: dict) -> JsxElement {
 
 def:pub Counter() -> JsxElement {
     has count: int = 0;
-    return <button onClick={|| count = count + 1}>{count}</button>;
+    return <button onClick={lambda { count = count + 1; }}>{count}</button>;
 }
 ```
 
@@ -89,6 +89,7 @@ cl def greet(name: str) -> str { return "Hello, " + name; }
 
 The braced block still works -- and is useful for **inner-scope overrides** inside a class or function, or for small mixed-codespace fragments -- but at module scope it now emits **W0064** pointing at the section-header form:
 
+<!-- jac-skip -->
 ```jac
 cl {   # W0064: prefer `to cl:` at module level
     def:pub Counter() -> JsxElement { ... }
