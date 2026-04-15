@@ -60,14 +60,30 @@ def _resolve_app_path(explicit: str) -> (str | None) {
 """Import the user's app so user archetypes register AND the right L3
 backend is installed via the usual plugin hooks. Returns the live
 PersistentMemory backend, or None on error.
+
+Crucially, we set `JacRuntime.full_target_path` BEFORE creating the
+context -- `get_db_path()` / `get_name()` use that to derive the DB
+filename (`<stem>.db`), and without it the fallback is `main.db`. That
+would make `jac db` point at a different file than `jac enter` created
+(which DOES set the path via _discover_config_from_file), and the CLI
+would appear to "see no data" in an otherwise healthy DB. jac-scale
+overrides the DB path via its config loader and so masks this on
+installs that have jac-scale; pure jaclang deployments hit it.
 """
 def _load_app_and_get_l3(app_path: str) -> (PersistentMemory | None) {
     try {
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
         Jac.setup();
-        (base, mod) = os.path.split(os.path.abspath(app_path));
+        abs_path = os.path.abspath(app_path);
+        (base, mod) = os.path.split(abs_path);
         if mod.endswith('.jac') {
             mod = mod[:-4];
+        }
+        # Match `jac enter`'s path setup so get_db_path() picks the same
+        # backing file the app writes to.
+        Jac.full_target_path = abs_path;
+        if not Jac.base_path_dir {
+            Jac.set_base_path(base);
         }
         # Create a fresh CLI execution context so ctx.mem is wired up.
         mach = Jac.create_j_context(user_root=None);
