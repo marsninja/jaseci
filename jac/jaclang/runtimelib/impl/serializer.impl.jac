@@ -492,10 +492,15 @@ impl Serializer._get_class(module_name: str, class_name: str) -> (type | None) {
             logger.info(f"Serializer: resolving aliased class {key} -> {aliased_key}");
             return cls;
         }
+        # Alias pointed at something that isn't registered either. Log once
+        # with the specific alias context; don't also emit the generic
+        # "unregistered class" warning since that would be misleading (the
+        # original key IS known, via the alias — it's the target that's gone).
         logger.warning(
-            f"Alias {key} -> {aliased_key} has no registered target; "
-            "falling through to unregistered path."
+            f"Serializer: alias {key} -> {aliased_key} has no registered "
+            "target; cannot resolve."
         );
+        return None;
     }
     logger.warning(f"Refused to deserialize unregistered class: {key}");
     return None;

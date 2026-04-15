@@ -45,7 +45,6 @@ glob registry = get_registry();
             default="",
             help="Second argument (alias new_name, etc.)"
         ),
-        Arg.create("path", default="", help="Explicit DB path", short="p"),
         Arg.create(
             "limit", typ=int, default=50, help="Row limit for list commands", short="n"
         ),
@@ -53,18 +52,19 @@ glob registry = get_registry();
             "app",
             default="",
             help=(
-                "Path to the .jac app file to import before recovery. "
-                "Required for `recover` / `recover-all` so user-defined "
-                "archetypes (and aliases declared via @archetype_alias) "
-                "are registered before reloading quarantined rows."
+                "Path to the .jac app file to import before dispatching. "
+                "If omitted, the single .jac file in the current directory "
+                "is used. The app must be importable so user-defined "
+                "archetypes (and any @archetype_alias decorators) register "
+                "before the command touches the backend."
             ),
             short="a"
         ),
 
     ],
     examples=[
-        ("jac db inspect", "Summarize the DB in .jac/data/"),
-        ("jac db inspect --path path/to/app.db", "Summarize a specific DB"),
+        ("jac db inspect", "Summarize the DB for the .jac in cwd"),
+        ("jac db inspect --app path/to/app.jac", "Summarize a specific app's DB"),
         ("jac db quarantine list", "List quarantined anchors"),
         ("jac db quarantine show <row-id>", "Show one quarantined row in full"),
         ("jac db alias list", "List DB-resident aliases"),
@@ -81,7 +81,6 @@ def db(
     sub: str = "",
     arg1: str = "",
     arg2: str = "",
-    path: str = "",
     limit: int = 50,
     app: str = ""
 ) -> int;

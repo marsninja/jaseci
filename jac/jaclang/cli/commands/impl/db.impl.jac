@@ -320,29 +320,15 @@ def _cmd_recover_all(app: str) -> int {
 }
 
 
-"""Entry point — dispatches to the right subcommand.
-
-Note: the `path` arg from the decl file is accepted for backward
-compatibility but now ignored. Backend is always discovered via the
-runtime context (`--app`).
-"""
+"""Entry point — dispatches to the right subcommand."""
 impl db(
     action: str = 'inspect',
     sub: str = '',
     arg1: str = '',
     arg2: str = '',
-    path: str = '',
     limit: int = 50,
     app: str = ''
 ) -> int {
-    if path and not app {
-        # Accept --path as a convenience alias for backward compatibility.
-        # Interpret it as the directory containing the app, or the app itself.
-        p = Path(path);
-        if p.is_file() and str(p).endswith('.jac') {
-            app = str(p);
-        }
-    }
     if action == 'inspect' {
         return _cmd_inspect(app);
     }
