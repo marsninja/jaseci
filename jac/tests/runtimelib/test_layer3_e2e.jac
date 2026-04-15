@@ -41,10 +41,9 @@ glob V1_RENAME = "node LegacyPerson {\n"
      "    }\n"
      "}\n",
      # v2: renames LegacyPerson -> Person, declares an alias so old
-     # stored anchors resolve instead of quarantining.
-     V2_RENAME_WITH_ALIAS = "import from jaclang.runtimelib.serializer { archetype_alias }\n"
-     "\n"
-     "@archetype_alias(\"__main__.LegacyPerson\")\n"
+     # stored anchors resolve instead of quarantining. `archetype_alias`
+     # is an ambient Jac builtin; no import needed.
+     V2_RENAME_WITH_ALIAS = "@archetype_alias(\"__main__.LegacyPerson\")\n"
      "node Person {\n"
      "    has name: str;\n"
      "}\n"

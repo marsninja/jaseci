@@ -135,11 +135,9 @@ If you've used Jac before and remember "delete `.jac/data/` to run again after e
 
 A renamed class is the most common reason rows go to quarantine: the stored row says `arch_module=__main__, arch_type=LegacyPerson`, but the live registry only has `__main__.Person`. Lookup fails, row quarantines.
 
-The fix is the `@archetype_alias` decorator from `jaclang.runtimelib.serializer`:
+The fix is the `@archetype_alias` decorator, an ambient Jac builtin (no import needed):
 
 ```jac
-import from jaclang.runtimelib.serializer { archetype_alias }
-
 @archetype_alias("__main__.LegacyPerson")
 node Person {
     has name: str;
@@ -223,7 +221,6 @@ Now edit the schema -- add a field, change `age` from `int` to `str`, rename the
 
 ```jac
 # app.jac (v2)
-import from jaclang.runtimelib.serializer { archetype_alias }
 
 @archetype_alias("__main__.Person")
 node Human {

@@ -1,7 +1,6 @@
 """JSON serialization for Jac objects with type-safe deserialization."""
 
 import logging;
-import from collections.abc { Callable }
 import from dataclasses { fields, is_dataclass }
 import from datetime { date, datetime, time }
 import from enum { Enum }
@@ -152,29 +151,9 @@ glob _register_hook: object = Archetype._subclass_hooks.append(
      ),
      _register_root: object = Serializer.register(cast(type, Root)),
      _register_generic_edge: object = Serializer.register(cast(type, GenericEdge));
-
-
-"""Decorator factory: register `old_name` as an alias for the decorated archetype.
-
-Use when an archetype class is renamed or moved. Without an alias, stored
-anchors referencing the old qualified name would quarantine on load because
-the registry no longer has that key.
-
-Example:
-    # class was `oldmod.LegacyPerson` before rename
-    @archetype_alias("oldmod.LegacyPerson")
-    node Person {
-        has name: str;
-    }
-
-The decorator runs at class-definition time, so the alias is in place before
-any persisted anchors try to load. Pass multiple aliases by stacking the
-decorator — each call registers one old_name.
-"""
-def archetype_alias(old_name: str) -> Callable[[type], type] {
-    def decorator(cls: type) -> type {
-        Serializer.register_alias(old_name, cls);
-        return cls;
-    }
-    return decorator;
-}
+# The `archetype_alias` decorator is an ambient Jac builtin provided by
+# `jaclang.runtimelib.builtin` — user code accesses it without an import.
+# The builtin implementation lives there (not here) to avoid a circular
+# import: loading this module's aliasing helpers happens mid-init of the
+# serializer itself, and a call-time-deferred closure in `builtin.impl`
+# lets Serializer finish loading before the decorator ever fires.

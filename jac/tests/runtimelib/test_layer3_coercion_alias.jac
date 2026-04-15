@@ -10,7 +10,9 @@ import from datetime { date, datetime, time }
 import from enum { Enum }
 import from uuid { UUID, uuid4 }
 import from jaclang.jac0core.archetype { NodeAnchor, Root }
-import from jaclang.runtimelib.serializer { Serializer, archetype_alias }
+# archetype_alias is an ambient Jac builtin (no import). Serializer is
+# an explicit import because we directly test its internals here.
+import from jaclang.runtimelib.serializer { Serializer }
 
 
 # --- Alias registry ---------------------------------------------------------
