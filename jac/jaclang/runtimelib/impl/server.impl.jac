@@ -231,11 +231,13 @@ impl ExecutionManager.execute_function(
                 ];
             }
         }
-        func_result = func(**args);
-        if iscoroutine(func_result) {
-            result = await func_result;
+        # Check if the function is a coroutine function (async def).
+        # Sync functions may contain blocking IO, so offload to a thread
+        # to avoid stalling the event loop.
+        if asyncio.iscoroutinefunction(func) {
+            result = await func(**args);
         } else {
-            result = func_result;
+            result = await asyncio.to_thread(func, **args);
         }
         call_state.reports.put_nowait(call_state._sentinel);
         reports = await self.report_collector(call_state);
@@ -295,12 +297,19 @@ impl ExecutionManager.spawn_walker(
         } else {
             target_node = ctx.get_root();
         }
-        spawn_result = Jac.spawn(`walker, target_node);
-        # Handle async walkers - await the coroutine if spawn returns one
-        if iscoroutine(spawn_result) {
-            result = await spawn_result;
+        # Check if the walker is async (has __jac_async__ = True).
+        # Async walkers return a coroutine from Jac.spawn that we await directly.
+        # Sync walkers execute blocking IO (sleep, network calls, LLM completions, etc.)
+        # so we offload them to a thread to avoid stalling the event loop.
+        if getattr(walker_cls, '__jac_async__', False) {
+            spawn_result = Jac.spawn(`walker, target_node);
+            if iscoroutine(spawn_result) {
+                result = await spawn_result;
+            } else {
+                result = spawn_result;
+            }
         } else {
-            result = spawn_result;
+            result = await asyncio.to_thread(Jac.spawn, `walker, target_node);
         }
         call_state.reports.put_nowait(call_state._sentinel);
         reports = await self.report_collector(call_state);
