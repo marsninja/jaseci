@@ -1634,114 +1634,91 @@ test "CallState.reports is thread-safe (sync walker worker threads put safely)" 
     );
 }
 
-# =============================================================================
-# Follow-up work markers (xfail until implemented)
-# =============================================================================
-# These tests document the remaining architectural work from #5639 that is
-# NOT shipped in this PR. They are marked with `pytest.xfail` so CI stays
-# green. When each follow-up lands, remove the `pytest.xfail(...)` line;
-# the aspirational body below it (described in comments for now) should
-# then pass on its own.
-test "follow-up: SqliteMemory.put defers writes until explicit commit (UoW)" {
-    import pytest;
-    pytest.xfail(
-        "Unit-of-Work write batching not yet implemented. SqliteMemory.put() "
-        "fires conn.commit() per anchor today, so a walker creating N nodes "
-        "triggers O(N) disk syncs and the new row is immediately visible "
-        "from other connections. Target: mark anchors dirty in put(); flush "
-        "once in acommit() via executemany. Directly addresses amadolid's "
-        "`commit is the longest IO, jac does it one by one` observation and "
-        "is the actual fix for his `long_blocking_io` data (100 per-visit "
-        "writes x 9 concurrent walkers serialize on SQLite's writer lock). "
-        "NB: a read-batching / DataLoader test was considered but omitted: "
-        "Jac edges store direct NodeAnchor refs, not IDs, so traversal does "
-        "not round-trip to L3 per edge. Read batching is therefore not on "
-        "the critical path for #5639."
-    );
-    # Body below runs once the xfail line is removed. Probes the UoW
-    # invariant via a second sqlite connection: under UoW, `put()` without
-    # an explicit acommit() should not be visible to another reader.
-    import sqlite3;
+test "concurrent multi-user requests do not race on ctx.user_root" {
+    # Regression guard for per-request ExecutionContext isolation.
+    #
+    # Before the fix, the server mutated `ctx.user_root` directly on the
+    # process-global ExecutionContext. Under N concurrent requests from
+    # *different* users, the `await ctx.aset_user_root(...)` calls
+    # interleave on the event loop and the last writer wins — so an
+    # in-flight walker launched by user A could end up executing against
+    # user B's root. This test would fail in that world.
+    #
+    # With per-request context forking (each request pushes its own
+    # ExecutionContext into the `_request_context` ContextVar), each
+    # asyncio Task gets a task-local view, so the start/end user_root
+    # observed inside a walker must match the user that spawned it.
     import asyncio;
-    import from uuid { uuid4 }
-    import from jaclang.jac0core.archetype { NodeAnchor, Root }
-    import from jaclang.runtimelib.memory { SqliteMemory }
-    import os;
+    import from jaclang.runtimelib.server {
+        ExecutionManager,
+        UserManager,
+        ModuleIntrospector
+    }
 
     with TemporaryDirectory() as tmpdir {
-        db_path = os.path.join(tmpdir, "uow_probe.db");
-        sq = SqliteMemory(path=db_path);
-        anchor = NodeAnchor(id=uuid4(), archetype=Root(), edges=[]);
-        anchor.persistent = True;
-        sq.put(anchor);
-        # Second connection reads; under UoW, put() alone should be invisible.
-        probe = sqlite3.connect(db_path);
-        try {
-            (visible_before, ) = probe.execute(
-                "SELECT COUNT(*) FROM anchors WHERE id = ?", (str(anchor.id), )
-            ).fetchone();
-            assert visible_before == 0 , (
-                f"Expected put() alone to NOT commit (UoW defers writes); "
-                f"but the anchor is already visible from a second connection "
-                f"(count={visible_before}). SqliteMemory.put is still "
-                f"calling conn.commit() per call."
+        jac_file = fixture_abs_path("serve_blocking_io.jac");
+        introspector = ModuleIntrospector(
+            module_name="serve_blocking_io", base_path=str(Path(jac_file).parent)
+        );
+        introspector.load();
+        walkers = introspector.get_walkers();
+        async_walker = walkers["whoami_async"];
+        sync_walker = walkers["whoami_sync"];
+        user_mgr = UserManager(base_path=tmpdir);
+        exec_mgr = ExecutionManager(base_path=tmpdir, user_manager=user_mgr);
+        # Three distinct users with distinct roots.
+        users = [f"user_{i}" for i in range(3)];
+        root_ids = {};
+        for uname in users {
+            info = user_mgr.create_user(uname, "pw");
+            root_ids[uname] = info["root_id"];
+        }
+        # Sanity: each user got a unique root.
+        assert len(set(root_ids.values())) == 3;
+        async def run_probe(walker_cls: Any) -> list {
+            tasks = [
+                exec_mgr.spawn_walker(walker_cls, {"sleep_s": 0.1}, uname)
+                for uname in users
+            ];
+            return await asyncio.gather(*tasks);
+        }
+        # Async walker path — most sensitive: the await inside the walker
+        # guarantees interleaving at the point a shared-ctx bug would
+        # manifest. Each task must still observe its own user_root.
+        async_results = asyncio.run(run_probe(async_walker));
+        for (uname, result) in zip(users, async_results) {
+            assert "error" not in result , f"async whoami failed for {uname}: {result}";
+            reports = result["reports"];
+            assert len(reports) == 1 , f"expected 1 report, got {reports}";
+            got = reports[0];
+            expected = root_ids[uname];
+            assert got["start_root_id"] == expected , (
+                f"async: {uname} saw start_root_id={got['start_root_id']}, "
+                f"expected {expected} — ctx.user_root race regression"
             );
-            asyncio.run(sq.acommit(anchor));
-            (visible_after, ) = probe.execute(
-                "SELECT COUNT(*) FROM anchors WHERE id = ?", (str(anchor.id), )
-            ).fetchone();
-            assert visible_after == 1 , (
-                f"After acommit() the anchor must be visible; got count="
-                f"{visible_after}"
+            assert got["end_root_id"] == expected , (
+                f"async: {uname} saw end_root_id={got['end_root_id']} after "
+                f"await, expected {expected} — another request overwrote "
+                f"user_root during the await"
             );
-        } finally {
-            probe.close();
-            sq.close();
+        }
+        # Sync walker path — proves isolation propagates across the
+        # asyncio.to_thread boundary (ContextVars copy into the worker).
+        sync_results = asyncio.run(run_probe(sync_walker));
+        for (uname, result) in zip(users, sync_results) {
+            assert "error" not in result , f"sync whoami failed for {uname}: {result}";
+            reports = result["reports"];
+            assert len(reports) == 1;
+            got = reports[0];
+            expected = root_ids[uname];
+            assert got["start_root_id"] == expected , (
+                f"sync: {uname} saw start_root_id={got['start_root_id']}, "
+                f"expected {expected}"
+            );
+            assert got["end_root_id"] == expected , (
+                f"sync: {uname} saw end_root_id={got['end_root_id']}, "
+                f"expected {expected}"
+            );
         }
     }
-}
-
-test "follow-up: UserManager does not require a cursor lock (connection pool)" {
-    import pytest;
-    pytest.xfail(
-        "Per-request sqlite connection pool not yet implemented. A shared "
-        "sqlite3.Connection requires the RLock added in this PR to avoid "
-        "`InterfaceError: bad parameter or other API misuse` under "
-        "concurrent cursor creation from `to_thread` workers. Target: "
-        "check out a connection per request (or per-thread) from a pool. "
-        "Once pooled, UserManager._lock can be removed and this test can "
-        "assert its absence."
-    );
-    import from jaclang.runtimelib.server { UserManager }
-
-    with TemporaryDirectory() as tmpdir {
-        mgr = UserManager(base_path=tmpdir);
-        assert not hasattr(mgr, '_lock') , (
-            "Connection pooling should remove the need for the cursor "
-            "lock. `_lock` exists today as a stopgap; when the pool lands "
-            "remove the field and delete this assertion."
-        );
-    }
-}
-
-test "follow-up: byllm exposes async invoke surface" {
-    import pytest;
-    pytest.xfail(
-        "byllm is sync-only today. BaseLLM.invoke wraps LiteLLM's sync "
-        "`completion` API. Target: add BaseLLM.ainvoke using "
-        "litellm.acompletion and expose streaming as AsyncIterator[str]. "
-        "Then async walkers calling LLMs will not burn a worker thread "
-        "per long-running model call."
-    );
-    import inspect;
-
-    byllm_llm = pytest.importorskip("byllm.llm");
-    BaseLLM = byllm_llm.BaseLLM;
-    assert hasattr(BaseLLM, 'ainvoke') , (
-        "byllm must expose an async `ainvoke` alongside the sync `invoke`"
-    );
-    assert inspect.iscoroutinefunction(BaseLLM.ainvoke) , (
-        "BaseLLM.ainvoke must be a coroutine function "
-        "(use litellm.acompletion under the hood)"
-    );
 }

@@ -12,6 +12,17 @@ import from jaclang.runtimelib.memory { TieredMemory }
 """Initialize ExecutionContext."""
 impl ExecutionContext.postinit -> None {
     import from jaclang.jac0core.runtime { JacRuntime }
+    if self._parent is not None {
+        # Per-request fork: share the parent's Memory backend and system
+        # root. Only user_root / entry_node / call_state / reports become
+        # request-local state (the ContextVar and field defaults above
+        # already ensure they are not shared by reference).
+        self.mem = self._parent.mem;
+        self.system_root = self._parent.system_root;
+        self.user_root = self._parent.user_root;
+        self.entry_node = self._parent.user_root;
+        return;
+    }
     # Create TieredMemory - persistence only enabled if base_path_dir is explicitly set
     # If base_path_dir is None, no L3 persistence (faster for tests)
     self.mem = TieredMemory(base_path=JacRuntime.base_path_dir);
@@ -58,6 +69,11 @@ impl ExecutionContext.set_entry_node(entry_node: (str | None)) -> None {
 
 """Close current ExecutionContext."""
 impl ExecutionContext.close -> None {
+    # Per-request fork: do not close the shared Memory backend — it is
+    # owned by the parent ctx and must outlive this request.
+    if self._parent is not None {
+        return;
+    }
     # TieredMemory handles syncing to persistence and closing all tiers
     self.mem.close();
 }

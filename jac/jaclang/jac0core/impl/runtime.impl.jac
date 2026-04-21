@@ -2524,6 +2524,16 @@ impl JacRuntime.set_request_context(context: ExecutionContext) -> None {
     _request_context.set(context);
 }
 
+"""Push a request-scoped execution context; returns a reset token."""
+impl JacRuntime.push_request_context(context: ExecutionContext) -> Any {
+    return _request_context.set(context);
+}
+
+"""Reset the request-scoped context using a push token."""
+impl JacRuntime.reset_request_context(token: Any) -> None {
+    _request_context.reset(token);
+}
+
 """Clear request-scoped context and commit changes."""
 impl JacRuntime.clear_request_context -> None {
     ctx = _request_context.get();

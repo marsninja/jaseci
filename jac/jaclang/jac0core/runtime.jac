@@ -1030,6 +1030,17 @@ class JacRuntime(JacRuntimeInterface) {
     """Set request-scoped execution context (for web servers)."""
     static def set_request_context(context: ExecutionContext) -> None;
 
+    """Push a request-scoped execution context and return the reset token.
+
+    Prefer this over `set_request_context` for concurrent servers: the
+    returned token lets the caller restore the prior value in a `finally`
+    block, which keeps concurrent requests (each in its own asyncio Task
+    with its own ContextVar view) from trampling each other's state."""
+    static def push_request_context(context: ExecutionContext) -> Any;
+
+    """Reset the request-scoped context using a token from `push_request_context`."""
+    static def reset_request_context(token: Any) -> None;
+
     """Clear request-scoped context and commit changes."""
     static def clear_request_context -> None;
 }

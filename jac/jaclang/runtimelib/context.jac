@@ -43,7 +43,14 @@ obj ExecutionContext {
         system_root: NodeAnchor by postinit,
         user_root: NodeAnchor by postinit,
         entry_node: NodeAnchor by postinit,
-        call_state: ContextVar[CallState] = ContextVar('call_state');
+        call_state: ContextVar[CallState] = ContextVar('call_state'),
+        # Per-request fork support. When `_parent` is set, postinit skips
+        # creating fresh Memory/system_root and instead shares them with
+        # the parent ctx. This lets the server stamp out lightweight
+        # per-request contexts whose `user_root` / `entry_node` mutations
+        # are isolated from concurrent requests (via `_request_context`
+        # ContextVar) while reusing the heavy, shared Memory backend.
+        _parent: (ExecutionContext | None) = None;
 
     def postinit -> None;
     def _get_anchor(anchor_id: str) -> NodeAnchor;

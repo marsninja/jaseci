@@ -250,6 +250,26 @@ impl ExecutionManager.report_collector(call_state: CallState) -> dict[str, JsonV
     }
 }
 
+"""Fork the current ExecutionContext for a single request and push it
+into `_request_context`.
+
+Concurrent requests arrive each in their own asyncio Task (FastAPI
+invariant), so each gets its own copy of the `_request_context`
+ContextVar. Mutating `user_root` / `entry_node` on the per-request fork
+is therefore isolated from other in-flight requests; the Memory
+backend and system root stay shared through the `_parent` link.
+
+Returns the fork and the reset token. Callers MUST call
+`Jac.reset_request_context(token)` in a `finally` block.
+"""
+async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, Any)] {
+    parent = Jac.get_context();
+    req_ctx = ExecutionContext(_parent=parent);
+    await req_ctx.aset_user_root(user_root_id);
+    token = Jac.push_request_context(req_ctx);
+    return (req_ctx, token);
+}
+
 """Deserialize typed arguments from wire format in-place."""
 def _deserialize_wire_args(args: dict[(str, Any)]) {
     for (k, v) in list(args.items()) {
@@ -275,8 +295,8 @@ do not block the event loop — this is what keeps post-walker persistence
 from serializing async walkers that would otherwise all pay the commit
 round-trip on the loop in series.
 """
-async def _finalize_call_response(
-    self: ExecutionManager, call_state: CallState, result: Any
+impl ExecutionManager._finalize_call_response(
+    call_state: CallState, result: Any
 ) -> dict[str, JsonValue] {
     call_state.reports.put_nowait(call_state._sentinel);
     reports = await self.report_collector(call_state);
@@ -317,18 +337,25 @@ impl ExecutionManager.execute_function_sync(
     if not root_id {
         return {'error': 'User not found'};
     }
-    ctx = Jac.get_context();
-    await ctx.aset_user_root(root_id);
+    (ctx, req_token) = await _begin_request_context(root_id);
     call_token = ctx.call_state.set(CallState());
     call_state = ctx.call_state.get();
     try {
         _deserialize_wire_args(args);
         result = await asyncio.to_thread(func, **args);
-        return await _finalize_call_response(self, call_state, result);
+        # Preserve legacy behavior: a plain-sync wrapper may return a
+        # coroutine (e.g. `def wrap(): return some_async()`). Unwrap it
+        # back on the event loop so callers see the awaited value, not
+        # the coroutine object.
+        if iscoroutine(result) {
+            result = await result;
+        }
+        return await self._finalize_call_response(call_state, result);
     } except Exception as e {
         return {'error': str(e)};
     } finally {
         ctx.call_state.reset(call_token);
+        Jac.reset_request_context(req_token);
     }
 }
 
@@ -343,18 +370,18 @@ impl ExecutionManager.execute_function_async(
     if not root_id {
         return {'error': 'User not found'};
     }
-    ctx = Jac.get_context();
-    await ctx.aset_user_root(root_id);
+    (ctx, req_token) = await _begin_request_context(root_id);
     call_token = ctx.call_state.set(CallState());
     call_state = ctx.call_state.get();
     try {
         _deserialize_wire_args(args);
         result = await func(**args);
-        return await _finalize_call_response(self, call_state, result);
+        return await self._finalize_call_response(call_state, result);
     } except Exception as e {
         return {'error': str(e)};
     } finally {
         ctx.call_state.reset(call_token);
+        Jac.reset_request_context(req_token);
     }
 }
 
@@ -389,8 +416,7 @@ impl ExecutionManager.spawn_walker_sync(
     }
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
-    ctx = Jac.get_context();
-    await ctx.aset_user_root(root_id);
+    (ctx, req_token) = await _begin_request_context(root_id);
     call_token = ctx.call_state.set(CallState());
     call_state = ctx.call_state.get();
     try {
@@ -404,12 +430,19 @@ impl ExecutionManager.spawn_walker_sync(
             target_node = ctx.get_root();
         }
         result = await asyncio.to_thread(Jac.spawn, `walker, target_node);
-        return await _finalize_call_response(self, call_state, result);
+        # Defensive: if a caller reaches this path with a walker whose
+        # spawn path returned a coroutine, await it on the loop rather
+        # than returning an unawaited coroutine object.
+        if iscoroutine(result) {
+            result = await result;
+        }
+        return await self._finalize_call_response(call_state, result);
     } except Exception as e {
         import traceback;
         return {'error': str(e), 'traceback': traceback.format_exc()};
     } finally {
         ctx.call_state.reset(call_token);
+        Jac.reset_request_context(req_token);
     }
 }
 
@@ -427,8 +460,7 @@ impl ExecutionManager.spawn_walker_async(
     }
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
-    ctx = Jac.get_context();
-    await ctx.aset_user_root(root_id);
+    (ctx, req_token) = await _begin_request_context(root_id);
     call_token = ctx.call_state.set(CallState());
     call_state = ctx.call_state.get();
     try {
@@ -447,12 +479,13 @@ impl ExecutionManager.spawn_walker_async(
         } else {
             result = spawn_result;
         }
-        return await _finalize_call_response(self, call_state, result);
+        return await self._finalize_call_response(call_state, result);
     } except Exception as e {
         import traceback;
         return {'error': str(e), 'traceback': traceback.format_exc()};
     } finally {
         ctx.call_state.reset(call_token);
+        Jac.reset_request_context(req_token);
     }
 }
 
