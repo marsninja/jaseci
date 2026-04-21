@@ -20,7 +20,7 @@ impl ExecutionContext.postinit -> None {
         self.mem = self._parent.mem;
         self.system_root = self._parent.system_root;
         self.user_root = self._parent.user_root;
-        self.entry_node = self._parent.user_root;
+        self.entry_node = self._parent.entry_node;
         return;
     }
     # Create TieredMemory - persistence only enabled if base_path_dir is explicitly set

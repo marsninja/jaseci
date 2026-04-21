@@ -1354,12 +1354,8 @@ impl IntrospectionHandler.get_walker_info(name: str) -> TransportResponse {
     );
 }
 
-"""Call a function.
-
-Dispatches at the handler seam to the explicit sync/async path on
-ExecutionManager, so sync user code is offloaded to a thread and async
-user code stays on the loop.
-"""
+"""Call a function. The ExecutionManager dispatcher picks the sync/async
+path based on the function kind."""
 impl ExecutionHandler.call_function(
     name: str, args: dict[(str, Any)], username: str
 ) -> TransportResponse {
@@ -1372,26 +1368,16 @@ impl ExecutionHandler.call_function(
             meta=Meta(extra={'http_status': 404})
         );
     }
-    func = functions[name];
-    if asyncio.iscoroutinefunction(func) {
-        result = await self.execution_manager.execute_function_async(
-            func, args, username
-        );
-    } else {
-        result = await self.execution_manager.execute_function_sync(
-            func, args, username
-        );
-    }
+    result = await self.execution_manager.execute_function(
+        functions[name], args, username
+    );
     return TransportResponse.success(
         data=result, meta=Meta(extra={'http_status': 200})
     );
 }
 
-"""Spawn a walker.
-
-Dispatches at the handler seam to the explicit sync/async path on
-ExecutionManager based on the walker's `__jac_async__` metadata.
-"""
+"""Spawn a walker. The ExecutionManager dispatcher picks the sync/async
+path based on the walker's `__jac_async__` metadata."""
 impl ExecutionHandler.spawn_walker(
     name: str, fields: dict[(str, Any)], username: str
 ) -> TransportResponse {
@@ -1404,16 +1390,7 @@ impl ExecutionHandler.spawn_walker(
             meta=Meta(extra={'http_status': 404})
         );
     }
-    walker_cls = walkers[name];
-    if getattr(walker_cls, '__jac_async__', False) {
-        result = await self.execution_manager.spawn_walker_async(
-            walker_cls, fields, username
-        );
-    } else {
-        result = await self.execution_manager.spawn_walker_sync(
-            walker_cls, fields, username
-        );
-    }
+    result = await self.execution_manager.spawn_walker(walkers[name], fields, username);
     return TransportResponse.success(
         data=result, meta=Meta(extra={'http_status': 200})
     );
