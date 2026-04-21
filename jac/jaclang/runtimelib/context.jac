@@ -44,4 +44,9 @@ obj ExecutionContext {
     def set_entry_node(entry_node: (str | None)) -> None;
     def close -> None;
     def get_root -> Root;
+    # Async mirrors — resolve root / entry via the async Memory surface so
+    # the calling event loop is not blocked on L3 reads.
+    async def _aget_anchor(anchor_id: str) -> NodeAnchor;
+    async def aset_user_root(root_id: str) -> None;
+    async def aset_entry_node(entry_node: (str | None)) -> None;
 }

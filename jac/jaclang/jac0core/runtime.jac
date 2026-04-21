@@ -360,11 +360,19 @@ class JacBasics {
     """Commit all data from memory to datasource."""
     static def commit(anchor: Anchor | Archetype | None = None) -> None;
 
+    """Async mirror of commit — persists through the async Memory surface
+    so the caller's event loop is not blocked on L3 writes."""
+    static async def acommit(anchor: Anchor | Archetype | None = None) -> None;
+
     """Purge current or target graph."""
     static def reset_graph(root: (Root | None) = None) -> int;
 
     """Get object given id."""
     static def get_object(id: str) -> (Archetype | None);
+
+    """Async mirror of get_object — resolves through the async Memory
+    surface so L3 reads do not block the caller's event loop."""
+    static async def aget_object(id: str) -> (Archetype | None);
 
     """Get object reference id."""
     static def object_ref(`obj: Archetype) -> str;

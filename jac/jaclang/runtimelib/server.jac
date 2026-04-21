@@ -59,11 +59,22 @@ obj UserData {
         root_id: str;
 }
 
-"""Manage users and their persistent roots (SQLite-backed)."""
+"""Manage users and their persistent roots (SQLite-backed).
+
+The `_lock` serializes access to `_conn`. Under the async server we now
+dispatch UserManager reads through `asyncio.to_thread`, which means
+multiple worker threads can hit the same sqlite3 Connection object
+concurrently. Even with `check_same_thread=False`, Python's sqlite3
+module can raise `InterfaceError: bad parameter or other API misuse`
+when cursor state is touched concurrently. The lock serializes cursor
+creation so readers don't trample each other. Long-term, a native async
+driver (aiosqlite) or per-thread connection pool would obviate this.
+"""
 obj UserManager {
     has base_path: str,
         _db_path: str by postinit,
-        _conn: Any by postinit;
+        _conn: Any by postinit,
+        _lock: Any by postinit;
 
     def postinit -> None;
     def _ensure_connection -> None;
@@ -79,6 +90,9 @@ obj UserManager {
     ) -> dict[str, str];
 
     def close -> None;
+    # Async hot-path mirror: `get_root_id` touches a blocking SQLite read
+    # on every request and runs under async handlers, so offload it.
+    async def aget_root_id(username: str) -> (str | None);
 }
 
 """Manages execution contexts for user operations.

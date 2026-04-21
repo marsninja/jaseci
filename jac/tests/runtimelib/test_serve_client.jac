@@ -1475,6 +1475,50 @@ test "spawn_walker_sync and spawn_walker_async dispatch to explicit paths" {
     }
 }
 
+test "concurrent async walkers run concurrently end-to-end" {
+    # Direct response to amadolid's `async_long_cpu_process` observation:
+    # before end-to-end async wiring, concurrent async walkers all returned
+    # at the same time because the post-walker Jac.commit() ran sync on the
+    # event loop. With Jac.acommit + async context setup, they interleave
+    # through their awaits (asyncio.sleep) and finish concurrently.
+    import asyncio;
+    import from time { time }
+    import from jaclang.runtimelib.server {
+        ExecutionManager,
+        UserManager,
+        ModuleIntrospector
+    }
+
+    with TemporaryDirectory() as tmpdir {
+        jac_file = fixture_abs_path("serve_blocking_io.jac");
+        introspector = ModuleIntrospector(
+            module_name="serve_blocking_io", base_path=str(Path(jac_file).parent)
+        );
+        introspector.load();
+        walker_cls = introspector.get_walkers()["slow_async"];
+        assert getattr(walker_cls, "__jac_async__", False) , "slow_async walker must be async";
+        user_mgr = UserManager(base_path=tmpdir);
+        exec_mgr = ExecutionManager(base_path=tmpdir, user_manager=user_mgr);
+        user_mgr.create_user("testuser", "testpass");
+        async def run -> float {
+            start = time();
+            tasks = [
+                exec_mgr.spawn_walker_async(walker_cls, {"duration": 0.5}, "testuser")
+                for _ in range(3)
+            ];
+            results = await asyncio.gather(*tasks);
+            for r in results {
+                assert "error" not in r , f"async walker failed: {r}";
+            }
+            return time() - start;
+        }
+        elapsed = asyncio.run(run());
+        # 3 concurrent sleep(0.5) async walkers on the event loop: ~0.5s.
+        # If commit or context setup blocked the loop: 3*0.5 = ~1.5s.
+        assert elapsed < 1.2 , f"async walkers serialized on commit/setup: {elapsed:.2f}s (expected < 1.2s)";
+    }
+}
+
 test "Memory async mirrors (aget/aput/adelete/ahas/acommit) work" {
     # Every Memory backend gets async mirrors by default via to_thread.
     # This verifies the base-class impls round-trip correctly and do not

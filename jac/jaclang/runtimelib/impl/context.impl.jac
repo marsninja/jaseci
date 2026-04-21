@@ -66,3 +66,26 @@ impl ExecutionContext.close -> None {
 impl ExecutionContext.get_root -> Root {
     return cast(Root, self.user_root.archetype);
 }
+
+"""Async mirror of _get_anchor — goes through the async Memory surface."""
+impl ExecutionContext._aget_anchor(anchor_id: str) -> NodeAnchor {
+    id = UUID(anchor_id);
+    anchor = await self.mem.aget(id);
+    if not isinstance(anchor, NodeAnchor) {
+        raise ValueError(f"Invalid anchor id {anchor_id} !");
+    }
+    return anchor;
+}
+
+"""Async mirror of set_user_root — resolves root via async Memory."""
+impl ExecutionContext.aset_user_root(root_id: str) -> None {
+    self.user_root = await self._aget_anchor(root_id);
+    self.entry_node = self.user_root;
+}
+
+"""Async mirror of set_entry_node — resolves entry node via async Memory."""
+impl ExecutionContext.aset_entry_node(entry_node: (str | None)) -> None {
+    self.entry_node = (await self._aget_anchor(entry_node))
+        if entry_node
+        else self.user_root;
+}
