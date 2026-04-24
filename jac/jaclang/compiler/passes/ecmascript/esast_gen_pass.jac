@@ -127,6 +127,7 @@ glob _T = TypeVar('_T', bound=es.Node),
      # codegen routes these calls through `_jac.poly.<method>(target, ...)`,
      # which dispatches to the native JS operation at runtime.
      POLYMORPHIC_METHODS: set[str] = {"lower","upper","strip","lstrip","rstrip","append","extend","pop"},
+     SIGNAL_OBJECT_METHODS: set[str] = {"peek"},
      LiteralValue = str | bool | int | float | None;
 
 """Track declarations within a lexical scope."""
@@ -175,6 +176,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _pop_scope(nd: uni.UniScopeNode) -> None;
     def _current_scope -> (ScopeInfo | None);
     def _is_declared_in_any_scope(name: str) -> bool;
+    def _nearest_declaration_depth(name: str) -> (int | None);
     def _register_declaration(name: str) -> None;
     def _ensure_identifier_declared(name: str, jac_node: uni.UniNode) -> None;
     def _prepend_hoisted(
@@ -200,6 +202,12 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     ) -> (SpawnWalkerInfo | None);
 
     def _is_root_reference(expr: uni.Expr) -> bool;
+    def _is_binding_name(nd: uni.Name) -> bool;
+    def _is_reactive_name_reference(nd: uni.Name) -> bool;
+    def _is_descendant_of(nd: uni.UniNode, ancestor: uni.UniNode) -> bool;
+    def _target_binds_name(target: uni.UniNode, name: str) -> bool;
+    def _is_shadowed_signal_reference(nd: uni.Name) -> bool;
+    def _signal_member_expr(nd: uni.Name) -> es.MemberExpression;
     def _resolve_spawn_target(
         expr: uni.Expr, es_expr: es.Expression
     ) -> SpawnTargetInfo;

@@ -176,16 +176,12 @@ in exit_assignment, which bypasses gen.es_ast for the target.
 impl EsastGenPass.exit_name(nd: uni.Name) -> None {
     name_map = {'None': 'null', 'True': 'true', 'False': 'false', 'self': 'this'};
     name = name_map.get(nd.sym_name, nd.sym_name);
-    if (name in self.reactive_vars) and (nd.sym_name not in name_map) {
-        identifier = self.sync_loc(es.Identifier(name=name), jac_node=nd);
-        value_prop = self.sync_loc(es.Identifier(name='value'), jac_node=nd);
-        member = self.sync_loc(
-            es.MemberExpression(
-                object=identifier, property=value_prop, computed=False, optional=False
-            ),
-            jac_node=nd
-        );
-        nd.gen.es_ast = member;
+    if self._is_binding_name(nd) {
+        nd.gen.es_ast = self.sync_loc(es.Identifier(name=name), jac_node=nd);
+        return;
+    }
+    if (nd.sym_name not in name_map) and self._is_reactive_name_reference(nd) {
+        nd.gen.es_ast = self._signal_member_expr(nd);
         return;
     }
     identifier = self.sync_loc(es.Identifier(name=name), jac_node=nd);
@@ -791,11 +787,23 @@ impl EsastGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
 
 """Process attribute access."""
 impl EsastGenPass.exit_atom_trailer(nd: uni.AtomTrailer) -> None {
-    `obj = cast(
-        es.Expression,
-        nd.target.gen.es_ast
-        or self.sync_loc(es.Identifier(name='obj'), jac_node=nd.target)
-    );
+    `obj: es.Expression;
+    if (
+        isinstance(nd.target, uni.Name)
+        and isinstance(nd.right, uni.Name)
+        and (nd.right.sym_name in SIGNAL_OBJECT_METHODS)
+        and self._is_reactive_name_reference(nd.target)
+    ) {
+        `obj = self.sync_loc(
+            es.Identifier(name=nd.target.sym_name), jac_node=nd.target
+        );
+    } else {
+        `obj = cast(
+            es.Expression,
+            nd.target.gen.es_ast
+            or self.sync_loc(es.Identifier(name='obj'), jac_node=nd.target)
+        );
+    }
     if (nd.right and nd.right.gen.es_ast) {
         if isinstance(nd.right, uni.Name) {
             prop = self.sync_loc(
@@ -1356,17 +1364,8 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
     # `count.value += X`. Signals carry the live cell, so compound assignment
     # works natively via JS `+=` on the MemberExpression.
     if len(nd.target) == 1 and isinstance(nd.target[0], uni.Name) {
-        target_name = nd.target[0].sym_name;
-        if target_name in self.reactive_vars {
-            signal_member = self.sync_loc(
-                es.MemberExpression(
-                    object=es.Identifier(name=target_name),
-                    property=es.Identifier(name='value'),
-                    computed=False,
-                    optional=False
-                ),
-                jac_node=nd.target[0]
-            );
+        if self._is_reactive_name_reference(nd.target[0]) {
+            signal_member = self._signal_member_expr(nd.target[0]);
             rhs_expr = cast(
                 es.Expression, value_expr or es.Identifier(name='undefined')
             );
@@ -2678,6 +2677,7 @@ impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
         # Track this as a reactive variable. exit_name will rewrite reads of
         # `var_name` to `var_name.value`; exit_assignment rewrites writes.
         self.reactive_vars.add(var_name);
+        self.reactive_var_depths[var_name] = len(self.scope_stack);
 
         # Get the initial value expression
         init_value: es.Expression;
@@ -2738,6 +2738,9 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
     # Restore reactive_vars to parent scope
     if self.reactive_vars_stack {
         self.reactive_vars = self.reactive_vars_stack.pop();
+    }
+    if self.reactive_var_depths_stack {
+        self.reactive_var_depths = self.reactive_var_depths_stack.pop();
     }
     # CHECK: Is this an event-based ability (can with entry/exit) in client context?
     if (isinstance(nd.signature, uni.EventSignature) and nd.in_client_context()) {
@@ -2866,6 +2869,8 @@ impl EsastGenPass.enter_ability(nd: uni.Ability) -> None {
     }
     self.reactive_vars_stack.append(self.reactive_vars);
     self.reactive_vars = set(self.reactive_vars);
+    self.reactive_var_depths_stack.append(self.reactive_var_depths);
+    self.reactive_var_depths = dict(self.reactive_var_depths);
 }
 
 """Process enum declaration as an object."""
@@ -4459,6 +4464,143 @@ impl EsastGenPass._is_root_reference(expr: uni.Expr) -> bool {
     return bool(isinstance(expr, uni.Name) and (expr.sym_name == 'root'));
 }
 
+"""Return true when a Name introduces a binding instead of reading one."""
+impl EsastGenPass._is_binding_name(nd: uni.Name) -> bool {
+    parent = nd.parent;
+    if isinstance(parent, uni.ParamVar) and parent.name is nd {
+        return True;
+    }
+    if isinstance(parent, uni.HasVar) and parent.name is nd {
+        return True;
+    }
+    cur: (uni.UniNode | None) = nd;
+    while cur and cur.parent {
+        p = cur.parent;
+        if isinstance(p, uni.InForStmt) and (p.target is cur) {
+            return True;
+        }
+        if isinstance(p, uni.InnerCompr) and (p.target is cur) {
+            return True;
+        }
+        if isinstance(p, uni.Assignment) {
+            return cur in p.target;
+        }
+        if isinstance(p, (uni.TupleVal, uni.ListVal, uni.DictVal, uni.SubTag)) {
+            cur = p;
+            continue;
+        }
+        break;
+    }
+    return False;
+}
+
+"""Return true when a Name resolves to the signal cell introduced by `has`."""
+impl EsastGenPass._is_reactive_name_reference(nd: uni.Name) -> bool {
+    name = nd.sym_name;
+    if name not in self.reactive_vars {
+        return False;
+    }
+    if self._is_shadowed_signal_reference(nd) {
+        return False;
+    }
+    signal_depth = self.reactive_var_depths.get(name);
+    if signal_depth is None {
+        return False;
+    }
+    nearest_depth = self._nearest_declaration_depth(name);
+    return nearest_depth == signal_depth;
+}
+
+"""Return true if `nd` appears within `ancestor`'s subtree."""
+impl EsastGenPass._is_descendant_of(nd: uni.UniNode, ancestor: uni.UniNode) -> bool {
+    cur: (uni.UniNode | None) = nd;
+    while cur {
+        if cur is ancestor {
+            return True;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+"""Return true if a target pattern introduces `name`."""
+impl EsastGenPass._target_binds_name(target: uni.UniNode, name: str) -> bool {
+    return any(
+        bound_name == name for (bound_name, _) in self._collect_pattern_names(target)
+    );
+}
+
+"""Check loop and comprehension bindings that shadow a signal name."""
+impl EsastGenPass._is_shadowed_signal_reference(nd: uni.Name) -> bool {
+    name = nd.sym_name;
+    cur = nd.parent;
+    while cur {
+        if isinstance(cur, uni.InForStmt) {
+            if (
+                self._target_binds_name(cur.target, name)
+                and any(self._is_descendant_of(nd, stmt) for stmt in cur.body)
+            ) {
+                return True;
+            }
+        } elif isinstance(cur, uni.ListCompr) {
+            if self._is_descendant_of(nd, cur.out_expr) {
+                return any(
+                    self._target_binds_name(compr.target, name) for compr in cur.compr
+                );
+            }
+        } elif isinstance(cur, uni.DictCompr) {
+            if self._is_descendant_of(nd, cur.kv_pair) {
+                return any(
+                    self._target_binds_name(compr.target, name) for compr in cur.compr
+                );
+            }
+        } elif isinstance(cur, (uni.SetCompr, uni.GenCompr)) {
+            if self._is_descendant_of(nd, cur.out_expr) {
+                return any(
+                    self._target_binds_name(compr.target, name) for compr in cur.compr
+                );
+            }
+        } elif isinstance(cur, uni.InnerCompr) {
+            list_owner = cur.parent;
+            comprs = list_owner.compr
+                if isinstance(
+                    list_owner,
+                    (uni.ListCompr, uni.SetCompr, uni.GenCompr, uni.DictCompr)
+                )
+                else [];
+            idx = comprs.index(cur) if cur in comprs else -1;
+            if idx >= 0 {
+                max_idx = idx
+                    if not self._is_descendant_of(nd, cur.collection)
+                    else (idx - 1);
+                if max_idx >= 0 {
+                    i = 0;
+                    while i <= max_idx {
+                        if self._target_binds_name(comprs[i].target, name) {
+                            return True;
+                        }
+                        i += 1;
+                    }
+                }
+            }
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+"""Build `name.value` for a reactive signal read/write."""
+impl EsastGenPass._signal_member_expr(nd: uni.Name) -> es.MemberExpression {
+    identifier = self.sync_loc(es.Identifier(name=nd.sym_name), jac_node=nd);
+    value_prop = self.sync_loc(es.Identifier(name='value'), jac_node=nd);
+    return self.sync_loc(
+        es.MemberExpression(
+            object=identifier, property=value_prop, computed=False, optional=False
+        ),
+        jac_node=nd
+    );
+}
+
 """Return walker call info if the expression instantiates a walker."""
 impl EsastGenPass._resolve_spawn_walker(
     expr: uni.Expr, es_expr: es.Expression
@@ -4704,6 +4846,18 @@ impl EsastGenPass._is_declared_in_any_scope(name: str) -> bool {
     return any((name in scope.declared) for scope in reversed(self.scope_stack));
 }
 
+"""Return the 1-based lexical depth of the nearest visible declaration."""
+impl EsastGenPass._nearest_declaration_depth(name: str) -> (int | None) {
+    depth = len(self.scope_stack);
+    while depth > 0 {
+        if name in self.scope_stack[depth - 1].declared {
+            return depth;
+        }
+        depth -= 1;
+    }
+    return None;
+}
+
 """Get the scope currently being populated."""
 impl EsastGenPass._current_scope -> (ScopeInfo | None) {
     return self.scope_stack[-1] if self.scope_stack else None;
@@ -4798,12 +4952,13 @@ impl EsastGenPass.before_pass -> None {
     self.scope_map: dict[(uni.UniScopeNode, ScopeInfo)] = {};
     self.client_manifest = ClientManifest();
     self.jsx_processor = EsJsxProcessor(self);
-    # Track reactive state variables: maps var_name -> setter_name (e.g., "count" -> "setCount")
     # Names of `has` fields in scope that compile to signals. Reads of these
     # names are rewritten to `name.value`; writes to `name.value = ...`.
     self.reactive_vars: set[str] = set();
+    self.reactive_var_depths: dict[str, int] = {};
     # Stack to save/restore reactive_vars per function boundary.
     self.reactive_vars_stack: list[set[str]] = [];
+    self.reactive_var_depths_stack: list[dict[str, int]] = [];
     # Track which runtime imports have been auto-injected to avoid duplicates
     self.injected_imports: set[str] = set();
     # Accumulate JS function stubs for def:pub functions imported via sv import

@@ -316,6 +316,39 @@ test "reactive state scoping across functions" {
     assert "let cart = useCart()" in js_code;
 }
 
+test "reactive signal reads respect local shadowing and signal methods" {
+    es_ast = compile_to_esast(fixture_path("reactive_signal_shadowing.jac"));
+    js_code = es_to_js(es_ast);
+
+    assert "const count = useSignal(0)" in js_code;
+    assert "count.value = (count.value + 1)" in js_code;
+    assert "console.log(count.peek())" in js_code , (
+        "Signal object methods should stay on the signal, not count.value"
+    );
+    assert "count.value.peek()" not in js_code;
+
+    assert "let inc = count =>" in js_code;
+    assert "return (count + 1)" in js_code , (
+        "Lambda parameter named count should shadow the outer signal"
+    );
+    assert "return (count.value + 1)" not in js_code;
+
+    assert "for (const count of items)" in js_code;
+    assert "console.log(count);" in js_code , (
+        "Loop variable named count should shadow the outer signal inside the loop"
+    );
+    assert "console.log(count.value);" not in js_code;
+
+    assert ".filter(count => (count > 0))" in js_code;
+    assert ".map(count => (count * 2))" in js_code;
+    assert "let from_signal = count.value.filter(item => (item > 0)).map(item => item)" in js_code , (
+        "A comprehension collection should still read the outer signal before target binding applies"
+    );
+    assert ".flatMap(count => count.filter(item => (item > 0)).map(item => (count + item)))" in js_code , (
+        "Nested comprehension collections should see earlier comprehension bindings"
+    );
+}
+
 # SKIP: Jac-in-Jac compilation produces different import output (e.g.
 # `import "lodash"` instead of `import { debounce } from "lodash"`).
 # test "equivalent context patterns" { ... }
