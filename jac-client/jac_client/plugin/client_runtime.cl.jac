@@ -2,6 +2,11 @@
 
 import from 'react' { * as React }
 import from 'react' { useState as reactUseState, useEffect as reactUseEffect }
+import from '@preact/signals-react' {
+    useSignal as preactUseSignal,
+    useSignalEffect as preactUseSignalEffect
+}
+import '@preact/signals-react/auto';
 import from 'react-dom/client' { * as ReactDOM }
 import from 'react-router-dom' {
     BrowserRouter as ReactRouterBrowserRouter,
@@ -21,9 +26,20 @@ import from 'zod' { z }
 
 def:pub __jacJsx(tag: Any, props: dict = {}, children: Any = []) -> JsxElement;
 
-# React hooks re-exported for auto-injection by `has` variables and `can with entry/exit` effects
-glob:pub useState = reactUseState,
-     useEffect = reactUseEffect,
+# Reactive primitives re-exported for auto-injection by `has` variables and
+# `can with entry/exit` blocks. `has` fields compile to `useSignal` (mutable
+# cells that always read live). `can with entry` compiles to `useSignalEffect`
+# (auto-tracks signal reads — re-runs when any read signal changes). `can with
+# exit` compiles to `useEffect` with empty deps (mount-only, cleanup at unmount).
+#
+# Escape hatch: every `has` field has a `.peek()` method that returns the
+# current value without subscribing the enclosing effect. Use it when you want
+# to read a signal for logging/debugging without altering re-run behavior.
+#
+# Users wanting React's `useState`/`useEffect` directly should import from `react`.
+glob:pub useEffect = reactUseEffect,
+     useSignal = preactUseSignal,
+     useSignalEffect = preactUseSignalEffect,
      Router = ReactRouterBrowserRouter,
      Routes = ReactRouterRoutes,
      Route = ReactRouterRoute,

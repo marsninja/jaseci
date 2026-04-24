@@ -21,7 +21,8 @@ glob CORE_RUNTIME_DEPS: dict[str, str] = {
          "react": "^18.2.0",
          "react-dom": "^18.2.0",
          "react-router-dom": "^6.22.0",
-         "react-error-boundary": "^5.0.0"
+         "react-error-boundary": "^5.0.0",
+         "@preact/signals-react": "^2.0.0"
      },
      # Optional runtime dependencies (injected by default, separable later)
      OPTIONAL_RUNTIME_DEPS: dict[str, str] = {

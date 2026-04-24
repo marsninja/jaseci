@@ -697,7 +697,7 @@ impl JacForm(props: dict) -> JsxElement {
     isSubmitting = form.formState.isSubmitting;
     isDirty = form.formState.isDirty;
     # # State for password visibility (separate state for each field)
-    [passwordVisible, setPasswordVisible] = useState({});
+    [passwordVisible, setPasswordVisible] = reactUseState({});
     # Helper function to recursively unwrap Zod wrapper types
     def unwrapZodSchema(schema: any, depth: int = 0) -> any {
         maxDepth = 10;  # Prevent infinite recursion

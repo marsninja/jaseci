@@ -1270,7 +1270,7 @@ def:pub DataView() -> JsxElement {
     has data: list = [];
     has loading: bool = True;
 
-    # Mount effect (runs once on component mount)
+    # Reactive effect -- runs on mount AND whenever any signal it reads changes
     async can with entry {
         data = await fetch("/api/data").then(
             lambda r: any -> any { return r.json(); }
@@ -1278,11 +1278,8 @@ def:pub DataView() -> JsxElement {
         loading = False;
     }
 
-    # Dependency effect (runs when userId changes)
-    # async can with [userId] entry { ... }
-
-    # Multiple dependencies
-    # can with (a, b) entry { ... }
+    # Because `has` fields are signals, an `if userId { ... }` read inside an
+    # entry block auto-subscribes the effect to userId -- no dependency list needed.
 
     # Cleanup on unmount
     # can with exit { unsubscribe(); }

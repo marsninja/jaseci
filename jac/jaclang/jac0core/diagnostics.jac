@@ -823,6 +823,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "obj '{arch}' field '{field}' has type '{type}' which is not layout-compatible."
      ),
+     W5033 = _warn(
+         "W5033",
+         Category.CODEGEN,
+         "'can with (...) entry' dependency list is ignored; `has` fields compile to Preact signals which auto-track reads. Remove the dependency list to silence this warning.",
+         help="Since has fields are now reactive signals, effects automatically observe every signal read inside their body. Explicit dependency arrays have no effect and will be removed in a future release."
+     ),
      # Bytecode gen
      E5040 = _err("E5040", Category.CODEGEN, "Unable to find ast for module {path}."),
      E5041 = _err("E5041", Category.CODEGEN, "Length mismatch in import names"),

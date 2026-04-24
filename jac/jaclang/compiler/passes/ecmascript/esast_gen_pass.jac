@@ -34,7 +34,7 @@ import from jaclang.jac0core.modresolver {
     convert_to_js_import_path,
     resolve_relative_path
 }
-import from jaclang.jac0core.diagnostics { E5010, E5011, E5012, W5013, W5014 }
+import from jaclang.jac0core.diagnostics { E5010, E5011, E5012, W5013, W5014, W5033 }
 
 glob _T = TypeVar('_T', bound=es.Node),
      ES_LOGICAL_OPS: dict[(Tok, str)] = {Tok.KW_AND: '&&', Tok.KW_OR: '||'},
@@ -240,7 +240,6 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_param_var(nd: uni.ParamVar) -> None;
     def exit_arch_has(nd: uni.ArchHas) -> None;
     def exit_has_var(nd: uni.HasVar) -> None;
-    def _get_setter_name(var_name: str) -> str;
     def _has_import(name: str) -> bool;
     def _inject_runtime_import(name: str, nd: uni.UniNode) -> None;
     def _register_jac_runtime_import -> None;

@@ -653,7 +653,7 @@ cl def:pub app -> JsxElement {
 }
 ```
 
-Notice the `has` keyword appearing again -- you first saw it in `obj` and `node` declarations. Inside a component, `has` declares **reactive state**. When any of these values change, the UI automatically re-renders to reflect the new data. If you're familiar with React, this is the same concept as `useState`, but expressed as simple property declarations rather than hook function calls.
+Notice the `has` keyword appearing again -- you first saw it in `obj` and `node` declarations. Inside a component, `has` declares **reactive state**. Each field compiles to a reactive signal cell: you read and write it like a plain field, and any component or effect that read it automatically re-runs when the value changes. There is no separate getter/setter, no dependency array to maintain, and no stale-closure trap where a value written earlier in the same block appears to read as its old value.
 
 ??? info "You can also use React's `useState` directly"
     Since Jac's client-side code compiles to JavaScript that runs in a React context, you can import and use `useState` from React directly if you prefer:
@@ -669,7 +669,7 @@ Notice the `has` keyword appearing again -- you first saw it in `obj` and `node`
     }
     ```
 
-    The `has` syntax is Jac's idiomatic approach -- it's more concise and handles the getter/setter pattern for you behind the scenes. But if you're coming from React and prefer the explicit `useState` hook, it works just the same.
+    `has` is Jac's idiomatic approach and has better semantics than `useState` for most cases: reads are always live (no stale-closure bugs), effects auto-track the signals they read (no dependency arrays), and writes inside async code take effect immediately. If you need React's exact `useState` semantics for interop reasons, the explicit hook still works.
 
 **Lifecycle Hooks**
 
@@ -1805,12 +1805,12 @@ def:pub app -> JsxElement {
 
 Everything outside `cl { }` runs on the server. Everything inside runs in the browser.
 
-**Dependency-Triggered Abilities**
+**Reactive Abilities**
 
-One more concept to learn before assembling the full app. A **dependency-triggered ability** re-runs whenever specific state changes -- conceptually similar to React's `useEffect` with a dependency array, but expressed more declaratively:
+One more concept to learn before assembling the full app. Because `has` fields are signals, a `can with entry` ability re-runs whenever any signal it reads inside its body changes. You don't specify a dependency list -- the tracking is automatic and stays in sync with the body as you edit it:
 
 ```jac
-    can with [isLoggedIn] entry {
+    can with entry {
         if isLoggedIn {
             fetchTasks();
             fetchShoppingList();
@@ -1818,7 +1818,10 @@ One more concept to learn before assembling the full app. A **dependency-trigger
     }
 ```
 
-When `isLoggedIn` changes from `False` to `True` (user logs in), this ability fires automatically and loads their data. This is a powerful pattern: instead of manually calling data-loading functions after every login action, the reactive system handles it for you.
+When `isLoggedIn` changes from `False` to `True` (user logs in), this ability fires automatically and loads their data. The `if isLoggedIn` read subscribes the ability to the signal; subsequent writes to `isLoggedIn` from elsewhere in the component (a login handler, a mount-time check, etc.) trigger a re-run. This is a powerful pattern: instead of manually calling data-loading functions after every login action, the reactive system handles it for you -- and you never have to remember to keep a dependency list in sync.
+
+!!! note "Older `can with [deps] entry` syntax"
+    You may see the older `can with [isLoggedIn] entry { ... }` form in older code. It still parses, but the explicit dependency list is now ignored (signals auto-track) and the compiler emits a `W5033` deprecation warning. Drop the brackets to silence it.
 
 **The Complete Authenticated App**
 
@@ -2004,7 +2007,7 @@ All the complete files are in the collapsible sections below. Create each file, 
             checkingAuth = False;
         }
 
-        can with [isLoggedIn] entry {
+        can with entry {
             if isLoggedIn {
                 fetchTasks();
                 fetchShoppingList();
@@ -2435,7 +2438,7 @@ Step back and consider what you've built: a **complete, fully functional applica
 - **`def:priv`** -- private endpoints with per-user data isolation (each user gets their own `root`)
 - **`jacSignup`**, **`jacLogin`**, **`jacLogout`**, **`jacIsLoggedIn`** -- built-in auth functions
 - **`import from "@jac/runtime"`** -- import Jac's built-in client-side utilities
-- **`can with [deps] entry`** -- dependency-triggered abilities (re-runs when state changes)
+- **`can with entry`** -- reactive abilities that auto-track signal reads and re-run when those signals change
 - **`cl { }`** -- embed client-side code in a server file
 - **Declaration/implementation split** -- `.cl.jac` for UI, `.impl.jac` for logic
 - **`impl app.method { ... }`** -- implement declared methods in a separate file
@@ -2962,7 +2965,7 @@ All the complete files are in the collapsible sections below. Create each file, 
             checkingAuth = False;
         }
 
-        can with [isLoggedIn] entry {
+        can with entry {
             if isLoggedIn {
                 fetchTasks();
                 fetchShoppingList();
@@ -3447,7 +3450,7 @@ The concepts you've learned are interconnected. Types constrain AI output. Graph
 
 **Walkers:** `walker`, `walker:priv`, `can with Type entry/exit`, `visit`, `here`, `self`, `visitor`, `report`, `disengage`, `spawn`
 
-**Frontend:** `cl`, `JsxElement`, reactive `has`, `can with entry`, `can with [deps] entry`, JSX expressions, `sv import`
+**Frontend:** `cl`, `JsxElement`, reactive `has` (signals), `can with entry`/`can with exit`, JSX expressions, `sv import`
 
 **Structure:** `import from`, `cl import`, `sv import`, `impl`, declaration/implementation split
 

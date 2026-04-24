@@ -1,6 +1,6 @@
 # State Management
 
-Interactive applications need to track and respond to changing data -- a counter incrementing, a list of items growing, a form being filled out. In Jac's client-side code, state management uses the `has` keyword inside component functions to declare reactive variables. When a `has` variable changes, the component automatically re-renders to reflect the new value, just like React's `useState` hook.
+Interactive applications need to track and respond to changing data -- a counter incrementing, a list of items growing, a form being filled out. In Jac's client-side code, state management uses the `has` keyword inside component functions to declare reactive variables. Each `has` field compiles to a reactive signal cell: you read and write it like a plain field, and any component or effect that read it automatically re-runs when the value changes.
 
 This tutorial covers declaring reactive state, handling user input, sharing state between components, and managing complex state with effects and derived values.
 
@@ -13,7 +13,7 @@ This tutorial covers declaring reactive state, handling user input, sharing stat
 
 ## Reactive State with `has`
 
-Inside `cl { }` blocks, `has` creates reactive state (like React's `useState`). Declaring `has count: int = 0;` inside a component function creates a stateful variable that persists across re-renders and triggers a UI update whenever its value changes:
+Inside `cl { }` blocks, `has` creates reactive state. Declaring `has count: int = 0;` inside a component function creates a stateful variable that persists across re-renders and triggers a UI update whenever its value changes:
 
 ```jac
 to cl:
@@ -32,9 +32,10 @@ def:pub Counter() -> JsxElement {
 
 **How it works:**
 
-- `has count: int = 0` compiles to `const [count, setCount] = useState(0)`
-- Assignments like `count = count + 1` become `setCount(count + 1)`
-- The component re-renders when state changes
+- `has count: int = 0` compiles to `const count = useSignal(0)` (Preact Signals)
+- Reads of `count` in JSX, conditions, and arguments compile to `count.value`, which is a live read -- always returns the most recent value
+- Assignments like `count = count + 1` become `count.value = count.value + 1`
+- Any component or effect that read `count.value` is automatically subscribed and re-runs when the signal changes
 
 ---
 
@@ -159,9 +160,9 @@ def:pub DataFetcher() -> JsxElement {
 }
 ```
 
-### Effect Dependencies
+### Effects React to Signal Reads Automatically
 
-Use list syntax `[dep1, dep2]` to specify dependencies (similar to React's dependency arrays):
+Because `has` fields are signals, an effect re-runs whenever any signal it reads inside its body changes. You don't need (and shouldn't write) a dependency list -- the tracking is automatic and can't go out of sync with the body:
 
 ```jac
 to cl:
@@ -170,8 +171,8 @@ def:pub SearchResults() -> JsxElement {
     has query: str = "";
     has results: list = [];
 
-    # Run when query changes
-    async can with [query] entry {
+    # Runs at mount AND whenever `query` changes, because the body reads it
+    async can with entry {
         if query {
             results = await search_api(query);
         }
@@ -188,6 +189,10 @@ def:pub SearchResults() -> JsxElement {
     </div>;
 }
 ```
+
+> **Note:** The older `can with [deps] entry` form still parses but its dependency list is ignored (signals auto-track), and the compiler emits a `W5033` deprecation warning. Remove the brackets to silence it.
+>
+> **Escape hatch:** If you want to read a signal inside an effect *without* subscribing to it (useful for logging or when you only want to read the current value once), use `.peek()` instead of the plain field read: `print(query.peek())`.
 
 ### Cleanup Effects
 
@@ -419,14 +424,17 @@ def:pub ContactForm() -> JsxElement {
 
 ## Key Takeaways
 
-| Concept | Jac Syntax | React Equivalent |
-|---------|------------|------------------|
-| State variable | `has count: int = 0` | `useState(0)` |
-| Update state | `count = count + 1` | `setCount(count + 1)` |
-| Effect on mount | `can with entry { ... }` | `useEffect(fn, [])` |
-| Effect with deps | `can with [dep] entry { ... }` | `useEffect(fn, [dep])` |
+| Concept | Jac Syntax | Compiles to |
+|---------|------------|-------------|
+| State variable | `has count: int = 0` | `const count = useSignal(0)` |
+| Read state | `count` | `count.value` (live, always current) |
+| Update state | `count = count + 1` | `count.value = count.value + 1` |
+| Read without subscribing | `count.peek()` | `count.peek()` |
+| Effect on mount / reactive to reads | `can with entry { ... }` | `useSignalEffect(() => { ... })` |
 | Cleanup on unmount | `can with exit { ... }` | `useEffect(() => cleanup, [])` |
 | Global state | `useContext(Ctx)` | Same |
+
+> The old `can with [dep] entry` (explicit deps array) form is deprecated. Signals auto-track reads inside the effect body, so the list is redundant. The compiler emits `W5033` to flag this.
 
 ---
 

@@ -167,10 +167,27 @@ impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
     nd.gen.es_ast = statements;
 }
 
-"""Process name/identifier."""
+"""Process name/identifier.
+
+If the name refers to a reactive `has` field (signal), emit a `name.value`
+MemberExpression so every read site sees the live cell. Writes are handled
+in exit_assignment, which bypasses gen.es_ast for the target.
+"""
 impl EsastGenPass.exit_name(nd: uni.Name) -> None {
     name_map = {'None': 'null', 'True': 'true', 'False': 'false', 'self': 'this'};
     name = name_map.get(nd.sym_name, nd.sym_name);
+    if (name in self.reactive_vars) and (nd.sym_name not in name_map) {
+        identifier = self.sync_loc(es.Identifier(name=name), jac_node=nd);
+        value_prop = self.sync_loc(es.Identifier(name='value'), jac_node=nd);
+        member = self.sync_loc(
+            es.MemberExpression(
+                object=identifier, property=value_prop, computed=False, optional=False
+            ),
+            jac_node=nd
+        );
+        nd.gen.es_ast = member;
+        return;
+    }
     identifier = self.sync_loc(es.Identifier(name=name), jac_node=nd);
     nd.gen.es_ast = identifier;
 }
@@ -1335,51 +1352,39 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
         return;
     }
     value_expr = nd.value.gen.es_ast if (nd.value and nd.value.gen.es_ast) else None;
-    # Check for reactive variable assignment (transforms count = X to setCount(X))
+    # Reactive assignment: `count = X` → `count.value = X`; `count += X` →
+    # `count.value += X`. Signals carry the live cell, so compound assignment
+    # works natively via JS `+=` on the MemberExpression.
     if len(nd.target) == 1 and isinstance(nd.target[0], uni.Name) {
         target_name = nd.target[0].sym_name;
         if target_name in self.reactive_vars {
-            setter_name = self.reactive_vars[target_name];
-            # Get the value to pass to setter
-            setter_arg: es.Expression;
+            signal_member = self.sync_loc(
+                es.MemberExpression(
+                    object=es.Identifier(name=target_name),
+                    property=es.Identifier(name='value'),
+                    computed=False,
+                    optional=False
+                ),
+                jac_node=nd.target[0]
+            );
+            rhs_expr = cast(
+                es.Expression, value_expr or es.Identifier(name='undefined')
+            );
+            op = '=';
             if nd.aug_op {
-                # For augmented assignment: count += 1 -> setCount(count + 1)
                 aug_tok = Tok(nd.aug_op.name)
                     if (nd.aug_op.name in Tok.__members__)
                     else None;
-                # Map augmented op to binary op
-                aug_to_binary: dict[Tok, str] = {
-                    Tok.ADD_EQ: '+',
-                    Tok.SUB_EQ: '-',
-                    Tok.MUL_EQ: '*',
-                    Tok.DIV_EQ: '/',
-                    Tok.MOD_EQ: '%'
-                };
-                binary_op = aug_to_binary.get(aug_tok, '+') if aug_tok else '+';
-                right_expr = cast(es.Expression, value_expr or es.Literal(value=0));
-                setter_arg = self.sync_loc(
-                    es.BinaryExpression(
-                        operator=binary_op,
-                        left=es.Identifier(name=target_name),
-                        right=right_expr
-                    ),
-                    jac_node=nd
-                );
-            } else {
-                # Regular assignment: count = X -> setCount(X)
-                setter_arg = cast(
-                    es.Expression, value_expr or es.Identifier(name='undefined')
-                );
+                op = (ES_AUG_ASSIGN_OPS.get(aug_tok) if aug_tok else None) or '=';
             }
-            # Generate: setCount(value)
-            setter_call = self.sync_loc(
-                es.CallExpression(
-                    callee=es.Identifier(name=setter_name), arguments=[setter_arg]
+            assign_expr = self.sync_loc(
+                es.AssignmentExpression(
+                    operator=op, left=signal_member, right=rhs_expr
                 ),
                 jac_node=nd
             );
             expr_stmt = self.sync_loc(
-                es.ExpressionStatement(expression=setter_call), jac_node=nd
+                es.ExpressionStatement(expression=assign_expr), jac_node=nd
             );
             nd.gen.es_ast = expr_stmt;
             return;
@@ -2505,14 +2510,6 @@ impl EsastGenPass.exit_has_var(nd: uni.HasVar) -> None {
     nd.gen.es_ast = None;
 }
 
-"""Generate setter name for reactive variable (count -> setCount)."""
-impl EsastGenPass._get_setter_name(var_name: str) -> str {
-    if not var_name {
-        return "";
-    }
-    return f"set{var_name[0].upper()}{var_name[1:]}";
-}
-
 """Check if a named import already exists (either by user or auto-injection)."""
 impl EsastGenPass._has_import(name: str) -> bool {
     for import_decl in self.imports {
@@ -2562,18 +2559,28 @@ impl EsastGenPass._inject_runtime_import(name: str, nd: uni.UniNode) -> None {
     self._register_jac_runtime_import();
 }
 
-"""Transform an EventSignature ability (can with entry/exit) to useEffect call."""
+"""Transform a `can with entry|exit` ability into the right effect primitive.
+
+`can with entry { ... }` → `useSignalEffect(() => { ... })`
+    Auto-tracks every signal read inside the body. The effect re-runs when
+    any of those signals change. Async bodies are wrapped in an IIFE.
+
+`can with exit { ... }` → `useEffect(() => { return () => { ... }; }, [])`
+    Mount-only setup whose cleanup runs at unmount. Kept on plain `useEffect`
+    so cleanup semantics don't get tangled with signal-driven re-runs.
+
+Explicit dependency lists (`can with [a, b] entry`) are obsolete since
+signals auto-track; the list is ignored and a W5033 diagnostic is raised.
+"""
 impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
-    # Get the body statements
     inner = self.unwrap_body(nd);
     body_stmts = self._collect_stmt_body(inner);
-    # Determine if this is entry or exit
     is_entry = nd.signature.event.name == Tok.KW_ENTRY;
     is_async = nd.is_async;
     effect_body: list[es.Statement] = [];
     if is_entry {
         if is_async {
-            # Wrap in IIFE: (async () => { ... })();
+            # Wrap in async IIFE: (async () => { ... })();
             async_arrow = self.sync_loc(
                 es.ArrowFunctionExpression(
                     params=[],
@@ -2593,8 +2600,7 @@ impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
             effect_body = body_stmts;
         }
     } else {
-        # Exit: wrap body in cleanup return
-        # return () => { ... };
+        # Exit: wrap body in cleanup return — `return () => { ... };`
         cleanup_arrow = self.sync_loc(
             es.ArrowFunctionExpression(
                 params=[],
@@ -2608,7 +2614,6 @@ impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
             self.sync_loc(es.ReturnStatement(argument=cleanup_arrow), jac_node=nd)
         );
     }
-    # Create effect callback: () => { ... }
     effect_callback = self.sync_loc(
         es.ArrowFunctionExpression(
             params=[],
@@ -2618,59 +2623,61 @@ impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
         ),
         jac_node=nd
     );
-    # Build dependency array from arch_tag_info (if provided)
-    # can with entry { ... }           -> []
-    # can with [a, b] entry { ... }    -> [a, b]
-    # can with (a, b) entry { ... }    -> [a, b]
-    deps_elements: list[es.Expression | es.SpreadElement | None] = [];
     arch_tag = nd.signature.arch_tag_info;
     if arch_tag {
-        # Check if it's a list or tuple
-        if isinstance(arch_tag, (uni.ListVal, uni.TupleVal)) {
-            for item in arch_tag.values {
-                if item.gen.es_ast {
-                    deps_elements.append(cast(es.Expression, item.gen.es_ast));
-                }
-            }
-        } else {
-            # Single expression as dependency
-            if arch_tag.gen.es_ast {
-                deps_elements.append(cast(es.Expression, arch_tag.gen.es_ast));
-            }
-        }
+        self.emit(W5033, node_override=arch_tag);
     }
-    deps_array = self.sync_loc(es.ArrayExpression(elements=deps_elements), jac_node=nd);
-    # Create useEffect call: useEffect(() => { ... }, [deps]);
-    use_effect_call = self.sync_loc(
-        es.CallExpression(
-            callee=es.Identifier(name='useEffect'),
-            arguments=[effect_callback, deps_array]
-        ),
-        jac_node=nd
-    );
+    if is_entry {
+        # useSignalEffect(() => { ... }) — auto-tracks signal reads
+        self._inject_runtime_import('useSignalEffect', nd);
+        effect_call = self.sync_loc(
+            es.CallExpression(
+                callee=es.Identifier(name='useSignalEffect'),
+                arguments=[effect_callback]
+            ),
+            jac_node=nd
+        );
+    } else {
+        # useEffect(() => { return () => {...}; }, []) — mount-only, cleanup at unmount
+        self._inject_runtime_import('useEffect', nd);
+        empty_deps = self.sync_loc(es.ArrayExpression(elements=[]), jac_node=nd);
+        effect_call = self.sync_loc(
+            es.CallExpression(
+                callee=es.Identifier(name='useEffect'),
+                arguments=[effect_callback, empty_deps]
+            ),
+            jac_node=nd
+        );
+    }
     nd.gen.es_ast = self.sync_loc(
-        es.ExpressionStatement(expression=use_effect_call), jac_node=nd
+        es.ExpressionStatement(expression=effect_call), jac_node=nd
     );
 }
 
-"""Process class field declarations - generates useState for client-side reactive state."""
+"""Process class field declarations - generates useSignal for client-side reactive state.
+
+`has` fields compile to `useSignal` (Preact Signals): each field becomes a
+mutable cell whose current value is accessed via `.value`. This matches the
+server-side mutable-field semantics of `has` — reads always see the most
+recent write, across sync, async, and effect boundaries.
+"""
 impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
     # Check if this is client-side reactive state (works for both cl {} and .cl.jac)
     if not nd.in_client_context() {
         nd.gen.es_ast = None;
         return;
     }
-    # Auto-inject useState import if not already done
-    self._inject_runtime_import('useState', nd);
-    # Generate useState destructuring for each variable
-    # has count: int = 0; -> const [count, setCount] = useState(0);
+    # Auto-inject useSignal import if not already done
+    self._inject_runtime_import('useSignal', nd);
+    # Generate useSignal declaration for each variable
+    # has count: int = 0; -> const count = useSignal(0);
     statements: list[es.Statement] = [];
     for has_var in nd.vars {
         var_name = has_var.name.sym_name;
-        setter_name = self._get_setter_name(var_name);
 
-        # Track this as a reactive variable for assignment transformation
-        self.reactive_vars[var_name] = setter_name;
+        # Track this as a reactive variable. exit_name will rewrite reads of
+        # `var_name` to `var_name.value`; exit_assignment rewrites writes.
+        self.reactive_vars.add(var_name);
 
         # Get the initial value expression
         init_value: es.Expression;
@@ -2680,23 +2687,18 @@ impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
             init_value = es.Identifier(name='undefined');
         }
 
-        # Build: const [count, setCount] = useState(initialValue);
-        array_pattern = self.sync_loc(
-            es.ArrayPattern(
-                elements=[es.Identifier(name=var_name), es.Identifier(name=setter_name)]
-            ),
-            jac_node=has_var.name
-        );
-
-        use_state_call = self.sync_loc(
+        # Build: const count = useSignal(initialValue);
+        use_signal_call = self.sync_loc(
             es.CallExpression(
-                callee=es.Identifier(name='useState'), arguments=[init_value]
+                callee=es.Identifier(name='useSignal'), arguments=[init_value]
             ),
             jac_node=has_var
         );
 
         declarator = self.sync_loc(
-            es.VariableDeclarator(id=array_pattern, `init=use_state_call),
+            es.VariableDeclarator(
+                id=es.Identifier(name=var_name), `init=use_signal_call
+            ),
             jac_node=has_var
         );
 
@@ -2707,9 +2709,7 @@ impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
 
         statements.append(decl_stmt);
 
-        # Register both the variable and setter as declared
         self._register_declaration(var_name);
-        self._register_declaration(setter_name);
     }
     if len(statements) == 1 {
         nd.gen.es_ast = statements[0];
@@ -2741,9 +2741,8 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
     }
     # CHECK: Is this an event-based ability (can with entry/exit) in client context?
     if (isinstance(nd.signature, uni.EventSignature) and nd.in_client_context()) {
-        # Auto-inject useEffect import if needed
-        self._inject_runtime_import('useEffect', nd);
-        # Transform to useEffect
+        # _transform_to_useeffect picks the right primitive (useSignalEffect for
+        # entry, useEffect for exit) and injects the matching runtime import.
         self._transform_to_useeffect(nd);
         return;
     }
@@ -2866,7 +2865,7 @@ impl EsastGenPass.enter_ability(nd: uni.Ability) -> None {
         nd.kid.append(nd.body);
     }
     self.reactive_vars_stack.append(self.reactive_vars);
-    self.reactive_vars = dict(self.reactive_vars);
+    self.reactive_vars = set(self.reactive_vars);
 }
 
 """Process enum declaration as an object."""
@@ -4800,9 +4799,11 @@ impl EsastGenPass.before_pass -> None {
     self.client_manifest = ClientManifest();
     self.jsx_processor = EsJsxProcessor(self);
     # Track reactive state variables: maps var_name -> setter_name (e.g., "count" -> "setCount")
-    self.reactive_vars: dict[str, str] = {};
-    # Stack to save/restore reactive_vars per function boundary
-    self.reactive_vars_stack: list[dict[str, str]] = [];
+    # Names of `has` fields in scope that compile to signals. Reads of these
+    # names are rewritten to `name.value`; writes to `name.value = ...`.
+    self.reactive_vars: set[str] = set();
+    # Stack to save/restore reactive_vars per function boundary.
+    self.reactive_vars_stack: list[set[str]] = [];
     # Track which runtime imports have been auto-injected to avoid duplicates
     self.injected_imports: set[str] = set();
     # Accumulate JS function stubs for def:pub functions imported via sv import

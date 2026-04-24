@@ -232,7 +232,12 @@ test "export semantics for pub declarations" {
 
     # All :pub items in export, private items excluded
     pub_items = ["PUBLIC_API_URL", "PublicClass", "public_function", "PublicStatus"];
-    priv_items = ["PRIVATE_SECRET", "PrivateClass", "private_function", "PrivateStatus"];
+    priv_items = [
+        "PRIVATE_SECRET",
+        "PrivateClass",
+        "private_function",
+        "PrivateStatus"
+    ];
     assert all(item in last_line for item in pub_items) , (
         "All :pub items should be exported"
     );
@@ -249,66 +254,65 @@ test "export semantics for pub declarations" {
     );
 }
 
-test "reactive state generates use state" {
+test "reactive state generates use signal" {
     es_ast = compile_to_esast(fixture_path("reactive_state.jac"));
     js_code = es_to_js(es_ast);
 
-    # Check that useState is imported from @jac/runtime (auto-injected)
-    assert 'import { useState } from "@jac/runtime"' in js_code , (
-        "useState should be auto-imported from @jac/runtime"
+    # has fields compile to Preact signals auto-injected from @jac/runtime
+    assert 'import { useSignal } from "@jac/runtime"' in js_code , (
+        "useSignal should be auto-imported from @jac/runtime"
     );
 
-    # Check that has declarations generate useState destructuring
-    # has count: int = 0; -> const [count, setCount] = useState(0);
-    assert "const [count, setCount] = useState(0)" in js_code , (
-        "has count should generate useState destructuring"
+    # has count: int = 0; -> const count = useSignal(0);
+    assert "const count = useSignal(0)" in js_code , (
+        "has count should generate useSignal declaration"
     );
-    assert 'const [name, setName] = useState("test")' in js_code , (
-        "has name should generate useState destructuring"
+    assert 'const name = useSignal("test")' in js_code , (
+        "has name should generate useSignal declaration"
     );
 
-    # Check that assignments to reactive vars generate setter calls
-    # count = count + 1; -> setCount(count + 1);
-    assert "setCount((count + 1))" in js_code , (
-        "Assignment to reactive var should use setter"
+    # Assignments to reactive vars become .value writes
+    # count = count + 1; -> count.value = (count.value + 1);
+    assert "count.value = (count.value + 1)" in js_code , (
+        "Assignment to reactive var should write .value with live read on RHS"
     );
-    assert "setCount(42)" in js_code , "Direct assignment should use setter";
-    assert "setName(" in js_code , "Assignment to name should use setName";
+    assert "count.value = 42" in js_code , "Direct assignment should write .value";
+    assert "name.value = " in js_code , "Assignment to name should write name.value";
+    # Old useState/setter shape must be gone
+    assert "useState" not in js_code;
+    assert "setCount" not in js_code;
 }
 
 test "reactive state in cl jac file" {
     es_ast = compile_to_esast(fixture_path("reactive_state.cl.jac"));
     js_code = es_to_js(es_ast);
 
-    # Check that useState is imported from @jac/runtime (auto-injected)
-    assert 'import { useState } from "@jac/runtime"' in js_code , (
-        "useState should be auto-imported from @jac/runtime in .cl.jac files"
+    assert 'import { useSignal } from "@jac/runtime"' in js_code , (
+        "useSignal should be auto-imported from @jac/runtime in .cl.jac files"
     );
 
-    # Check that has declarations generate useState destructuring
-    # has count: int = 0; -> const [count, setCount] = useState(0);
-    assert "const [count, setCount] = useState(0)" in js_code , (
-        "has count should generate useState destructuring in .cl.jac files"
+    assert "const count = useSignal(0)" in js_code , (
+        "has count should generate useSignal declaration in .cl.jac files"
     );
-    assert 'const [name, setName] = useState("test")' in js_code , (
-        "has name should generate useState destructuring in .cl.jac files"
+    assert 'const name = useSignal("test")' in js_code , (
+        "has name should generate useSignal declaration in .cl.jac files"
     );
 
-    # Check that assignments to reactive vars generate setter calls
-    # count = count + 1; -> setCount(count + 1);
-    assert "setCount((count + 1))" in js_code , (
-        "Assignment to reactive var should use setter in .cl.jac files"
+    assert "count.value = (count.value + 1)" in js_code , (
+        "Assignment to reactive var should write .value in .cl.jac files"
     );
-    assert "setCount(42)" in js_code , "Direct assignment should use setter";
-    assert "setName(" in js_code , "Assignment to name should use setName";
+    assert "count.value = 42" in js_code , "Direct assignment should write .value";
+    assert "name.value = " in js_code , "Assignment to name should write name.value";
+    assert "useState" not in js_code;
+    assert "setCount" not in js_code;
 }
 
 test "reactive state scoping across functions" {
     es_ast = compile_to_esast(fixture_path("reactive_state_scoping.jac"));
     js_code = es_to_js(es_ast);
 
-    assert "const [cart, setCart] = useState([])" in js_code;
-    assert "setCart(useCart())" not in js_code;
+    assert "const cart = useSignal([])" in js_code;
+    assert "cart.value = useCart()" not in js_code;
     assert "let cart = useCart()" in js_code;
 }
 
@@ -319,74 +323,76 @@ test "reactive effects async entry" {
     es_ast = compile_to_esast(fixture_path("reactive_effects.jac"));
     js_code = es_to_js(es_ast);
 
-    # Check that useEffect is imported from @jac/runtime (auto-injected)
-    assert 'import { useEffect } from "@jac/runtime"' in js_code , (
-        "useEffect should be auto-imported from @jac/runtime"
+    # Entry blocks compile to useSignalEffect (auto-tracks signal reads)
+    assert 'import { useSignalEffect } from "@jac/runtime"' in js_code , (
+        "useSignalEffect should be auto-imported from @jac/runtime"
     );
+    assert "useSignalEffect(" in js_code , "useSignalEffect should be called";
 
-    # Check that useEffect is called with arrow function
-    assert "useEffect(" in js_code , "useEffect should be called";
-
-    # Check that async entry generates IIFE wrapper: (async () => { ... })()
+    # Async entry still wraps the body in an async IIFE
     assert "async () =>" in js_code , "Async entry should generate async arrow function";
 
-    # Check empty dependency array for mount-only effect
-    assert "}, [])" in js_code , "Mount effect should have empty dependency array";
+    # Plain useEffect should not be used for entry blocks
+    assert "useEffect(" not in js_code , "Entry should not use plain useEffect";
 }
 
 test "reactive effects sync entry" {
     es_ast = compile_to_esast(fixture_path("reactive_effects_sync.jac"));
     js_code = es_to_js(es_ast);
 
-    # Check that useEffect is imported from @jac/runtime (auto-injected)
-    assert 'import { useEffect } from "@jac/runtime"' in js_code , (
-        "useEffect should be auto-imported from @jac/runtime"
+    assert 'import { useSignalEffect } from "@jac/runtime"' in js_code , (
+        "useSignalEffect should be auto-imported from @jac/runtime"
     );
+    assert "useSignalEffect(" in js_code , "useSignalEffect should be called";
 
-    # Check that useEffect is called
-    assert "useEffect(" in js_code , "useEffect should be called";
-
-    # Check that sync entry does NOT wrap in async IIFE
+    # Sync entry should NOT wrap in async IIFE
     assert "async () =>" not in js_code , (
         "Sync entry should NOT generate async arrow function"
     );
-
-    # Check empty dependency array for mount-only effect
-    assert "}, [])" in js_code , "Mount effect should have empty dependency array";
 }
 
 test "reactive effects cleanup" {
     es_ast = compile_to_esast(fixture_path("reactive_effects_cleanup.jac"));
     js_code = es_to_js(es_ast);
 
-    # Check that useEffect is imported from @jac/runtime (auto-injected)
+    # Exit (cleanup) blocks stay on plain useEffect with empty deps so cleanup
+    # semantics are not entangled with signal-driven re-runs
     assert 'import { useEffect } from "@jac/runtime"' in js_code , (
-        "useEffect should be auto-imported from @jac/runtime"
+        "useEffect should be auto-imported from @jac/runtime for cleanup blocks"
     );
-
-    # Check that useEffect is called with cleanup return
-    assert "useEffect(" in js_code , "useEffect should be called";
+    assert "useEffect(" in js_code , "useEffect should be called for exit blocks";
     assert "return () =>" in js_code , "Exit effect should return cleanup function";
-
-    # Check empty dependency array
     assert "}, [])" in js_code , "Cleanup effect should have empty dependency array";
+    assert "useSignalEffect" not in js_code , (
+        "Exit blocks should not use useSignalEffect"
+    );
 }
 
-test "reactive effects with dependencies" {
-    es_ast = compile_to_esast(fixture_path("reactive_effects_deps.jac"));
-    js_code = es_to_js(es_ast);
+test "reactive effects with dependencies are ignored" {
+    # Inline compile so we can inspect warnings_had as well as the emitted JS.
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=fixture_path("reactive_effects_deps.jac"), no_cgen=True
+    );
+    assert not prog.errors_had;
+    es_pass = EsastGenPass(ir_in=ir, prog=prog);
+    es_ir = es_pass.ir_out;
+    js_code = es_to_js(es_ir.gen.es_ast);
 
-    # Check that useEffect is imported from @jac/runtime (auto-injected)
-    assert 'import { useEffect } from "@jac/runtime"' in js_code , (
-        "useEffect should be auto-imported from @jac/runtime"
+    # Entry block compiles to useSignalEffect; explicit deps list is dropped
+    assert 'import { useSignalEffect } from "@jac/runtime"' in js_code;
+    assert "useSignalEffect(" in js_code;
+    assert "[userId, loading]" not in js_code , (
+        "Explicit dependency array should be dropped"
     );
 
-    # Check that useEffect is called
-    assert "useEffect(" in js_code , "useEffect should be called";
-
-    # Check that dependency array contains userId and loading (tuple syntax)
-    assert "[userId, loading])" in js_code , (
-        "Effect with (userId, loading) tuple should have both in dependency array"
+    # W5033 is emitted on the arch_tag_info node (the deps list itself)
+    warnings = prog.warnings_had + es_pass.warnings_had;
+    w5033_hit = any(w.code and w.code.code == "W5033" for w in warnings);
+    assert w5033_hit , (
+        "Expected W5033 diagnostic for explicit deps, got: " + str(
+            [(w.code.code if w.code else "?") for w in warnings]
+        )
     );
 }
 

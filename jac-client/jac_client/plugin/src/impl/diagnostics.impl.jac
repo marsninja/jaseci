@@ -135,7 +135,7 @@ impl BaseDetector.find_importing_file(
 # ============== MissingDependencyDetector ==============
 
 # Core runtime dependencies (auto-injected by jac-client)
-glob CORE_DEPS = {"react","react-dom","react-router-dom","react-error-boundary","react-hook-form","zod","@hookform/resolvers"},
+glob CORE_DEPS = {"react","react-dom","react-router-dom","react-error-boundary","react-hook-form","zod","@hookform/resolvers","@preact/signals-react"},
      DEV_DEPS = {"vite","@vitejs/plugin-react","typescript","@types/react","@types/react-dom"};
 
 impl MissingDependencyDetector.detect(

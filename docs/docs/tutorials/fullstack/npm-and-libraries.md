@@ -159,26 +159,26 @@ def:pub FileUploader() -> JsxElement {
 }
 ```
 
-### Mixing Jac Sugar with Direct React Hooks
+### Mixing Jac Signals with Direct React Hooks
 
-You can freely mix `has` (useState sugar) with direct React hook imports in the same component:
+You can freely mix `has` (signal-backed reactive state) with direct React hook imports in the same component:
 
 ```jac
 import from react { useRef, useCallback, useEffect }
 
 def:pub SearchBox() -> JsxElement {
-    has query: str = "";           # Jac sugar for useState
-    has results: list = [];        # Jac sugar for useState
+    has query: str = "";           # Reactive signal cell
+    has results: list = [];        # Reactive signal cell
     inputRef = useRef(None);       # Direct React hook
 
-    # Jac sugar for useEffect with dependency
-    async can with [query] entry {
+    # Reactive effect -- reads `query`, so it re-runs whenever query changes
+    async can with entry {
         if query {
             results = await search_api(query);
         }
     }
 
-    # Direct React useEffect for DOM manipulation
+    # Direct React useEffect for DOM manipulation (mount-only)
     useEffect(lambda -> None {
         if inputRef.current {
             inputRef.current.focus();

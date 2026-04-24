@@ -45,7 +45,8 @@ def prompt_install_client_deps(config_loader: object) -> bool {
         'react-error-boundary': '^5.0.0',
         "react-hook-form": "^7.71.0",
         "zod": "^4.3.6",
-        "@hookform/resolvers": "^5.2.2"
+        "@hookform/resolvers": "^5.2.2",
+        "@preact/signals-react": "^2.0.0"
     };
     # Default build infrastructure dependencies
     default_dev_deps: dict[str, str] = {
