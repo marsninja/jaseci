@@ -666,6 +666,17 @@ impl AstSymbolStubNode._init_stub(sym_type: SymbolType) -> None {
     );
 }
 
+impl AstSymbolStubNode._restore_stub_from_jir -> None {
+    sym_type = self.SYMBOL_TYPE if hasattr(self, "SYMBOL_TYPE") else (
+        SymbolType.STRING
+        if isinstance(self, (MultiString, FString))
+        else SymbolType.OBJECT_ARCH
+            if isinstance(self, JsxElement)
+            else SymbolType.SEQUENCE
+    );
+    AstSymbolStubNode._init_stub(self, sym_type=sym_type);
+}
+
 
 @property
 impl AstAccessNode.access_type -> SymbolAccess {

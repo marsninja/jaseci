@@ -217,6 +217,7 @@ obj AstSymbolNode(UniNode) {
 """Nodes that have link to a symbol in symbol table."""
 obj AstSymbolStubNode(AstSymbolNode) {
     def _init_stub(sym_type: SymbolType) -> None;
+    def _restore_stub_from_jir -> None;
 }
 
 """Nodes that have access."""

@@ -603,6 +603,7 @@ impl JirReader._init_caches -> None {
         NameAtom,
         Expr,
         AstSymbolNode,
+        AstSymbolStubNode,
         WalkerStmtOnlyNode,
         Source,
         ParamVar,
@@ -627,6 +628,7 @@ impl JirReader._init_caches -> None {
     self._CodeLocInfo = CodeLocInfo;
     self._Expr = Expr;
     self._AstSymbolNode = AstSymbolNode;
+    self._AstSymbolStubNode = AstSymbolStubNode;
     self._WalkerStmtOnlyNode = WalkerStmtOnlyNode;
     self._Source = Source;
     self._ParamVar = ParamVar;
@@ -914,6 +916,13 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
         ir_node.loc = self._CodeLocInfo(*ir_node.resolve_tok_range());
     } except Exception {
         ;
+    }
+
+    # JIR does not serialize synthetic AstSymbolStubNode.name_spec nodes (they are
+    # not children/constructor fields). Recreate them after loc exists so cached
+    # literal/container expressions remain valid AstSymbolNodes.
+    if isinstance(ir_node, self._AstSymbolStubNode) and 'name_spec' not in nd {
+        ir_node._restore_stub_from_jir();
     }
 
     nodes[idx] = ir_node;

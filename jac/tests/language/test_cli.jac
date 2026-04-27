@@ -1940,6 +1940,44 @@ test "jir cache preserves generic type inference" {
     }
 }
 
+"""Regression: JIR reader must restore synthetic name specs for stub expressions.
+
+AstSymbolStubNode.name_spec is synthetic (not a constructor field/child), so JIR
+cache reload must recreate it for literals/containers such as MultiString and
+IndexSlice. Without this, later checker passes can raise AttributeError while
+reattaching impl modules from cached imports.
+"""
+test "jir reader restores name specs for stub expressions" {
+    import from jaclang.jac0core.jir_passes { JirWriter, JirReader }
+    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.jac0core.unitree { IndexSlice, MultiString }
+
+    with tempfile.TemporaryDirectory() as tmpdir {
+        mod_path = os.path.join(tmpdir, "stub_exprs.jac");
+        with open(mod_path, "w") as f {
+            f.write(
+                "def f -> None {\n"
+                "    msg = \"hello\";\n"
+                "    vals = [1, 2, 3];\n"
+                "    first = vals[0];\n"
+                "}\n"
+            );
+        }
+        mod = JacProgram().compile(mod_path, no_cgen=True, type_check=False);
+        assert mod is not None;
+        cached = JirReader(_source_path=mod_path).read_module(JirWriter().write_module(mod));
+        assert cached is not None;
+
+        multi_strings = cached.get_all_sub_nodes(MultiString);
+        index_slices = cached.get_all_sub_nodes(IndexSlice);
+        assert multi_strings , "Expected fixture to contain a MultiString node";
+        assert index_slices , "Expected fixture to contain an IndexSlice node";
+        for nd in multi_strings + index_slices {
+            assert hasattr(nd, "name_spec") , f"{nd.__class__.__name__} missing name_spec after JIR read";
+        }
+    }
+}
+
 """Regression: JIR cache must preserve IndexSlice.slices (Slice is a UniNode).
 
 IndexSlice.Slice was previously a plain inner class without a node ID, so the
