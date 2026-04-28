@@ -223,8 +223,9 @@ The compiler now automatically detects imports that are only used in type annota
 **Impact:** Bare `root` is the canonical form and continues to work as before in walkers, graph operations, and edge expressions. However:
 
 - **Backtick escaping is required to shadow it.** Use `` `root `` to declare a parameter, field, or local named `root`.
-- **`root()` is no longer the preferred form.** Bare `root` is canonical; the deprecation warning **W0062** has been removed and the `def root() -> Root` ambient declaration in `jac_builtins.pyi` is gone.
+- **`root()` is now deprecated.** Bare `root` is canonical; the compiler emits **W0062** when it sees `root()` and lowers it to the same `Jac.root()` call so existing code keeps working.
 - **AST introspection sees `SpecialVarRef` with `KW_ROOT` again.** Code that special-cased the post-0.12.3 `Name` shape needs to update.
+- **Bytecode cache must be cleared.** The AST shape for `root` changes from `Name` to `SpecialVarRef`. Run `rm -rf ~/.cache/jac/bytecode/ .jac/cache/` (or your project's configured cache dir) after upgrading.
 
 **Before (0.12.3):**
 
@@ -247,6 +248,7 @@ has `root: str = "default";
 with entry {
     r = root;                # bare reference, canonical
     root ++> Item();         # works, no warning
+    r2 = root();             # still works but emits W0062
 }
 ```
 

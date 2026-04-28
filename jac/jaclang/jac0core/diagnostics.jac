@@ -208,6 +208,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Parenthesized filter syntax '(?:...)' is deprecated. Use bracket syntax '[?:...]' instead.",
          "Replace (?:Type, cond) with [?:Type, cond]"
      ),
+     W0062 = _warn(
+         "W0062",
+         Category.SYNTAX,
+         "'root()' is deprecated. Use bare 'root' instead.",
+         "'root' is a reserved keyword that resolves to the graph anchor — drop the parentheses."
+     ),
      W0063 = _warn(
          "W0063",
          Category.SYNTAX,

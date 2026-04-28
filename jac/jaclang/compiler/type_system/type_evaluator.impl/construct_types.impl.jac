@@ -1,8 +1,11 @@
 """Return the effective type of root."""
 impl TypeEvaluator._get_type_of_root(node_: uni.SpecialVarRef) -> TypeBase {
-    node_.sym = self.prefetch.root_class.get_class_symbol();
-    node_.type = self.prefetch.root_class.clone_as_instance();
-    return node_.type;
+    if self.prefetch and self.prefetch.root_class {
+        node_.sym = self.prefetch.root_class.get_class_symbol();
+        node_.type = self.prefetch.root_class.clone_as_instance();
+        return node_.type;
+    }
+    return types.UnknownType();
 }
 
 """Return the effective type of self."""
