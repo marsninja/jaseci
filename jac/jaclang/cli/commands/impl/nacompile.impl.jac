@@ -72,7 +72,9 @@ impl nacompile(filename: str, output: str = "", scrub: bool = False) -> int {
         import glob as _glob;
         import shutil;
         src_root = os.path.dirname(os.path.abspath(filename)) or ".";
-        cache_dirs = _glob.glob(os.path.join(src_root, "**", ".jac_ir"), recursive=True);
+        cache_dirs = _glob.glob(
+            os.path.join(src_root, "**", ".jac_ir"), recursive=True
+        );
         for cache_dir in cache_dirs {
             shutil.rmtree(cache_dir, ignore_errors=True);
         }
