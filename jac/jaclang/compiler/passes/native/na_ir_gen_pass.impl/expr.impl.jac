@@ -54,7 +54,7 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     } elif isinstance(nd, uni.FuncCall) {
         _call_result = self._codegen_call(nd);
         if _call_result is not None and isinstance(_call_result.type, ir.PointerType) {
-            self.rc_owned_ids.add(id(_call_result));
+            self._mark_owned(_call_result);
         }
         _result = _call_result;
     } elif isinstance(nd, uni.AtomTrailer) {
@@ -279,10 +279,10 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     if result is not None {
         i8p = ir.IntType(8).as_pointer();
         if op == Tok.PLUS and left.type == i8p and right.type == i8p {
-            if id(left) in self.rc_owned_ids {
+            if self._is_owned(left) {
                 self._emit_rc_release_typed(left, op="binop_lhs", loc="");
             }
-            if id(right) in self.rc_owned_ids {
+            if self._is_owned(right) {
                 self._emit_rc_release_typed(right, op="binop_rhs", loc="");
             }
         }
@@ -534,11 +534,11 @@ impl NaIRGenPass._codegen_compare(nd: uni.CompareExpr) -> (ir.Value | None) {
             }
             _is_result = self.builder.icmp_unsigned("==", left, right, name="is.eq");
             if isinstance(_cmp_left_orig.type, ir.PointerType)
-            and id(_cmp_left_orig) in self.rc_owned_ids {
+            and self._is_owned(_cmp_left_orig) {
                 self._emit_rc_release_simple(_cmp_left_orig, op="cmp_is", loc="");
             }
             if isinstance(_cmp_right_orig.type, ir.PointerType)
-            and id(_cmp_right_orig) in self.rc_owned_ids {
+            and self._is_owned(_cmp_right_orig) {
                 self._emit_rc_release_simple(_cmp_right_orig, op="cmp_is", loc="");
             }
             return _is_result;
@@ -559,11 +559,11 @@ impl NaIRGenPass._codegen_compare(nd: uni.CompareExpr) -> (ir.Value | None) {
             }
             _isn_result = self.builder.icmp_unsigned("!=", left, right, name="is.ne");
             if isinstance(_cmp_left_orig.type, ir.PointerType)
-            and id(_cmp_left_orig) in self.rc_owned_ids {
+            and self._is_owned(_cmp_left_orig) {
                 self._emit_rc_release_simple(_cmp_left_orig, op="cmp_isn", loc="");
             }
             if isinstance(_cmp_right_orig.type, ir.PointerType)
-            and id(_cmp_right_orig) in self.rc_owned_ids {
+            and self._is_owned(_cmp_right_orig) {
                 self._emit_rc_release_simple(_cmp_right_orig, op="cmp_isn", loc="");
             }
             return _isn_result;
@@ -583,11 +583,11 @@ impl NaIRGenPass._codegen_compare(nd: uni.CompareExpr) -> (ir.Value | None) {
     }
     _cmp_result = self._emit_comparison(op, left, right, is_float);
     if isinstance(_cmp_left_orig.type, ir.PointerType)
-    and id(_cmp_left_orig) in self.rc_owned_ids {
+    and self._is_owned(_cmp_left_orig) {
         self._emit_rc_release_simple(_cmp_left_orig, op="cmp_op", loc="");
     }
     if isinstance(_cmp_right_orig.type, ir.PointerType)
-    and id(_cmp_right_orig) in self.rc_owned_ids {
+    and self._is_owned(_cmp_right_orig) {
         self._emit_rc_release_simple(_cmp_right_orig, op="cmp_op", loc="");
     }
     return _cmp_result;

@@ -168,10 +168,10 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             _empty_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
                 if nd.loc
                 else 0}";
-            self._set_rc_ctx("new", _empty_loc);
-            _empty = self.builder.call(helpers["new"], [], name="list.empty");
-            self._clear_rc_ctx();
-            self.rc_owned_ids.add(id(_empty));
+            _empty = self._rc_call_with_ctx(
+                helpers["new"], [], op="new", loc=_empty_loc, name="list.empty"
+            );
+            self._mark_owned(_empty);
             return _empty;
         }
         return None;
@@ -203,9 +203,9 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     _list_new_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("new", _list_new_loc);
-    list_val = self.builder.call(helpers["new"], [], name="list.new");
-    self._clear_rc_ctx();
+    list_val = self._rc_call_with_ctx(
+        helpers["new"], [], op="new", loc=_list_new_loc, name="list.new"
+    );
     # Append first element (bitcast pointers to i8* for ptr lists)
     append_val = first_val;
     if elem_type_name == "ptr" and isinstance(first_val.type, ir.PointerType) {
@@ -214,13 +214,12 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     _linit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("list_init", _linit_loc);
-    self.builder.call(helpers["append"], [list_val, append_val]);
-    self._clear_rc_ctx();
+    self._rc_call_with_ctx(
+        helpers["append"], [list_val, append_val], op="list_init", loc=_linit_loc
+    );
     # if the original element was owned (fresh alloc/fn-call result),
     # __list_append_ptr retained it → release caller's owned ref.
-    if isinstance(first_val.type, ir.PointerType)
-    and id(first_val) in self.rc_owned_ids {
+    if isinstance(first_val.type, ir.PointerType) and self._is_owned(first_val) {
         self._emit_rc_release_simple(first_val, op="list_init", loc=_linit_loc);
     }
     # Append remaining elements
@@ -235,14 +234,14 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             } else {
                 val = self._coerce_type(val, elem_type);
             }
-            self._set_rc_ctx("list_init", _linit_loc);
-            self.builder.call(helpers["append"], [list_val, val]);
-            self._clear_rc_ctx();
+            self._rc_call_with_ctx(
+                helpers["append"], [list_val, val], op="list_init", loc=_linit_loc
+            );
             # release owned ref after append retained it.
-            # Use _boxed_val (post-box, pre-bitcast) since _box_value_tuple adds the new
-            # heap ptr to rc_owned_ids — the pre-box struct id is never in that set.
+            # Use _boxed_val (post-box, pre-bitcast) since _box_value_tuple marks
+            # the new heap ptr as is_owned — the pre-box struct value is never marked.
             if isinstance(_boxed_val.type, ir.PointerType)
-            and id(_boxed_val) in self.rc_owned_ids {
+            and self._is_owned(_boxed_val) {
                 self._emit_rc_release_simple(
                     _boxed_val, op="list_init", loc=_linit_loc
                 );
@@ -250,7 +249,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         }
     }
     # List literal is a fresh allocation — mark as owned so callers don't double-retain.
-    self.rc_owned_ids.add(id(list_val));
+    self._mark_owned(list_val);
     return list_val;
 }
 
@@ -300,22 +299,19 @@ impl NaIRGenPass._codegen_index_set(
         is_oob, "IndexError", "list assignment index out of range"
     );
     elem_type = helpers["elem_type"];
-    _orig_value = value;  # Save BEFORE potential bitcast/coerce
-    value = self._coerce_type(value, elem_type);
-    # Hold on to the original ir.Value (before coerce) to check rc_owned_ids
+    # Save jac_loc before coerce — coerce_type propagates is_owned across
+    # bitcasts but does not propagate the loc attribute.
     _lset_ctx_loc = getattr(
-        _orig_value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
+        value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
     );
-    self._set_rc_ctx("list_set", _lset_ctx_loc);
-    self.builder.call(helpers["set"], [target_val, index_val, value]);
-    self._clear_rc_ctx();
+    value = self._coerce_type(value, elem_type);
+    self._rc_call_with_ctx(
+        helpers["set"], [target_val, index_val, value], op="list_set", loc=_lset_ctx_loc
+    );
     # if value was owned (function-call result), release our rc=1 ref.
     # __list_set_T already retained the new element; release caller's ownership.
-    if isinstance(elem_type, ir.PointerType) and id(_orig_value) in self.rc_owned_ids {
-        _lset_loc = getattr(
-            _orig_value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
-        );
-        self._emit_rc_release_simple(_orig_value, op="list_set", loc=_lset_loc);
+    if isinstance(elem_type, ir.PointerType) and self._is_owned(value) {
+        self._emit_rc_release_simple(value, op="list_set", loc=_lset_ctx_loc);
     }
 }
 # ─── Phase 5: Inheritance and Vtables ────────────────────────

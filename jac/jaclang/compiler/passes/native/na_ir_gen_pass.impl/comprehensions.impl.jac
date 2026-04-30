@@ -81,13 +81,13 @@ impl NaIRGenPass._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None) {
     _lcompr_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("new", _lcompr_loc);
-    list_val = self.builder.call(helpers["new"], [], name="compr.list");
-    self._clear_rc_ctx();
+    list_val = self._rc_call_with_ctx(
+        helpers["new"], [], op="new", loc=_lcompr_loc, name="compr.list"
+    );
     # Generate nested loops for each InnerCompr
     self._codegen_compr_loops(nd.compr, 0, list_val, nd.out_expr, elem_type_name);
     # Mark as owned so callers can correctly emit releases.
-    self.rc_owned_ids.add(id(list_val));
+    self._mark_owned(list_val);
     return list_val;
 }
 
@@ -119,20 +119,24 @@ impl NaIRGenPass._codegen_compr_loops(
                     val = self.builder.bitcast(val, i8p, name="compr.cast");
                 }
                 val = self._coerce_type(val, helpers["elem_type"]);
-                _compr_loc = getattr(_compr_append_orig, 'jac_loc', out_expr?.loc);
-                if _compr_loc is not None and not isinstance(_compr_loc, str) {
-                    _compr_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{_compr_loc.first_line}";
+                _compr_loc_raw = getattr(_compr_append_orig, 'jac_loc', out_expr?.loc);
+                _compr_loc: str = "";
+                if isinstance(_compr_loc_raw, str) {
+                    _compr_loc = _compr_loc_raw;
+                } elif _compr_loc_raw is not None {
+                    _compr_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{_compr_loc_raw.first_line}";
                 }
-                _compr_loc = _compr_loc
-                or f"{os.path.basename(self.ir_in.loc.mod_path)}:0";
-                self._set_rc_ctx("compr_elem", _compr_loc);
-                self.builder.call(helpers["append"], [list_val, val]);
-                self._clear_rc_ctx();
+                if not _compr_loc {
+                    _compr_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:0";
+                }
+                self._rc_call_with_ctx(
+                    helpers["append"], [list_val, val], op="compr_elem", loc=_compr_loc
+                );
                 # release owned ref after append retained it.
-                # Use _compr_boxed_val (post-box, pre-bitcast) since _box_value_tuple adds
-                # the new heap ptr to rc_owned_ids — the pre-box struct id is never in that set.
+                # Use _compr_boxed_val (post-box, pre-bitcast) since _box_value_tuple
+                # marks the new heap ptr as is_owned — the pre-box struct value isn't.
                 if isinstance(_compr_boxed_val.type, ir.PointerType)
-                and id(_compr_boxed_val) in self.rc_owned_ids {
+                and self._is_owned(_compr_boxed_val) {
                     self._emit_rc_release_simple(
                         _compr_boxed_val, op="compr_elem", loc=_compr_loc
                     );
@@ -292,8 +296,7 @@ impl NaIRGenPass._codegen_compr_loops(
     self.builder.position_at_end(end_bb);
     # if collection was a temporary (e.g. list literal), release it now
     # that the loop has finished iterating over it.
-    if isinstance(coll_val.type, ir.PointerType)
-    and id(coll_val) in self.rc_owned_ids {
+    if isinstance(coll_val.type, ir.PointerType) and self._is_owned(coll_val) {
         _coll_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:0";
         self._emit_rc_release_simple(coll_val, op="compr_coll", loc=_coll_loc);
     }
@@ -371,13 +374,13 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
     _dcompr_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("new", _dcompr_loc);
-    dict_val = self.builder.call(helpers["new"], [], name="dcompr.dict");
-    self._clear_rc_ctx();
+    dict_val = self._rc_call_with_ctx(
+        helpers["new"], [], op="new", loc=_dcompr_loc, name="dcompr.dict"
+    );
     # Generate nested loops for each InnerCompr
     self._codegen_dict_compr_loops(nd.compr, 0, dict_val, key_expr, val_expr, dict_key);
     # Mark as owned so callers can correctly emit releases.
-    self.rc_owned_ids.add(id(dict_val));
+    self._mark_owned(dict_val);
     return dict_val;
 }
 
@@ -410,11 +413,11 @@ impl NaIRGenPass._codegen_dict_compr_loops(
                 self.builder.call(helpers["set"], [dict_val, key_val, value_val]);
                 # helpers["set"] retained key and value; release caller's owned refs.
                 if isinstance(_boxed_key.type, ir.PointerType)
-                and id(_boxed_key) in self.rc_owned_ids {
+                and self._is_owned(_boxed_key) {
                     self._emit_rc_release_simple(_boxed_key, op="dcompr_key", loc="");
                 }
                 if isinstance(_boxed_val_compr.type, ir.PointerType)
-                and id(_boxed_val_compr) in self.rc_owned_ids {
+                and self._is_owned(_boxed_val_compr) {
                     self._emit_rc_release_simple(
                         _boxed_val_compr, op="dcompr_val", loc=""
                     );
@@ -693,13 +696,13 @@ impl NaIRGenPass._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | None) {
     _scompr_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("new", _scompr_loc);
-    set_val = self.builder.call(helpers["new"], [], name="scompr.set");
-    self._clear_rc_ctx();
+    set_val = self._rc_call_with_ctx(
+        helpers["new"], [], op="new", loc=_scompr_loc, name="scompr.set"
+    );
     # Generate nested loops
     self._codegen_set_compr_loops(nd.compr, 0, set_val, out_expr, elem_type_name);
     # Mark as owned so callers can correctly emit releases.
-    self.rc_owned_ids.add(id(set_val));
+    self._mark_owned(set_val);
     return set_val;
 }
 
@@ -736,9 +739,9 @@ impl NaIRGenPass._codegen_set_compr_loops(
                 # helpers["add"] retained the element; release the caller's
                 # owned ref (from boxing) so the set holds the only reference.
                 # Use _scompr_boxed (post-box, pre-bitcast) since _box_value_tuple
-                # adds the new heap ptr to rc_owned_ids.
+                # marks the new heap ptr as is_owned.
                 if isinstance(_scompr_boxed.type, ir.PointerType)
-                and id(_scompr_boxed) in self.rc_owned_ids {
+                and self._is_owned(_scompr_boxed) {
                     self._emit_rc_release_simple(
                         _scompr_boxed, op="scompr_elem", loc=""
                     );

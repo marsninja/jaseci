@@ -29,10 +29,8 @@ never freed or modified.
 See jac-bun/docs/GC_Enh.md for the full enhancement plan.
 """
 
-# Sentinel refcount value for static (immortal) strings.
-# INT64_MAX = 0x7FFFFFFFFFFFFFFF — never reaches 0 even if accidentally decremented.
-glob RC_SENTINEL: int = 0x7FFFFFFFFFFFFFFF;
-
+# RC_SENTINEL, HDR_*, LIVE_NODE_*, and HDR_MAGIC* layout constants live in
+# na_ir_gen_pass.jac so they're shared with gc_debug.impl.jac.
 """Emit core RC helper functions: __rc_alloc, __rc_retain, __rc_release_simple.
 
 Called once at the start of transform(). Also declares malloc and free.
@@ -130,41 +128,45 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     alloc_fn.args[0].name = "size";
     entry_bb = alloc_fn.append_basic_block("entry");
     b = ir.IRBuilder(entry_bb);
-    total = b.add(alloc_fn.args[0], ir.Constant(i64, 32), name="total");
+    total = b.add(alloc_fn.args[0], ir.Constant(i64, HDR_TOTAL), name="total");
     total = b.add(total, ir.Constant(i64, 15), name="total.pad");
     total = b.and_(total, ir.Constant(i64, -16), name="total.align");
     raw = b.call(self.malloc_fn, [total], name="raw");
-    # Write alloc_id at raw+0 (ptr-32): atomic fetch-and-increment.
-    # Upper 32 bits encode magic sentinel 0x0000AC1D so that retain/release
-    # can detect external (ctypes-passed) pointers and skip them safely.
-    # Magic = 44061 = 0xAC1D; stored value = (44061 << 32) | (alloc_id & 0xFFFFFFFF).
+    # Write alloc_id at raw+0 (ptr-HDR_TOTAL): atomic fetch-and-increment.
+    # Upper 32 bits encode HDR_MAGIC so retain/release can detect external
+    # (ctypes-passed) pointers and skip them safely.
+    # Stored value = (HDR_MAGIC << 32) | (alloc_id & 0xFFFFFFFF).
     _aid_old = b.atomic_rmw(
         "add", alloc_id_gv, ir.Constant(i64, 1), ordering="monotonic"
     );
     _aid_ptr = b.bitcast(raw, i64_ptr, name="aid.ptr");
-    _magic_base = ir.Constant(i64, 44061 * 4294967296);  # 0x0000AC1D_00000000
+    _magic_base = ir.Constant(i64, HDR_MAGIC_SHIFT_BASE);
     _aid_lo32 = b.and_(
         _aid_old, ir.Constant(i64, 4294967295), name="aid.lo"
     );  # & 0xFFFFFFFF
     _aid_magic = b.or_(_magic_base, _aid_lo32, name="aid.magic");
     b.store(_aid_magic, _aid_ptr);
-    # Write type_tag ptr "raw" at raw+8 (ptr-24)
+    # Write type_tag ptr "raw" at raw+8 (ptr-24, i.e. HDR_TAG_OFF from user)
     _tag_raw = b.gep(
         _raw_tag_str, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="tag.raw"
     );
-    _tag_slot = b.gep(raw, [ir.Constant(i64, 8)], name="tag.slot");
+    _tag_slot = b.gep(
+        raw, [ir.Constant(i64, HDR_TOTAL + HDR_TAG_OFF)], name="tag.slot"
+    );
     _tag_slot_ptr = b.bitcast(_tag_slot, i8_ptr.as_pointer(), name="tag.slot.ptr");
     b.store(_tag_raw, _tag_slot_ptr);
-    # Write RC=1 at raw+16 (ptr-16)
-    rc_raw = b.gep(raw, [ir.Constant(i64, 16)], name="rc.raw");
+    # Write RC=1 at raw+(HDR_TOTAL+HDR_RC_OFF), i.e. user_ptr + HDR_RC_OFF
+    rc_raw = b.gep(raw, [ir.Constant(i64, HDR_TOTAL + HDR_RC_OFF)], name="rc.raw");
     rc_ptr = b.bitcast(rc_raw, i64_ptr, name="rc.ptr");
     b.store(ir.Constant(i64, 1), rc_ptr);
-    # Write dtor=0 at raw+24 (ptr-8)
-    dtor_raw = b.gep(raw, [ir.Constant(i64, 24)], name="dtor.raw");
+    # Write dtor=0 at raw+(HDR_TOTAL+HDR_DTOR_OFF), i.e. user_ptr + HDR_DTOR_OFF
+    dtor_raw = b.gep(
+        raw, [ir.Constant(i64, HDR_TOTAL + HDR_DTOR_OFF)], name="dtor.raw"
+    );
     dtor_ptr_slot = b.bitcast(dtor_raw, i64_ptr, name="dtor.slot");
     b.store(ir.Constant(i64, 0), dtor_ptr_slot);
-    # user pointer = raw+32
-    user = b.gep(raw, [ir.Constant(i64, 32)], name="user");
+    # user pointer = raw+HDR_TOTAL
+    user = b.gep(raw, [ir.Constant(i64, HDR_TOTAL)], name="user");
     # Add to live-objects list (non-RC malloc node)
     self._emit_live_node_insert(b, _aid_old, user, _tag_raw);
     # Debug: conditionally log the malloc
@@ -202,51 +204,67 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     _st_b.cbranch(_st_null, _st_done_bb, _st_work_bb);
     _st_b = ir.IRBuilder(_st_work_bb);
     _st_tag_slot = _st_b.gep(
-        set_type_fn.args[0], [ir.Constant(i64, -24)], name="tag.slot"
+        set_type_fn.args[0], [ir.Constant(i64, HDR_TAG_OFF)], name="tag.slot"
     );
     _st_tag_slot_pp = _st_b.bitcast(
         _st_tag_slot, i8_ptr.as_pointer(), name="tag.slot.pp"
     );
     _st_b.store(set_type_fn.args[1], _st_tag_slot_pp);
-    # Walk live list to update node's tag field too
-    _st_scan_bb = set_type_fn.append_basic_block("scan");
-    _st_check_bb = set_type_fn.append_basic_block("check");
-    _st_match_bb = set_type_fn.append_basic_block("match");
-    _st_next_bb = set_type_fn.append_basic_block("next");
-    _st_b.branch(_st_scan_bb);
-    _st_b = ir.IRBuilder(_st_scan_bb);
-    _st_cur = _st_b.load(self.rc_live_head_gv, name="st.cur");
-    _st_b.branch(_st_check_bb);
-    _st_b = ir.IRBuilder(_st_check_bb);
-    _st_cur_phi = _st_b.phi(i8_ptr, name="cur");
-    _st_cur_phi.add_incoming(_st_cur, _st_scan_bb);
-    _st_is_end = _st_b.icmp_unsigned(
-        "==", _st_cur_phi, ir.Constant(i8_ptr, None), name="end"
-    );
-    _st_b.cbranch(_st_is_end, _st_done_bb, _st_match_bb);
-    _st_b = ir.IRBuilder(_st_match_bb);
-    _st_nptr_slot = _st_b.gep(_st_cur_phi, [ir.Constant(i64, 8)], name="nptr.slot");
-    _st_nptr_pp = _st_b.bitcast(_st_nptr_slot, i8_ptr.as_pointer(), name="nptr.pp");
-    _st_node_ptr = _st_b.load(_st_nptr_pp, name="node.ptr");
-    _st_eq = _st_b.icmp_unsigned("==", _st_node_ptr, set_type_fn.args[0], name="eq");
-    _st_upd_bb = set_type_fn.append_basic_block("upd");
-    _st_b.cbranch(_st_eq, _st_upd_bb, _st_next_bb);
-    _st_b = ir.IRBuilder(_st_upd_bb);
-    _st_ntag_slot = _st_b.gep(_st_cur_phi, [ir.Constant(i64, 16)], name="ntag.slot");
-    _st_ntag_pp = _st_b.bitcast(_st_ntag_slot, i8_ptr.as_pointer(), name="ntag.pp");
-    _st_b.store(set_type_fn.args[1], _st_ntag_pp);
-    _st_b.branch(_st_done_bb);
-    _st_b = ir.IRBuilder(_st_next_bb);
-    _st_nnxt_slot = _st_b.gep(
-        _st_cur_phi, [ir.Constant(i64, 32)], name="nnxt.slot"
-    );  # next at +32
-    _st_nnxt_pp = _st_b.bitcast(_st_nnxt_slot, i8_ptr.as_pointer(), name="nnxt.pp");
-    _st_next_node = _st_b.load(_st_nnxt_pp, name="next.node");
-    _st_cur_phi.add_incoming(_st_next_node, _st_next_bb);
-    _st_b.branch(_st_check_bb);
-    _st_b = ir.IRBuilder(_st_done_bb);
-    _st_b.ret_void();
-    self.rc_set_type_fn = set_type_fn;
+    # Phase R2: live-list walk only emitted when debug codegen is on.
+    if not self._rc_debug_codegen {
+        _st_b.branch(_st_done_bb);
+        _st_b = ir.IRBuilder(_st_done_bb);
+        _st_b.ret_void();
+        self.rc_set_type_fn = set_type_fn;
+        # Skip the rest of the function body (live-list walk).
+    }
+    if self._rc_debug_codegen {
+        # Walk live list to update node's tag field too
+        _st_scan_bb = set_type_fn.append_basic_block("scan");
+        _st_check_bb = set_type_fn.append_basic_block("check");
+        _st_match_bb = set_type_fn.append_basic_block("match");
+        _st_next_bb = set_type_fn.append_basic_block("next");
+        _st_b.branch(_st_scan_bb);
+        _st_b = ir.IRBuilder(_st_scan_bb);
+        _st_cur = _st_b.load(self.rc_live_head_gv, name="st.cur");
+        _st_b.branch(_st_check_bb);
+        _st_b = ir.IRBuilder(_st_check_bb);
+        _st_cur_phi = _st_b.phi(i8_ptr, name="cur");
+        _st_cur_phi.add_incoming(_st_cur, _st_scan_bb);
+        _st_is_end = _st_b.icmp_unsigned(
+            "==", _st_cur_phi, ir.Constant(i8_ptr, None), name="end"
+        );
+        _st_b.cbranch(_st_is_end, _st_done_bb, _st_match_bb);
+        _st_b = ir.IRBuilder(_st_match_bb);
+        _st_nptr_slot = _st_b.gep(
+            _st_cur_phi, [ir.Constant(i64, LIVE_NODE_USER_OFF)], name="nptr.slot"
+        );
+        _st_nptr_pp = _st_b.bitcast(_st_nptr_slot, i8_ptr.as_pointer(), name="nptr.pp");
+        _st_node_ptr = _st_b.load(_st_nptr_pp, name="node.ptr");
+        _st_eq = _st_b.icmp_unsigned(
+            "==", _st_node_ptr, set_type_fn.args[0], name="eq"
+        );
+        _st_upd_bb = set_type_fn.append_basic_block("upd");
+        _st_b.cbranch(_st_eq, _st_upd_bb, _st_next_bb);
+        _st_b = ir.IRBuilder(_st_upd_bb);
+        _st_ntag_slot = _st_b.gep(
+            _st_cur_phi, [ir.Constant(i64, LIVE_NODE_TAG_OFF)], name="ntag.slot"
+        );
+        _st_ntag_pp = _st_b.bitcast(_st_ntag_slot, i8_ptr.as_pointer(), name="ntag.pp");
+        _st_b.store(set_type_fn.args[1], _st_ntag_pp);
+        _st_b.branch(_st_done_bb);
+        _st_b = ir.IRBuilder(_st_next_bb);
+        _st_nnxt_slot = _st_b.gep(
+            _st_cur_phi, [ir.Constant(i64, LIVE_NODE_NEXT_OFF)], name="nnxt.slot"
+        );
+        _st_nnxt_pp = _st_b.bitcast(_st_nnxt_slot, i8_ptr.as_pointer(), name="nnxt.pp");
+        _st_next_node = _st_b.load(_st_nnxt_pp, name="next.node");
+        _st_cur_phi.add_incoming(_st_next_node, _st_next_bb);
+        _st_b.branch(_st_check_bb);
+        _st_b = ir.IRBuilder(_st_done_bb);
+        _st_b.ret_void();
+        self.rc_set_type_fn = set_type_fn;
+    }
 
     # --- __rc_retain(i8* ptr) -> void ---
     # Null check, sentinel check, then increment refcount at ptr-16
@@ -278,7 +296,7 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     # This must come before the magic check so we never read ptr-32 on a static string
     # (which only has a 16-byte header — ptr-32 would be before the struct).
     b = ir.IRBuilder(check_bb);
-    raw_ptr = b.gep(retain_fn.args[0], [ir.Constant(i64, -16)], name="raw");
+    raw_ptr = b.gep(retain_fn.args[0], [ir.Constant(i64, HDR_RC_OFF)], name="raw");
     rc_ptr = b.bitcast(raw_ptr, i64_ptr, name="rc.ptr");
     old_rc = b.load(rc_ptr, name="old.rc");
     is_static = b.icmp_unsigned(
@@ -286,14 +304,10 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     );
     magic_check_bb_r = retain_fn.append_basic_block("magic_check");
     b.cbranch(is_static, done_bb, magic_check_bb_r);
-    # Magic check: ptr-32 upper 32 bits must equal 0xAC1D (44061).
-    # Only reached for non-sentinel pointers. External/ctypes pointers fail → done.
+    # Magic check (skips ctypes/external pointers that lack an RC header).
+    # Only reached for non-sentinel pointers.
     b = ir.IRBuilder(magic_check_bb_r);
-    _mc_slot_r = b.gep(retain_fn.args[0], [ir.Constant(i64, -32)], name="mc.slot.r");
-    _mc_ptr_r = b.bitcast(_mc_slot_r, i64_ptr, name="mc.ptr.r");
-    _mc_val_r = b.load(_mc_ptr_r, name="mc.val.r");
-    _mc_hi_r = b.lshr(_mc_val_r, ir.Constant(i64, 32), name="mc.hi.r");
-    _mc_ok_r = b.icmp_unsigned("==", _mc_hi_r, ir.Constant(i64, 44061), name="mc.ok.r");
+    _mc_ok_r = self._emit_magic_check(b, retain_fn.args[0], name_prefix="mc.r");
     b.cbranch(_mc_ok_r, do_bb, done_bb);
     b = ir.IRBuilder(do_bb);
     # atomic fetch-and-add so concurrent threads cannot race on the refcount.
@@ -348,8 +362,8 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     # static strings have layout {sentinel, dtor, data} so ptr-16 == RC_SENTINEL.
     # Must come before magic check to avoid reading ptr-32 on static strings.
     b = ir.IRBuilder(check_bb);
-    # RC counter is at ptr-16 (unchanged offset in both 16- and 32-byte header)
-    rc_slot = b.gep(release_fn.args[0], [ir.Constant(i64, -16)], name="rc.slot");
+    # RC counter is at ptr+HDR_RC_OFF (unchanged offset in both 16- and 32-byte header)
+    rc_slot = b.gep(release_fn.args[0], [ir.Constant(i64, HDR_RC_OFF)], name="rc.slot");
     rc_ptr = b.bitcast(rc_slot, i64_ptr, name="rc.ptr");
     old_rc = b.load(rc_ptr, name="old.rc");
     is_static = b.icmp_unsigned(
@@ -359,20 +373,14 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     check_dtor_bb = release_fn.append_basic_block("check_dtor");
     call_dtor_bb = release_fn.append_basic_block("call_dtor");
     b.cbranch(is_static, done_bb, magic_check_bb_rel);
-    # Magic check: ptr-32 upper 32 bits must equal 0xAC1D (44061).
-    # Only reached for non-sentinel pointers. External/ctypes pointers fail → done.
+    # Magic check (skips ctypes/external pointers that lack an RC header).
+    # Only reached for non-sentinel pointers.
     b = ir.IRBuilder(magic_check_bb_rel);
-    _mc_slot_rel = b.gep(
-        release_fn.args[0], [ir.Constant(i64, -32)], name="mc.slot.rel"
+    _mc_ok_rel = self._emit_magic_check(b, release_fn.args[0], name_prefix="mc.rel");
+    # raw pointer (for free) is at ptr+HDR_ALLOC_ID_OFF — safe only after magic check passes
+    raw_ptr = b.gep(
+        release_fn.args[0], [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="raw"
     );
-    _mc_ptr_rel = b.bitcast(_mc_slot_rel, i64_ptr, name="mc.ptr.rel");
-    _mc_val_rel = b.load(_mc_ptr_rel, name="mc.val.rel");
-    _mc_hi_rel = b.lshr(_mc_val_rel, ir.Constant(i64, 32), name="mc.hi.rel");
-    _mc_ok_rel = b.icmp_unsigned(
-        "==", _mc_hi_rel, ir.Constant(i64, 44061), name="mc.ok.rel"
-    );
-    # raw pointer (for free) is now at ptr-32 — only safe to compute after magic check passes
-    raw_ptr = b.gep(release_fn.args[0], [ir.Constant(i64, -32)], name="raw");
     b.cbranch(_mc_ok_rel, dblchk_bb, done_bb);
     # Double-free guard
     b = ir.IRBuilder(dblchk_bb);
@@ -391,7 +399,9 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     log_free_bb = self._emit_raw_free_bbs(release_fn, done_bb, release_fn.args[0]);
     b.cbranch(is_zero, check_dtor_bb, dbg_rel_bb);
     b = ir.IRBuilder(check_dtor_bb);
-    dtor_raw = b.gep(release_fn.args[0], [ir.Constant(i64, -8)], name="dtor.raw");
+    dtor_raw = b.gep(
+        release_fn.args[0], [ir.Constant(i64, HDR_DTOR_OFF)], name="dtor.raw"
+    );
     dtor_slot = b.bitcast(dtor_raw, i64_ptr, name="dtor.slot");
     dtor_val = b.load(dtor_slot, name="dtor.val");
     is_dtor_zero = b.icmp_unsigned(
@@ -417,6 +427,79 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     b = ir.IRBuilder(done_bb);
     b.ret_void();
     self.rc_release_simple_fn = release_fn;
+}
+
+"""Call an RC-aware function (rc_alloc, container append/set/etc.) with
+op/loc context attribution stored to __rc_ctx_op/__rc_ctx_loc for the
+duration of the call. Cleared afterward so subsequent RC ops don't
+inherit stale attribution. Uses self.builder.
+"""
+impl NaIRGenPass._rc_call_with_ctx(
+    fn: ir.Function, args: list, op: str, loc: str = "", name: str = ""
+) -> ir.Value {
+    self._set_rc_ctx(op, loc);
+    result = self.builder.call(fn, args, name=name);
+    self._clear_rc_ctx();
+    return result;
+}
+
+"""Mark an ir.Value as owned (rc=1, caller must release on drop).
+
+Stores `is_owned = True` on the ir.Value instance so subsequent transforms
+(bitcast, coerce_type) can propagate the marker to the new ir.Value they
+produce. Returns the input value for fluent chaining.
+"""
+impl NaIRGenPass._mark_owned(val: ir.Value) -> ir.Value {
+    val.is_owned = True;
+    return val;
+}
+
+"""Test whether `val` was previously marked owned via _mark_owned()."""
+impl NaIRGenPass._is_owned(val: ir.Value) -> bool {
+    return bool(getattr(val, 'is_owned', False));
+}
+
+"""Emit IR that loads the upper 32 bits of the alloc_id field at
+ptr+HDR_ALLOC_ID_OFF and compares them against HDR_MAGIC. Returns the i1
+boolean comparison result. Used by retain/release to skip externally-owned
+pointers (e.g. ctypes-passed buffers) that lack an RC header.
+"""
+impl NaIRGenPass._emit_magic_check(
+    b: ir.IRBuilder, ptr: ir.Value, name_prefix: str = "mc"
+) -> ir.Value {
+    i64 = ir.IntType(64);
+    i64_ptr = i64.as_pointer();
+    _slot = b.gep(
+        ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name=f"{name_prefix}.slot"
+    );
+    _ptr = b.bitcast(_slot, i64_ptr, name=f"{name_prefix}.ptr");
+    _val = b.load(_ptr, name=f"{name_prefix}.val");
+    _hi = b.lshr(_val, ir.Constant(i64, 32), name=f"{name_prefix}.hi");
+    return b.icmp_unsigned(
+        "==", _hi, ir.Constant(i64, HDR_MAGIC), name=f"{name_prefix}.ok"
+    );
+}
+
+"""Stamp a type-tag string onto an RC-managed allocation header.
+
+Writes `type_name` into the type_tag slot at ptr_i8-24 (and updates the
+matching live-list node when debug tracking is on) via the runtime
+__rc_set_type helper. No-op when the helper has not been emitted (e.g.
+debug codegen disabled). `ptr_i8` MUST already be an i8* — callers
+bitcast typed pointers before invoking this helper.
+"""
+impl NaIRGenPass._emit_set_type_tag(
+    b: ir.IRBuilder, ptr_i8: ir.Value, type_name: str
+) -> None {
+    if self.rc_set_type_fn is None {
+        return;
+    }
+    _i32 = ir.IntType(32);
+    _tag_gv = self._get_snprintf_fmt(type_name);
+    _tag_gep = b.gep(
+        _tag_gv, [ir.Constant(_i32, 0), ir.Constant(_i32, 0)], name="tag.gep"
+    );
+    b.call(self.rc_set_type_fn, [ptr_i8, _tag_gep]);
 }
 
 """Allocate RC-managed memory. Returns i8* with refcount=1."""
@@ -585,16 +668,9 @@ impl NaIRGenPass._rc_strdup(ptr: ir.Value, name: str = "rc.str") -> ir.Value {
     # Copy the string data (including null terminator)
     memcpy_fn = self._get_or_declare_extern("memcpy", i8_ptr, [i8_ptr, i8_ptr, i64]);
     self.builder.call(memcpy_fn, [new_str, ptr, alloc_size]);
-    if self.rc_set_type_fn is not None {
-        _str_tag = self._get_snprintf_fmt("str");
-        _i32_sd = ir.IntType(32);
-        _str_tag_gep = self.builder.gep(
-            _str_tag, [ir.Constant(_i32_sd, 0), ir.Constant(_i32_sd, 0)], name="str.tag"
-        );
-        self.builder.call(self.rc_set_type_fn, [new_str, _str_tag_gep]);
-    }
+    self._emit_set_type_tag(self.builder, new_str, "str");
     # RC: caller owns this freshly-allocated string (rc=1). Skip extra RETAIN on assign.
-    self.rc_owned_ids.add(id(new_str));
+    self._mark_owned(new_str);
     return new_str;
 }
 
@@ -646,16 +722,16 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
             }
         }
     }
-    # Free the struct allocation: 32-byte header, malloc'd block starts at obj-32
+    # Free the struct allocation: malloc'd block starts at obj+HDR_ALLOC_ID_OFF
     obj_cast = b.bitcast(release_fn.args[0], i8_ptr, name="obj.i8");
-    obj_raw = b.gep(obj_cast, [ir.Constant(i64, -32)], name="obj.raw");
-    # Read alloc_id (ptr-32) and type_tag (ptr-24) for the log message (strip magic)
+    obj_raw = b.gep(obj_cast, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="obj.raw");
+    # Read alloc_id (HDR_ALLOC_ID_OFF) and type_tag (HDR_TAG_OFF) for log; strip magic
     _sf_aid_ptr = b.bitcast(obj_raw, i64_ptr, name="sf.aid.ptr");
     _sf_aid_raw = b.load(_sf_aid_ptr, name="sf.aid.raw");
     _sf_aid = b.and_(
         _sf_aid_raw, ir.Constant(ir.IntType(64), 4294967295), name="sf.aid"
     );  # strip magic
-    _sf_tag_slot = b.gep(obj_cast, [ir.Constant(i64, -24)], name="sf.tag.slot");
+    _sf_tag_slot = b.gep(obj_cast, [ir.Constant(i64, HDR_TAG_OFF)], name="sf.tag.slot");
     _sf_tag_ptr = b.bitcast(_sf_tag_slot, i8_ptr.as_pointer(), name="sf.tag.ptr");
     _sf_tag = b.load(_sf_tag_ptr, name="sf.tag");
     # Remove from live-objects list, then log and free

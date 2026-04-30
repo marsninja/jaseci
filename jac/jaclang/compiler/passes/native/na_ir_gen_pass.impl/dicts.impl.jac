@@ -412,26 +412,27 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
     _dict_new_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("new", _dict_new_loc);
-    dict_val = self.builder.call(helpers["new"], [], name="dict.new");
-    self._clear_rc_ctx();
+    dict_val = self._rc_call_with_ctx(
+        helpers["new"], [], op="new", loc=_dict_new_loc, name="dict.new"
+    );
     # RC: fresh dict allocation — caller owns it; skip RETAIN on assign.
-    self.rc_owned_ids.add(id(dict_val));
+    self._mark_owned(dict_val);
     _dinit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
     # Add first pair (box if needed)
     first_store_val = self._box_to_jacval(first_val) if use_jacval else first_val;
-    self._set_rc_ctx("dict_init", _dinit_loc);
-    self.builder.call(helpers["set"], [dict_val, first_key, first_store_val]);
-    self._clear_rc_ctx();
+    self._rc_call_with_ctx(
+        helpers["set"],
+        [dict_val, first_key, first_store_val],
+        op="dict_init",
+        loc=_dinit_loc
+    );
     # release owned refs (fresh allocs/fn-call results) after set retained them
-    if isinstance(first_key.type, ir.PointerType)
-    and id(first_key) in self.rc_owned_ids {
+    if isinstance(first_key.type, ir.PointerType) and self._is_owned(first_key) {
         self._emit_rc_release_simple(first_key, op="dict_init", loc=_dinit_loc);
     }
-    if isinstance(first_val.type, ir.PointerType)
-    and id(first_val) in self.rc_owned_ids {
+    if isinstance(first_val.type, ir.PointerType) and self._is_owned(first_val) {
         self._emit_rc_release_simple(first_val, op="dict_init", loc=_dinit_loc);
     }
     # Add remaining pairs
@@ -448,22 +449,20 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
             } else {
                 v = self._coerce_type(v, val_type);
             }
-            self._set_rc_ctx("dict_init", _dinit_loc);
-            self.builder.call(helpers["set"], [dict_val, k, v]);
-            self._clear_rc_ctx();
+            self._rc_call_with_ctx(
+                helpers["set"], [dict_val, k, v], op="dict_init", loc=_dinit_loc
+            );
             # release owned refs after set retained them
-            if isinstance(_orig_k.type, ir.PointerType)
-            and id(_orig_k) in self.rc_owned_ids {
+            if isinstance(_orig_k.type, ir.PointerType) and self._is_owned(_orig_k) {
                 self._emit_rc_release_simple(_orig_k, op="dict_init", loc=_dinit_loc);
             }
-            if isinstance(_orig_v.type, ir.PointerType)
-            and id(_orig_v) in self.rc_owned_ids {
+            if isinstance(_orig_v.type, ir.PointerType) and self._is_owned(_orig_v) {
                 self._emit_rc_release_simple(_orig_v, op="dict_init", loc=_dinit_loc);
             }
         }
     }
     # Dict literal is a fresh allocation — mark as owned.
-    self.rc_owned_ids.add(id(dict_val));
+    self._mark_owned(dict_val);
     return dict_val;
 }
 
@@ -508,11 +507,11 @@ impl NaIRGenPass._codegen_dict_set(
     _dset_ctx_loc = getattr(
         _orig_value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
     );
-    self._set_rc_ctx("dict_set", _dset_ctx_loc);
-    self.builder.call(helpers["set"], [target_val, key_val, value]);
-    self._clear_rc_ctx();
+    self._rc_call_with_ctx(
+        helpers["set"], [target_val, key_val, value], op="dict_set", loc=_dset_ctx_loc
+    );
     # release owned value ref after __dict_set_KV retained it
-    if isinstance(val_type, ir.PointerType) and id(_orig_value) in self.rc_owned_ids {
+    if isinstance(val_type, ir.PointerType) and self._is_owned(_orig_value) {
         _dset_loc = getattr(
             _orig_value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
         );

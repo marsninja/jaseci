@@ -136,25 +136,35 @@ Node layout (40 bytes): [i64 id | i8* user_ptr | i8* type_tag | i64 rc_snap | i8
 impl NaIRGenPass._emit_live_node_insert(
     b: ir.IRBuilder, aid: ir.Value, user: ir.Value, tag_raw: ir.Value
 ) -> None {
+    if not self._rc_debug_codegen {
+        return;
+    }
     i8_ptr = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     i64_ptr = i64.as_pointer();
-    _node_size = ir.Constant(i64, 40);  # id(8)+ptr(8)+type_tag(8)+rc_snap(8)+next(8)
+    _node_size = ir.Constant(i64, LIVE_NODE_SIZE);
     _node_raw = b.call(self.malloc_fn, [_node_size], name="live.node");
     _nid_slot = b.bitcast(_node_raw, i64_ptr, name="n.id.slot");
     b.store(aid, _nid_slot);
-    _nptr_slot = b.gep(_node_raw, [ir.Constant(i64, 8)], name="n.ptr.slot");
+    _nptr_slot = b.gep(
+        _node_raw, [ir.Constant(i64, LIVE_NODE_USER_OFF)], name="n.ptr.slot"
+    );
     _nptr_slot_pp = b.bitcast(_nptr_slot, i8_ptr.as_pointer(), name="n.ptr.pp");
     b.store(user, _nptr_slot_pp);
-    _ntag_slot = b.gep(_node_raw, [ir.Constant(i64, 16)], name="n.tag.slot");
+    _ntag_slot = b.gep(
+        _node_raw, [ir.Constant(i64, LIVE_NODE_TAG_OFF)], name="n.tag.slot"
+    );
     _ntag_slot_pp = b.bitcast(_ntag_slot, i8_ptr.as_pointer(), name="n.tag.pp");
     b.store(tag_raw, _ntag_slot_pp);
-    # rc_snap at +24: initial RC is 1 (matches what __rc_alloc stores at ptr-16)
-    _nrc_slot = b.gep(_node_raw, [ir.Constant(i64, 24)], name="n.rc.slot");
+    # initial RC is 1 (matches what __rc_alloc stores at HDR_RC_OFF)
+    _nrc_slot = b.gep(
+        _node_raw, [ir.Constant(i64, LIVE_NODE_RC_OFF)], name="n.rc.slot"
+    );
     _nrc_slot_i64 = b.bitcast(_nrc_slot, i64_ptr, name="n.rc.i64");
     b.store(ir.Constant(i64, 1), _nrc_slot_i64);
-    # next at +32
-    _nnxt_slot = b.gep(_node_raw, [ir.Constant(i64, 32)], name="n.next.slot");
+    _nnxt_slot = b.gep(
+        _node_raw, [ir.Constant(i64, LIVE_NODE_NEXT_OFF)], name="n.next.slot"
+    );
     _nnxt_slot_pp = b.bitcast(_nnxt_slot, i8_ptr.as_pointer(), name="n.next.pp");
     _old_head = b.load(self.rc_live_head_gv, name="old.head");
     b.store(_old_head, _nnxt_slot_pp);
@@ -212,12 +222,12 @@ impl NaIRGenPass._emit_retain_log_bb(
     log_bb = func.append_basic_block("log_retain");
     b = ir.IRBuilder(log_bb);
     # Load alloc_id from ptr-32 (strip magic from upper 32 bits)
-    _aid_slot = b.gep(ptr, [ir.Constant(i64, -32)], name="ret.aid.slot");
+    _aid_slot = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="ret.aid.slot");
     _aid_ptr = b.bitcast(_aid_slot, i64_ptr, name="ret.aid.ptr");
     _aid_raw = b.load(_aid_ptr, name="ret.aid.raw");
     _aid = b.and_(_aid_raw, ir.Constant(i64, 4294967295), name="ret.aid");
     # Load type_tag from ptr-24
-    _tag_slot = b.gep(ptr, [ir.Constant(i64, -24)], name="ret.tag.slot");
+    _tag_slot = b.gep(ptr, [ir.Constant(i64, HDR_TAG_OFF)], name="ret.tag.slot");
     _tag_ptr = b.bitcast(_tag_slot, i8_ptr.as_pointer(), name="ret.tag.ptr");
     _tag = b.load(_tag_ptr, name="ret.tag");
     # Null-safe ctx load
@@ -243,21 +253,23 @@ impl NaIRGenPass._emit_retain_log_bb(
     _ur_end = b.icmp_unsigned("==", _ur_cur, ir.Constant(i8_ptr, None), name="ur.end");
     b.cbranch(_ur_end, done_bb, _ur_body_bb);
     b = ir.IRBuilder(_ur_body_bb);
-    _ur_nptr_off = b.gep(_ur_cur, [ir.Constant(i64, 8)], name="ur.nptr.off");
+    _ur_nptr_off = b.gep(
+        _ur_cur, [ir.Constant(i64, LIVE_NODE_USER_OFF)], name="ur.nptr.off"
+    );
     _ur_nptr_pp = b.bitcast(_ur_nptr_off, i8_ptr.as_pointer(), name="ur.nptr.pp");
     _ur_node_ptr = b.load(_ur_nptr_pp, name="ur.node.ptr");
     _ur_eq = b.icmp_unsigned("==", _ur_node_ptr, ptr, name="ur.eq");
     b.cbranch(_ur_eq, _ur_upd_bb, _ur_next_bb);
     b = ir.IRBuilder(_ur_upd_bb);
     _ur_rc_off = b.gep(
-        _ur_cur, [ir.Constant(i64, 24)], name="ur.rc.off"
+        _ur_cur, [ir.Constant(i64, LIVE_NODE_RC_OFF)], name="ur.rc.off"
     );  # rc_snap at +24
     _ur_rc_pp = b.bitcast(_ur_rc_off, i64_ptr, name="ur.rc.pp");
     b.store(new_rc, _ur_rc_pp);
     b.branch(done_bb);
     b = ir.IRBuilder(_ur_next_bb);
     _ur_nxt_off = b.gep(
-        _ur_cur, [ir.Constant(i64, 32)], name="ur.nxt.off"
+        _ur_cur, [ir.Constant(i64, LIVE_NODE_NEXT_OFF)], name="ur.nxt.off"
     );  # next at +32
     _ur_nxt_pp = b.bitcast(_ur_nxt_off, i8_ptr.as_pointer(), name="ur.nxt.pp");
     _ur_nxt = b.load(_ur_nxt_pp, name="ur.nxt");
@@ -280,11 +292,11 @@ impl NaIRGenPass._emit_dbl_free_log_bb(
     i32 = ir.IntType(32);
     log_bb = func.append_basic_block("log_dbl_free");
     b = ir.IRBuilder(log_bb);
-    _aid_slot = b.gep(ptr, [ir.Constant(i64, -32)], name="dbl.aid.slot");
+    _aid_slot = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="dbl.aid.slot");
     _aid_ptr = b.bitcast(_aid_slot, i64_ptr, name="dbl.aid.ptr");
     _aid_raw = b.load(_aid_ptr, name="dbl.aid.raw");
     _aid = b.and_(_aid_raw, ir.Constant(i64, 4294967295), name="dbl.aid");
-    _tag_slot = b.gep(ptr, [ir.Constant(i64, -24)], name="dbl.tag.slot");
+    _tag_slot = b.gep(ptr, [ir.Constant(i64, HDR_TAG_OFF)], name="dbl.tag.slot");
     _tag_ptr = b.bitcast(_tag_slot, i8_ptr.as_pointer(), name="dbl.tag.ptr");
     _tag = b.load(_tag_ptr, name="dbl.tag");
     (_op, _loc) = self._emit_ctx_load(b);
@@ -326,11 +338,11 @@ impl NaIRGenPass._emit_release_log_bb(
         done_bb
     );
     b = ir.IRBuilder(log_rel_bb);
-    _aid_slot = b.gep(ptr, [ir.Constant(i64, -32)], name="rel.aid.slot");
+    _aid_slot = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="rel.aid.slot");
     _aid_ptr = b.bitcast(_aid_slot, i64_ptr, name="rel.aid.ptr");
     _aid_raw = b.load(_aid_ptr, name="rel.aid.raw");
     _aid = b.and_(_aid_raw, ir.Constant(i64, 4294967295), name="rel.aid");
-    _tag_slot = b.gep(ptr, [ir.Constant(i64, -24)], name="rel.tag.slot");
+    _tag_slot = b.gep(ptr, [ir.Constant(i64, HDR_TAG_OFF)], name="rel.tag.slot");
     _tag_ptr = b.bitcast(_tag_slot, i8_ptr.as_pointer(), name="rel.tag.ptr");
     _tag = b.load(_tag_ptr, name="rel.tag");
     (_op, _loc) = self._emit_ctx_load(b);
@@ -367,7 +379,7 @@ impl NaIRGenPass._emit_raw_free_bbs(
     # log_free_raw: call malloc_usable_size, check debug flag
     b = ir.IRBuilder(log_free_bb);
     _msz_fn = self._get_or_declare_extern("malloc_usable_size", i64, [i8_ptr]);
-    _raw_msz = b.gep(ptr, [ir.Constant(i64, -32)], name="raw.msz");
+    _raw_msz = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="raw.msz");
     _msz = b.call(_msz_fn, [_raw_msz], name="msz");
     dbg_flag3 = b.load(self.rc_debug_gv, name="rc.dbg3");
     b.cbranch(
@@ -377,11 +389,11 @@ impl NaIRGenPass._emit_raw_free_bbs(
     );
     # log_raw: printf RC FREE → live_rm
     b = ir.IRBuilder(log_raw_bb);
-    _aid_slot = b.gep(ptr, [ir.Constant(i64, -32)], name="fr.aid.slot");
+    _aid_slot = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="fr.aid.slot");
     _aid_ptr = b.bitcast(_aid_slot, i64_ptr, name="fr.aid.ptr");
     _aid_raw = b.load(_aid_ptr, name="fr.aid.raw");
     _aid = b.and_(_aid_raw, ir.Constant(i64, 4294967295), name="fr.aid");
-    _tag_slot = b.gep(ptr, [ir.Constant(i64, -24)], name="fr.tag.slot");
+    _tag_slot = b.gep(ptr, [ir.Constant(i64, HDR_TAG_OFF)], name="fr.tag.slot");
     _tag_ptr = b.bitcast(_tag_slot, i8_ptr.as_pointer(), name="fr.tag.ptr");
     _tag = b.load(_tag_ptr, name="fr.tag");
     (_op, _loc) = self._emit_ctx_load(b);
@@ -396,7 +408,9 @@ impl NaIRGenPass._emit_raw_free_bbs(
     self._emit_live_list_remove(b, ptr, i8_ptr, i64_ptr, done_bb, actual_free_bb);
     # actual_free: free(ptr-32) → done_bb
     b = ir.IRBuilder(actual_free_bb);
-    _raw_for_free = b.gep(ptr, [ir.Constant(i64, -32)], name="raw.for.free");
+    _raw_for_free = b.gep(
+        ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="raw.for.free"
+    );
     b.call(self.free_fn, [_raw_for_free]);
     b.branch(done_bb);
     return log_free_bb;
@@ -507,6 +521,12 @@ impl NaIRGenPass._emit_live_list_remove(
     done_bb: ir.Block,
     free_bb: ir.Block
 ) -> None {
+    # Phase R2: when debug-codegen is off, the live list isn't built, so there
+    # is nothing to scan or unlink. Just continue down the free path.
+    if not self._rc_debug_codegen {
+        b.branch(free_bb);
+        return;
+    }
     func = b.function;
     scan_bb = func.append_basic_block("live.scan");
     check_bb = func.append_basic_block("live.check");
@@ -526,14 +546,18 @@ impl NaIRGenPass._emit_live_list_remove(
     is_end = b2.icmp_unsigned("==", cur_phi, ir.Constant(i8_ptr, None), name="lrm.end");
     b2.cbranch(is_end, free_bb, match_bb);
     b2 = ir.IRBuilder(match_bb);
-    nptr_off = b2.gep(cur_phi, [ir.Constant(ir.IntType(64), 8)], name="nptr.off");
+    nptr_off = b2.gep(
+        cur_phi, [ir.Constant(ir.IntType(64), LIVE_NODE_USER_OFF)], name="nptr.off"
+    );
     nptr_pp = b2.bitcast(nptr_off, i8_ptr.as_pointer(), name="nptr.pp");
     node_ptr = b2.load(nptr_pp, name="node.ptr");
     is_match = b2.icmp_unsigned("==", node_ptr, target_ptr, name="lrm.eq");
     b2.cbranch(is_match, unlink_bb, next_bb);
     b2 = ir.IRBuilder(unlink_bb);
     # Load next pointer from node (next at +32 in 40-byte layout)
-    nnxt_off = b2.gep(cur_phi, [ir.Constant(ir.IntType(64), 32)], name="nnxt.off");
+    nnxt_off = b2.gep(
+        cur_phi, [ir.Constant(ir.IntType(64), LIVE_NODE_NEXT_OFF)], name="nnxt.off"
+    );
     nnxt_pp = b2.bitcast(nnxt_off, i8_ptr.as_pointer(), name="nnxt.pp");
     nxt_node = b2.load(nnxt_pp, name="nxt.node");
     # If prev is null: update head; else update prev->next
@@ -549,7 +573,7 @@ impl NaIRGenPass._emit_live_list_remove(
     b3.branch(after_unlink);
     b3 = ir.IRBuilder(prev_set_bb);
     prev_nxt_off = b3.gep(
-        prev_phi, [ir.Constant(ir.IntType(64), 32)], name="pnxt.off"
+        prev_phi, [ir.Constant(ir.IntType(64), LIVE_NODE_NEXT_OFF)], name="pnxt.off"
     );  # next at +32
     prev_nxt_pp = b3.bitcast(prev_nxt_off, i8_ptr.as_pointer(), name="pnxt.pp");
     b3.store(nxt_node, prev_nxt_pp);
@@ -559,7 +583,7 @@ impl NaIRGenPass._emit_live_list_remove(
     b3.branch(free_bb);
     b2 = ir.IRBuilder(next_bb);
     nnxt_off2 = b2.gep(
-        cur_phi, [ir.Constant(ir.IntType(64), 32)], name="nnxt2.off"
+        cur_phi, [ir.Constant(ir.IntType(64), LIVE_NODE_NEXT_OFF)], name="nnxt2.off"
     );  # next at +32
     nnxt_pp2 = b2.bitcast(nnxt_off2, i8_ptr.as_pointer(), name="nnxt2.pp");
     nxt2 = b2.load(nnxt_pp2, name="nxt2");
@@ -572,7 +596,7 @@ impl NaIRGenPass._emit_live_list_remove(
 Only emits output when JAC_RC_DEBUG flag is non-zero at runtime.
 Should be called just before `ret void` in jac_entry."""
 impl NaIRGenPass._emit_rc_live_dump -> None {
-    if self.rc_live_head_gv is None {
+    if self.rc_live_head_gv is None or not self._rc_debug_codegen {
         return;
     }
     i8_ptr = ir.IntType(8).as_pointer();
@@ -612,15 +636,15 @@ impl NaIRGenPass._emit_rc_live_dump -> None {
     # Node layout (40 bytes): [i64 id | i8* user_ptr | i8* type_tag | i64 rc_snap | i8* next]
     id_ptr = b.bitcast(cur, i64_ptr, name="dump.id.ptr");
     node_id = b.load(id_ptr, name="dump.id");
-    uptr_off = b.gep(cur, [ir.Constant(i64, 8)], name="dump.uptr.off");
+    uptr_off = b.gep(cur, [ir.Constant(i64, LIVE_NODE_USER_OFF)], name="dump.uptr.off");
     uptr_pp = b.bitcast(uptr_off, i8_ptr.as_pointer(), name="dump.uptr.pp");
     user_ptr = b.load(uptr_pp, name="dump.uptr");
     # Read rc from user_ptr-16 (live header value — most accurate at dump time)
-    rc_slot = b.gep(user_ptr, [ir.Constant(i64, -16)], name="dump.rc.slot");
+    rc_slot = b.gep(user_ptr, [ir.Constant(i64, HDR_RC_OFF)], name="dump.rc.slot");
     rc_ptr_c = b.bitcast(rc_slot, i64_ptr, name="dump.rc.ptr");
     rc_val = b.load(rc_ptr_c, name="dump.rc");
     # Read type_tag from node offset +16
-    ttag_off = b.gep(cur, [ir.Constant(i64, 16)], name="dump.ttag.off");
+    ttag_off = b.gep(cur, [ir.Constant(i64, LIVE_NODE_TAG_OFF)], name="dump.ttag.off");
     ttag_pp = b.bitcast(ttag_off, i8_ptr.as_pointer(), name="dump.ttag.pp");
     ttag = b.load(ttag_pp, name="dump.ttag");
     _fmt_live = self._get_fmt_string("id=%-4lld ptr=%p  rc=%-4lld type=%s  <- LEAK");
@@ -628,7 +652,9 @@ impl NaIRGenPass._emit_rc_live_dump -> None {
     b.call(self._get_printf(), [_fmt_live_ptr, node_id, user_ptr, rc_val, ttag]);
     b.branch(next_bb);
     b = ir.IRBuilder(next_bb);
-    nxt_off = b.gep(cur, [ir.Constant(i64, 32)], name="dump.nxt.off");  # next at +32
+    nxt_off = b.gep(
+        cur, [ir.Constant(i64, LIVE_NODE_NEXT_OFF)], name="dump.nxt.off"
+    );  # next at +32
     nxt_pp = b.bitcast(nxt_off, i8_ptr.as_pointer(), name="dump.nxt.pp");
     nxt = b.load(nxt_pp, name="dump.nxt");
     cur.add_incoming(nxt, next_bb);

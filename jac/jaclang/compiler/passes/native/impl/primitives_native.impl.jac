@@ -2720,20 +2720,17 @@ impl NativeListEmitter.emit_append(
         return None;
     }
     # Box value tuples to heap-allocated pointers for container storage.
-    # Save the boxed value BEFORE coerce so the ownership check uses
-    # the correct id (the one _box_value_tuple added to rc_owned_ids).
+    # _coerce_type propagates the is_owned marker through any bitcast it
+    # emits, so checking `val` after coerce is correct.
     _boxed_val = p._box_value_tuple(args[0]);
     val = p._coerce_type(_boxed_val, helpers["elem_type"]);
     # Set RC ctx AFTER boxing so _box_value_tuple's internal "box" ctx (which
     # overwrites and then clears the ctx) does not hide the "append" attribution.
     _append_loc = getattr(args[0], 'jac_loc', "");
-    p._set_rc_ctx("append", _append_loc);
-    get_builder(p).call(helpers["append"], [target, val]);
-    p._clear_rc_ctx();
+    p._rc_call_with_ctx(helpers["append"], [target, val], op="append", loc=_append_loc);
     # if the boxed value was freshly allocated (owned), release the caller's
     # ref now that helpers["append"] has retained it (rc: 1→2→1).
-    if isinstance(_boxed_val.type, ir.PointerType)
-    and id(_boxed_val) in p.rc_owned_ids {
+    if isinstance(_boxed_val.type, ir.PointerType) and p._is_owned(_boxed_val) {
         p._emit_rc_release_simple(_boxed_val, op="append", loc=_append_loc);
     }
     return ir.Constant(ir.IntType(64), 0);
@@ -3976,7 +3973,7 @@ impl NativeSetEmitter.emit_add(
     val = p._coerce_type(args[0], helpers["elem_type"]);
     get_builder(p).call(helpers["add"], [target, val]);
     # if the original arg was owned (function-call result), consume the owned ref.
-    if isinstance(args[0].type, ir.PointerType) and id(args[0]) in p.rc_owned_ids {
+    if isinstance(args[0].type, ir.PointerType) and p._is_owned(args[0]) {
         _b_sa = get_builder(p);
         _i8p_sa = ir.IntType(8).as_pointer();
         _rc_sa = _b_sa.bitcast(args[0], _i8p_sa, name="sadd_own_rel_cast");

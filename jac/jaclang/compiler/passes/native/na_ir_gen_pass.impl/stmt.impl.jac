@@ -79,7 +79,7 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
         if (
             _estmt_val is not None
             and isinstance(_estmt_val.type, ir.PointerType)
-            and id(_estmt_val) in self.rc_owned_ids
+            and self._is_owned(_estmt_val)
         ) {
             self._emit_rc_release_simple(_estmt_val, op="discarded_call", loc="");
         }
@@ -194,8 +194,9 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         self._list_type_hint = None;
         self._dict_val_type_hint = None;
         if val is not None {
-            # Save id before _coerce_type may wrap val in a bitcast (new ir.Value).
-            _ret_orig_id = id(val);
+            # _coerce_type propagates is_owned across any bitcast/inttoptr it
+            # emits, so checking val after coerce is safe — no need to capture
+            # ownership pre-coerce.
             val = self._coerce_type(val, func_ret_type);
             # release all locals except the one being returned.
             # * `return x`         → skip_var = "x", cleanup won't release x.
@@ -251,7 +252,7 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
             if (
                 skip_var is None
                 and isinstance(val.type, ir.PointerType)
-                and _ret_orig_id not in self.rc_owned_ids
+                and not self._is_owned(val)
             ) {
                 self._emit_rc_retain(
                     val,
@@ -260,7 +261,7 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
                         if nd.loc
                         else 0}"
                 );
-                self.rc_owned_ids.add(id(val));
+                self._mark_owned(val);
             }
             self._emit_scope_cleanup(
                 skip_var=skip_var,
@@ -537,7 +538,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 helpers["new"], [], name="dict.new"
                             );
                             # RC: fresh allocation — caller owns it; skip RETAIN on assign.
-                            self.rc_owned_ids.add(id(value));
+                            self._mark_owned(value);
                         }
                         break;
                     }
@@ -560,7 +561,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 helpers["new"], [], name="set.new"
                             );
                             # RC: fresh allocation — caller owns it; skip RETAIN on assign.
-                            self.rc_owned_ids.add(id(value));
+                            self._mark_owned(value);
                         }
                         break;
                     }
@@ -583,7 +584,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 helpers["new"], [], name="set.new"
                             );
                             # Mark as owned so assignment doesn't emit a spurious retain.
-                            self.rc_owned_ids.add(id(value));
+                            self._mark_owned(value);
                         }
                         break;
                     }
@@ -707,7 +708,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         } else {
                             # Release the RHS temp if we own it (rc=1 fresh alloc).
                             # The concat borrowed it but did not retain it.
-                            if id(_aug_str_rhs) in self.rc_owned_ids {
+                            if self._is_owned(_aug_str_rhs) {
                                 _aug_rhs_loc = f"{os.path.basename(
                                     self.ir_in.loc.mod_path
                                 )}:{nd.loc.first_line if nd.loc else 0}";
@@ -1039,7 +1040,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     # Raw pointer — mark exempt from scope cleanup
                     self.param_vars.add(var_name);
                 } else {
-                    if id(value) not in self.rc_owned_ids {
+                    if not self._is_owned(value) {
                         self._emit_rc_retain(
                             coerced,
                             op="assign",
@@ -1081,7 +1082,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         if value is None {
                             value = current;
                         } else {
-                            if id(_aug_gstr_rhs) in self.rc_owned_ids {
+                            if self._is_owned(_aug_gstr_rhs) {
                                 _aug_grhs_loc = f"{os.path.basename(
                                     self.ir_in.loc.mod_path
                                 )}:{nd.loc.first_line if nd.loc else 0}";
@@ -1214,7 +1215,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             _is_raw_int_ptr_g = getattr(coerced, 'opname', '') == 'inttoptr';
             if isinstance(global_var.type.pointee, ir.PointerType)
             and not _is_raw_int_ptr_g {
-                if id(value) not in self.rc_owned_ids {
+                if not self._is_owned(value) {
                     self._emit_rc_retain(
                         coerced,
                         op="assign",
@@ -1317,7 +1318,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     # Raw C pointer — no RC header; exempt from scope cleanup.
                     self.param_vars.add(var_name);
                 } else {
-                    if id(value) not in self.rc_owned_ids {
+                    if not self._is_owned(value) {
                         self._emit_rc_retain(
                             value,
                             op="assign",
@@ -1450,6 +1451,9 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     if loop_var_name is None {
         return;
     }
+    _for_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.last_line
+        if nd.loc
+        else 0}";
     # Detect range() calls
     start_val: (ir.Value | None) = None;
     stop_val: (ir.Value | None) = None;
@@ -1485,10 +1489,12 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         self.builder.cbranch(cmp, body_bb, end_bb);
         self.loop_stack.append((incr_bb, end_bb));
         self.builder.position_at_end(body_bb);
+        _for_saved = set(self.local_vars.keys());
         if isinstance(nd.body, (list, tuple)) {
             self._codegen_body(nd.body);
         }
         if not self.builder.block.is_terminated {
+            self._emit_loop_iter_cleanup(_for_saved, loc=_for_loc);
             self.builder.branch(incr_bb);
         }
         self.loop_stack.pop();
@@ -1566,10 +1572,12 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
                             );
                             self.builder.store(key_val, key_alloca);
                             self.builder.store(val_val, val_alloca);
+                            _for_saved = set(self.local_vars.keys());
                             if isinstance(nd.body, (list, tuple)) {
                                 self._codegen_body(nd.body);
                             }
                             if not self.builder.block.is_terminated {
+                                self._emit_loop_iter_cleanup(_for_saved, loc=_for_loc);
                                 self.builder.branch(incr_bb);
                             }
                             self.loop_stack.pop();
@@ -1680,10 +1688,12 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
                     );
                 }
                 self.builder.store(key_val, loop_alloca);
+                _for_saved = set(self.local_vars.keys());
                 if isinstance(nd.body, (list, tuple)) {
                     self._codegen_body(nd.body);
                 }
                 if not self.builder.block.is_terminated {
+                    self._emit_loop_iter_cleanup(_for_saved, loc=_for_loc);
                     self.builder.branch(incr_bb);
                 }
                 self.loop_stack.pop();
@@ -1741,10 +1751,12 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
             if char_str is not None {
                 self.builder.store(char_str, loop_alloca);
             }
+            _for_saved = set(self.local_vars.keys());
             if isinstance(nd.body, (list, tuple)) {
                 self._codegen_body(nd.body);
             }
             if not self.builder.block.is_terminated {
+                self._emit_loop_iter_cleanup(_for_saved, loc=_for_loc);
                 self.builder.branch(incr_bb);
             }
             self.loop_stack.pop();
@@ -1950,10 +1962,12 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         );
     }
     self.builder.store(elem_val, loop_alloca);
+    _for_saved = set(self.local_vars.keys());
     if isinstance(nd.body, (list, tuple)) {
         self._codegen_body(nd.body);
     }
     if not self.builder.block.is_terminated {
+        self._emit_loop_iter_cleanup(_for_saved, loc=_for_loc);
         self.builder.branch(incr_bb);
     }
     self.loop_stack.pop();

@@ -163,34 +163,33 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
     _set_new_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("new", _set_new_loc);
-    set_val = self.builder.call(helpers["new"], [], name="set.new");
-    self._clear_rc_ctx();
+    set_val = self._rc_call_with_ctx(
+        helpers["new"], [], op="new", loc=_set_new_loc, name="set.new"
+    );
     _sinit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
     # Add first element
-    self._set_rc_ctx("set_init", _sinit_loc);
-    self.builder.call(helpers["add"], [set_val, first_val]);
-    self._clear_rc_ctx();
+    self._rc_call_with_ctx(
+        helpers["add"], [set_val, first_val], op="set_init", loc=_sinit_loc
+    );
     # Add remaining elements
     for i in range(1, len(nd.values)) {
         val = self._codegen_expr(nd.values[i]);
         if val is not None {
             _orig_sv = val;
             val = self._coerce_type(val, elem_type);
-            self._set_rc_ctx("set_init", _sinit_loc);
-            self.builder.call(helpers["add"], [set_val, val]);
-            self._clear_rc_ctx();
+            self._rc_call_with_ctx(
+                helpers["add"], [set_val, val], op="set_init", loc=_sinit_loc
+            );
             # release owned ref after add retained it
-            if isinstance(_orig_sv.type, ir.PointerType)
-            and id(_orig_sv) in self.rc_owned_ids {
+            if isinstance(_orig_sv.type, ir.PointerType) and self._is_owned(_orig_sv) {
                 self._emit_rc_release_simple(_orig_sv, op="set_init", loc=_sinit_loc);
             }
         }
     }
     # Set literal is a fresh allocation — mark as owned.
-    self.rc_owned_ids.add(id(set_val));
+    self._mark_owned(set_val);
     return set_val;
 }
 

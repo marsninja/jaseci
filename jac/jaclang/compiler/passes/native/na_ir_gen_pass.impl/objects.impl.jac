@@ -452,7 +452,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.rc_owned_ids = set();
     self.var_type_node = {};
     self.var_list_elem_type = {};
     self.var_dict_type = {};
@@ -582,7 +581,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.rc_owned_ids = set();
     self.var_type_node = {};
     self.var_list_elem_type = {};
     self.var_dict_type = {};
@@ -655,9 +653,9 @@ impl NaIRGenPass._codegen_instantiation(nd: uni.FuncCall) -> (ir.Value | None) {
     _inst_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("new", _inst_loc);
-    raw_ptr = self.builder.call(self.rc_alloc_fn, [size], name="raw.ptr");
-    self._clear_rc_ctx();
+    raw_ptr = self._rc_call_with_ctx(
+        self.rc_alloc_fn, [size], op="new", loc=_inst_loc, name="raw.ptr"
+    );
     obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
     # Store the typed destructor function pointer at obj_ptr - 8
     # so __rc_release_simple dispatches to it when refcount hits zero.
@@ -679,15 +677,10 @@ impl NaIRGenPass._codegen_instantiation(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     # Set type tag in header (ptr-24) so RC debug log shows the type name.
     if self.rc_set_type_fn is not None {
-        _i8p_tag = ir.IntType(8).as_pointer();
-        _type_tag_str = self._get_snprintf_fmt(type_name);
-        _type_tag_gep = self.builder.gep(
-            _type_tag_str,
-            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
-            name="type.tag"
+        _obj_i8 = self.builder.bitcast(
+            obj_ptr, ir.IntType(8).as_pointer(), name="obj.i8.tag"
         );
-        _obj_i8 = self.builder.bitcast(obj_ptr, _i8p_tag, name="obj.i8.tag");
-        self.builder.call(self.rc_set_type_fn, [_obj_i8, _type_tag_gep]);
+        self._emit_set_type_tag(self.builder, _obj_i8, type_name);
     }
     # Store vtable pointer if class has vtable
     if type_name in self.vtable_globals {
@@ -756,15 +749,12 @@ impl NaIRGenPass._codegen_instantiation(nd: uni.FuncCall) -> (ir.Value | None) {
             }
             idx = field_indices[key_name];
             ftype = field_types[key_name];
-            # RC: check ownership BEFORE _coerce_type, which may create a new bitcast
-            # IR value whose id() is not in rc_owned_ids even though the source is owned.
-            _pre_coerce_owned = id(val) in self.rc_owned_ids;
+            # _coerce_type propagates is_owned across bitcasts so checking val
+            # post-coerce is sufficient.
             val = self._coerce_type(val, ftype);
             # RC: retain pointer values stored into struct fields.
             # skip if already owned (call result) — field takes over rc=1.
-            if isinstance(ftype, ir.PointerType)
-            and not _pre_coerce_owned
-            and id(val) not in self.rc_owned_ids {
+            if isinstance(ftype, ir.PointerType) and not self._is_owned(val) {
                 self._emit_rc_retain(
                     val,
                     op="ctor_field",
@@ -855,8 +845,7 @@ impl NaIRGenPass._codegen_instantiation(nd: uni.FuncCall) -> (ir.Value | None) {
                 val = self._coerce_type(val, ftype);
                 # RC: retain pointer defaults stored into struct fields.
                 # skip if already owned (call result) — field takes over rc=1.
-                if isinstance(ftype, ir.PointerType)
-                and id(val) not in self.rc_owned_ids {
+                if isinstance(ftype, ir.PointerType) and not self._is_owned(val) {
                     self._emit_rc_retain(
                         val,
                         op="ctor_field",
@@ -1294,27 +1283,22 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
                                         else 0}"
                                 );
                                 elem_type = helpers["elem_type"];
-                                _pre_coerce_owned_app = id(val) in self.rc_owned_ids;
                                 val = self._coerce_type(val, elem_type);
-                                # Set RC ctx so the retain inside __list_append_ptr logs op/at.
-                                self._set_rc_ctx(
-                                    "append",
-                                    f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                                # __list_append_ptr internally retains; ctx makes the
+                                # retain log show op="append" + the source line.
+                                self._rc_call_with_ctx(
+                                    helpers["append"],
+                                    [obj_val, val],
+                                    op="append",
+                                    loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
                                         if nd.loc
                                         else 0}"
                                 );
-                                self.builder.call(helpers["append"], [obj_val, val]);
-                                # Clear ctx immediately so subsequent allocations (next loop
-                                # iteration's Move, tuple fields, etc.) are not misattributed.
-                                self._clear_rc_ctx();
                                 # RC: __list_append_ptr retained the element.
                                 # Release the caller's ownership if the value was owned
                                 # (fresh alloc / call result) to keep refcount at 1.
                                 if isinstance(elem_type, ir.PointerType)
-                                and (
-                                    _pre_coerce_owned_app
-                                    or id(val) in self.rc_owned_ids
-                                ) {
+                                and self._is_owned(val) {
                                     self._emit_rc_release_simple(
                                         val,
                                         op="append",
@@ -1417,7 +1401,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
             # every pointer returned by a virtual method is owned.
             if isinstance(result.type, ir.PointerType) {
-                self.rc_owned_ids.add(id(result));
+                self._mark_owned(result);
             }
             return result;
         }
@@ -1442,7 +1426,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     # every pointer returned by a method is owned. Skip RETAIN on assign.
     if isinstance(result.type, ir.PointerType) {
-        self.rc_owned_ids.add(id(result));
+        self._mark_owned(result);
     }
     return result;
 }
@@ -1602,7 +1586,7 @@ impl NaIRGenPass._codegen_field_assign(
     # skip retain if value is already owned (function call result) — the
     # field takes over the existing rc=1 without an extra increment.
     if isinstance(ftype, ir.PointerType) {
-        if id(value) not in self.rc_owned_ids {
+        if not self._is_owned(value) {
             self._emit_rc_retain(
                 value,
                 op="field_set",

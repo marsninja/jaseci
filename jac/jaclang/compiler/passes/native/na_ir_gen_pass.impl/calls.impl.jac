@@ -147,7 +147,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 if _len_result is not None {
                     # len() borrows the arg; release if caller owns it (e.g. inline fstring)
                     if isinstance(arg_val.type, ir.PointerType)
-                    and id(arg_val) in self.rc_owned_ids {
+                    and self._is_owned(arg_val) {
                         self._emit_rc_release_simple(arg_val, op="len_arg", loc="");
                     }
                     return _len_result;
@@ -307,8 +307,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             result = self._dispatch_builtin(func_name, arg_vals);
             # dispatch borrows each arg; release any owned temporaries (e.g. fstrings)
             for _barg in arg_vals {
-                if isinstance(_barg.type, ir.PointerType)
-                and id(_barg) in self.rc_owned_ids {
+                if isinstance(_barg.type, ir.PointerType) and self._is_owned(_barg) {
                     self._emit_rc_release_simple(_barg, op="builtin_arg", loc="");
                 }
             }
@@ -349,7 +348,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 result = self._dispatch_builtin(func_name, [arg_val]);
                 # dispatch borrows the arg; release if caller owns it (e.g. fstring)
                 if isinstance(arg_val.type, ir.PointerType)
-                and id(arg_val) in self.rc_owned_ids {
+                and self._is_owned(arg_val) {
                     self._emit_rc_release_simple(arg_val, op="builtin1_arg", loc="");
                 }
                 if result is not None {
@@ -380,7 +379,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 self.builder.call(printf, [fmt_ptr, prompt_val]);
                 # printf borrows the prompt; release if we own it (e.g. fstring result)
                 if isinstance(_prompt_orig.type, ir.PointerType)
-                and id(_prompt_orig) in self.rc_owned_ids {
+                and self._is_owned(_prompt_orig) {
                     self._emit_rc_release_simple(
                         _prompt_orig, op="input_prompt", loc=""
                     );
@@ -587,7 +586,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 # indirect call borrows all args; release owned temporaries
                 for _icarg in _iargs {
                     if isinstance(_icarg.type, ir.PointerType)
-                    and id(_icarg) in self.rc_owned_ids {
+                    and self._is_owned(_icarg) {
                         self._emit_rc_release_simple(_icarg, op="icall_arg", loc="");
                     }
                 }
@@ -667,7 +666,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     # inside the callee for borrowed refs, or via skip_var donation for named locals).
     # Mark the call result owned so the caller's assign handler skips an extra RETAIN.
     if isinstance(result.type, ir.PointerType) {
-        self.rc_owned_ids.add(id(result));
+        self._mark_owned(result);
     }
     return result;
 }

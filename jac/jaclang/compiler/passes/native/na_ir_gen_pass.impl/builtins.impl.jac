@@ -96,11 +96,10 @@ impl NaIRGenPass._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
         self.builder.call(printf, [fmt_ptr] + args);
         # RC: release owned temporaries (inline fstrings, concats) that were passed
         # directly to print() without being stored in a named local variable.
-        # Named locals won't be in rc_owned_ids with the same id() (they're loaded
-        # from allocas, producing a new ir.Value), so this only fires for temporaries.
+        # Named locals load from allocas, producing a new ir.Value without the
+        # is_owned attribute, so this only fires for fresh temporaries.
         for _parg in args {
-            if isinstance(_parg.type, ir.PointerType)
-            and id(_parg) in self.rc_owned_ids {
+            if isinstance(_parg.type, ir.PointerType) and self._is_owned(_parg) {
                 self._emit_rc_release_typed(_parg, op="print_tmp", loc="");
             }
         }
@@ -176,10 +175,10 @@ impl NaIRGenPass._codegen_multistring(nd: uni.MultiString) -> (ir.Value | None) 
             result = self._emit_binary_op(Tok.PLUS, _ms_old, _ms_val);
             # Release the two input temps if we own them (rc=1 fresh allocs).
             # The concat borrowed them but did not retain them.
-            if id(_ms_old) in self.rc_owned_ids {
+            if self._is_owned(_ms_old) {
                 self._emit_rc_release_typed(_ms_old, op="mstr_old", loc="");
             }
-            if id(_ms_val) in self.rc_owned_ids {
+            if self._is_owned(_ms_val) {
                 self._emit_rc_release_typed(_ms_val, op="mstr_val", loc="");
             }
         }
@@ -290,19 +289,10 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
     _fstr_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
-    self._set_rc_ctx("fstring", _fstr_loc);
-    buf = self.builder.call(self.rc_alloc_fn, [buf_size], name="fstr.buf");
-    self._clear_rc_ctx();
-    if self.rc_set_type_fn is not None {
-        _fstr_tag = self._get_snprintf_fmt("str");
-        _i32_fs = ir.IntType(32);
-        _fstr_gep = self.builder.gep(
-            _fstr_tag,
-            [ir.Constant(_i32_fs, 0), ir.Constant(_i32_fs, 0)],
-            name="fstr.tag"
-        );
-        self.builder.call(self.rc_set_type_fn, [buf, _fstr_gep]);
-    }
+    buf = self._rc_call_with_ctx(
+        self.rc_alloc_fn, [buf_size], op="fstring", loc=_fstr_loc, name="fstr.buf"
+    );
+    self._emit_set_type_tag(self.builder, buf, "str");
     # Call snprintf(buf, 1024, fmt, args...)
     snprintf_fn = self._get_or_declare_extern(
         "snprintf",
@@ -318,7 +308,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
     self.builder.call(snprintf_fn, call_args, name="fstr.len");
     # RC: caller owns this freshly-allocated fstring buffer (rc=1 from malloc).
     # Mark it so the assign handler skips the extra RETAIN (avoiding rc=2 leak).
-    self.rc_owned_ids.add(id(buf));
+    self._mark_owned(buf);
     return buf;
 }
 
@@ -336,23 +326,16 @@ impl NaIRGenPass._codegen_string_index(
     # Allocate a 2-byte string: [char, null] via rc_alloc (RC-managed)
     two = ir.Constant(i64, 2);
     _sidx_loc = getattr(target_val, 'jac_loc', '');
-    self._set_rc_ctx("str_index", _sidx_loc);
-    new_str = self.builder.call(self.rc_alloc_fn, [two], name="char.str");
-    self._clear_rc_ctx();
-    if self.rc_set_type_fn is not None {
-        _cs_tag = self._get_snprintf_fmt("str");
-        _i32_cs = ir.IntType(32);
-        _cs_gep = self.builder.gep(
-            _cs_tag, [ir.Constant(_i32_cs, 0), ir.Constant(_i32_cs, 0)], name="cs.tag"
-        );
-        self.builder.call(self.rc_set_type_fn, [new_str, _cs_gep]);
-    }
+    new_str = self._rc_call_with_ctx(
+        self.rc_alloc_fn, [two], op="str_index", loc=_sidx_loc, name="char.str"
+    );
+    self._emit_set_type_tag(self.builder, new_str, "str");
     self.builder.store(char_val, new_str);
     # Store null terminator at index 1
     one_ptr = self.builder.gep(new_str, [ir.Constant(i64, 1)], name="null.ptr");
     self.builder.store(ir.Constant(i8, 0), one_ptr);
     # RC: caller owns this freshly-allocated single-char string (rc=1).
-    self.rc_owned_ids.add(id(new_str));
+    self._mark_owned(new_str);
     return new_str;
 }
 
@@ -409,9 +392,7 @@ impl NaIRGenPass._codegen_list_slice(
     # Body: get element, append to new list
     self.builder.position_at_end(loop_body);
     elem = self.builder.call(helpers["get"], [target_val, cur_i], name="sl.elem");
-    self._set_rc_ctx("list_slice", "");
-    self.builder.call(helpers["append"], [new_list, elem]);
-    self._clear_rc_ctx();
+    self._rc_call_with_ctx(helpers["append"], [new_list, elem], op="list_slice");
     # i += step
     next_i = self.builder.add(cur_i, step_val, name="sl.next");
     self.builder.store(next_i, i_alloca);
@@ -454,14 +435,7 @@ impl NaIRGenPass._codegen_string_slice(
     slice_len = self.builder.sub(stop_val, start_val, name="ss.slen");
     alloc_size = self.builder.add(slice_len, ir.Constant(i64, 1), name="ss.alloc");
     new_str = self.builder.call(self.rc_alloc_fn, [alloc_size], name="ss.new");
-    if self.rc_set_type_fn is not None {
-        _ss_tag = self._get_snprintf_fmt("str");
-        _i32_ss = ir.IntType(32);
-        _ss_gep = self.builder.gep(
-            _ss_tag, [ir.Constant(_i32_ss, 0), ir.Constant(_i32_ss, 0)], name="ss.tag"
-        );
-        self.builder.call(self.rc_set_type_fn, [new_str, _ss_gep]);
-    }
+    self._emit_set_type_tag(self.builder, new_str, "str");
     # src_ptr = target_val + start
     src_ptr = self.builder.gep(target_val, [start_val], name="ss.src");
     self.builder.call(memcpy_fn, [new_str, src_ptr, slice_len]);
@@ -550,16 +524,7 @@ impl NaIRGenPass._codegen_str_strip(str_val: ir.Value) -> (ir.Value | None) {
     result_len = self.builder.sub(final_end, final_start, name="result.len");
     alloc_size = self.builder.add(result_len, ir.Constant(i64, 1), name="alloc.size");
     result_ptr = self.builder.call(self.rc_alloc_fn, [alloc_size], name="strip.result");
-    if self.rc_set_type_fn is not None {
-        _strip_tag = self._get_snprintf_fmt("str");
-        _i32_st = ir.IntType(32);
-        _strip_gep = self.builder.gep(
-            _strip_tag,
-            [ir.Constant(_i32_st, 0), ir.Constant(_i32_st, 0)],
-            name="strip.tag"
-        );
-        self.builder.call(self.rc_set_type_fn, [result_ptr, _strip_gep]);
-    }
+    self._emit_set_type_tag(self.builder, result_ptr, "str");
     # memcpy from str_val + start to result
     src_ptr = self.builder.gep(str_val, [final_start], name="src.ptr");
     memcpy = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
@@ -634,9 +599,7 @@ impl NaIRGenPass._codegen_str_split(
     null_pos = self.builder.gep(token_ptr, [token_len], name="token.null");
     self.builder.store(ir.Constant(i8, 0), null_pos);
     # Append token to list
-    self._set_rc_ctx("str_split", "");
-    self.builder.call(helpers["append"], [new_list, token_ptr]);
-    self._clear_rc_ctx();
+    self._rc_call_with_ctx(helpers["append"], [new_list, token_ptr], op="str_split");
     # Advance i past separator, update token_start
     new_i = self.builder.add(cur_i, sep_len, name="new.i");
     self.builder.store(new_i, i_alloca);
@@ -657,9 +620,7 @@ impl NaIRGenPass._codegen_str_split(
     self.builder.call(memcpy, [last_ptr, last_src, last_len]);
     last_null = self.builder.gep(last_ptr, [last_len], name="last.null");
     self.builder.store(ir.Constant(i8, 0), last_null);
-    self._set_rc_ctx("str_split", "");
-    self.builder.call(helpers["append"], [new_list, last_ptr]);
-    self._clear_rc_ctx();
+    self._rc_call_with_ctx(helpers["append"], [new_list, last_ptr], op="str_split");
     return new_list;
 }
 
@@ -742,22 +703,11 @@ impl NaIRGenPass._emit_sys_argv -> (ir.Value | None) {
     slen = self.builder.call(strlen_fn, [arg_ptr], name="arg.len");
     alloc_size = self.builder.add(slen, ir.Constant(i64, 1), name="arg.alloc");
     rc_str = self.builder.call(self.rc_alloc_fn, [alloc_size], name="arg.str");
-    if self.rc_set_type_fn is not None {
-        _argv_tag = self._get_snprintf_fmt("str");
-        _i32_av = ir.IntType(32);
-        _argv_gep = self.builder.gep(
-            _argv_tag,
-            [ir.Constant(_i32_av, 0), ir.Constant(_i32_av, 0)],
-            name="argv.tag"
-        );
-        self.builder.call(self.rc_set_type_fn, [rc_str, _argv_gep]);
-    }
+    self._emit_set_type_tag(self.builder, rc_str, "str");
     self.builder.call(memcpy_fn, [rc_str, arg_ptr, alloc_size]);
 
     # Append to list
-    self._set_rc_ctx("argv", "");
-    self.builder.call(helpers["append"], [new_list, rc_str]);
-    self._clear_rc_ctx();
+    self._rc_call_with_ctx(helpers["append"], [new_list, rc_str], op="argv");
 
     # i++
     next_i = self.builder.add(cur_i, ir.Constant(i64, 1), name="argv.next");

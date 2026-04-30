@@ -22,16 +22,10 @@ impl NaIRGenPass._emit_container_new_fn(
         _type_name = _dtor_name[len("__rc_release_"):]
             if _dtor_name.startswith("__rc_release_")
             else "container";
-        _type_tag_gv = self._get_snprintf_fmt(_type_name);
-        _i8p_t = ir.IntType(8).as_pointer();
-        _i32_t = ir.IntType(32);
-        _cont_raw_i8 = b.bitcast(container_ptr, _i8p_t, name="new.i8");
-        _tag_gep = b.gep(
-            _type_tag_gv,
-            [ir.Constant(_i32_t, 0), ir.Constant(_i32_t, 0)],
-            name="tag.gep"
+        _cont_raw_i8 = b.bitcast(
+            container_ptr, ir.IntType(8).as_pointer(), name="new.i8"
         );
-        b.call(self.rc_set_type_fn, [_cont_raw_i8, _tag_gep]);
+        self._emit_set_type_tag(b, _cont_raw_i8, _type_name);
     }
     # RC: store the typed destructor function pointer at container_ptr - 8
     # so __rc_release_simple can dispatch to it when refcount hits zero.
