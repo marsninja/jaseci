@@ -9,6 +9,7 @@ compiler pipeline (exit_edge_ref_trailer, exit_filter_compr) are caught.
 import os;
 import shutil;
 import from tempfile { mkdtemp }
+import from typing { Any }
 import from jaclang { JacRuntimeInterface as Jac }
 import from jaclang.jac0core.runtime { JacRuntime }
 import from jaclang.runtimelib.context { ExecutionContext }
@@ -206,6 +207,64 @@ test "nested post-hoc filter as origin of outer edge-op" {
 
         assert inline == nested , f"Inline vs nested differ: {inline} vs {nested}";
         assert inline == [0, 10, 20, 30, 40];
+
+        ctx.close();
+    } finally {
+        JacRuntime.set_base_path(orig_base);
+        set_config(JacConfig());
+        shutil.rmtree(tmpdir, ignore_errors=True);
+    }
+}
+
+test "plan_query bypasses index when no hop is filtered" {
+    import from jaclang.jac0core.archetype {
+        ObjectSpatialPath, ObjectSpatialDestination, EdgeDir
+    }
+    import from jaclang.runtimelib.topo_utils { plan_query }
+
+    tmpdir = mkdtemp();
+    orig_base = JacRuntime.base_path_dir;
+    try {
+        cfg = JacConfig();
+        cfg.run.topology_index = True;
+        set_config(cfg);
+        JacRuntime.set_base_path(tmpdir);
+        ctx = ExecutionContext();
+        JacRuntime.set_context(ctx);
+
+        r = root;
+        Jac.save(r);
+        for i in range(10) {
+            r +>: EdgeX :+> TypeA(val=i);
+        }
+        Jac.save(r);
+
+        # Fully unfiltered single-hop chain → planner must return None so
+        # the runtime falls back to the natural edge-walk.
+        unfiltered_path = ObjectSpatialPath(
+            [r], [ObjectSpatialDestination(EdgeDir.OUT)]
+        );
+        assert plan_query(unfiltered_path) is None , (
+            "plan_query should bypass TI for fully unfiltered chains"
+        );
+
+        # Edge-type filter alone is enough to engage the index.
+        edge_filter = lambda e: Any : isinstance(e, EdgeX);
+        edge_typed_path = ObjectSpatialPath(
+            [r], [ObjectSpatialDestination(EdgeDir.OUT, edge_filter)]
+        );
+        assert plan_query(edge_typed_path) is not None , (
+            "plan_query should engage TI when edge_type is filtered"
+        );
+
+        # Node-type filter alone also engages the index.
+        node_filter = lambda n: Any : isinstance(n, TypeA);
+        node_typed_path = ObjectSpatialPath(
+            [r], [ObjectSpatialDestination(EdgeDir.OUT, None, node_filter)]
+        );
+        result = plan_query(node_typed_path);
+        assert result is not None , "plan_query should engage TI when node_type is filtered";
+        assert len(result) == 10 , f"expected 10 TypeA nodes, got {len(result)}";
 
         ctx.close();
     } finally {

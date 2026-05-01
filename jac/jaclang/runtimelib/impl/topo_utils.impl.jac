@@ -73,20 +73,17 @@ impl on_edge_created(source: Any, target: Any, `edge: Any) -> None {
     if not isinstance(idx, TopologyIndex) {
         idx = TopologyIndex();
     }
-    # Ensure root node itself is in the index
     idx.add_node(
         root_anchor.id,
         _type_name(root_anchor.archetype),
         _get_type_mro(root_anchor.archetype)
     );
-    # Add source node
     idx.add_node(
         source.id,
         _type_name(source.archetype),
         _get_type_mro(source.archetype),
         None if source.root == root_anchor.id else source.root
     );
-    # Add target node
     target_owner = None;
     if target.root and target.root != root_anchor.id {
         target_owner = target.root;
@@ -97,9 +94,7 @@ impl on_edge_created(source: Any, target: Any, `edge: Any) -> None {
         _get_type_mro(target.archetype),
         target_owner
     );
-    # Add edge
     idx.add_edge(source.id, target.id, _type_name(`edge.archetype));
-    # If undirected, add reverse edge too
     if `edge.is_undirected {
         idx.add_edge(target.id, source.id, _type_name(`edge.archetype));
     }
@@ -151,13 +146,11 @@ impl on_node_saved(node_anchor: Any) -> None {
     if not isinstance(idx, TopologyIndex) {
         idx = TopologyIndex();
     }
-    # Ensure root is in index
     idx.add_node(
         root_anchor.id,
         _type_name(root_anchor.archetype),
         _get_type_mro(root_anchor.archetype)
     );
-    # Add/update node
     idx.add_node(
         node_anchor.id,
         _type_name(node_anchor.archetype),
@@ -192,7 +185,7 @@ impl _extract_type_name_from_filter(filt: (Callable | None)) -> (str | None) {
     if filt is None {
         return None;
     }
-    # Check if the filter itself is an Archetype instance (identity filter)
+    # An Archetype instance acts as an identity filter (matches its own type).
     try {
         import from jaclang.jac0core.archetype { Archetype }
         if isinstance(filt, Archetype) {
@@ -201,7 +194,6 @@ impl _extract_type_name_from_filter(filt: (Callable | None)) -> (str | None) {
     } except Exception {
         ;
     }
-    # Try to inspect closure variables for a type
     try {
         closure = inspect.getclosurevars(filt);
         for val in `list(closure.nonlocals.values()) + `list(
@@ -226,7 +218,6 @@ impl plan_query(path: Any) -> (set[UUID] | None) {
     if not _is_enabled() {
         return None;
     }
-    # Get the root's topology index from the origin nodes
     if not path.origin {
         return None;
     }
@@ -238,23 +229,32 @@ impl plan_query(path: Any) -> (set[UUID] | None) {
     if root_anchor is None {
         return None;
     }
+    # Build the chain before fetching the index — if no hop has a filter we
+    # can skip the decode entirely below.
+    chain: list[tuple[(str | None), (str | None), int]] = [];
+    destinations = path.destinations[:-1] if path.edge_only else path.destinations;
+    has_filter = False;
+    for dest in destinations {
+        edge_type = _extract_type_name_from_filter(dest.`edge);
+        node_type = _extract_type_name_from_filter(dest.nd);
+        chain.append((edge_type, node_type, dest.direction.value));
+        if edge_type is not None or node_type is not None {
+            has_filter = True;
+        }
+    }
+    if not chain {
+        return None;
+    }
+    # No filters anywhere in the chain — the natural edge-walk is optimal,
+    # so skip the index entirely (avoids decoding the blob for nothing).
+    if not has_filter {
+        return None;
+    }
     import from jaclang.runtimelib.topology_index { TopologyIndex }
     idx = root_anchor.get_topology_index();
     if not isinstance(idx, TopologyIndex) or len(idx) == 0 {
         return None;
     }
-    # Build the chain of (edge_type, node_type, direction)
-    chain: list[tuple[(str | None), (str | None), int]] = [];
-    destinations = path.destinations[:-1] if path.edge_only else path.destinations;
-    for dest in destinations {
-        edge_type = _extract_type_name_from_filter(dest.`edge);
-        node_type = _extract_type_name_from_filter(dest.nd);
-        chain.append((edge_type, node_type, dest.direction.value));
-    }
-    if not chain {
-        return None;
-    }
-    # Resolve using the index — authoritative when present
     origin_ids = {nd.__jac__.id for nd in path.origin};
     return idx.resolve_chain(origin_ids, chain);
 }
@@ -291,7 +291,6 @@ impl batch_load_nodes(node_ids: set[UUID], origin: (list | None) = None) -> list
                 ctx.mem.batch_get(edge_ids);
             }
         }
-        # Walk edges in order, only emit targets in the planned set
         seen: set = set();
         result = [];
         for nd in origin {
