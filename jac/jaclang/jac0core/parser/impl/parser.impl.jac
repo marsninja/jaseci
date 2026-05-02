@@ -3307,17 +3307,28 @@ impl Parser.parse_jsx_children -> list {
 
 """Parse a single JSX child: text, expression {expr}, or nested element."""
 impl Parser.parse_jsx_child -> Expr {
-    # Text content — store the raw token verbatim. Whitespace normalization
-    # (including the decision to drop structural whitespace such as the
-    # newline+indent between `}` and the next `{`) is the sole responsibility
-    # of JsxText.get_normalized_text(); the codegen drops children that
-    # normalize to empty strings.
+    # Text content. Heavy lifting (per-line trim, cross-line collapse)
+    # is done downstream by JsxText.get_normalized_text(); codegen also
+    # drops children that normalize to empty.
     #
-    # This used to pre-filter any whitespace-only token, which incorrectly
-    # dropped the intentional single space in `<div>{a} {b}</div>` and
-    # produced rendered text like "3tasks remaining" / "1.5lb".
+    # Drop just one specific case here: whitespace-only AND contains a
+    # newline. That's structural source formatting between sibling JSX
+    # children (e.g. the indent between `>` and the next `<` on a new
+    # line). If we kept it as an AST node the formatter would round-trip
+    # it as an extra blank line in the source.
+    #
+    # Same-line whitespace (just spaces/tabs, no newline) is the
+    # intentional separator in `<div>{a} {b}</div>` and MUST be kept,
+    # so the rendered DOM shows "3 tasks remaining" instead of
+    # "3tasks remaining". Babel's JSX rules and our get_normalized_text
+    # treat both cases identically; this parser-side filter just
+    # drops AST nodes that would normalize to "" anyway.
     if self.check(TokenKind.JSX_TEXT) {
         text_tok = self.advance();
+        raw = text_tok.value;
+        if not raw.strip() and ('\n' in raw or '\r' in raw) {
+            return self.parse_jsx_child();
+        }
         text_node = self.make_uni_token(text_tok);
         return JsxText(value=text_node, kid=[text_node]);
     }
