@@ -4461,7 +4461,10 @@ impl EsastGenPass._resolve_spawn_target(
 
 """Check if an expression refers to the root node."""
 impl EsastGenPass._is_root_reference(expr: uni.Expr) -> bool {
-    return bool(isinstance(expr, uni.Name) and (expr.sym_name == 'root'));
+    if (isinstance(expr, uni.Name) and (expr.sym_name == 'root')) {
+        return True;
+    }
+    return bool((isinstance(expr, uni.SpecialVarRef) and (expr.sym_name == 'root')));
 }
 
 """Return true when a Name introduces a binding instead of reading one."""
