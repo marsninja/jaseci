@@ -245,7 +245,7 @@ sem categorize = "Categorize a task based on its title";
 
 `by llm()` replaces the function body. The signature (name, param names, types, return type) **is** the prompt. An `enum` return type constrains output to exactly those values; an `obj` return type forces structured output with every field filled. `sem` attaches a semantic hint the compiler includes in the prompt -- use it whenever a type alone doesn't disambiguate (e.g., "cost" without sem could be currency-in-what?).
 
-## Anti-pitfall reminders (top 15 -- full table in pitfalls.md)
+## Anti-pitfall reminders (top 14 -- full table in pitfalls.md)
 
 1. **`import:py` is dead syntax.** Never emit it. Use `import from X { Y }`.
 2. **`def __init__(self, ...)` is wrong.** In `obj`, use `has` fields (auto-init). If you must customize: `def init(x: int) { super.init(); self.x = x; }`.
@@ -258,16 +258,14 @@ sem categorize = "Categorize a task based on its title";
 9. **`cl import from "..."` for JavaScript/npm runtime; `sv import from ...` to pull server symbols into client code; plain `import` for Python/Jac packages.** Mixing them up produces silent HTTP-vs-local-call confusion.
 10. **Walker ability headers use archetype names, not lowercase references.** `with Root entry` not `` with `root entry ``. `Root` is the type; `root` is the instance reference.
 11. **JSX component tags must be PascalCase.** `<my_widget/>` renders as a literal HTML element with no component binding -- the app "works" but shows a blank panel. Rename to `MyWidget` and reference as `<MyWidget/>`.
-12. **Reactive `has` assignments are scheduled, not immediate.** Inside the same synchronous block, don't branch on a field you just assigned -- use a local variable (see pitfalls.md rule 29). This compiles clean but is wrong at runtime.
-13. **`lambda -> None { ... }` is rejected by JSX event props.** All JSX handlers need a typed event parameter: `lambda e: MouseEvent { ... }`, even when the event is unused.
-14. **Use lowercase `any` as the type annotation.** It's a Jac built-in; no `import from typing { Any }` needed. Reach for `` `any `` (backticked) only when you need the Python built-in *function*. (Older Jac required capitalized `Any` from `typing`; that's deprecated style now -- still works but unnecessary.)
-15. **`impl app.with entry { ... }` doesn't parse.** Lifecycle hooks (`can with entry`, `can with exit`, `can with [deps] entry`) must stay inline in the component's `.cl.jac` declaration -- only named `def`/`can` can be split into an `.impl.jac` file.
+12. **`lambda -> None { ... }` is rejected by JSX event props.** All JSX handlers need a typed event parameter: `lambda e: MouseEvent { ... }`, even when the event is unused.
+13. **Use lowercase `any` as the type annotation.** It's a Jac built-in; no `import from typing { Any }` needed. Reach for `` `any `` (backticked) only when you need the Python built-in *function*. (Older Jac required capitalized `Any` from `typing`; that's deprecated style now -- still works but unnecessary.)
+14. **`impl app.with entry { ... }` doesn't parse.** Lifecycle hooks (`can with entry`, `can with exit`, `can with [deps] entry`) must stay inline in the component's `.cl.jac` declaration -- only named `def`/`can` can be split into an `.impl.jac` file.
 
 ## Traps that compile clean but fail at runtime
 
-The `jac check` loop is the skill's primary correctness mechanism, but three classes of bug slip past it. Review this list whenever a `cl` component renders "wrong but not broken":
+The `jac check` loop is the skill's primary correctness mechanism, but two classes of bug slip past it. Review this list whenever a `cl` component renders "wrong but not broken":
 
-- **Stale reactive closures** -- reading a `has` field you just assigned in the same `async can with entry` block (`logged_in = jacIsLoggedIn(); if logged_in { ... }`). The compiled JS captures the pre-update value. Use a local: `is_auth = jacIsLoggedIn(); logged_in = is_auth; if is_auth { ... }`.
 - **Lowercase JSX component tags** -- no compile warning, but React treats `<my_app/>` as a custom HTML element and skips component binding. Always PascalCase.
 - **Static assets the dev server doesn't serve** -- `<link rel="stylesheet" href="/styles.css"/>` 404s under `jac start` unless you wire a `def:pub` endpoint for it. Inline CSS via `<style>{...}</style>` or `dangerouslySetInnerHTML` for small stylesheets.
 
@@ -286,7 +284,6 @@ Run this checklist mentally on every Jac block before returning it. If any answe
 - [ ] Event handler lambdas in JSX have typed parameters (`lambda e: ChangeEvent { ... }`) -- never `lambda -> None` inside a JSX prop.
 - [ ] Any type annotation for "any value" uses lowercase `any` (Jac built-in -- no import). The backticked `` `any `` is reserved for referring to Python's `any()` function.
 - [ ] Component functions referenced as JSX tags are PascalCase (`<LinkedInApp/>`, not `<linkedin_app/>`).
-- [ ] Inside `async can with entry`, branches on reactive state use a local variable -- not the `has` field you just assigned.
 - [ ] I ran `jac check <file>` and it passed.
 
 If the user reports a compile error you can't place, load `pitfalls.md` and match the error message against the WRONG/RIGHT pairs before speculating at fixes.

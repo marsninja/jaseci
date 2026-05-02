@@ -688,47 +688,36 @@ impl app.addItem(x: str) {
 
 ## Full-stack / client-side runtime traps
 
-These three classes of bug **compile clean** under `jac check`. The validate-before-present loop won't catch them -- recognize them by symptom.
+Two classes of bug below (rules 31, 32) compile clean under `jac check`. Rule 30 used to belong here too; it now triggers `W3041` at the read site, so the compile-loop catches it -- look up rule 30 when you see that warning, and apply the fix.
 
-### 30. Stale reactive closures inside `async can with entry`
+### 30. Stale reactive closures inside `can with entry` (W3041)
 
-The most expensive bug type in client code. `has` fields in a `cl` component compile to React `useState`, and **assignments to them are scheduled for the next render, not applied immediately**. Inside the same block, branching on the value you just assigned reads the *prior* value captured in the closure.
+`has` fields in a `cl` component lower to React `useState`, so an assignment compiles to a setter call scheduled for the next render. Reading the same field later in the same body returns the closure-captured pre-update value, not the just-assigned one. `jac check` emits **W3041** at the read site -- treat the warning as a hard error.
 
-WRONG (logic runs against stale value):
+WRONG (W3041 fires on `if logged_in`):
 
-```
+```jac
 async can with entry {
-    logged_in = jacIsLoggedIn();     # schedules a setState
-    if logged_in {                    # reads the captured initial value (False)
-        await refresh_all();          # never fires on reload
+    logged_in = jacIsLoggedIn();
+    if logged_in {                # W3041: stale closure read
+        await refresh_all();      # never fires on the run that just set it
     }
 }
 ```
 
-What this compiles to in JS (roughly):
-
-```
-useEffect(() => {
-    (async () => {
-        setLoggedIn(isLoggedIn());
-        loggedIn && await refresh_all();   // `loggedIn` is the captured initial value
-    })();
-}, []);
-```
-
-RIGHT -- branch on a local variable, not the `has` field:
+RIGHT -- capture into a local for branching:
 
 ```jac
 async can with entry {
-    is_auth = jacIsLoggedIn();       # local -- immediate
-    logged_in = is_auth;             # schedule render update
-    if is_auth {                     # use the local
+    is_auth = jacIsLoggedIn();
+    logged_in = is_auth;          # `has` update for the next render
+    if is_auth {                  # branch on the local, not the `has` field
         await refresh_all();
     }
 }
 ```
 
-Rule: **any branch or computation based on a value you just assigned to a `has` field must use a local variable for that decision**. The `has` field is only for the render pass.
+Do not suppress W3041 unless you genuinely want the pre-update value (rare; usually a bug). The same pattern in helper functions called from the body, or inside lambdas captured for handlers, may not be flagged -- the lint covers the dominant intra-body case.
 
 ### 31. JSX component tags must be PascalCase
 
@@ -1039,6 +1028,7 @@ def now_ts -> str {
 | E1053        | Cannot assign `<Unknown>` to typed param -- untyped `list` / `dict`, see rule 33    |
 | E1100        | Type not assignable -- callback signature mismatch on JSX intrinsic prop, or other type mismatch |
 | W3040        | Filter comparison tautology from shadowed names (`[?:T, x == x]` always true)       |
+| W3041        | Stale `has` read in `can with entry` -- branch on a local variable, see rule 30     |
 | E1103        | Cannot assign to intrinsic JSX prop -- `lambda -> None` in event handler (rule 20)  |
 | E2016        | Method already has body -- usually a name collision across files, see paradigms.md  |
 | W0064        | Use `to cl:` section header instead of braced `cl { ... }` at module scope         |
