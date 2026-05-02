@@ -46,15 +46,20 @@ Before writing one line, internalize these ten rules. Most failures trace back t
 
 **A single parse error in an `.impl.jac` file silently produces zero body implementations for the whole file** -- always compile after editing impl blocks.
 
-For full-stack apps, also verify the server boots: `jac start main.jac` + `curl http://localhost:8000/docs`. For client code, the compile pass is usually sufficient.
+For full-stack apps, also verify the server boots. Two reliable smoke-tests:
+
+- `curl -s http://localhost:8000/` returns a JSON catalog of mounted endpoints/walkers.
+- The client component renders at `http://localhost:8000/cl/<name>` -- a `cl def:pub app -> JsxElement { ... }` declaration is served at `/cl/app`, `cl def:pub MyPage` at `/cl/MyPage`, etc.
+
+There is no built-in `/docs` Swagger route on plain `jac start`; reach for the `jac-client` scaffold (`jac create myapp --use client`) if you need a generated API explorer. For client-only code, the compile pass is usually sufficient.
 
 ## Syntax essentials (inline -- enough for simple code)
 
 ### Types
 
-Scalar: `str`, `int`, `float`, `bool`. Collections: `list`, `list[T]`, `dict`, `dict[K, V]`, `tuple`, `set`. Special: `None`. Unions: `str | None`. Type annotations are **required** on function params and return types, and on `has` fields.
+Scalar: `str`, `int`, `float`, `bool`. Collections: `list`, `list[T]`, `dict`, `dict[K, V]`, `tuple`, `set`. Special: `None`, `any`. Unions: `str | None`. Type annotations are **required** on function params and return types, and on `has` fields.
 
-For "any value," use `Any` from `typing` (`import from typing { Any }`), not the lowercase `any` -- the bare word `any` resolves to Python's built-in `any()` *function* and the type-checker will reject it in type position with E1100. This bites anyone who assumes Python's `typing.Any` is ambient. Prefer concrete types wherever possible; reach for `Any` only for truly opaque data (e.g., callback props).
+For "any value," use lowercase **`any`** as the type annotation -- it's a Jac built-in, no import needed. The Python `any()` *function* (the one that takes an iterable and returns `bool`) is accessed via the backtick-escaped `` `any `` form when you need it as a callable. Prefer concrete types where possible; reach for `any` only for truly opaque data (e.g., callback props of unknown shape).
 
 ### Variables and entry blocks
 
@@ -81,7 +86,7 @@ def no_return() {
 }
 
 def:pub public_endpoint(x: int) -> dict { return {"x": x}; }   # HTTP endpoint
-def:priv per_user_endpoint() -> list { return [root()-->]; }   # auth-required, per-user root
+def:priv per_user_endpoint() -> list { return [root-->]; }   # auth-required, per-user root
 ```
 
 `def:pub` marks a function as an HTTP endpoint when served with `jac start`. `def:priv` requires authentication and gives each user their own `root`.
@@ -188,7 +193,7 @@ Full playbooks live in `paradigms.md`. Load it when the task touches any of thes
 ```jac
 # Server code (default -- no header needed)
 node Todo { has title: str; }
-def:pub get_todos -> list { return [root()-->][?:Todo]; }
+def:pub get_todos -> list { return [root-->][?:Todo]; }
 
 to cl:
 
@@ -207,11 +212,11 @@ def:pub app -> JsxElement {
 node Task { has title: str; }
 
 # Create + connect in one operator
-with entry { root() ++> Task(title="Learn Jac"); }
+with entry { root ++> Task(title="Learn Jac"); }
 
 # Query the graph -- same filter syntax as lists
-tasks = [root()-->][?:Task];
-pending = [root()-->][?:Task, done == False];
+tasks = [root-->][?:Task];
+pending = [root-->][?:Task, done == False];
 
 # Walkers = mobile computation that visits nodes
 walker CountTasks {
@@ -221,7 +226,7 @@ walker CountTasks {
     can finish with Root exit { report self.total; }
 }
 
-result = root() spawn CountTasks();   # returns {reports: [3]}
+result = root spawn CountTasks();   # returns {reports: [3]}
 ```
 
 Nodes reachable from `root` **persist automatically** across process restarts. Each authenticated user gets their own private `root` (via `def:priv` or `walker:priv`). No database, no ORM, no migrations.
@@ -249,13 +254,13 @@ sem categorize = "Categorize a task based on its title";
 5. **`can do_thing { ... }` without `with` is an error.** Either use `def`, or add `with NodeType entry { ... }`.
 6. **`for i, x in enumerate(xs)` is an error.** Parens required: `for (i, x) in enumerate(xs)`.
 7. **Dict spread uses `{**d, k: v}`, not `{...d, k: v}`.** Jac is Python-flavored, not JS.
-8. **Calling `def:pub` from client: `await func_name()`. Calling walkers: `root() spawn Walker()` then read `.reports[0]`.** These are not interchangeable.
+8. **Calling `def:pub` from client: `await func_name()`. Calling walkers: `root spawn Walker()` then read `.reports[0]`.** These are not interchangeable.
 9. **`cl import from "..."` for JavaScript/npm runtime; `sv import from ...` to pull server symbols into client code; plain `import` for Python/Jac packages.** Mixing them up produces silent HTTP-vs-local-call confusion.
 10. **Walker ability headers use archetype names, not lowercase references.** `with Root entry` not `` with `root entry ``. `Root` is the type; `root` is the instance reference.
 11. **JSX component tags must be PascalCase.** `<my_widget/>` renders as a literal HTML element with no component binding -- the app "works" but shows a blank panel. Rename to `MyWidget` and reference as `<MyWidget/>`.
 12. **Reactive `has` assignments are scheduled, not immediate.** Inside the same synchronous block, don't branch on a field you just assigned -- use a local variable (see pitfalls.md rule 29). This compiles clean but is wrong at runtime.
 13. **`lambda -> None { ... }` is rejected by JSX event props.** All JSX handlers need a typed event parameter: `lambda e: MouseEvent { ... }`, even when the event is unused.
-14. **Use `Any` (from `typing`), not `any`.** Bare `any` resolves to the Python built-in function and fails as a type annotation (E1100).
+14. **Use lowercase `any` as the type annotation.** It's a Jac built-in; no `import from typing { Any }` needed. Reach for `` `any `` (backticked) only when you need the Python built-in *function*. (Older Jac required capitalized `Any` from `typing`; that's deprecated style now -- still works but unnecessary.)
 15. **`impl app.with entry { ... }` doesn't parse.** Lifecycle hooks (`can with entry`, `can with exit`, `can with [deps] entry`) must stay inline in the component's `.cl.jac` declaration -- only named `def`/`can` can be split into an `.impl.jac` file.
 
 ## Traps that compile clean but fail at runtime
@@ -279,7 +284,7 @@ Run this checklist mentally on every Jac block before returning it. If any answe
 - [ ] Any `can` keyword is followed by `with NodeType entry` or `with NodeType exit`.
 - [ ] In `cl` components, reactive state (`has`) is replaced via `=`, never mutated.
 - [ ] Event handler lambdas in JSX have typed parameters (`lambda e: ChangeEvent { ... }`) -- never `lambda -> None` inside a JSX prop.
-- [ ] Any type annotation for "any value" uses `Any` (imported from `typing`), not bare `any`.
+- [ ] Any type annotation for "any value" uses lowercase `any` (Jac built-in -- no import). The backticked `` `any `` is reserved for referring to Python's `any()` function.
 - [ ] Component functions referenced as JSX tags are PascalCase (`<LinkedInApp/>`, not `<linkedin_app/>`).
 - [ ] Inside `async can with entry`, branches on reactive state use a local variable -- not the `has` field you just assigned.
 - [ ] I ran `jac check <file>` and it passed.

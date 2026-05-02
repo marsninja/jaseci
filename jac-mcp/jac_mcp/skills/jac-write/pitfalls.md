@@ -47,7 +47,7 @@ WRONG:
 
 ```
 from os import path
-from typing import Any
+from typing import Callable
 import:py typing     # deprecated, removed
 ```
 
@@ -55,10 +55,10 @@ RIGHT:
 
 ```jac
 import from os { path }
-import from typing { Any }
+import from typing { Callable }
 ```
 
-Python modules and Jac modules use the same syntax. `import:py`, `include:jac`, and other colon-tagged variants are gone.
+Python modules and Jac modules use the same syntax. `import:py`, `include:jac`, and other colon-tagged variants are gone. (Note: Jac has a built-in `any` type, so `import from typing { Any }` is no longer needed -- use lowercase `any` directly. See rule 34.)
 
 ### 4. Python-style `__init__`
 
@@ -219,7 +219,7 @@ RIGHT:
 
 ```jac
 self.name = "Alice";
-root() ++> node;
+root ++> node;
 ```
 
 `self`, `super`, `root`, `here`, `visitor`, `init`, `postinit` are built-in references, not keywords that need escaping. Backtick only user-facing keyword collisions like `` `type ``, `` `edge ``.
@@ -276,7 +276,7 @@ Walkers are declarative. All executable code lives inside `can ... with X entry|
 RIGHT:
 
 ```jac
-result = root() spawn MyWalker(field=value);
+result = root spawn MyWalker(field=value);
 first_report = result.reports[0];
 ```
 
@@ -317,21 +317,26 @@ walker ListTasks {
 
 If walker reports come back empty or `visit [-->]` is missing, that's almost always why. Also watch for type mismatches -- `with Task entry` only fires on nodes typed exactly `Task`, not on a parent type.
 
-### 15. Mutating `root` symbol without call syntax
+### 15. `root` syntax -- prefer the bareword
 
-WRONG:
+`root` is a special-variable reference (in the same family as `here`, `visitor`, `self`) that resolves directly to the current root instance. Use it as a bareword.
 
-```
-root ++> Task(title="X");
-```
-
-RIGHT:
+PREFERRED (idiomatic):
 
 ```jac
-root() ++> Task(title="X");
+root ++> Task(title="X");
+[root-->][?:Task];
 ```
 
-`root` is the type; `root()` returns the current root instance. Graph operations use `root()`.
+ALSO ACCEPTED (backward-compat -- still compiles):
+
+<!-- jac-skip -->
+```jac
+root() ++> Task(title="X");
+[root()-->][?:Task];
+```
+
+Earlier Jac versions exposed `root` as an ambient builtin function (`def root() -> Root`), so older code uses `root()` everywhere. After the keyword restoration, `root` is the canonical form and `root()` is a callable form that still works. New code should prefer the bareword. Note: assignments to `root` (e.g., `root = something`) are rejected with the same error as assigning to `super`.
 
 ## Codespaces -- client/server boundaries
 
@@ -494,13 +499,13 @@ sv import from main { AddTask }
 
 cl def:pub App -> JsxElement {
     async def add(text: str) {
-        result = root() spawn AddTask(title=text);
+        result = root spawn AddTask(title=text);
         new_task = result.reports[0];
     }
 }
 ```
 
-`sv import` is how client code references server symbols. The compiler generates HTTP stubs automatically. `def:pub` functions are called with `await func(args)`; walkers are called with `root() spawn Walker(...)` and read `.reports[0]`.
+`sv import` is how client code references server symbols. The compiler generates HTTP stubs automatically. `def:pub` functions are called with `await func(args)`; walkers are called with `root spawn Walker(...)` and read `.reports[0]`.
 
 ### 22. JSX `class` vs `className`
 
@@ -770,10 +775,14 @@ def:pub app -> JsxElement {
 }
 ```
 
-RIGHT (inline for small stylesheets):
+RIGHT (inline for small stylesheets -- use triple-quoted strings for multi-line CSS):
 
 ```jac
-glob APP_CSS: str = ".container { max-width: 900px; } .btn { padding: 8px; } ...";
+glob APP_CSS: str = """
+    .container { max-width: 900px; margin: 40px auto; padding: 20px; }
+    .btn { padding: 8px 16px; background: #0a66c2; color: white; border: none; }
+    .post { padding: 12px; border: 1px solid #eee; border-radius: 6px; }
+""";
 
 def:pub app -> JsxElement {
     return <div>
@@ -782,6 +791,8 @@ def:pub app -> JsxElement {
     </div>;
 }
 ```
+
+Single-quoted strings (`"..."`) cannot span newlines and trigger E0100 (`unterminated string literal`) on the second line. Use `"""..."""` for any multi-line literal -- CSS, prompts, embedded JSON, etc. Same rule as Python.
 
 RIGHT (endpoint for larger assets):
 
@@ -794,7 +805,9 @@ def:pub styles_css -> str {
 # Then reference: <link rel="stylesheet" href="/function/styles_css"/>
 ```
 
-This also affects images, fonts, and any other static file. The `jac-client` project scaffolding handles CSS for you -- plain `jac start main.jac` without the client template doesn't.
+This also affects images, fonts, and any other static file. The `jac-client` project scaffolding handles assets for you -- plain `jac start main.jac` without the client template doesn't.
+
+In a `jac create myapp --use client` project, files placed in the project's `assets/` directory **are** served via the Vite dev server's `/assets/*` proxy (post-PR #5661), so `<img src="/assets/logo.png"/>` works there. That path is specific to the scaffolded layout; ad-hoc `.jac` scripts run with bare `jac start` still need the inline-or-endpoint approach above.
 
 ### 33. Untyped `list` / `dict` gives `Unknown` element type
 
@@ -820,33 +833,39 @@ def:pub UserList(users: list[dict]) -> JsxElement { ... }
 Or if the element shape varies and you genuinely need flexibility:
 
 ```jac
-import from typing { Any }
-def:pub UserList(users: list[Any]) -> JsxElement { ... }
+def:pub UserList(users: list[any]) -> JsxElement { ... }
 ```
 
-Prefer `list[dict]` over `list[Any]` -- the stricter type catches more bugs and works fine for server-returned JSON objects.
+Prefer `list[dict]` over `list[any]` -- the stricter type catches more bugs and works fine for server-returned JSON objects.
 
-### 34. `Any` vs `any` -- capitalization matters
+### 34. The "any" type -- use lowercase `any`, not `typing.Any`
 
-`any` is Python's built-in function (`any([True, False])`); `Any` (from `typing`) is the type "anything goes." Using lowercase `any` as a type annotation raises E1100 because the checker resolves it to the *function*.
-
-WRONG:
-
-```
-def:pub Callback(on_change: any) -> JsxElement { ... }
-# E1100: Cannot assign <function ...> to JSX prop 'on_change' of type
-# <function any(iterable: Iterable) -> bool>
-```
+In Jac, **lowercase `any` is the canonical "any value" type annotation**. It's a built-in -- no import needed. The Python built-in `any()` *function* is accessed via the backtick-escaped `` `any `` form when needed as a callable.
 
 RIGHT:
 
 ```jac
-import from typing { Any }
+def:pub Callback(on_change: any) -> JsxElement { ... }
 
+def takes_any(x: any) -> any {
+    return x;
+}
+```
+
+WRONG (no longer needed -- Jac's `any` is built-in):
+
+```
+import from typing { Any }
 def:pub Callback(on_change: Any) -> JsxElement { ... }
 ```
 
-For callback-prop patterns specifically, prefer an explicit `Callable[[...], ReturnType]`:
+Refer to Python's built-in `any()` function with backticks when you need the callable:
+
+```jac
+result = `any([True, False, False]);   # backticked: the built-in function
+```
+
+For callback-prop patterns where you want stronger typing than `any`, prefer an explicit `Callable[[...], ReturnType]`:
 
 ```jac
 import from typing { Callable }
@@ -854,7 +873,125 @@ import from typing { Callable }
 def:pub Callback(on_change: Callable[[str], None]) -> JsxElement { ... }
 ```
 
-### 35. `datetime.datetime.now()` fails type-checking in function bodies
+Note: earlier Jac versions exposed `any` only as the Python built-in function and required `Any` from `typing` for the type. Modern Jac (post-#5588 / #5689) treats lowercase `any` as the type by default, so historical examples that import `Any` are deprecated style -- they still work but are unnecessary.
+
+### 35. Filter-expression tautology from shadowed names (W3040)
+
+When a `[?:Type, x == y]` filter has a name on the right-hand side that matches a node field, the RHS silently rebinds to the field rather than the enclosing-scope variable you meant. The comparison becomes `field == field`, always true.
+
+Modern Jac emits **W3040** at compile time:
+
+```
+file.jac, line 11, col 41: Filter comparison 'to_user == to_user' is always
+true -- both sides resolve to the same node field [filter-compare-tautology]
+```
+
+WRONG (compiles with W3040 warning, but the filter is a no-op):
+
+```
+to_user = "alice";
+tasks = [root-->][?:Task, to_user == to_user];   # always true
+```
+
+RIGHT -- rename the local so it doesn't shadow the field:
+
+```jac
+target_user = "alice";
+tasks = [root-->][?:Task, to_user == target_user];
+```
+
+Treat W3040 as a hard error in your own code -- silently-tautological filters mean "show everything that happens to be a Task," which usually isn't what the developer intended.
+
+### 36. `Type | None` annotation on find-in-loop variables
+
+A common pattern: search a graph (or a list) for the node whose field matches some target, capture it in a variable, then act on it. If you initialize with `None` and reassign inside a loop, the type checker locks the variable's type to whatever it inferred from the first assignment -- usually `None` -- and rejects every subsequent edge-connection or method call with `E1096` / `E1097` / `E1030`.
+
+WRONG:
+
+```
+def:priv find_friend(target_username: str) -> Profile {
+    target = None;                                # inferred as None
+    for r in allroots() {
+        for p in [r-->[?:Profile]] {
+            if p.username == target_username {
+                target = p;                       # checker sees this as None | Profile
+            }
+        }
+    }
+    target ++> some_edge;                         # E1096: connection operand must be a node
+}
+```
+
+The checker can't prove `target` is non-`None` at the use site, and worse, the inferred type from the loop body fights the original `None`.
+
+RIGHT -- explicit `Type | None` annotation, then narrow with `is not None`:
+
+```jac
+def:priv find_friend(target_username: str) -> Profile | None {
+    target: Profile | None = None;
+    for r in allroots() {
+        for p in [r-->[?:Profile]] {
+            if p.username == target_username {
+                target = p;
+            }
+        }
+    }
+    if target is not None {
+        target ++> some_edge;                     # narrowed to Profile, ops work
+    }
+    return target;
+}
+```
+
+Three rules to internalize:
+
+1. **Always declare `T | None`** on any variable that starts unset and may be assigned a `T` inside a loop or conditional.
+2. **Always narrow with `is not None`** (or `is None` and early-return) before operating on the variable. The checker only narrows under explicit guards.
+3. **Return `T | None`** from helper functions with this shape -- callers can then narrow once at the call site.
+
+This pattern is common in cross-user lookups (`find_profile_by_username`, `find_post_by_id`), feed filters, and any "find one matching node" helper.
+
+### 37. Logout doesn't reset status / message / error fields
+
+In a `cl` component, logout typically resets data fields (`tasks = []`, `feed = []`) but it's easy to forget the *status* fields -- error messages, success notifications, "saving..." flags. Reactive state lingers across logout/login because nothing assigned to those `has` fields between sessions.
+
+WRONG (incomplete cleanup):
+
+```
+async def do_logout {
+    await jacLogout();
+    logged_in = False;
+    feed = [];
+    profile_data = {"username": "", "name": "", "headline": ""};
+    # forgot: profile_msg, post_err, connection_msg, auth_err, busy_target, ...
+}
+```
+
+Result: a previous session's "Profile saved!" or "Connection request sent" briefly flashes after a fresh signup.
+
+RIGHT (sweep every status field):
+
+```jac
+async def do_logout {
+    await jacLogout();
+    logged_in = False;
+    feed = [];
+    profile_data = {"username": "", "name": "", "headline": ""};
+
+    # Status / message / error / busy fields -- reset every one
+    profile_msg = "";
+    post_err = "";
+    connection_msg = "";
+    auth_err = "";
+    busy_target = "";
+    profile_saving = False;
+    profile_polishing = False;
+}
+```
+
+Rule of thumb: if your component has a `has` field whose value is set by a handler in response to user action, reset it on logout. Treat the logout handler as a full-component reinitialization, not just a "clear my data" action.
+
+### 38. `datetime.datetime.now()` fails type-checking in function bodies
 
 Calling `datetime.datetime.now().strftime(...)` inside a `def` body triggers E1031 because the checker infers the `now()` return as `Self` and can't resolve `.strftime()` on it. The `has`-field default position works; function-body position doesn't.
 
@@ -897,9 +1034,11 @@ def now_ts -> str {
 | E0201        | Undefined name -- missing import, or symbol from wrong codespace                    |
 | E0407        | `can` used without `with` -- use `def` or add `with Type entry`                     |
 | E1002        | Cannot return `NoneType` from `-> T` -- widen return to `T \| None`                 |
-| E1031        | Cannot access attribute on `Self` -- Python stdlib typeshed issue, see rule 35      |
+| E1031        | Cannot access attribute on `Self` -- Python stdlib typeshed issue, see rule 38      |
+| E1096/E1097  | Connection operand must be a node -- usually a `None`-initialized find-in-loop var (rule 36) |
 | E1053        | Cannot assign `<Unknown>` to typed param -- untyped `list` / `dict`, see rule 33    |
-| E1100        | Type not assignable -- often `any` used where `Any` needed (rule 34)                |
+| E1100        | Type not assignable -- callback signature mismatch on JSX intrinsic prop, or other type mismatch |
+| W3040        | Filter comparison tautology from shadowed names (`[?:T, x == x]` always true)       |
 | E1103        | Cannot assign to intrinsic JSX prop -- `lambda -> None` in event handler (rule 20)  |
 | E2016        | Method already has body -- usually a name collision across files, see paradigms.md  |
 | W0064        | Use `to cl:` section header instead of braced `cl { ... }` at module scope         |

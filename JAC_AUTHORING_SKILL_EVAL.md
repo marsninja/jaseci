@@ -1,7 +1,7 @@
 # Jac Authoring Skill -- Evaluation Report
 
-**Date:** 2026-04-23
-**Status:** First evaluation cycle complete; second test cycle complete; one upstream bug filed.
+**Date:** 2026-04-23 (initial); 2026-04-28 (post-merge update)
+**Status:** Two evaluation cycles complete. Filed bug #5677 was merged as #5678 (JSX entity decoding). One eval candidate (filter-tautology W3040) landed independently as #5679. Skill content updated for upstream changes to `root` syntax and the `any` type. Third evaluation cycle pending re-run after content refresh.
 
 ---
 
@@ -240,11 +240,13 @@ These are smaller-scope and more incidental than Run 1's; the trajectory is conv
 
 A categorical observation: when the same test reveals the same failure modes across model runs, the cause is more likely Jac itself than the skill. Reviewing both runs' challenge logs through that lens, several issues are not skill-content gaps but Jac compiler / runtime / UX issues.
 
-### 8.1 Filed
+### 8.1 Filed and resolved
 
 **[Jaseci-Labs/jaseci#5677](https://github.com/Jaseci-Labs/jaseci/issues/5677) -- JSX text and attribute values not HTML-entity-decoded**
 
-Confirmed empirically via `jac jac2js`: `&gt;`, `&amp;`, `&lt;` pass through to emitted JS as literal strings, both in text children and attribute values. Diverges from the JSX spec (and React, Preact, Solid, Vue JSX). Silent wrong-rendering -- no compile error, no runtime error. Root cause in [`jsx_processor.impl.jac:201-208`](jac/jaclang/jac0core/passes/ast_gen/impl/jsx_processor.impl.jac#L201-L208) and [`unitree.impl.jac:2077-2091`](jac/jaclang/jac0core/impl/unitree.impl.jac#L2077-L2091). Proposed fix: `html.unescape` at emission boundary (~3 lines).
+Confirmed empirically via `jac jac2js`: `&gt;`, `&amp;`, `&lt;` passed through to emitted JS as literal strings, both in text children and attribute values. Diverged from the JSX spec (and React, Preact, Solid, Vue JSX). Silent wrong-rendering -- no compile error, no runtime error. Root cause in [`jsx_processor.impl.jac:201-208`](jac/jaclang/jac0core/passes/ast_gen/impl/jsx_processor.impl.jac#L201-L208) and [`unitree.impl.jac:2077-2091`](jac/jaclang/jac0core/impl/unitree.impl.jac#L2077-L2091). Proposed fix: `html.unescape` at emission boundary (~3 lines).
+
+**Status: RESOLVED** -- merged as [PR #5678](https://github.com/Jaseci-Labs/jaseci/pull/5678). The fix added `html.unescape` to `JsxText.get_normalized_text()` and parallel decode on `uni.String` attribute values in both `EsJsxProcessor.normal_attribute` and `PyJsxProcessor.normal_attribute`. Verified via `jac jac2js` after merge: `<div title="A &amp; B">Before &gt; After</div>` now compiles to `{"title": "A & B"}, ["Before > After"]`.
 
 ### 8.2 Strong candidates to file
 
@@ -256,8 +258,7 @@ The most expensive Run-1 challenge. `has` field assignments lower to `useState` 
 **2. Multiple `await`s in single `try/except` silently short-circuit**
 After a state-mutating `await`, a subsequent dict access in the same try block silently no-ops. Smells like a codegen bug in async + try/except lowering. Needs minimal repro to confirm.
 
-**3. Filter-expression tautology on shadowed names** -- `[?:Type, x == x]`
-When the RHS resolves to the same node field as the LHS (because an enclosing-function variable with the same name silently rebinds to the field), the expression is always true. Compiler knows scope resolution; can warn.
+**3.** ~~Filter-expression tautology on shadowed names -- `[?:Type, x == x]`~~ -- **landed independently as W3040 lint** ([PR #5679](https://github.com/Jaseci-Labs/jaseci/pull/5679)). Compiler now warns `Filter comparison 'x == x' is always true -- both sides resolve to the same node field [filter-compare-tautology]`. Skill `pitfalls.md` rule 35 documents the warning.
 
 **4. `datetime.datetime.now()` E1031 in function bodies**
 Type-checker infers `now()` as `Self`, then can't resolve `.strftime()`. Works in `has` defaults; fails in `def` bodies. Typeshed-handling bug for Python stdlib classmethods returning `Self`.
@@ -299,7 +300,7 @@ Apply Run 2's three patches:
 
 1. `paradigms.md` -- add `jac.toml` + `jac install` prerequisite block to § Full-stack shape.
 2. `pitfalls.md` -- upgrade rule 32 inline-CSS example to triple-quoted strings; add E0100 to error-code table.
-3. `pitfalls.md` -- add filter-expression-tautology and multiple-await-in-try entries to runtime traps.
+3. ~~`pitfalls.md` -- add filter-expression-tautology entry~~ **DONE post-merge as rule 35, references W3040.** Multiple-await-in-try still pending.
 
 ### Distribution
 
@@ -318,6 +319,133 @@ A third test cycle would measure diminishing returns. Forecast: another 10–20%
 ### Methodology generalization
 
 The same A/B test pattern (subagent + skill-only knowledge + concrete benchmark + compile-loop + screenshot validation) is reusable for any language-authoring skill. Worth codifying as a reusable evaluation harness if more language skills get built.
+
+---
+
+## 11. Post-merge content refresh (2026-04-28)
+
+Between Run 2 and the planned Run 3, upstream `main` advanced 34 commits. Three of them changed Jac language behavior in ways that directly affected skill correctness:
+
+| Upstream change | Skill impact | Action taken |
+|---|---|---|
+| **#5678** -- JSX entity decoding (resolves my #5677) | Run-2 gap dissolves; no skill content needed updating because the original skill never warned against entities. | None. §8.1 marked resolved. |
+| **#5724** -- `root` restored as `SpecialVarRef` keyword | **Pitfall #15** wording inverted: bareword `root` is now idiomatic; `root()` is backward-compat. Examples across `SKILL.md`, `paradigms.md`, `pitfalls.md`, `walker.jac`, `mini_todo.jac` updated to bareword. | All `root()` → `root` (35 sites total). Rule 15 rewritten to teach the new canonical form while noting `root()` still compiles. |
+| **#5588** + **#5689** -- lowercase `any` is now the type | **Pitfall #34 was actively wrong** (told models to use `Any` from `typing`; modern Jac treats lowercase `any` as the type). | Rule 34 inverted: lowercase `any` is canonical, no `import from typing { Any }`, `` `any `` (backticked) for the built-in function. SKILL.md "Types" section, anti-pitfall list rule 14, and self-check checklist all updated. Pitfall #3's import example switched from `Any` to `Callable`. |
+| **#5679** -- W3040 lint for filter tautology | Eval candidate (§8.2) landed independently; one less thing to file. Skill could now warn models to treat W3040 as a hard error. | Added new pitfall rule 35 referencing W3040. §8.2 item 3 marked resolved. |
+| **#5661** -- `/assets` proxy in Vite dev server | Affects pitfall #32 (static CSS 404). The fix is scoped to `jac create --use client` projects, not ad-hoc `jac start` scripts. | Pitfall #32 augmented with a paragraph distinguishing the two cases. |
+
+The content refresh affected no examples behaviorally -- all three `.jac` files still compile clean and `walker.jac` still runs end-to-end. The skill is now consistent with Jac as of `origin/main` HEAD (`73bd3a438`).
+
+Run 3 will measure whether models using the refreshed skill see further compile-attempt reductions, or whether the diminishing-returns curve has flattened.
+
+---
+
+## 12. Recommended improvements to the Jac language
+
+This section consolidates everything three test cycles have surfaced about Jac itself -- distinct from §8, which is a list of specific bugs and diagnostics to file. §8 is operational; this section is strategic. The throughline: **the most valuable language-level improvements are those that eliminate "compiles clean but runs wrong" failure modes and close the gap between paradigm intent and developer experience**.
+
+### 12.1 Eliminate the compile-clean-runtime-wrong category
+
+This is the single most important class of improvement, and the one where AI-assisted authoring suffers most. Models trust the compile pass; bugs that pass `jac check` propagate. Across three runs, this category cost the most aggregate time and produced the most subtle failures.
+
+**Specific instances surfaced across runs (some now resolved upstream):**
+
+- **Stale reactive closures** in `async can with entry`: assigning a `has` field then reading it in the same block reads the captured pre-update value (Run 1, ~25 min lost). Compiler has the symbol-table information to either lower differently or warn. Still open.
+- **JSX HTML entities not decoded** (Run 2): `&gt;` rendered literally in the DOM. Resolved as #5678.
+- **Filter-expression tautology on shadowed names** (Run 2): `[?:T, x == x]` always-true filter. Resolved as W3040 lint (#5679).
+- **Multiple `await`s in a single `try/except` short-circuiting** (Run 2): a state-mutating await silently caused subsequent dict access to no-op. Needs minimal-repro confirmation; likely codegen bug in async + try/except lowering.
+- **JSX component tags being lowercase** (Run 1): `<my_widget/>` rendered as a literal HTML element with no compile warning. Compiler sees the imported symbol in scope; could warn "did you mean `<MyWidget/>`?".
+- **Logout reactive-state leakage** (Run 3): `has` fields holding messages/errors persist across logout/login because the handler resets data fields but not status fields. This is more an ergonomic gap than a bug, but a `:reset` modifier on `has` (or a built-in reset helper) would be a one-line cure.
+
+**Pattern:** every silent-runtime-wrong bug we hit had information in the compiler that *could* drive a warning. Pursuing them as a category -- "what bugs in client-side reactive code can the type system + symbol table detect that we're not currently flagging?" -- would compound returns. AI-assisted Jac authoring is most valuable when the compiler is the floor on correctness; lifting that floor is the highest-leverage move.
+
+### 12.2 First-class API surface for cross-user data
+
+Per-user root isolation via `def:priv` is the right default and a real selling point of the language. But every non-trivial multi-user app needs *some* cross-user mechanism, and the current path -- `allroots()` + `grant(node, level=Perm)` -- is undocumented in the main reference and only discoverable by reading the `littleX` example or `jac-scale` source. Three runs all needed it; only Run 3 had it in the skill (after the eval surfaced the gap).
+
+**What would help:**
+
+- A dedicated **"Cross-user data" reference page** in `docs/docs/reference/language/` covering `allroots()`, `grant()`, the permission ladder (`ConnectPerm`, `ReadPerm`, `WritePerm`, etc.), and worked examples for the three canonical patterns: discovery (find a user by handle), social graph (connection requests), and shared content (public posts).
+- **An `allroots` filter shorthand** so `[r-->[?:Profile, username == target]]` doesn't need a nested loop. The current pattern has every cross-user app reinventing the same triple-nested loop.
+- **A type-system hook so `def:priv` knows about `grant(...)`** -- right now you can mark a node `:priv` and forget to grant it, and the only signal is "other users can't find this thing." A diagnostic ("this node is referenced by a public walker but never granted access") would close the loop.
+
+This is currently the single biggest "you have to read the source to figure it out" gap in the language.
+
+### 12.3 Project-setup ergonomics
+
+`jac start` requires a `jac.toml` manifest but doesn't say so when missing. Run 2 lost ~10 minutes scaffolding one by hand from an example; Run 3 hit the same gap and still lost ~3 minutes. The skill now documents it, but the language-level fix is better:
+
+- **Auto-scaffold a minimal `jac.toml` on first `jac start`** with a `Y/n` prompt, or fail with a copy-pasteable template in the error message.
+- **Surface a `static/` convention** for serving arbitrary assets without the `jac-client` scaffold. Either a `[serve] static = "static/"` config in `jac.toml`, or convention-over-configuration.
+- **Make `/cl/<name>` URL convention discoverable** via a `jac start --print-routes` flag or a default landing page that lists all mounted endpoints/walkers/components.
+
+The end-to-end "I have a `.jac` file, I want to see it in a browser" path has too many implicit prerequisites for someone -- human or model -- coming in cold.
+
+### 12.4 Diagnostic-quality pass
+
+Several E-codes the agents hit have all the information needed for a "did you mean..." hint, but emit only the technical error:
+
+- **E1100** ("Type not assignable") on `lambda -> None` in JSX -> hint: "JSX intrinsic prop expects `Callable[[MouseEvent], None]`; use `lambda e: MouseEvent { ... }`."
+- **E1100** on bare `any` (now mostly cured by #5689 making `any` the type) -> historical hint could've prevented Run 1's 5-minute hunt.
+- **E0100** ("unterminated string literal") -> hint: "for multi-line strings, use triple-quoted `\"\"\"...\"\"\"`."
+- **E1031** on `datetime.datetime.now().strftime(...)` -> deeper fix is the typeshed-handling bug; short-term hint: "Python stdlib classmethods returning `Self` don't compose with attribute access in function bodies; intermediate-typed variable narrows the inference."
+- **E1096/E1097** ("connection operand must be a node") -> hint: "operand resolved to `None | T`; narrow with `is not None` before connecting."
+
+These are all small additions on top of existing diagnostics, not new analyses. A diagnostic-polish sprint would yield outsized ergonomic gains.
+
+### 12.5 JSX intrinsic element coverage
+
+Run 2 hit W2001 / W1050 on `<b>`, `<style>`, `<link>`, `<script>` -- standard HTML elements that warn as "unknown intrinsic." The whitelist is too narrow. Expanding to cover the standard HTML5 element set (formatting, structural, document-head, embedded content) would eliminate a recurring and confusing warning. This is a one-time table edit, not an architectural change.
+
+### 12.6 Lambda + event-prop ergonomics
+
+`lambda -> None { ... }` is a documented pattern in the language but rejected by every JSX intrinsic prop. The mismatch is real -- intrinsic prop signatures take typed event args -- but the surface friction is high because models reflexively reach for the no-arg form for click handlers that don't use the event. Three options worth considering:
+
+- **Auto-coerce no-arg lambdas at JSX-prop boundaries** so the typed-event arg is implicitly available but optional.
+- **Make `lambda -> None { ... }` an error in JSX-prop contexts with a hard fix-it suggestion** instead of a generic E1103.
+- **Introduce a no-arg JSX handler form** (e.g. `<button onClick=action />` where `action: () -> None`) so users can write what they mean.
+
+Option 2 is the cheapest and most likely to land cleanly; option 1 is the most ergonomic.
+
+### 12.7 Type system: nullable-by-default in find-in-loop patterns
+
+The "search for a node, capture in a variable, act if found" pattern is so common that requiring `T | None` annotation + manual `is not None` narrowing for every instance feels like Jac's type system fighting the developer. Worth exploring whether the checker can:
+
+- **Infer `T | None`** when a variable is initialized to `None` and conditionally reassigned, without requiring the explicit annotation.
+- **Auto-narrow** under the canonical `if x is not None { ... }` pattern (it does this already for some cases; coverage could be expanded to include attribute access and edge ops).
+- **Flow-aware after a loop**: if every path through a loop assigns to `target`, narrow to `T` after the loop without an explicit guard.
+
+This would remove a real friction point and is squarely in the territory modern type checkers (Pyright, Roc, Flow) do well.
+
+### 12.8 Reactive state lifecycle
+
+Two recurring patterns suggest first-class language support is warranted:
+
+- **Reset on logout / unmount** -- some declarative way to mark "reset this `has` field on lifecycle X." Every component reinvents the cleanup-on-logout pattern.
+- **Stale-closure prevention** -- the Run-1 25-minute bug. Either lower setState calls to immediately-resolved local bindings, or warn on read-after-write of reactive state in the same synchronous block.
+
+The reactive system is one of Jac's most attractive features for full-stack work, but the rough edges are concentrated here.
+
+### 12.9 Documentation as a load-bearing artifact
+
+This isn't a code change but a process observation: the skill's value comes overwhelmingly from condensed, opinionated, error-trace-tied prose. The upstream Jac docs are comprehensive but spread across many files; some of the most load-bearing patterns (the multi-file full-stack shape, `allroots`/`grant`, the `/cl/<name>` URL convention) only existed in test fixtures or examples. Hoisting those into the official reference would benefit human and AI authors equally, and would mean the skill doesn't have to rediscover them.
+
+A possible model: a `docs/recipes/` directory whose files mirror what proved load-bearing in the skill, kept in lockstep with the skill content via CI.
+
+### 12.10 Skill-driven testing as upstream feedback
+
+Meta-observation worth surfacing: this evaluation methodology -- isolated subagent + skill-only knowledge + concrete benchmark + compile loop + screenshot validation -- is a useful upstream feedback channel for the language itself. Each test cycle surfaces a fresh layer of friction; many of those frictions are genuinely fixable upstream. If Jaseci-Labs adopted skill-driven testing as part of the language-development feedback loop (run the LinkedIn-lite benchmark on each major release), it would catch regressions and surface ergonomic gaps that lab-style testing misses. The `eval` harness this work created is reusable -- two A/B cycles produced 12 actionable upstream items already.
+
+### Tier ranking for action
+
+If maintainer attention is the bottleneck:
+
+| Tier | Work | Why |
+|---|---|---|
+| **High-impact / low-effort** | Diagnostic hints (12.4), JSX intrinsic expansion (12.5), `jac.toml` auto-scaffold (12.3) | Each is small and removes a recurring source of confusion. |
+| **High-impact / medium-effort** | Stale-closure warning or fix (12.1), cross-user data API surface (12.2), reactive cleanup-on-lifecycle (12.8) | These remove the deepest pain points and are the gaps AI-assisted authoring most reliably trips over. |
+| **High-impact / high-effort** | Flow-sensitive narrowing for find-in-loop (12.7), comprehensive reactive-state semantics overhaul (12.8), JSX no-arg handler ergonomics (12.6) | Worth doing but more invasive. |
+| **Strategic** | Docs/recipes directory (12.9), skill-driven testing as part of the release loop (12.10) | Multiplies the value of every other improvement above. |
 
 ---
 

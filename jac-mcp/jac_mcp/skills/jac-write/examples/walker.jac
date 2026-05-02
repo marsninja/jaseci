@@ -64,12 +64,12 @@ walker ToggleTask {
 }
 
 with entry {
-    root() ++> Task(title="Buy groceries");
-    root() ++> Task(title="Go running", done=True);
-    root() ++> Task(title="Read book");
+    root ++> Task(title="Buy groceries");
+    root ++> Task(title="Go running", done=True);
+    root ++> Task(title="Read book");
 }
 
-glob list_result = root() spawn ListTasks();
+glob list_result = root spawn ListTasks();
 
 with entry {
     for t in list_result.reports[0] {
@@ -77,7 +77,7 @@ with entry {
     }
 }
 
-glob count_result = root() spawn CountTasks();
+glob count_result = root spawn CountTasks();
 
 with entry {
     print(count_result.reports[0]);

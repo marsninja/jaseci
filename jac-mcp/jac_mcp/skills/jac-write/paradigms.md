@@ -30,14 +30,14 @@ edge Scheduled {
 
 ```jac
 with entry {
-    root() ++> Task(title="Buy groceries");
-    root() ++> Task(title="Go running");
+    root ++> Task(title="Buy groceries");
+    root ++> Task(title="Go running");
 
     # Typed edge with edge data
-    root() +>: Scheduled(time="9am", priority=3) :+> Task(title="Morning run");
+    root +>: Scheduled(time="9am", priority=3) :+> Task(title="Morning run");
 
     # Capture the new node
-    task = (root() ++> Task(title="Learn Jac"))[0];
+    task = (root ++> Task(title="Learn Jac"))[0];
     print(jid(task));     # unique id -- no uuid library needed
 }
 ```
@@ -48,25 +48,25 @@ with entry {
 
 ```jac
 # All connected nodes (returns a list)
-everything = [root()-->];
+everything = [root-->];
 
 # Filter by type
-tasks = [root()-->][?:Task];
+tasks = [root-->][?:Task];
 
 # Filter by field
-pending = [root()-->][?:Task, done == False];
+pending = [root-->][?:Task, done == False];
 
 # Traversal direction
-outgoing = [root()-->];
+outgoing = [root-->];
 incoming = [some_node<--];
 both = [some_node<-->];
 
 # Via a typed edge
-scheduled = [root()->:Scheduled:->][?:Task];
-urgent = [root()->:Scheduled:priority >= 3:->][?:Task];
+scheduled = [root->:Scheduled:->][?:Task];
+urgent = [root->:Scheduled:priority >= 3:->][?:Task];
 
 # Edge objects themselves (not targets)
-edges = [edge root()-->];
+edges = [edge root-->];
 ```
 
 The `[?:Type, field == val]` filter works on any list -- not just graph queries. The general pattern: `[--> direction]` returns a list, `[?...]` filters it.
@@ -91,7 +91,7 @@ walker ListTasks {
 }
 
 with entry {
-    result = root() spawn ListTasks();
+    result = root spawn ListTasks();
     print(result.reports[0]);         # the reported list
 }
 ```
@@ -104,7 +104,7 @@ Keywords:
 - **`visitor`** -- inside a node-ability, the walker that's visiting.
 - **`report`** -- send a value back; collected in `.reports` on the spawn result.
 - **`disengage`** -- stop traversal immediately.
-- **`spawn`** -- `root() spawn Walker(field=value)` starts the walker at `root`.
+- **`spawn`** -- `root spawn Walker(field=value)` starts the walker at `root`.
 
 ### Walker patterns
 
@@ -174,7 +174,7 @@ a del --> b;                # remove a specific edge
 | `walker:priv`         | Per-user walker -- same as `:priv` on functions.                      |
 | Node-side ability     | Logic naturally belongs to the data type, not the traversal.         |
 
-For a flat list of Tasks directly off root, `def:pub get_tasks -> list { return [root()-->][?:Task]; }` is the idiomatic choice. Walker value grows with graph depth.
+For a flat list of Tasks directly off root, `def:pub get_tasks -> list { return [root-->][?:Task]; }` is the idiomatic choice. Walker value grows with graph depth.
 
 ### Persistence -- the key insight
 
@@ -182,7 +182,7 @@ You never call `save()` or `commit()` in application code. The runtime persists 
 
 ```jac
 def:priv get_my_tasks -> list[Task] {
-    return [root()-->][?:Task];     # `root` is THIS user's root
+    return [root-->][?:Task];     # `root` is THIS user's root
 }
 ```
 
@@ -292,7 +292,7 @@ A single `.jac` file can contain code that runs on the server, in the browser, a
 ```jac
 # Default: server code (compiles to Python)
 node Todo { has title: str; }
-def:pub get_todos -> list { return [root()-->][?:Todo]; }
+def:pub get_todos -> list { return [root-->][?:Todo]; }
 
 to cl:                      # everything below runs in the browser
 
@@ -391,12 +391,12 @@ cl def:pub App -> JsxElement {
     has tasks: list = [];
 
     async can with entry {
-        result = root() spawn ListTasks();
+        result = root spawn ListTasks();
         tasks = result.reports[0];
     }
 
     async def add(text: str) {
-        result = root() spawn AddTask(title=text);
+        result = root spawn AddTask(title=text);
         new_task = result.reports[0];
         tasks = tasks + [new_task];
     }
@@ -432,6 +432,48 @@ cl def:pub Login -> JsxElement {
 ```
 
 Combined with `def:priv` / `walker:priv` on the server, each authenticated user automatically gets their own graph root. No manual JWT, no session plumbing.
+
+### Cross-user data -- `allroots` and `grant`
+
+Per-user isolation via `def:priv` is the default, but most real apps need *some* cross-user discovery: connection requests, a public feed of others' posts, friend search. Jac provides two primitives:
+
+**`allroots()`** returns a list of every user's root in the system. Use it for cross-user lookups:
+
+```jac
+def:priv find_profile_by_username(target_username: str) -> Profile | None {
+    for r in allroots() {
+        profs = [r-->[?:Profile, username == target_username]];
+        if profs {
+            return profs[0];
+        }
+    }
+    return None;
+}
+```
+
+**`grant(node, level=...)`** opens a node so other users' walkers can traverse to it. Without an explicit grant, `def:priv` isolation hides nodes from other users entirely. Common access levels:
+
+```jac
+node Profile {
+    has username: str = "",
+        name: str = "",
+        headline: str = "";
+}
+
+def:priv my_profile -> Profile {
+    existing = [root-->[?:Profile]];
+    if existing { return existing[0]; }
+
+    p = Profile();
+    root ++> p;
+    grant(p, level=ConnectPerm);   # other users can find this profile via allroots()
+    return p;
+}
+```
+
+`ConnectPerm` allows other users to discover and form connection edges to this node. Use stricter levels for nodes that should stay private even when discoverable. (See `jac-scale` reference for the full permission ladder.)
+
+This pair is how cross-user features like LinkedIn-style connection requests, discoverable user directories, and shared/public posts get built. Any time your app needs "user A interacts with user B's data," you'll need both primitives.
 
 ### Decision -- `def:pub` vs walker as endpoint
 
@@ -524,11 +566,29 @@ This is the canonical layout for any non-trivial full-stack Jac app. The AI Day 
 
 ```
 myapp/
+├── jac.toml              # project manifest -- REQUIRED for `jac start`
 ├── main.jac              # server: nodes, endpoints, AI, + a thin client wrapper that mounts the component
 ├── frontend.cl.jac       # client: component declaration + reactive state + render tree + lifecycle hooks
 ├── frontend.impl.jac     # client: handler bodies (method impls)
 └── styles.css            # (optional; see static assets caveat below)
 ```
+
+### `jac.toml` -- the project manifest
+
+`jac start` refuses to boot without a `jac.toml` at the project root. Bare `jac main.jac` (script mode) doesn't need one, but the moment you want HTTP serving you need the manifest. A minimal version:
+
+```toml
+[project]
+name = "myapp"
+entry-point = "main.jac"
+
+[serve]
+base_route_app = "app"
+```
+
+`base_route_app = "app"` tells the dev server to mount the `def:pub app` component at `/cl/app`. After `jac start main.jac --port 8000`, the page renders at `http://localhost:8000/cl/app`, and `curl http://localhost:8000/` returns a JSON catalog of every mounted endpoint and walker -- use that as your boot-verification smoke-test (there is no Swagger `/docs` route on plain `jac start`).
+
+The `jac create myapp --use client` template scaffolds a richer `jac.toml` with npm dependency entries; for the simple multi-file shape above, the four-line manifest is enough.
 
 ### `main.jac` -- server + client mount
 
@@ -562,11 +622,11 @@ node Task {
 }
 
 def:priv get_tasks -> list[Task] {
-    return [root()-->][?:Task];
+    return [root-->][?:Task];
 }
 
 def:priv add_task(title: str) -> Task {
-    return (root() ++> Task(title=title))[0];
+    return (root ++> Task(title=title))[0];
 }
 ```
 
@@ -689,8 +749,8 @@ test "calculator addition" {
 }
 
 test "walker reports" {
-    root() ++> Task(title="A");
-    result = root() spawn ListTasks();
+    root ++> Task(title="A");
+    result = root spawn ListTasks();
     assert len(result.reports[0]) == 1;
 }
 ```
