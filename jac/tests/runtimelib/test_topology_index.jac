@@ -202,30 +202,37 @@ test "MRO fan-out survives encode decode" {
     assert decoded.resolve_chain({r}, [(None, "PostNode", 2)]) == {post};
 }
 
-# ── Bidirectional traversal ──────────────────────────────────────────
-test "incoming direction resolves" {
-    idx = TopologyIndex();
-    r = uuid4();
-    n = uuid4();
-    idx.add_node(r, "Root");
-    idx.add_node(n, "NodeA");
-    idx.add_edge(r, n, "EdgeX");
-    # direction=1 means IN; from `n`'s perspective, `r` is incoming.
-    assert idx.resolve_chain({n}, [("EdgeX", "Root", 1)]) == {r};
-}
-
-test "any direction unions in and out" {
+# ── Multi-edge between same pair ─────────────────────────────────────
+test "multi-edge between same pair preserves edge-type isolation" {
+    # Two edges of different types between the same pair must not collide
+    # in the lookup map: removing one edge type must leave the other
+    # discoverable via both its e: column and the n: column.
     idx = TopologyIndex();
     a = uuid4();
     b = uuid4();
-    c = uuid4();
     idx.add_node(a, "A");
     idx.add_node(b, "B");
-    idx.add_node(c, "C");
-    idx.add_edge(a, b, "E");
-    idx.add_edge(c, b, "E");
-    # From `b` with ANY direction: hits both `a` (incoming) and... only `a`/`c`.
-    assert idx.resolve_chain({b}, [("E", None, 3)]) == {a, c};
+    idx.add_edge(a, b, "Follow");
+    idx.add_edge(a, b, "Like");
+
+    assert idx.resolve_chain({a}, [("Follow", None, 2)]) == {b};
+    assert idx.resolve_chain({a}, [("Like", None, 2)]) == {b};
+    # IN direction sees the same connectivity from b's bucket.
+    assert idx.resolve_chain({b}, [("Follow", None, 1)]) == {a};
+    assert idx.resolve_chain({b}, [("Like", None, 1)]) == {a};
+
+    idx.remove_edge(a, b, "Like");
+    # Like is gone; Follow remains.
+    assert idx.resolve_chain({a}, [("Follow", None, 2)]) == {b};
+    assert idx.resolve_chain({a}, [("Like", None, 2)]) == set();
+    # n: column for B is still populated because Follow still connects (a, b).
+    assert idx.resolve_chain({a}, [(None, "B", 2)]) == {b};
+    # ANY direction still finds the connection.
+    assert idx.resolve_chain({a}, [(None, None, 3)]) == {b};
+
+    idx.remove_edge(a, b, "Follow");
+    # Now everything is gone — n: column too.
+    assert idx.resolve_chain({a}, [(None, "B", 2)]) == set();
 }
 
 # ── Compact-encoding fidelity ────────────────────────────────────────

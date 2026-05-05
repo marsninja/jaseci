@@ -218,6 +218,91 @@ test "plan_query bypasses index when no hop is filtered" {
         result = plan_query(node_typed_path);
         assert result is not None , "plan_query should engage TI when node_type is filtered";
         assert len(result) == 10 , f"expected 10 TypeA nodes, got {len(result)}";
+
+        # Multi-hop fully unfiltered → still bypasses. The contract is "every
+        # hop unfiltered", not just the first.
+        two_hop_unfiltered = ObjectSpatialPath(
+            [r],
+            [
+                ObjectSpatialDestination(EdgeDir.OUT),
+                ObjectSpatialDestination(EdgeDir.OUT)
+            ]
+        );
+        assert plan_query(two_hop_unfiltered) is None , (
+            "two-hop fully unfiltered should bypass TI"
+        );
+
+        # Multi-hop with a filter on only the second hop → engages. A single
+        # filtered hop anywhere in the chain is enough to want the index.
+        mixed_two_hop = ObjectSpatialPath(
+            [r],
+            [
+                ObjectSpatialDestination(EdgeDir.OUT),
+                ObjectSpatialDestination(EdgeDir.OUT, None, node_filter)
+            ]
+        );
+        assert plan_query(mixed_two_hop) is not None , (
+            "two-hop with filter on second hop should engage TI"
+        );
+    } finally {
+        ctx.close();
+        set_config(JacConfig());
+    }
+}
+
+test "plan_query bails when a hop has predicates beyond type" {
+    # `_filter_has_predicates` detects filter lambdas that do more than
+    # `isinstance(i, T)` (attribute access, comparisons, etc). The index
+    # can resolve those for the FINAL hop only — the runtime post-applies
+    # that filter on the planned set. For non-final hops, plan_query
+    # must bail and let the linear path evaluate the predicate directly.
+    import from jaclang.jac0core.archetype {
+        ObjectSpatialPath,
+        ObjectSpatialDestination,
+        EdgeDir
+    }
+    import from jaclang.runtimelib.topo_utils { plan_query }
+
+    cfg = JacConfig();
+    cfg.run.topology_index = True;
+    set_config(cfg);
+    ctx = ExecutionContext();
+    JacRuntime.set_context(ctx);
+    try {
+        r = root;
+        for i in range(10) {
+            a = TypeA(val=i);
+            r +>: EdgeX :+> a;
+            a +>: EdgeY :+> TypeB(val=i * 10);
+        }
+
+        # `n.val > 5` introduces LOAD_ATTR + COMPARE_OP — _filter_has_predicates
+        # returns True. On a single-hop (and therefore final) chain, plan_query
+        # still engages: the runtime post-applies the predicate.
+        pred_filter = lambda n: Any : isinstance(n, TypeA) and n.val > 5;
+        single_hop_pred = ObjectSpatialPath(
+            [r], [ObjectSpatialDestination(EdgeDir.OUT, None, pred_filter)]
+        );
+        assert plan_query(single_hop_pred) is not None , (
+            "predicate on the FINAL hop should still engage TI"
+        );
+
+        # Same predicate on a non-final hop in a 2-hop chain → bail.
+        two_hop_pred_first = ObjectSpatialPath(
+            [r],
+            [
+                ObjectSpatialDestination(EdgeDir.OUT, None, pred_filter),
+                ObjectSpatialDestination(EdgeDir.OUT)
+            ]
+        );
+        assert plan_query(two_hop_pred_first) is None , (
+            "predicate on a non-final hop should bail to linear path"
+        );
+
+        # End-to-end correctness: predicate on final hop produces the right
+        # subset, regardless of which path the runtime took.
+        result = [r->:EdgeX:->[?:TypeA, val>5]];
+        assert sorted([n.val for n in result]) == [6, 7, 8, 9];
     } finally {
         ctx.close();
         set_config(JacConfig());
