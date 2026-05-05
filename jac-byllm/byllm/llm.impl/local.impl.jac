@@ -36,7 +36,17 @@ impl LocalLLM._ensure_llama -> object {
     if self._llama is not None {
         return self._llama;
     }
-    import from llama_cpp { Llama }
+    try {
+        import from llama_cpp { Llama }
+    } except ImportError {
+        raise ImportError(
+            "llama-cpp-python is required for `local:` models. "
+            "Install with: pip install 'byllm[local]'  "
+            "(use --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu "
+            "to skip the source build). For most local-inference use cases, "
+            "consider Ollama instead: `default_model = \"ollama/<model>\"`."
+        );
+    }
     auto_dl = bool(self.config.get("auto_download", False));
     model_path = ensure_model(self.alias, self.spec, auto_download=auto_dl);
     n_ctx = int(self.config.get("n_ctx", 0)) or int(self.spec.get("n_ctx", 4096));

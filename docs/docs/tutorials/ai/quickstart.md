@@ -10,11 +10,11 @@ In this tutorial, you'll set up byLLM, write your first AI-powered function, exp
 >
 > - Completed: [Installation](../../quick-guide/install.md)
 > - Jac installed with `pip install jaseci`
-> - **Either** an API key from OpenAI, Anthropic, or Google **or** ~5 GB of disk for the bundled local model
+> - **Either** an API key from OpenAI/Anthropic/Google, **or** Ollama installed for local inference (recommended), **or** ~5 GB of disk for the bundled in-process `local:*` runtime
 > - Time: ~20 minutes
 
 !!! tip "No API key? Run a model locally."
-    byLLM ships a built-in local runtime out of the box: just set `default_model = "local:gemma-4-e4b"` in `jac.toml`. The first `by llm()` call downloads ~5 GB of Gemma 4 E4B weights to `~/.cache/jac/models/`, then runs in-process via `llama.cpp` -- no key, no daemon, no proxy. See [Built-in Local Models](../../reference/plugins/byllm.md#built-in-local-models) for the full reference.
+    byLLM has two local-inference paths. **Ollama** (recommended) is a separate daemon with automatic GPU detection -- `ollama pull gemma3:4b` then set `default_model = "ollama/gemma3:4b"` in `jac.toml` and you're done. **Built-in `local:*`** runs entirely in-process via `llama.cpp` -- single `pip install 'byllm[local]'`, no daemon. Use Ollama unless you specifically need the no-daemon property. See [Built-in Local Models](../../reference/plugins/byllm.md#built-in-local-models) for the full discussion.
 
 ---
 
@@ -42,15 +42,40 @@ pip install byllm
     export GOOGLE_API_KEY="..."
     ```
 
-=== "Local (no API key)"
-    The local runtime is included in `pip install byllm` -- no extra step. Add this to your project's `jac.toml`:
+=== "Local via Ollama (recommended)"
+    Install Ollama from [ollama.com/download](https://ollama.com/download), pull a model, then point byLLM at it:
+
+    ```bash
+    ollama pull gemma3:4b
+    ```
 
     ```toml
+    # jac.toml
+    [plugins.byllm.model]
+    default_model = "ollama/gemma3:4b"
+    ```
+
+    Ollama runs as a background daemon with automatic GPU detection (CUDA / Metal / Vulkan). byLLM routes through litellm's Ollama provider -- nothing extra to install on the byLLM side.
+
+=== "Local in-process (`local:*`)"
+    For users who specifically don't want a separate daemon, byLLM ships an in-process runtime as an opt-in extra:
+
+    ```bash
+    pip install 'byllm[local]'
+    ```
+
+    ```toml
+    # jac.toml
     [plugins.byllm.model]
     default_model = "local:gemma-4-e4b"
     ```
 
-    The first `by llm()` call will prompt to download the model (~5 GB). Set `BYLLM_AUTO_DOWNLOAD=1` to skip the prompt, or pre-fetch with `jac model pull gemma-4-e4b`.
+    The first `by llm()` call will prompt to download the model (~5 GB) to `~/.cache/jac/models/`. Set `BYLLM_AUTO_DOWNLOAD=1` to skip the prompt, or pre-fetch with `jac model pull gemma-4-e4b`. To skip the source build of `llama-cpp-python`, install with the prebuilt wheel index:
+
+    ```bash
+    pip install 'byllm[local]' \
+      --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+    ```
 
 ---
 

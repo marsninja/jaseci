@@ -132,7 +132,14 @@ def _resolve_consent(alias: str, spec: dict, auto_download: bool) -> bool {
 Uses huggingface_hub.hf_hub_download for resumable, hash-checked transfer.
 """
 def _download(alias: str, spec: dict) -> Path {
-    import from huggingface_hub { hf_hub_download }
+    try {
+        import from huggingface_hub { hf_hub_download }
+    } except ImportError {
+        raise ImportError(
+            "huggingface_hub is required to download local model weights. "
+            "Install with: pip install 'byllm[local]'"
+        );
+    }
     target_dir = alias_dir(alias);
     target_dir.mkdir(parents=True, exist_ok=True);
     _logger.info(f"Downloading {spec['repo']}/{spec['file']} -> {target_dir}");
