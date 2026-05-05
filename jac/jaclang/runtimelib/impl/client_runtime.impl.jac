@@ -403,13 +403,36 @@ impl __jacCallFunction(function_name: str, args: dict = {}) -> Any {
     return result;
 }
 
-impl jacSignup(username: str, password: str) -> dict {
+def __normalizeIdentity(x: Any) -> dict {
+    if __isObject(x) {
+        return x;
+    }
+    return {"type": "username", "value": x};
+}
+
+def __normalizeCredential(x: Any) -> dict {
+    if __isObject(x) {
+        return x;
+    }
+    return {"type": "password", "password": x};
+}
+
+impl jacSignup(
+    identities_or_username: (str | list), credential_or_password: (str | dict)
+) -> dict {
+    credential = __normalizeCredential(credential_or_password);
+    identities = (
+        identities_or_username
+            if Array.isArray(identities_or_username)
+            else [__normalizeIdentity(identities_or_username)]
+    );
+    primary_username = identities[0]["value"] if len(identities) > 0 else "";
     response = await fetch(
-        "/user/create",
+        "/user/register",
         {
             "method": "POST",
             "headers": {"Content-Type": "application/json"},
-            "body": JSON.stringify({"username": username, "password": password})
+            "body": JSON.stringify({"identities": identities, "credential": credential})
         }
     );
     if response.ok {
@@ -424,7 +447,7 @@ impl jacSignup(username: str, password: str) -> dict {
         } except Exception { }
         if token {
             __setLocalStorage("jac_token", token);
-            return {"success": True, "token": token, "username": username};
+            return {"success": True, "token": token, "username": primary_username};
         }
         return {"success": False, "error": "No token received"};
     } else {
@@ -448,13 +471,17 @@ impl jacSignup(username: str, password: str) -> dict {
     }
 }
 
-impl jacLogin(username: str, password: str) -> bool {
+impl jacLogin(
+    identity_or_username: (str | dict), credential_or_password: (str | dict)
+) -> bool {
+    identity = __normalizeIdentity(identity_or_username);
+    credential = __normalizeCredential(credential_or_password);
     response = await fetch(
         "/user/login",
         {
             "method": "POST",
             "headers": {"Content-Type": "application/json"},
-            "body": JSON.stringify({"username": username, "password": password})
+            "body": JSON.stringify({"identity": identity, "credential": credential})
         }
     );
     if response.ok {
@@ -906,7 +933,11 @@ impl useEffect(effectFn: Any, deps: list = []) -> None {
 Fires asynchronously and silently ignores failures (to avoid error loops).
 """
 impl __jacReportError(
-    message: str, stack: str = "", url: str = "", source: str = ""
+    message: str,
+    stack: str = "",
+    url: str = "",
+    source: str = "",
+    componentStack: str = ""
 ) -> None {
     try {
         fetch(
@@ -920,6 +951,7 @@ impl __jacReportError(
                         "stack": stack,
                         "url": url or window.location.href,
                         "source": source,
+                        "componentStack": componentStack,
                         "timestamp": Reflect.construct(Date, []).toISOString()
                     }
                 )
@@ -927,6 +959,22 @@ impl __jacReportError(
         );
     } except Exception {
     # Silently ignore - never let error reporting cause more errors
+    }
+}
+
+"""onError prop for ErrorBoundary. The FallbackComponent React passes to
+ErrorBoundary only receives `{error, resetErrorBoundary}` — `info` (and
+therefore `info.componentStack`, the only thing that names user components
+when the JS stack lives inside react-dom) is exclusively delivered to onError.
+Wiring this here is the one place we can capture it."""
+impl __jacReactErrorHandler(error: Any, info: Any) -> None {
+    try {
+        message = error.message if error else "Unknown error";
+        stack = error.stack if error else "";
+        componentStack = info.componentStack if info else "";
+        __jacReportError(message, stack, "", "ErrorBoundary", componentStack);
+    } except Exception {
+    # Silent: error reporting from a React lifecycle must never throw.
     }
 }
 

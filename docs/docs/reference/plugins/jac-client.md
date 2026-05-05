@@ -1090,7 +1090,7 @@ def:pub StylingExamples() -> JsxElement {
 > import from "clsx" { clsx }
 > import from "tailwind-merge" { twMerge }
 >
-> def:pub cn(inputs: Any) -> str {
+> def:pub cn(inputs: any) -> str {
 >     args = [].slice.call(arguments);
 >     return twMerge(clsx(args));
 > }
@@ -1676,6 +1676,19 @@ jac_mcp = true     # jac-mcp: MCP server integration (default: true)
 
 All `.jac` files, `jac.toml`, and the `assets/` directory are copied into `src-tauri/jac/` and shipped as Tauri bundle resources. At runtime, the sidecar looks up `main.jac` in this bundled location first, falling back to parent directories. This is what makes desktop installs fully self-contained.
 
+**Extra Data Files:**
+
+Ship additional files into the sidecar bundle via `[desktop.bundle] extra_data` in `jac.toml`. Values are [glob patterns](https://docs.python.org/3/library/pathlib.html#pathlib.Path.glob) rooted at the project directory. Matches keep their relative paths inside the bundle, so `Path(__file__).parent / "config/prompts.yaml"` still resolves at runtime.
+
+```toml
+[desktop.bundle]
+extra_data = [
+    "config/*.yaml",
+    "data/seed.json",
+    "prompts/**/*.txt",
+]
+```
+
 #### Data Persistence on Installed Builds
 
 Installed desktop apps live in **read-only** locations -- `/usr/lib/`, `/opt/`, `C:\Program Files\`, or an AppImage's `/tmp/.mount_AppXXX/` squashfs. The Jac runtime and jac-scale write to disk relative to the working directory by default (the SQLite database `database.db`, the `.jac/data/` directory, session files), and those writes will fail or crash on a read-only mount.
@@ -2207,7 +2220,7 @@ url = Reflect.construct(URL, [String(baseUrl)]);
 now = Reflect.construct(Date, []);
 
 # Promise
-p = Reflect.construct(Promise, [lambda(resolve: Any, reject: Any) {
+p = Reflect.construct(Promise, [lambda(resolve: any, reject: any) {
     resolve.call(None, "done");
 }]);
 
@@ -2224,7 +2237,7 @@ When passing callbacks to be invoked later, use `.call(None, ...)`:
 to cl:
 
 handler = myCallback;
-ws.onmessage = lambda(e: Any) {
+ws.onmessage = lambda(e: any) {
     handler.call(None, JSON.parse(e.data));
 };
 ```
@@ -2237,7 +2250,7 @@ Use `glob` for state shared across a module:
 to cl:
 
 glob initialized: bool = False;
-glob cache: Any = None;
+glob cache: any = None;
 ```
 
 For more patterns, see the [Advanced Patterns & JS Interop tutorial](../../tutorials/fullstack/advanced-patterns.md).

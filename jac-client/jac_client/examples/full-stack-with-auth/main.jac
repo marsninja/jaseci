@@ -1,5 +1,5 @@
 # Full Stack Todo App with Auth and React Router
-cl import from react { useState, useEffect }
+cl import from react { useEffect }
 cl import from "@jac/runtime" {
     Router,
     Routes,
@@ -261,7 +261,13 @@ cl {
             }
             result = await jacSignup(username, password);
             if result["success"] {
-                navigate("/todos");
+                # /user/register does not return a token, sign in to start a session
+                logged_in = await jacLogin(username, password);
+                if logged_in {
+                    navigate("/todos");
+                } else {
+                    error = "Account created but login failed";
+                }
             } else {
                 error = result["error"] if result["error"] else "Signup failed";
             }
@@ -541,16 +547,16 @@ cl {
                 <Navigate to="/login"/>;
         }
 
-        [todos, setTodos] = useState([]);
-        [input, setInput] = useState("");
-        [filter, setFilter] = useState("all");
+        has todos: list = [],
+            input: str = "",
+            filter: str = "all";
 
         # Load todos on mount
         useEffect(
             lambda {
                 async def loadTodos {
                     result = root spawn read_todos();
-                    setTodos(result.reports or []);
+                    todos = result.reports or [];
                 }
                 loadTodos();
             },
@@ -564,27 +570,25 @@ cl {
             }
             result = root spawn create_todo(text=input.strip());
             newTodo = result.reports[0][0];
-            setTodos(todos.concat([newTodo]));
-            setInput("");
+            todos = todos.concat([newTodo]);
+            input = "";
         }
 
         # Toggle todo
         async def toggleTodo(id: Any) {
             result = id spawn toggle_todo();
             updated = result.reports[0][0];
-            setTodos([updated if todo._jac_id == id else todo for todo in todos]);
+            todos = [updated if todo._jac_id == id else todo for todo in todos];
         }
 
         # Delete todo
         async def deleteTodo(id: Any) {
             #id spawn delete_todo();
-            setTodos(
-                [
-                    todo
-                    for todo in todos
-                    if todo._jac_id != id
-                ]
-            );
+            todos = [
+                todo
+                for todo in todos
+                if todo._jac_id != id
+            ];
         }
 
         # Filter todos
@@ -626,8 +630,15 @@ cl {
                 }}
             >
                 <h1 style={{"marginBottom": "20px"}}>My Todos</h1>
-                <TodoInput input={input} setInput={setInput} addTodo={addTodo}/>
-                <TodoFilters filter={filter} setFilter={setFilter}/>
+                <TodoInput
+                    input={input}
+                    setInput={lambda val: str -> str { input = val;}}
+                    addTodo={addTodo}
+                />
+                <TodoFilters
+                    filter={filter}
+                    setFilter={lambda val: str -> str { filter = val;}}
+                />
                 <TodoList
                     filteredTodos={filteredTodos}
                     toggleTodo={toggleTodo}

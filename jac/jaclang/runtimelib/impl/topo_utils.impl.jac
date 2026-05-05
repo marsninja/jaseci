@@ -24,9 +24,9 @@ impl _get_root_anchor(anchor: Any) -> Any {
     try {
         import from jaclang { JacRuntimeInterface as Jac }
         ctx = Jac.get_context();
-        root = ctx.mem.get(anchor.root);
-        if isinstance(root, NA) {
-            return root;
+        `root = ctx.mem.get(anchor.root);
+        if isinstance(`root, NA) {
+            return `root;
         }
     } except Exception {
         ;
@@ -215,6 +215,34 @@ impl _extract_type_name_from_filter(filt: (Callable | None)) -> (str | None) {
     return None;
 }
 
+"""Detect whether a filter lambda contains attribute predicates.
+
+The topology index resolves type-only filters (`isinstance(i, T)`).
+Anything more complex -- attribute access (`i.priority`), comparison
+ops (`>=`, `==`, `in`, `is`) -- exceeds what the index can express,
+so the planner has to bail out and let the linear path evaluate the
+lambda directly.
+
+The codegen emits these filters as plain Python lambdas
+(see PyastGenPass.exit_filter_compr). Bytecode opcodes give us a
+cheap, robust signal: pure type checks compile to LOAD_GLOBAL +
+CALL_FUNCTION + RETURN, while predicates introduce LOAD_ATTR or a
+COMPARE_OP. Conservative on inspection failure (assume predicates
+present) so we never silently skip filtering.
+"""
+impl _filter_has_predicates(filt: (Callable | None)) -> bool {
+    if filt is None {
+        return False;
+    }
+    import dis;
+    try {
+        opcodes = {instr.opname for instr in dis.get_instructions(filt)};
+    } except (TypeError, AttributeError, ValueError) {
+        return True;
+    }
+    return bool(opcodes & {'LOAD_ATTR','COMPARE_OP','CONTAINS_OP','IS_OP'});
+}
+
 """Use the topology index to resolve which node UUIDs will survive
 the type-only filters in a path chain."""
 impl plan_query(path: Any) -> (set[UUID] | None) {
@@ -233,11 +261,21 @@ impl plan_query(path: Any) -> (set[UUID] | None) {
         return None;
     }
     # Build the chain before fetching the index — if no hop has a filter we
-    # can skip the decode entirely below.
+    # can skip the decode entirely below. The index can only resolve type-only
+    # filters; bail when a hop's edge filter has predicates, or when a
+    # non-final node filter has predicates (the runtime post-applies the
+    # final hop's node filter on the planned set so its predicates are safe).
     chain: list[tuple[(str | None), (str | None), int]] = [];
     destinations = path.destinations[:-1] if path.edge_only else path.destinations;
     has_filter = False;
-    for dest in destinations {
+    last_idx = len(destinations) - 1;
+    for (i, dest) in enumerate(destinations) {
+        if _filter_has_predicates(dest.`edge) {
+            return None;
+        }
+        if i != last_idx and _filter_has_predicates(dest.nd) {
+            return None;
+        }
         edge_type = _extract_type_name_from_filter(dest.`edge);
         node_type = _extract_type_name_from_filter(dest.nd);
         chain.append((edge_type, node_type, dest.direction.value));

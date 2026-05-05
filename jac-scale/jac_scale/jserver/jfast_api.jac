@@ -123,6 +123,9 @@ This class implements the JServer interface by:
         app (FastAPI): The underlying FastAPI application instance
 """
 class JFastApiServer(JServer[FastAPI]) {
+    has _user_manager: Any | None = None;
+
+    def set_user_manager(self: JFastApiServer, user_manager: Any) -> None;
     def init(
         self: JFastApiServer,
         endpoints: (list[JEndPoint] | None) = None,
@@ -154,6 +157,11 @@ class JFastApiServer(JServer[FastAPI]) {
     ) -> Callable[..., Any];
 
     def _get_python_type(self: JFastApiServer, type_string: str) -> type[Any];
+    def _resolve_type(
+        self: JFastApiServer, type_string: str, type_obj: Any = None
+    ) -> Any;
+
+    def _build_pydantic_model(self: JFastApiServer, jac_cls: Any) -> type[BaseModel];
     def _create_response_model(
         self: JFastApiServer, response_config: (dict[(str, Any)] | None) = None
     ) -> (type[BaseModel] | None);
