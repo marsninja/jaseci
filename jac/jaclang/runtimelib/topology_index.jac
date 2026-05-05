@@ -6,8 +6,8 @@ with type filters can be resolved without loading every node from the DB.
 Two layered structures are kept in sync:
   * Canonical adj_list — `(src_lid, edge_type_id, tgt_lid)` triples; preserves
     multi-edge multiplicity, source of truth for encode/decode.
-  * Sparse Adjacency Matrix (SAM) — type-keyed dict
-    `sam[src_lid][col_key] = (in_lids, out_lids)` where `col_key` is
+  * type-keyed lookup map — type-keyed dict
+    `buckets[src_lid][col_key] = (in_lids, out_lids)` where `col_key` is
     `"n:<type_id>"` or `"e:<edge_type_id>"`. Gives O(1) per-type lookup and
     holds MRO fan-out (each target indexed under every ancestor type).
 
@@ -35,7 +35,7 @@ obj TopologyIndex {
         node_table: list[tuple[UUID, int, UUID]] = [],
         node_to_lid: dict[UUID, int] = {},
         adj_list: list[tuple[int, int, int]] = [],
-        sam: dict[int, dict[str, tuple[list[int], list[int]]]] = {};
+        buckets: dict[int, dict[str, tuple[list[int], list[int]]]] = {};
 
     def _ensure_type(type_name: str, mro_chain: (list[str] | None) = None) -> int;
     def add_node(

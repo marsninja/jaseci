@@ -43,7 +43,10 @@ impl _type_name(`obj: object) -> str {
 runtime base archetypes."""
 impl _get_type_mro(`obj: object) -> list[str] {
     import from jaclang.jac0core.archetype {
-        NodeArchetype, EdgeArchetype, WalkerArchetype, Archetype
+        NodeArchetype,
+        EdgeArchetype,
+        WalkerArchetype,
+        Archetype
     }
     stop_classes = (NodeArchetype, EdgeArchetype, WalkerArchetype, Archetype, object);
     chain: list[str] = [];
