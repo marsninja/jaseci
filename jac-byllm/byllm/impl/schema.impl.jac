@@ -468,11 +468,14 @@ impl _hints_from_schema(name: str, prop: dict) -> list[str] {
         } else {
             out.append(f"- {label} must be one of: {enum_vals}");
         }
-    } elif ty {
-        suffix = ' -- ' + desc if isinstance(desc, str) and desc else '';
-        out.append(f"- {label} ({ty}){suffix}");
     }
-    # Recurse into nested object properties.
+    # Only enum properties emit a bullet of their own -- non-enum scalars
+    # (string / number / boolean) are already constrained by the
+    # response_format grammar and don't benefit from a parallel
+    # natural-language summary. Object / array containers also stay
+    # quiet so the bullet list reads as "actionable choices" rather
+    # than a redundant restatement of the schema. We still recurse
+    # through them so any enum buried deeper down picks up its hint.
     if prop.get("type") == "object" {
         nested = prop.get("properties");
         if isinstance(nested, dict) {
@@ -481,6 +484,15 @@ impl _hints_from_schema(name: str, prop: dict) -> list[str] {
                     out.extend(_hints_from_schema(sub, sub_prop));
                 }
             }
+        }
+    } elif prop.get("type") == "array" {
+        items = prop.get("items");
+        if isinstance(items, dict) {
+            # Items themselves may be enum-typed, an object with enum
+            # properties, or another nested array. Walking with the
+            # parent's label keeps the bullet text readable
+            # (e.g. "- unit must be one of: 1=PIECE, ...").
+            out.extend(_hints_from_schema(label, items));
         }
     }
     return out;
