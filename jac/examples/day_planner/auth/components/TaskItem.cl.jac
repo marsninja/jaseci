@@ -1,7 +1,6 @@
 """Single task row -- presentational; toggle and delete are passed in."""
 
 sv import from ..main { Task }
-import from typing { Any }
 
 def:pub TaskItem(task: Task, onToggle: Any, onDelete: Any) -> JsxElement {
     return

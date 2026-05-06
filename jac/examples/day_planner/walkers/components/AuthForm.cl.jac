@@ -5,7 +5,6 @@ flip the app into its logged-in state.
 """
 
 import from "@jac/runtime" { jacLogin, jacSignup }
-import from typing { Any }
 
 def:pub AuthForm(onAuth: Any) -> JsxElement {
     has isSignup: bool = False,

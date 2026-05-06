@@ -1,7 +1,5 @@
 """App header with title, subtitle, and sign-out button."""
 
-import from typing { Any }
-
 def:pub Header(onLogout: Any) -> JsxElement {
     return
         <div class="header">

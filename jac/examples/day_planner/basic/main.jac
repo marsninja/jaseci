@@ -110,8 +110,6 @@ to cl:
 
 import "./styles.css";
 
-import from typing { Any }
-
 """Single task row -- presentational; toggle and delete are passed in."""
 def:pub TaskItem(task: Task, onToggle: Any, onDelete: Any) -> JsxElement {
     return
