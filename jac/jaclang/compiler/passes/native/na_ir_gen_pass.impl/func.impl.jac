@@ -127,6 +127,7 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         alloca = self.builder.alloca(arg_val.type, name=param_name);
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
+        self.param_vars.add(param_name);
         # Track type annotations for parameters
         if p.type_tag and p.type_tag.tag {
             self.var_type_node[param_name] = p.type_tag.tag;
@@ -175,6 +176,11 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     }
     # Ensure function has a terminator
     if not self.builder.block.is_terminated {
+        _fc_loc = f"{self.ir_in.loc.mod_path}:{nd.loc.last_line if nd.loc else 0}";
+        # release all pointer-typed locals before implicit void return
+        # (functions that have no explicit `return` statement).  Explicit
+        # returns are handled by _emit_scope_cleanup in stmt.impl.jac.
+        self._emit_scope_cleanup(skip_var=None, loc=_fc_loc);
         ret_type = func.return_value.type;
         if isinstance(ret_type, ir.VoidType) {
             self.builder.ret_void();
@@ -300,6 +306,33 @@ impl NaIRGenPass._codegen_entry(nd: uni.ModuleCode) -> None {
     if glob_init_fn is not None {
         self.builder.call(glob_init_fn, []);
     }
+    # JAC_NO_GC env-var: if set (non-empty), disable RC on startup so that
+    # retain/release are no-ops for the duration of the process.  This lets
+    # benchmarks compare "with GC overhead" vs "without" without recompiling.
+    _i8p = ir.IntType(8).as_pointer();
+    _i32 = ir.IntType(32);
+    _getenv_fn = self._get_or_declare_extern("getenv", _i8p, [_i8p]);
+    _nogc_str = self._get_snprintf_fmt("JAC_NO_GC");
+    _nogc_ptr = self.builder.gep(
+        _nogc_str,
+        [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
+        name="nogc.key"
+    );
+    _nogc_val = self.builder.call(_getenv_fn, [_nogc_ptr], name="nogc.env");
+    _nogc_null = ir.Constant(_i8p, None);
+    _nogc_set = self.builder.icmp_unsigned(
+        "!=", _nogc_val, _nogc_null, name="nogc.set"
+    );
+    _nogc_then = func.append_basic_block("nogc_disable");
+    _nogc_cont = func.append_basic_block("nogc_cont");
+    self.builder.cbranch(_nogc_set, _nogc_then, _nogc_cont);
+    b_nogc = ir.IRBuilder(_nogc_then);
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    b_nogc.call(self.rc_gc_disable_fn, []);
+    b_nogc.branch(_nogc_cont);
+    self.builder = ir.IRBuilder(_nogc_cont);
     # Call __jac_glob_init_<safe_name>() for every imported .na.jac module,
     # including transitive deps.  native_transitive_sources is populated by
     # _register_imported_struct_types (DFS over all import trees) on the
@@ -363,7 +396,7 @@ impl NaIRGenPass._codegen_entry(nd: uni.ModuleCode) -> None {
                 );
                 _init_call.set_metadata("dbg", _di_init_loc);
             } except Exception {
-                pass;  # best-effort; debug quality degrades but safety unaffected
+                # best-effort; debug quality degrades but safety unaffected
             }
         }
     }
@@ -378,6 +411,17 @@ impl NaIRGenPass._codegen_entry(nd: uni.ModuleCode) -> None {
         fflush_fn = self._get_or_declare_extern("fflush", i32, [i8p]);
         null_ptr = ir.Constant(i8p, None);
         self.builder.call(fflush_fn, [null_ptr]);
+        # release all pointer-typed locals at end of entry block.
+        self._emit_scope_cleanup(
+            skip_var=None,
+            loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.last_line
+                if nd.loc
+                else 0}"
+        );
+        # Emit live-objects dump (only if debug was enabled at runtime).
+        if self.rc_live_head_gv is not None {
+            self._emit_rc_live_dump();
+        }
         self.builder.ret_void();
     }
     # DWARF post-pass: tag untagged instructions with fallback line
