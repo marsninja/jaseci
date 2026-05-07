@@ -1,7 +1,15 @@
 """Topology utils implementation."""
 
-"""Check if topology_index is enabled in config."""
+"""Check if topology_index is enabled. The `JAC_TOPOLOGY_INDEX` env var
+overrides the toml flag — useful for A/B benchmarking from a shell loop
+without editing jac.toml. Recognized truthy values: 1 / true / yes / on
+(case-insensitive); anything else is read as off."""
 impl _is_enabled -> bool {
+    import os;
+    env = os.environ.get("JAC_TOPOLOGY_INDEX");
+    if env is not None {
+        return env.lower() in ("1", "true", "yes", "on");
+    }
     try {
         import from jaclang.project.config { get_config }
         cfg = get_config();

@@ -10,7 +10,8 @@ import from collections.abc { Callable }
 import from typing { Any }
 import from uuid { UUID }
 
-"""Check if topology_index is enabled in config."""
+"""Check if topology_index is enabled. The `JAC_TOPOLOGY_INDEX` env var
+overrides the toml flag (truthy: 1 / true / yes / on)."""
 def _is_enabled -> bool;
 
 """Get the root NodeAnchor that owns this anchor."""
