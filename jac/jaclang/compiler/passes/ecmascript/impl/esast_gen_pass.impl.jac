@@ -3366,6 +3366,17 @@ impl EsastGenPass._load_sv_source_module(resolved_path: str) -> (uni.Module | No
     if mod is not None {
         return mod;
     }
+    # Refuse to feed non-Jac source through ``prog.compile`` — the .cl.jac
+    # tests in jac-client ship sibling .js helpers, and ``parse_str``
+    # routes anything that isn't .py/.pyi through the Jac parser, which
+    # then chokes on JS comments and emits a wall of bogus diagnostics.
+    if not (
+        resolved_path.endswith('.jac')
+        or resolved_path.endswith('.py')
+        or resolved_path.endswith('.pyi')
+    ) {
+        return None;
+    }
     try {
         mod = self.prog.compile(
             file_path=resolved_path, no_cgen=True, type_check=False, symtab_ir_only=True
@@ -3419,6 +3430,17 @@ impl EsastGenPass._resolve_callee_ability(target: uni.UniNode) -> (uni.Ability |
         return None;
     }
     item = cast(uni.ModuleItem, parent);
+    # Skip non-Jac imports (Python, JS shipped alongside .cl.jac, etc.) —
+    # we can't read an Ability out of them, and lazy-loading them would
+    # feed JS source through the Jac parser.
+    try {
+        parent_import = item.from_parent;
+    } except Exception {
+        return None;
+    }
+    if not parent_import.is_jac {
+        return None;
+    }
     try {
         source_path = item.from_mod_path.resolve_relative_path();
     } except Exception {
