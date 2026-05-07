@@ -3366,15 +3366,13 @@ impl EsastGenPass._load_sv_source_module(resolved_path: str) -> (uni.Module | No
     if mod is not None {
         return mod;
     }
-    # Refuse to feed non-Jac source through ``prog.compile`` — the .cl.jac
-    # tests in jac-client ship sibling .js helpers, and ``parse_str``
-    # routes anything that isn't .py/.pyi through the Jac parser, which
-    # then chokes on JS comments and emits a wall of bogus diagnostics.
-    if not (
-        resolved_path.endswith('.jac')
-        or resolved_path.endswith('.py')
-        or resolved_path.endswith('.pyi')
-    ) {
+    # Only walk Jac sources. A successful return must be a ``uni.Module``
+    # whose symbols can resolve to a ``uni.Ability`` — Python sources never
+    # produce those, so compiling them is pure cost: at best we throw the
+    # result away, at worst (e.g. ``rich/table.py`` with @property setters)
+    # the symtab pass emits diagnostics the Jac compiler doesn't model and
+    # the dev server bails on the spurious errors.
+    if not resolved_path.endswith('.jac') {
         return None;
     }
     try {
