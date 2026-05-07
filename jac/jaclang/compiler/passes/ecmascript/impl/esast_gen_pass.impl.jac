@@ -958,7 +958,9 @@ impl EsastGenPass._resolve_sv_import_ability(name: str) -> (uni.Ability | None) 
     for imp in self.get_main_mod().get_all_sub_nodes(uni.Import) {
         if imp.code_context == CodeContext.CLIENT
         or not imp.from_loc
-        or not imp.items {
+        or not imp.items
+        or imp._source_context_token() is None
+        or imp._source_context_token().name != Tok.KW_SERVER {
             continue;
         }
         for item in imp.items {
@@ -3526,7 +3528,11 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
 """Process import statement."""
 impl EsastGenPass.exit_import(nd: uni.Import) -> None {
     # Server-side import (sv keyword) - generate stubs for def:pub functions
-    if nd.code_context != CodeContext.CLIENT {
+    if (
+        nd.code_context != CodeContext.CLIENT
+        and nd._source_context_token() is not None
+        and nd._source_context_token().name == Tok.KW_SERVER
+    ) {
         if (nd.from_loc and nd.items) {
             self._generate_sv_import_stubs(nd);
         }
@@ -5172,7 +5178,12 @@ impl EsastGenPass.exit_node(nd: uni.UniNode) -> None {
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
     ) {
         # Allow sv imports to reach exit_import for __jacCallFunction stub generation
-        if not isinstance(nd, (uni.Import, uni.ServerBlock)) {
+        is_sv_import = (
+            isinstance(nd, uni.Import)
+            and nd._source_context_token() is not None
+            and nd._source_context_token().name == Tok.KW_SERVER
+        );
+        if not is_sv_import and not isinstance(nd, uni.ServerBlock) {
             return;
         }
     }
@@ -5197,8 +5208,12 @@ impl EsastGenPass.enter_node(nd: uni.UniNode) -> None {
     ) {
         # Don't prune sv imports or sv blocks - they need to reach
         # exit_import so we can generate __jacCallFunction stubs
-        is_sv_import = isinstance(nd, (uni.Import, uni.ServerBlock));
-        if not is_sv_import {
+        is_sv_import = (
+            isinstance(nd, uni.Import)
+            and nd._source_context_token() is not None
+            and nd._source_context_token().name == Tok.KW_SERVER
+        );
+        if not is_sv_import and not isinstance(nd, uni.ServerBlock) {
             self.prune();
             return;
         }
