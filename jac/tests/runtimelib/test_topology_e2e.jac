@@ -28,6 +28,14 @@ edge Weighted {
     has weight: int = 0;
 }
 
+# Inheritance hierarchy used by the parent-type-query test below.
+node BaseContent {
+    has val: int = 0;
+}
+
+node PostNode(BaseContent) {}
+node ArticleNode(BaseContent) {}
+
 test "index type-filtered query returns correct results" {
     cfg = JacConfig();
     cfg.run.topology_index = True;
@@ -303,6 +311,61 @@ test "plan_query bails when a hop has predicates beyond type" {
         # subset, regardless of which path the runtime took.
         result = [r->:EdgeX:->[?:TypeA, val>5]];
         assert sorted([n.val for n in result]) == [6, 7, 8, 9];
+    } finally {
+        ctx.close();
+        set_config(JacConfig());
+    }
+}
+
+test "parent-type filter returns all subtype instances" {
+    # BUG: pre-PR 5784 main only ever indexed concrete type names. The hooks
+    # called `_type_name(node.archetype)` which is just `type(obj).__name__`,
+    # and resolve_chain matched targets by strict `node_table[lid][1] ==
+    # ntid`. So `[r->:EdgeX:->[?:BaseContent]]` against a graph containing
+    # only PostNode and ArticleNode instances returned the empty set --
+    # parent-type queries silently dropped every subtype instance.
+    #
+    # The fix indexes each target under every ancestor in its MRO at
+    # edge-creation time. This test pins the e2e behavior so a regression 
+    # in the MRO fan-out path can't silently return empty sets again.
+    cfg = JacConfig();
+    cfg.run.topology_index = True;
+    set_config(cfg);
+    ctx = ExecutionContext();
+    JacRuntime.set_context(ctx);
+    try {
+        r = root;
+        for i in range(5) {
+            r +>: EdgeX :+> PostNode(val=i);
+        }
+        for i in range(5) {
+            r +>: EdgeX :+> ArticleNode(val=100 + i);
+        }
+
+        # Parent-type filter: must return ALL 10 (5 PostNode + 5 ArticleNode).
+        all_subtypes = [r->:EdgeX:->[?:BaseContent]];
+        assert len(all_subtypes) == 10 , (
+            f"BaseContent parent query should return all 10 subtype instances, got {len(
+                all_subtypes
+            )}"
+        );
+        vals = sorted([n.val for n in all_subtypes]);
+        assert vals == [0, 1, 2, 3, 4, 100, 101, 102, 103, 104];
+
+        # Concrete-subtype filter still narrows to exactly its own type.
+        only_posts = [r->:EdgeX:->[?:PostNode]];
+        assert len(only_posts) == 5;
+        assert sorted([n.val for n in only_posts]) == [0, 1, 2, 3, 4];
+
+        # Cross-check with the index disabled in the same context — both paths
+        # must produce identical results, proving the MRO-aware index doesn't
+        # invent matches that the natural walk wouldn't return.
+        cfg.run.topology_index = False;
+        set_config(cfg);
+        nat_all = sorted([n.val for n in [r->:EdgeX:->[?:BaseContent]]]);
+        nat_posts = sorted([n.val for n in [r->:EdgeX:->[?:PostNode]]]);
+        assert nat_all == vals;
+        assert nat_posts == [0, 1, 2, 3, 4];
     } finally {
         ctx.close();
         set_config(JacConfig());
