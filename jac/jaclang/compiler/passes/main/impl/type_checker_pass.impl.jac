@@ -1019,38 +1019,41 @@ impl TypeCheckPass.exit_delete_stmt(self: TypeCheckPass, nd: uni.DeleteStmt) -> 
     self.evaluator.get_type_of_expression(nd.target);
 }
 
-"""Type-check visit statement target expression — must be a node type."""
+"""Type-check visit statement target expression — must be a node type
+or a collection (list/tuple/set/frozenset) whose element type is a node.
+Mirrors the connect-operand recursive check in `operations.jac`.
+"""
 impl TypeCheckPass.exit_visit_stmt(self: TypeCheckPass, nd: uni.VisitStmt) -> None {
     import from jaclang.compiler.type_system { types }
     target_type = self.evaluator.get_type_of_expression(nd.target);
-    # Validate the visit target is a node (or unknown/any which we can't check)
-    if (
-        not isinstance(target_type, types.UnknownType) and not target_type.is_any_type()
-    ) {
-        is_valid = False;
-        if isinstance(target_type, types.ClassType) {
-            if target_type.is_node_type() {
-                is_valid = True;
+
+    def is_valid_visit_target(t: types.TypeBase) -> bool {
+        if t.is_any_type() or isinstance(t, types.UnknownType) {
+            return True;
+        }
+        if isinstance(t, types.ClassType) and t.is_node_type() {
+            return True;
+        }
+        if isinstance(t, types.UnionType) {
+            # Could contain nodes; don't over-diagnose unions.
+            return True;
+        }
+        if (
+            isinstance(t, types.ClassType)
+            and t.is_builtin()
+            and t.shared.class_name in ("list", "tuple", "set", "frozenset")
+        ) {
+            if t.private.type_args and len(t.private.type_args) > 0 {
+                return all(is_valid_visit_target(a) for a in t.private.type_args);
             }
-            # Allow collections of nodes (e.g., list[NodeType])
-            if (
-                target_type.is_builtin()
-                and target_type.shared.class_name in (
-                    "list",
-                    "tuple",
-                    "set",
-                    "frozenset"
-                )
-            ) {
-                is_valid = True;
-            }
+            # Unparameterized collection — accept (matches connect operand).
+            return True;
         }
-        if isinstance(target_type, types.UnionType) {
-            is_valid = True;  # Could contain nodes, don't over-diagnose
-        }
-        if not is_valid {
-            self.emit(E1094, node_override=nd, type=str(target_type));
-        }
+        return False;
+    }
+
+    if not is_valid_visit_target(target_type) {
+        self.emit(E1094, node_override=nd, type=str(target_type));
     }
 }
 

@@ -898,6 +898,33 @@ test "connect_node_collection" {
     assert len(program.errors_had) == 0;
 }
 
+test "visit_collection_element_type" {
+    # `visit` accepts node, list/tuple/set/frozenset of nodes, or any/unknown.
+    # When the collection is parameterized, the element type must be a node.
+    # The `Bad` walker has 7 visits whose element type is non-node (E1094).
+    # The `Good` walker has only valid visits and must produce no E1094.
+    path = os.path.join(CHECKER_FIXTURES, "checker_visit_collection_element.jac");
+    program = JacProgram();
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+    e1094 = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code == "E1094"
+    ];
+    assert len(e1094) == 7 , f"Expected 7 E1094 (non-node visit element type), got {len(
+        e1094
+    )}:\n" + "\n---\n".join(e.pretty_print() for e in e1094);
+    other = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code != "E1094"
+    ];
+    assert len(other) == 0 , f"Expected no other errors, got {len(other)}:\n" + "\n---\n".join(
+        e.pretty_print() for e in other
+    );
+}
+
 test "root_type" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_root_type.jac");
