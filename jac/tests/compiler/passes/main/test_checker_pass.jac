@@ -899,9 +899,10 @@ test "connect_node_collection" {
 }
 
 test "visit_collection_element_type" {
-    # `visit` accepts node, list/tuple/set/frozenset of nodes, or any/unknown.
-    # When the collection is parameterized, the element type must be a node.
-    # The `Bad` walker has 7 visits whose element type is non-node (E1094).
+    # `visit` accepts node | edge | path | collection of (node | edge),
+    # or any/unknown. Parameterized collections must have valid element
+    # types; unions must have all members valid.
+    # The `Bad` walker has 9 visits whose target is invalid (E1094).
     # The `Good` walker has only valid visits and must produce no E1094.
     path = os.path.join(CHECKER_FIXTURES, "checker_visit_collection_element.jac");
     program = JacProgram();
@@ -912,7 +913,7 @@ test "visit_collection_element_type" {
         for e in program.errors_had
         if e.code and e.code.code == "E1094"
     ];
-    assert len(e1094) == 7 , f"Expected 7 E1094 (non-node visit element type), got {len(
+    assert len(e1094) == 9 , f"Expected 9 E1094 (invalid visit target), got {len(
         e1094
     )}:\n" + "\n---\n".join(e.pretty_print() for e in e1094);
     other = [
