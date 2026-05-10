@@ -3,7 +3,6 @@ Provides type evaluation logic for unary, binary, augmented assignment and terna
 
 PyrightReference: packages/pyright-internal/src/analyzer/operations.ts
 """
-import from typing { TYPE_CHECKING }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from . { types as jtypes }
@@ -18,12 +17,7 @@ import from jaclang.jac0core.diagnostics {
     E1114,
     E1115
 }
-
-with entry {
-    if TYPE_CHECKING {
-        import from .type_evaluator { TypeEvaluator }
-    }
-}
+import type from .type_evaluator { TypeEvaluator }
 
 # FIX: py2jac bug - module-level constants must be declared with glob outside with entry block
 # Otherwise they become Field descriptors when accessed from functions
