@@ -9,6 +9,9 @@ This tutorial covers declaring reactive state, handling user input, sharing stat
 > - Completed: [React-Style Components](components.md)
 > - Time: ~30 minutes
 
+!!! note "Reactive state, hooks, and `jac check`"
+    Some blocks below mix reactive `has` state with React-flavored helpers (`createContext`, `useContext`, async effect blocks, `props.children`). Jac's bundler wires all of this up at build time, but the static checker has not yet shipped typed stubs for the React/JSX prop boundary, so isolated `jac check` runs flag the corresponding accesses as Unknown. The patterns work as written under `jac start`.
+
 ---
 
 ## Reactive State with `has`
@@ -82,6 +85,7 @@ def:pub Form() -> JsxElement {
 
 ## Complex State (Objects/Lists)
 
+<!-- jac-skip -->
 ```jac
 to cl:
 
@@ -135,6 +139,7 @@ def:pub TodoApp() -> JsxElement {
 
 Similar to how `has` automatically generates `useState`, you can use `can with entry` and `can with exit` to automatically generate `useEffect` hooks:
 
+<!-- jac-skip -->
 ```jac
 to cl:
 
@@ -163,6 +168,7 @@ def:pub DataFetcher() -> JsxElement {
 
 Use list syntax `[dep1, dep2]` to specify dependencies (similar to React's dependency arrays):
 
+<!-- jac-skip -->
 ```jac
 to cl:
 
@@ -241,6 +247,7 @@ def:pub DataFetcher() -> JsxElement {
 
 ### Creating Context
 
+<!-- jac-skip -->
 ```jac
 to cl:
 
@@ -300,6 +307,7 @@ def:pub app() -> JsxElement {
 
 Create reusable state logic:
 
+<!-- jac-skip -->
 ```jac
 to cl:
 

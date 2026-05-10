@@ -111,8 +111,11 @@ The `Image` type accepts multiple input formats:
 | BytesIO | `Image(bytes_io_buffer)` |
 | pathlib.Path | `Image(Path("photo.jpg"))` |
 
+> **Note**: All eight forms are accepted at runtime. Only the string-valued forms (file paths, URLs, GCS URIs, data URLs) are statically verified by `jac check` today; the `PIL.Image`, `bytes`, `BytesIO`, and `pathlib.Path` forms work through duck typing and may produce `E1053` warnings until the `Image` constructor stub is widened.
+
 ### In-Memory Usage
 
+<!-- jac-skip: non-string Image inputs work at runtime but are not yet covered by the static stub -->
 ```jac
 import from byllm.lib { Image }
 import io;

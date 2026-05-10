@@ -243,6 +243,10 @@ axios = "^1.6.0"
 
 Then use in frontend:
 
+!!! note "npm imports and `jac check`"
+    npm packages bundle correctly at build time, but the static checker has no `.d.ts`-like stubs for them yet, so `jac check` reports their attributes as Unknown. The code below runs as written under `jac start`.
+
+<!-- jac-skip: lodash is an npm package without typed stubs -->
 ```jac
 to cl:
 

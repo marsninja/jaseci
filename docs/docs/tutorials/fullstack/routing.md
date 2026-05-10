@@ -17,6 +17,9 @@ When your application grows beyond a single view, you need routing -- the abilit
 !!! tip "Browser APIs in client code"
     Inside `cl { }` blocks, standard JavaScript browser APIs like `URLSearchParams`, `parseInt`, `setInterval`, `clearInterval`, `localStorage`, and `JSON` are available since client code compiles to JavaScript.
 
+!!! note "Route params and `jac check`"
+    `useParams()` and `useSearchParams()` return JS-flavored objects whose dynamic property access (`params.id`, `params.slug`) works at runtime but is not yet typed in the static checker. Snippets that read those props show `E1030` warnings under isolated `jac check`, even though they run cleanly under `jac start`.
+
 Jac-client supports two routing approaches:
 
 1. **File-Based Routing** (Recommended) - Convention over configuration
@@ -83,6 +86,7 @@ def:pub page() -> JsxElement {
 
 Use square brackets for dynamic URL segments:
 
+<!-- jac-skip -->
 ```jac
 # pages/users/[id].jac
 cl import from "@jac/runtime" { Link, useParams }
@@ -118,6 +122,7 @@ def:pub page() -> JsxElement {
 
 ### Slug-Based Routes
 
+<!-- jac-skip -->
 ```jac
 # pages/posts/[slug].jac
 cl import from "@jac/runtime" { Link, useParams }
@@ -552,6 +557,7 @@ Any pages in the `(protected)` group will require authentication.
 
 ### Custom Protected Routes
 
+<!-- jac-skip -->
 ```jac
 cl import from "@jac/runtime" { useNavigate, jacIsLoggedIn }
 
@@ -583,6 +589,7 @@ def:pub ProtectedRoute(props: dict) -> JsxElement {
 
 Access query parameters using `useLocation` and standard URL parsing:
 
+<!-- jac-skip -->
 ```jac
 cl import from "@jac/runtime" { useLocation, useNavigate }
 
@@ -655,6 +662,7 @@ def:pub app() -> JsxElement {
 
 Use `useLocation` with `Link` to create active link styling:
 
+<!-- jac-skip -->
 ```jac
 cl import from "@jac/runtime" { Link, useLocation }
 

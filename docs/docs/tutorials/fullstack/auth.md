@@ -9,6 +9,9 @@ The key concept is **per-user data isolation**: when a function or walker is mar
 > - Completed: [Backend Integration](backend.md)
 > - Time: ~30 minutes
 
+!!! note "Auth runtime helpers and `jac check`"
+    The `jacLogin`/`jacSignUp`/`jacLogout`/`jacIsLoggedIn` helpers, walker spawn-result `.reports`, and the `localStorage`/`window.location` browser globals all work at runtime under `jac start`. The static checker has not yet shipped typed stubs for the auth runtime or for walker spawn results, so isolated `jac check` runs on the snippets below report `E1032` warnings.
+
 ---
 
 ## Overview
@@ -109,6 +112,7 @@ def:pub LoginPage() -> JsxElement {
 
 Authenticates a user and stores the JWT token.
 
+<!-- jac-skip -->
 ```jac
 cl import from "@jac/runtime" { jacLogin }
 
@@ -131,6 +135,7 @@ async def handleLogin() -> None {
 
 Registers a new user account.
 
+<!-- jac-skip -->
 ```jac
 cl import from "@jac/runtime" { jacSignup }
 
@@ -191,6 +196,7 @@ def:pub NavBar() -> JsxElement {
 
 ## Complete Auth Example
 
+<!-- jac-skip -->
 ```jac
 cl import from "@jac/runtime" {
     jacLogin,
@@ -470,6 +476,7 @@ The `AuthGuard` component:
 
 For complex apps that need shared auth state across components:
 
+<!-- jac-skip -->
 ```jac
 cl import from "@jac/runtime" { jacIsLoggedIn, jacLogin, jacLogout }
 
