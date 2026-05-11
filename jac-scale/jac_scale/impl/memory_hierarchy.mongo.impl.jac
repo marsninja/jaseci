@@ -41,10 +41,9 @@ impl MongoBackend.postinit -> None {
     }
 }
 
-
 """Create indexes that make type-based pushdown queries efficient.
 
-Idempotent — `create_index` is a no-op when an index of the same shape and
+Idempotent: `create_index` is a no-op when an index of the same shape and
 name already exists, so this can be called on every connect without cost.
 
 The compound `(arch_type, type)` index is what makes `execute_plan`
@@ -474,7 +473,7 @@ impl MongoBackend.query(
 
 """Get all root anchors using an indexed type filter (no full collection scan).
 
-Uses the `(arch_type, type)` compound index — IXSCAN, not COLLSCAN. The
+Uses the `(arch_type, type)` compound index: IXSCAN, not COLLSCAN. The
 Python-side `isinstance` check is kept as a defense-in-depth filter in case
 schema drift left a non-Root archetype with `arch_type='Root'`.
 """
@@ -492,6 +491,34 @@ impl MongoBackend.get_roots -> Generator[Root, None, None] {
         }
     } except Exception as e {
         logger.debug(f"MongoDB get_roots failed: {e}");
+    }
+}
+
+
+"""Convenience: query anchors by archetype type with optional field filter.
+
+This is the PR #5917 surface preserved as a thin wrapper around
+`execute_plan` for callers that want the simple "type + field predicates"
+shape without building a `QueryPlan` themselves. It exists to validate that
+the abstraction subsumes the original use case; new code should prefer
+`execute_plan(QueryPlan(...))` directly.
+
+arch_type_name: the archetype class name (e.g. 'User', 'Lead').
+mongo_filter:   optional dict of archetype field predicates using MongoDB
+                operators (`{'age': {'$lt': 28}}`). Forwarded verbatim as
+                `QueryPlan.field_predicates`.
+
+Example:
+    for anchor in backend.query_by_type('User', {'age': {'$lt': 28}}) { ... }
+"""
+impl MongoBackend.query_by_type(
+    arch_type_name: str, mongo_filter: (dict | None) = None
+) -> Generator[Anchor, None, None] {
+    plan = QueryPlan(
+        node_type_final=arch_type_name, field_predicates=mongo_filter or {}
+    );
+    for anchor in self.execute_plan(plan) {
+        yield anchor;
     }
 }
 

@@ -128,9 +128,14 @@ obj MongoBackend(PersistentMemory) {
 
     def commit(anchor: (Anchor | None) = None) -> None;
     def batch_get(ids: list[UUID]) -> dict[UUID, Anchor];
-    # Pushdown protocol — Mongo declares native type+field+id_in+slice support.
+    # Pushdown protocol: Mongo declares native type+field+id_in+slice support.
     def capabilities -> set[str];
     def execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None];
+    # Convenience wrapper around execute_plan (preserves the PR #5917 surface).
+    def query_by_type(
+        arch_type_name: str, mongo_filter: (dict | None) = None
+    ) -> Generator[Anchor, None, None];
+
     # One-time index setup (idempotent). Called from postinit.
     def ensure_indexes -> None;
     # PersistentMemory-specific
