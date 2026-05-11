@@ -252,6 +252,33 @@ impl Parser.consume_uni(kind: TokenKind) -> UniToken {
     return self.make_uni_token(tok);
 }
 
+"""Consume the statement-terminating `;`, emitting a JS-`new`-aware
+diagnostic when it is missing.
+
+Returns True if `;` was consumed, False otherwise.
+
+`new` is now an ambient builtin callable as `new(Cls, ...args)`, so the
+parser accepts it as a normal identifier. That means JS-style
+`mycar = new car("honda", 2018);` parses as `mycar = new` followed by a
+stray expression `car("honda", 2018);`, and the bare RHS `new` would
+otherwise produce only the generic `E0002 Missing ';'`. To preserve
+helpful migration guidance, detect that shape (statement value is bare
+`Name("new")` and the next token starts something other than `;`) and
+emit `E0012` instead — its template already recommends
+`new(target, ...args)`.
+"""
+impl Parser.expect_stmt_terminator(value: Expr | None) -> bool {
+    if self.match_tok(TokenKind.SEMI) {
+        return True;
+    }
+    if value is not None and isinstance(value, Name) and value.value == "new" {
+        self.emit_diag(E0012, loc=self.current().loc);
+    } else {
+        self.emit_diag(E0002, token=";");
+    }
+    return False;
+}
+
 impl Parser._make_alert(
     message: str, sloc: SourceLoc, code: DiagnosticInfo | None = None
 ) -> Alert {
@@ -4111,10 +4138,8 @@ impl Parser.parse_statement{
     }
     # Wrap bare expression in ExprStmt with Semi
     expr_kid: list = [expr];
-    if self.match_tok(TokenKind.SEMI) {
+    if self.expect_stmt_terminator(expr) {
         expr_kid.append(self.make_semi());
-    } else {
-        self.emit_diag(E0002, token=";");
     }
     return ExprStmt(expr=expr, in_fstring=False, kid=expr_kid);
 }
@@ -5101,7 +5126,7 @@ impl Parser.parse_assignment_with_target(
     }
     # Add Semi as child of Assignment (matching Lark structure)
     if require_semi {
-        self.expect(TokenKind.SEMI);
+        self.expect_stmt_terminator(value);
         kid.append(self.make_semi());
     } elif self.match_tok(TokenKind.SEMI) {
         kid.append(self.make_semi());

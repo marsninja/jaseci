@@ -422,6 +422,7 @@ obj Parser {
     def get_source -> Source;
     def match_tok(kind: TokenKind) -> Token | None;
     def expect(kind: TokenKind) -> Token;
+    def expect_stmt_terminator(value: Expr | None) -> bool;
     def consume_uni(kind: TokenKind) -> UniToken;
     def expect_name -> Token;
     def _make_alert(
