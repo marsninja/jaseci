@@ -393,7 +393,53 @@ Three primitives:
   string prop.
 
 Hash function: `blake2s(module_path + view_name + ord)[:8]`. Stable across
-builds, so generated CSS module names diff cleanly.
+builds, so generated CSS class names diff cleanly.
+
+### Emit Format: pre-hashed plain CSS, side-effect imported
+
+Because the compiler hashes class names at compile time, the *emit* step
+needs no CSS-Modules / scoped-attr / CSS-in-JS infrastructure. For each
+view (or each `.cl.jac` module that contains views), the styling pass:
+
+1. Rewrites the captured `<style>` body so every class/ID selector carries
+   its hashed suffix; selectors inside `:global(…)` lose the wrapper but
+   keep their original names.
+2. Rewrites every `class="foo"` and `{style "foo"}` reference in the JSX
+   to the hashed string directly (no `styles.foo` indirection).
+3. Emits the rewritten CSS as a sibling `<view>.css` file and adds a
+   side-effect `import "./<view>.css";` to the compiled `.cl.jac` output.
+
+Properties of this choice:
+
+- **Identical lowering across all targets.** React, Preact, Solid, Vue
+  Vapor, and Ripple all consume `<div class="card_a3b9c1d2">` the same
+  way. No per-target CSS-engine bridge; Vue's scoped-attr is an
+  implementation Vue uses internally, not a requirement Vue imposes on
+  consumers.
+- **No bundler config.** `.css` side-effect imports work in Vite, webpack,
+  Rspack, Turbopack, Bun, Parcel, esbuild without any plugin. CSS Modules
+  would require the loader to recognize `.module.css` and emit a JS export
+  object; we don't need that because we're not deferring hashing to the
+  loader.
+- **SSR-friendly.** The bundler emits the CSS as part of the asset graph,
+  so SSR setups inject `<link>` tags automatically.
+- **Bundler-free dev mode works.** A plain `<link rel="stylesheet">` is
+  enough; no module-loader runtime required.
+
+Rejected alternatives:
+
+- **CSS Modules** (`<view>.module.css` + `import s from "./..."` + `s.foo`
+  references) - strict superset of what we need; the loader-config and
+  indirection buy nothing once hashing is the compiler's job.
+- **Runtime `<style>` injection** - FOUC on hydration, double-injection
+  risk in SSR, runtime cost on every module load.
+- **CSS-in-JS** - the JS ecosystem is migrating away (Next.js dropped
+  styled-components support; React docs warn against runtime CSS-in-JS
+  for RSC); locking the emit format to a model that's losing momentum
+  would age badly.
+- **Scoped-attr (Vue-style `data-v-*`)** - Vue's *internal* scoping
+  mechanism, not a portable emit format. Adopting it would require
+  reimplementing Vue's runtime attr-injection on React/Solid for no win.
 
 ## Dynamic Tags
 
@@ -816,13 +862,6 @@ Built on top of the existing JSX infrastructure, not parallel to it.
 - Lazy loading + Suspense pairing.
 - Generic views end-to-end.
 - Walker-driven data fetching primitive (`useWalker(MyWalker, …)`).
-
-## Open Design Questions
-
-1. **CSS engine choice** - emit CSS modules (cross-bundler), scoped-attr
-   style (Vue-native), or CSS-in-JS (React idiom). Recommend CSS modules as
-   the unified emit format; bundlers already understand them. Vue target
-   bridges to Vapor's scoped-attr.
 
 ## Related Documents
 
