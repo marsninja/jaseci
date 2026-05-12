@@ -1071,6 +1071,33 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 else 0}"
                         );
                     }
+                    # First reassignment of a borrowed param: emit an entry-block retain
+                    # so the alloca becomes owned and the release-of-old below is balanced
+                    # (avoids double-free with the caller's own scope-exit release).
+                    if var_name in self.param_vars {
+                        if var_name not in self._param_promoted {
+                            _anchor = self._param_store_instr.get(var_name);
+                            if _anchor is not None
+                            and isinstance(alloca.type, ir.PointerType)
+                            and isinstance(alloca.type.pointee, ir.PointerType) {
+                                _saved_block = self.builder.block;
+                                self.builder.position_after(_anchor);
+                                _borrowed = self.builder.load(
+                                    alloca, name=f"{var_name}.borrowed"
+                                );
+                                self._emit_rc_retain(
+                                    _borrowed,
+                                    op="param_promote",
+                                    loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                                        if nd.loc
+                                        else 0}"
+                                );
+                                self.builder.position_at_end(_saved_block);
+                            }
+                            self._param_promoted.add(var_name);
+                        }
+                        self.param_vars.discard(var_name);
+                    }
                     old_val = self.builder.load(alloca, name=f"{var_name}.old");
                     self._emit_rc_release_typed(
                         old_val,

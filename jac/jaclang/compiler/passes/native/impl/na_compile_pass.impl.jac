@@ -248,6 +248,31 @@ impl NativeCompilePass._compile_and_link_native_imports(
     import hashlib;
     import json;
     import from jaclang.jac0core.codeinfo { NativeModuleInfo, NativeFunctionInfo }
+
+    # ── Compiler fingerprint for cache invalidation ─────────────────────
+    # Hash all .jac implementation files so that any compiler change
+    # automatically invalidates stale .ir_cache files.  Computed once per
+    # _compile_and_link_native_imports call (negligible vs. compile time).
+    import glob as _cgl;
+    import jaclang as _jlm;
+    _jl_dir = os.path.dirname(os.path.abspath(_jlm.__file__));
+    _nat_dir = os.path.join(_jl_dir, "compiler", "passes", "native");
+    _comp_h = hashlib.sha256();
+    for _cp in [
+        os.path.join(_nat_dir, "impl", "*.jac"),
+        os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
+
+    ] {
+        for _cf in sorted(_cgl.glob(_cp)) {
+            try {
+                with open(_cf, "rb") as _cfh {
+                    _comp_h.update(_cfh.read());
+                }
+            } except Exception { }
+        }
+    }
+    _compiler_fp = _comp_h.hexdigest()[:8];
+
     # Keep track of linked modules to avoid duplicate linking.
     # Keyed by os.path.realpath so diamond deps (A→B→C, A→C) are linked once.
     linked_modules: dict = {};
@@ -263,8 +288,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
     # Otherwise the very first imported module that legitimately *declares*
     # one of main's functions could be mis-flagged as a collision after a
     # subsequent module *defines* the same name.
-    _INTERNAL_LINKAGE = 8;
-    _PRIVATE_LINKAGE = 9;
+    _INTERNAL_LINKAGE = 8;  # internal — per-module, renamed on link_in
+    _PRIVATE_LINKAGE = 9;  # private  — per-module
+    _WEAK_LINKAGE = 5;  # weak     — linker merges; safe to define in multiple modules
+    _WEAK_ODR_LINKAGE = 6;  # weak_odr — same, body guaranteed identical across modules
     for _mfn in main_mod.functions {
         if _mfn.is_declaration or _mfn.name.startswith("llvm.") {
             continue;
@@ -332,11 +359,13 @@ impl NativeCompilePass._compile_and_link_native_imports(
         linked_modules[real_path] = None;  # mark visited before compile
 
         # ── Incremental compilation: check IR cache before recompiling ────
-        # Hash the source file and look for a cached IR text + metadata.
-        # Cache layout: <source_dir>/.jac_ir/<stem>.<hash8>.ir_cache
-        #               <source_dir>/.jac_ir/<stem>.<hash8>.ir_meta  (JSON)
+        # Hash the source file + compiler fingerprint to form the cache key.
+        # Cache layout: <source_dir>/.jac_ir/<stem>.<src_hash>.<comp_fp>.ir_cache
+        #               <source_dir>/.jac_ir/<stem>.<src_hash>.<comp_fp>.ir_meta
         # The .ir_cache file contains the raw LLVM IR text (pre-rename).
         # The .ir_meta file contains clib_paths and transitive dep info.
+        # Including _compiler_fp ensures stale caches from a previous compiler
+        # version are never reused after compiler implementation files change.
         _src_dir = os.path.dirname(real_path);
         _src_stem = os.path.splitext(os.path.basename(real_path))[0];
         if _src_stem.endswith(".na") {
@@ -357,10 +386,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 _source_hash = hashlib.sha256(_sf.read()).hexdigest()[:12];
             }
             _cache_ir_path = os.path.join(
-                _ir_cache_dir, f"{_src_stem}.{_source_hash}.ir_cache"
+                _ir_cache_dir, f"{_src_stem}.{_source_hash}.{_compiler_fp}.ir_cache"
             );
             _cache_meta_path = os.path.join(
-                _ir_cache_dir, f"{_src_stem}.{_source_hash}.ir_meta"
+                _ir_cache_dir, f"{_src_stem}.{_source_hash}.{_compiler_fp}.ir_meta"
             );
 
             if os.path.exists(_cache_ir_path) and os.path.exists(_cache_meta_path) {
@@ -534,7 +563,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     continue;
                 }
                 if func.linkage == _INTERNAL_LINKAGE
-                or func.linkage == _PRIVATE_LINKAGE {
+                or func.linkage == _PRIVATE_LINKAGE
+                or func.linkage == _WEAK_LINKAGE
+                or func.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
                 exported_funcs.append(func.name);
@@ -554,7 +585,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
             for gv in imported_mod.global_variables {
                 if gv.is_declaration
                 or gv.linkage == _INTERNAL_LINKAGE
-                or gv.linkage == _PRIVATE_LINKAGE {
+                or gv.linkage == _PRIVATE_LINKAGE
+                or gv.linkage == _WEAK_LINKAGE
+                or gv.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
                 exported_globals.append(gv.name);

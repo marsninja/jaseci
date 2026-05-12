@@ -157,6 +157,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         rc_ctx_loc_gv: object = None,
         malloc_fn: (ir.Function | None) = None,
         free_fn: (ir.Function | None) = None,
+        rc_safe_free_fn: (ir.Function | None) = None,
         struct_release_fns: dict[str, ir.Function] = {},
         list_release_fns: dict[str, ir.Function] = {},
         dict_release_fns: dict[str, ir.Function] = {},
@@ -167,6 +168,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _global_origins: dict[str, str] = {},
         _clib_paths: list[str] = [],
         _native_emit_ctx_class: (type | None) = None,
+        # Per-function tracking for borrowed-param promotion: entry-block store instruction
+        # per param (for position_after retain insertion) and set of already-promoted params.
+        # Both are reset at the start of each function/method.
+        _param_store_instr: dict[str, object] = {},
+        _param_promoted: set[str] = set(),
         # DWARF debug metadata (populated in postinit when JAC_NATIVE_DEBUG=1)
         di_file: object = None,
         di_cu: object = None,
