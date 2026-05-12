@@ -180,6 +180,21 @@ In the example above, each case ends with `return`, so the function exits before
 **`match`/`case`**, on the other hand, is for Python-style structural pattern matching -- use it when you need to destructure values or match more complex patterns:
 
 ```jac
+def describe(value: any) -> str {
+    match value {
+        case 0:
+            return "zero";
+        case 1 | 2 | 3:
+            return "small number";
+        case _:
+            return "something else";
+    }
+}
+```
+
+It really shines when you destructure structured data:
+
+```jac
 def describe_point(point: tuple) -> str {
     match point {
         case (0, 0):
