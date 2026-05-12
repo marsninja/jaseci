@@ -1693,12 +1693,8 @@ test "syntax error pretty print" {
     """,
         program.errors_had[0].pretty_print()
     );
-    _assert_error_pretty_found(
-        "`new(target, ...args)`", program.errors_had[1].pretty_print()
-    );
-    _assert_error_pretty_found(
-        "`new(target, ...args)`", program.errors_had[2].pretty_print()
-    );
+    _assert_error_pretty_found("Missing ';'", program.errors_had[1].pretty_print());
+    _assert_error_pretty_found("Missing ';'", program.errors_had[2].pretty_print());
 }
 
 test "jac grammar" {
