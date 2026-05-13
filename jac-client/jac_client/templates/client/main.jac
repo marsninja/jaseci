@@ -15,7 +15,6 @@ def:pub app -> JsxElement {
             <div style={{"display": "flex", "gap": "1rem", "marginTop": "1rem"}}>
                 <Button
                     label="Increment"
-
                     onClick={lambda { count = count + 1; }}
                     variant="primary"
                 />
