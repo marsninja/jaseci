@@ -128,46 +128,11 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
         self.param_vars.add(param_name);
-        # Track type annotations for parameters
-        if p.type_tag and p.type_tag.tag {
-            self.var_type_node[param_name] = p.type_tag.tag;
-            for (ename, ltype) in self.list_types.items() {
-                if arg_val.type == ltype.as_pointer() {
-                    self.var_list_elem_type[param_name] = ename;
-                    break;
-                }
-            }
-            # Track dict type for dict parameters
-            for (dkey, dtype) in self.dict_types.items() {
-                if arg_val.type == dtype.as_pointer() {
-                    self.var_dict_type[param_name] = dkey;
-                    break;
-                }
-            }
-            # Track set element type for set parameters
-            for (ename, stype) in self.set_types.items() {
-                if arg_val.type == stype.as_pointer() {
-                    self.var_set_elem_type[param_name] = ename;
-                    break;
-                }
-            }
-            # Track struct types (including union T | None)
-            tag_name = self._get_name(p.type_tag.tag);
-            tag_node = p.type_tag.tag;
-            if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
-                op_val = getattr(tag_node.op, 'value', '');
-                if op_val == "|" {
-                    tag_name = self._get_name(tag_node.left);
-                }
-            }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[param_name] = tag_name;
-            }
-            # Track enum type for enum-typed parameters
-            if tag_name is not None and tag_name in self.enum_types {
-                self.var_enum_type[param_name] = tag_name;
-            }
-        }
+        self._track_param_type(
+            param_name,
+            arg_val.type,
+            p.type_tag.tag if p.type_tag and p.type_tag.tag else None
+        );
     }
     # Generate body via manual tree-walking (handle ImplDef wrapper from DeclImplMatchPass)
     body = ModuleCodegenPass.unwrap_body(nd);

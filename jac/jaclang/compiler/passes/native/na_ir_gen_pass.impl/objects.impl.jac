@@ -460,20 +460,11 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     saved_builder = self.builder;
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
-    saved_type_map = dict(self.type_var_map);
-    saved_type_node = dict(self.var_type_node);
-    saved_list_elem = dict(self.var_list_elem_type);
-    saved_dict_type = dict(self.var_dict_type);
-    saved_set_elem = dict(self.var_set_elem_type);
-    saved_tuple_type = dict(self.var_tuple_type);
+    saved_type_scope = self._save_native_type_scope();
     self.builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.var_type_node = {};
-    self.var_list_elem_type = {};
-    self.var_dict_type = {};
-    self.var_set_elem_type = {};
-    self.var_tuple_type = {};
+    self._reset_native_type_scope();
     # DWARF debug info (JAC_NATIVE_DEBUG=1)
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
@@ -483,17 +474,7 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
     self.type_var_map["self"] = arch_name;
-    # Re-populate field list/type info from archetype has-declarations
-    if arch_name in self.field_type_node {
-        for (fname, ftn) in self.field_type_node[arch_name].items() {
-            qname = f"self.{fname}";
-            self.var_type_node[qname] = ftn;
-            ename = self._get_list_elem_from_type_node(ftn);
-            if ename is not None {
-                self.var_list_elem_type[qname] = ename;
-            }
-        }
-    }
+    self._track_self_field_types(arch_name);
     # Store other parameters
     sig = method.signature;
     for (i, p) in enumerate(sig.get_parameters()) {
@@ -503,42 +484,11 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
         self.param_vars.add(param_name);
-        # Track type info for struct pointer parameters
-        if isinstance(arg_val.type, ir.PointerType) {
-            for (sname, stype) in self.struct_types.items() {
-                if arg_val.type == stype.as_pointer() {
-                    self.type_var_map[param_name] = sname;
-                    break;
-                }
-            }
-        }
-        # Track Jac type annotation for parameters (enables nested list resolution)
-        if p.type_tag and p.type_tag.tag {
-            self.var_type_node[param_name] = p.type_tag.tag;
-            # Also track list elem type from annotation
-            for (ename, ltype) in self.list_types.items() {
-                if arg_val.type == ltype.as_pointer() {
-                    self.var_list_elem_type[param_name] = ename;
-                    break;
-                }
-            }
-            # Handle union types T | None for struct tracking
-            tag_name = self._get_name(p.type_tag.tag);
-            tag_node = p.type_tag.tag;
-            if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
-                op_val = getattr(tag_node.op, 'value', '');
-                if op_val == "|" {
-                    tag_name = self._get_name(tag_node.left);
-                }
-            }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[param_name] = tag_name;
-            }
-            # Track enum type for enum-typed method parameters
-            if tag_name is not None and tag_name in self.enum_types {
-                self.var_enum_type[param_name] = tag_name;
-            }
-        }
+        self._track_param_type(
+            param_name,
+            arg_val.type,
+            p.type_tag.tag if p.type_tag and p.type_tag.tag else None
+        );
     }
     # Generate body (handle ImplDef wrapper from DeclImplMatchPass)
     body = ModuleCodegenPass.unwrap_body(method);
@@ -568,12 +518,7 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.builder = saved_builder;
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
-    self.type_var_map = saved_type_map;
-    self.var_type_node = saved_type_node;
-    self.var_list_elem_type = saved_list_elem;
-    self.var_dict_type = saved_dict_type;
-    self.var_set_elem_type = saved_set_elem;
-    self.var_tuple_type = saved_tuple_type;
+    self._restore_native_type_scope(saved_type_scope);
 }
 
 """Generate method body for methods without FuncSignature (e.g., postinit)."""
@@ -589,20 +534,11 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     saved_builder = self.builder;
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
-    saved_type_map = dict(self.type_var_map);
-    saved_type_node = dict(self.var_type_node);
-    saved_list_elem = dict(self.var_list_elem_type);
-    saved_dict_type = dict(self.var_dict_type);
-    saved_set_elem = dict(self.var_set_elem_type);
-    saved_tuple_type = dict(self.var_tuple_type);
+    saved_type_scope = self._save_native_type_scope();
     self.builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.var_type_node = {};
-    self.var_list_elem_type = {};
-    self.var_dict_type = {};
-    self.var_set_elem_type = {};
-    self.var_tuple_type = {};
+    self._reset_native_type_scope();
     # DWARF debug info (JAC_NATIVE_DEBUG=1)
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
@@ -612,17 +548,7 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
     self.type_var_map["self"] = arch_name;
-    # Re-populate field list/type info from archetype has-declarations
-    if arch_name in self.field_type_node {
-        for (fname, ftn) in self.field_type_node[arch_name].items() {
-            qname = f"self.{fname}";
-            self.var_type_node[qname] = ftn;
-            ename = self._get_list_elem_from_type_node(ftn);
-            if ename is not None {
-                self.var_list_elem_type[qname] = ename;
-            }
-        }
-    }
+    self._track_self_field_types(arch_name);
     # Generate body (handle ImplDef wrapper from DeclImplMatchPass)
     body = ModuleCodegenPass.unwrap_body(method);
     if body is not None {
@@ -644,12 +570,7 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.builder = saved_builder;
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
-    self.type_var_map = saved_type_map;
-    self.var_type_node = saved_type_node;
-    self.var_list_elem_type = saved_list_elem;
-    self.var_dict_type = saved_dict_type;
-    self.var_set_elem_type = saved_set_elem;
-    self.var_tuple_type = saved_tuple_type;
+    self._restore_native_type_scope(saved_type_scope);
 }
 
 """Generate object instantiation: allocate struct, init fields, call postinit."""

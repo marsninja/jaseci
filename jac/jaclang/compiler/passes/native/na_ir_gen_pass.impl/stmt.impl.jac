@@ -1362,73 +1362,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             self.lambda_captures[var_name] = self._pending_lambda_captures;
             self._pending_lambda_captures = None;
         }
-        # Track type info for variables pointing to structs
-        if isinstance(value.type, ir.PointerType) {
-            # Check if it's a known struct pointer type
-            for (sname, stype) in self.struct_types.items() {
-                if value.type == stype.as_pointer() {
-                    self.type_var_map[var_name] = sname;
-                    break;
-                }
-            }
-        }
-        # Track from type_tag annotation (supports T and T | None union types)
+        self._track_value_type(var_name, value.type);
         if nd.type_tag and nd.type_tag.tag {
-            tag_node = nd.type_tag.tag;
-            tag_name = self._get_name(tag_node);
-            # Handle union type: T | None → extract T
-            if tag_name is None and isinstance(tag_node, uni.BinaryExpr) {
-                op_val = getattr(tag_node.op, 'value', '');
-                if op_val == "|" {
-                    tag_name = self._get_name(tag_node.left);
-                }
-            }
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[var_name] = tag_name;
-            }
-            # Track enum type for enum-typed variables
-            if tag_name is not None and tag_name in self.enum_types {
-                self.var_enum_type[var_name] = tag_name;
-            }
-            # Store the full type AST node for nested type resolution
-            self.var_type_node[var_name] = tag_node;
-        }
-        # Track list element type for list variables
-        for (ename, ltype) in self.list_types.items() {
-            if value.type == ltype.as_pointer() {
-                self.var_list_elem_type[var_name] = ename;
-                break;
-            }
-        }
-        # Track dict type for dict variables
-        for (dkey, dtype) in self.dict_types.items() {
-            if value.type == dtype.as_pointer() {
-                self.var_dict_type[var_name] = dkey;
-                break;
-            }
-        }
-        # Track set element type for set variables
-        for (ename, stype) in self.set_types.items() {
-            if value.type == stype.as_pointer() {
-                self.var_set_elem_type[var_name] = ename;
-                break;
-            }
-        }
-        # Track tuple type for tuple variables (value or pointer tuples)
-        ttrack_struct: (ir.LiteralStructType | None) = None;
-        if isinstance(value.type, ir.LiteralStructType) {
-            ttrack_struct = value.type;
-        } elif isinstance(value.type, ir.PointerType)
-        and isinstance(value.type.pointee, ir.LiteralStructType) {
-            ttrack_struct = value.type.pointee;
-        }
-        if ttrack_struct is not None {
-            for (tkey, ttype) in self.tuple_types.items() {
-                if str(ttrack_struct) == str(ttype) {
-                    self.var_tuple_type[var_name] = tkey;
-                    break;
-                }
-            }
+            self._track_annotation_type(var_name, nd.type_tag.tag, value.type);
         }
         # Track complex variables
         if value.type == self.complex_struct_type.as_pointer() {
@@ -1869,24 +1805,12 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         }
         if inner_type is not None {
             actual_elem_type = inner_type;
-            # Track inner type info on loop var
-            for (sname, stype) in self.struct_types.items() {
-                if inner_type == stype.as_pointer() {
-                    self.type_var_map[loop_var_name] = sname;
-                    break;
-                }
-            }
-            for (ename, ltype) in self.list_types.items() {
-                if inner_type == ltype.as_pointer() {
-                    self.var_list_elem_type[loop_var_name] = ename;
-                    break;
-                }
-            }
+            self._track_value_type(loop_var_name, inner_type);
             # Propagate inner type node for nested access
             if coll_type_node is not None {
                 (inner_node, _, _) = self._peel_list_type(coll_type_node);
                 if inner_node is not None {
-                    self.var_type_node[loop_var_name] = inner_node;
+                    self._track_annotation_type(loop_var_name, inner_node, inner_type);
                 }
             }
         }

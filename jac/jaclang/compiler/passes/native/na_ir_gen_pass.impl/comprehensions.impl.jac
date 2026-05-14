@@ -215,12 +215,7 @@ impl NaIRGenPass._codegen_compr_loops(
     self.local_vars[loop_var_name] = loop_alloca;
     # Track type info for loop variable
     if inner_type is not None {
-        for (sname, stype) in self.struct_types.items() {
-            if inner_type == stype.as_pointer() {
-                self.type_var_map[loop_var_name] = sname;
-                break;
-            }
-        }
+        self._track_value_type(loop_var_name, inner_type);
     }
     func = self.builder.function;
     cond_bb = func.append_basic_block(name="compr.cond");
@@ -818,12 +813,7 @@ impl NaIRGenPass._codegen_set_compr_loops(
     self.local_vars[loop_var_name] = loop_alloca;
     # Track struct type for the loop variable so field accesses work
     if coll_elem_type_name == "ptr" and actual_elem_type != coll_helpers["elem_type"] {
-        for (sname, stype) in self.struct_types.items() {
-            if actual_elem_type == stype.as_pointer() {
-                self.type_var_map[loop_var_name] = sname;
-                break;
-            }
-        }
+        self._track_value_type(loop_var_name, actual_elem_type);
     }
     func = self.builder.function;
     cond_bb = func.append_basic_block(name="scompr.cond");

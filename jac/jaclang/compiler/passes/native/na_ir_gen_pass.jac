@@ -220,6 +220,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_snprintf_fmt(fmt: str) -> ir.GlobalVariable;
     # Helper methods
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
+    def _lower_typebase_to_ir(jtype: object) -> (ir.Type | None);
     def _llvm_to_spec(t: Any) -> str;
     def _resolve_callable_type(slice: uni.IndexSlice) -> ir.Type;
     def _resolve_func_ptr_type(sig: uni.FuncSignature) -> ir.Type;
@@ -380,6 +381,19 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Type | None);
 
     def _resolve_ptr_elem_cast_type(type_node: (object | None)) -> (ir.Type | None);
+    def _reset_native_type_scope -> None;
+    def _save_native_type_scope -> tuple;
+    def _restore_native_type_scope(state: tuple) -> None;
+    def _track_annotation_type(
+        name: str, type_node: (object | None), value_type: (ir.Type | None) = None
+    ) -> None;
+
+    def _track_value_type(name: str, value_type: ir.Type) -> None;
+    def _track_param_type(
+        name: str, value_type: ir.Type, type_node: (object | None)
+    ) -> None;
+
+    def _track_self_field_types(arch_name: str) -> None;
     # Phase 7: String Methods and Builtins
     def _codegen_string_index(
         target_val: ir.Value, index_val: ir.Value
