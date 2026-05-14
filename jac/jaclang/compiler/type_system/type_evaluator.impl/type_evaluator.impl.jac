@@ -2006,6 +2006,15 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
             # Mark as class type param so it can be distinguished from module-level TypeVars.
             return types.TypeVarType(name=node_.sym_name, is_class_type_param=True);
 
+        case uni.TypeAlias():
+            # Jac `type X = Y;` — resolve the alias to the type its RHS denotes,
+            # so uses of X in annotations (`v: X`) inherit Y's class and its
+            # operator overloads. Mirrors the Python `X: TypeAlias = Y` path.
+            if node_.value is not None {
+                return self._resolve_type_alias_rhs(node_.value);
+            }
+            return types.UnknownType();
+
         case uni.Ability():
             return self.get_type_of_ability(node_);
 

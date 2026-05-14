@@ -827,7 +827,12 @@ impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
         for decl in stmt.clib_decls {
             if isinstance(decl, uni.Ability) {
                 fn_name = decl.name_ref.sym_name if decl.name_ref else None;
-                if decl.body is not None {
+                # A `;`-terminated clib decl parses with body=None, but later
+                # passes (e.g. decl/impl matching) can normalise it to `[]`.
+                # Treat an empty body list as no body — only a non-empty body
+                # is a true error.
+                _is_empty_list = isinstance(decl.body, list) and not decl.body;
+                if decl.body is not None and not _is_empty_list {
                     self.emit(E5060, name=fn_name);
                     continue;
                 }
