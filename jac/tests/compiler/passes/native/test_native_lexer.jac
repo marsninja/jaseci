@@ -27,7 +27,7 @@ glob NA_LEXER_PATH = str(
 
 def compile_fixture(fixture: str) -> tuple[ExecutionEngine | None, uni.Module] {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture, type_check=False)));
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), type_check=False);
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     return (ir.gen.native_engine, ir);
