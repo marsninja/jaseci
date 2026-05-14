@@ -125,9 +125,9 @@ walker:pub WalkerStream {
 
 import from typing { Generator }
 # Streaming function test
-def:pub FunctionStream(count: int = 3) -> Generator {
+def:pub FunctionStream(count: int = 3) -> Generator[str, None, None] {
     import time;
-    def stream -> Generator {
+    def stream -> Generator[str, None, None] {
         for i in range(count) {
             time.sleep(0.5);
             yield f"Func {i}";
