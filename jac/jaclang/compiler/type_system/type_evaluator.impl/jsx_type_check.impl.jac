@@ -101,6 +101,17 @@ impl TypeEvaluator._validate_jsx_props(
     if not expr.name or not expr.attributes {
         return;
     }
+    # parse_jsx_element synthesizes inner "opening" / "closing" JsxElement
+    # bookkeeping nodes alongside the outer element; their first kid is a
+    # token (`<` or `</`) rather than another JsxElement. Skip them so
+    # required-prop checks only run on the user-facing outer element
+    # (whose first kid is the inner opening JsxElement).
+    if (
+        not expr.is_self_closing
+        and not (expr.kid and isinstance(expr.kid[0], uni.JsxElement))
+    ) {
+        return;
+    }
     first_part = expr.name.parts[0] if expr.name.parts else None;
     if not first_part {
         return;
@@ -194,6 +205,10 @@ impl TypeEvaluator._validate_component_jsx_props(
                 );
             }
         }
+    }
+    # JSX children fulfil a `children` parameter on the component.
+    if expr.children and 'children' in param_map {
+        matched_params.add('children');
     }
     # Check for missing required params (no default value).
     for (pname, p) in param_map.items() {
