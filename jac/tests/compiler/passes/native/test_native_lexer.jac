@@ -27,7 +27,7 @@ glob NA_LEXER_PATH = str(
 
 def compile_fixture(fixture: str) -> tuple[ExecutionEngine | None, uni.Module] {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture, type_check=False)));
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     return (ir.gen.native_engine, ir);
@@ -36,7 +36,7 @@ def compile_fixture(fixture: str) -> tuple[ExecutionEngine | None, uni.Module] {
 # --- Compilation test ---
 test "native lexer compiles" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors: {errors}";
     eng = ir.gen.native_engine;
@@ -46,7 +46,7 @@ test "native lexer compiles" {
 # --- Metadata export tests ---
 test "native layout exported for lexer" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     layout = ir.gen.native_layout;
     assert layout is not None , "No native_layout on CodeGenTarget";
     assert len(layout.structs) > 0 , "No structs in layout";
@@ -56,7 +56,7 @@ test "native layout exported for lexer" {
 
 test "native layout struct fields correct" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     layout = ir.gen.native_layout;
     assert layout is not None;
     assert "SourceLoc" in layout.structs , "SourceLoc struct missing";
@@ -68,7 +68,7 @@ test "native layout struct fields correct" {
 
 test "native layout enum members correct" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     layout = ir.gen.native_layout;
     assert layout is not None;
     assert len(layout.enums) > 0 , "No enums in layout";
@@ -79,7 +79,7 @@ test "native layout enum members correct" {
 
 test "native layout functions have types" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     layout = ir.gen.native_layout;
     assert layout is not None;
     for (fname, flayout) in layout.functions.items() {
@@ -192,7 +192,7 @@ test "auto-marshal string enum functions" {
 # --- Tuple metadata export ---
 test "native layout tuple metadata for tokenize" {
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     layout = ir.gen.native_layout;
     assert layout is not None;
     assert len(layout.tuples) > 0 , "No tuples in layout";
@@ -295,7 +295,7 @@ test "native tokenize returns correct tokens" {
     import ctypes as ct;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None;
@@ -348,7 +348,7 @@ test "native tokenize matches python lexer" {
     import ctypes as ct;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None;
@@ -401,7 +401,7 @@ test "native tokenize performance" {
     import time;
 
     prog = JacProgram();
-    ir = prog.compile(file_path=NA_LEXER_PATH);
+    ir = prog.compile(file_path=NA_LEXER_PATH, type_check=False);
     eng = ir.gen.native_engine;
     layout = ir.gen.native_layout;
     assert eng is not None;

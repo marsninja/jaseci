@@ -28,7 +28,10 @@ test "no dupl symbols" {
 test "package" {
     file_path = os.path.join(FIXTURES, "main.jac");
     prog = JacProgram();
-    prog.compile(file_path);
+    # type_check=False so the lint pass (in the type-check schedule) doesn't
+    # add unused-var warnings to the fixture; this test asserts only on
+    # sym-table outcomes.
+    prog.compile(file_path, type_check=False);
     assert prog.errors_had == [];
     assert prog.warnings_had == [];
 }
