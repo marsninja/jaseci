@@ -41,7 +41,10 @@ impl py2jac(filename: str) -> int {
 impl jac2py(filename: str) -> int {
     import from jaclang.jac0core.program { JacProgram }
     if filename.endswith('.jac') {
-        code = JacProgram().compile(file_path=filename).gen.py;
+        # Inspection / translation tool -- skip type check to keep behavior
+        # consistent with prior (pre-default-flip) semantics. Users wanting
+        # type errors surfaced should use `jac check` or `jac build`.
+        code = JacProgram().compile(file_path=filename, type_check=False).gen.py;
         if code {
             console.print(code, markup=False, highlight=False);
             return 0;
@@ -60,7 +63,8 @@ impl jac2js(filename: str) -> int {
     if filename.endswith('.jac') {
         try {
             prog = JacProgram();
-            ir = prog.compile(file_path=filename);
+            # Translation tool -- see jac2py rationale.
+            ir = prog.compile(file_path=filename, type_check=False);
             if prog.errors_had {
                 for error in prog.errors_had {
                     console.error(f"{error}");

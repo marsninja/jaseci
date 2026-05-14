@@ -191,7 +191,7 @@ test "impl has var type not shadowed" {
     # _fix_shadowed_parent_symbols fix, SymTabBuildPass creates an untyped
     # local var that shadows the typed HasVar from the parent scope.
     state = (out := JacProgram()).compile(
-        os.path.join(FIXTURES, "impl_has_var_type_shadow.jac")
+        os.path.join(FIXTURES, "impl_has_var_type_shadow.jac"), type_check=False
     );
     assert not out.errors_had , f"Compilation errors: {out.errors_had}";
     assert len(state.impl_mod) == 1 , "Expected one impl module";

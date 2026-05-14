@@ -189,7 +189,9 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         rel = jac_file.relative_to(src);
         try {
             prog = JacProgram();
-            ir = prog.compile(file_path=str(jac_file));
+            # Eject extracts code for inspection / export; type errors aren't
+            # the focus, so keep pre-default-flip behavior.
+            ir = prog.compile(file_path=str(jac_file), type_check=False);
         } except Exception as e {
             console.error(f"  ✗ {rel}: compile failed: {e}");
             error_count += 1;

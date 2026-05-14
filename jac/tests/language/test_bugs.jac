@@ -11,6 +11,8 @@ glob FIXTURES = os.path.join(
 
 test "impl match confusion issue" {
     mypass = JacProgram();
-    mypass.compile(os.path.join(FIXTURES, "impl_match_confused.jac"));
+    # Counts a specific decl/impl-match diagnostic; type_check would add
+    # unrelated diagnostics and change the count.
+    mypass.compile(os.path.join(FIXTURES, "impl_match_confused.jac"), type_check=False);
     assert len(mypass.errors_had) == 1;
 }

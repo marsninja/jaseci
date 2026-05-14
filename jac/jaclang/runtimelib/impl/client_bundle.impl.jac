@@ -256,7 +256,12 @@ impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module]
     mod = _lookup_module_in_hub(source_key, program.mod.hub);
     if not mod {
         prev_error_count = len(program.errors_had);
-        mod = program.compile(source_key);
+        # Client-bundle compilation goes through the JS codegen path and
+        # only fails on type errors today because the evaluator has known
+        # gaps around bare list/dict and JSX prop inference. Skip type
+        # check here to preserve prior behaviour; tighten once the
+        # evaluator covers these cases.
+        mod = program.compile(source_key, type_check=False);
         new_errors = program.errors_had[prev_error_count:];
         if new_errors {
             formatted = '\n'.join(str(err) for err in new_errors);

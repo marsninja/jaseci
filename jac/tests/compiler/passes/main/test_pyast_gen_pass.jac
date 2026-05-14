@@ -53,7 +53,7 @@ test "super_init_py_to_jac_roundtrip" {
     # compilation pipeline (Python AST -> Jac IR -> Python AST).
     # This is the jac run <file>.py scenario where __init__ must be preserved.
     code_gen = (prog := JacProgram()).compile(
-        os.path.join(FIXTURES, "super_init_base.py")
+        os.path.join(FIXTURES, "super_init_base.py"), type_check=False
     );
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
     if code_gen.gen.py_ast and isinstance(code_gen.gen.py_ast[0], ast3.Module) {

@@ -621,7 +621,9 @@ impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
     base = base or './';
     mod = mod[:-4];
     if filename.endswith('.jac') {
-        bytecode = JacProgram().compile(filename).gen.py_bytecode;
+        # debug runs through pdb on the bytecode; not a build path, so
+        # don't gate on type errors -- match prior behavior.
+        bytecode = JacProgram().compile(filename, type_check=False).gen.py_bytecode;
         if bytecode {
             code = marshal.loads(bytecode);
             if db.has_breakpoint(bytecode) {
