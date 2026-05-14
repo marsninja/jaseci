@@ -255,7 +255,7 @@ test "circle py ast" {
 
 test "iife fixture executes" {
     fixture_path = os.path.join(LANG_FIXTURES, "iife_functions.jac");
-    code_gen = (prog := JacProgram()).compile(fixture_path);
+    code_gen = (prog := JacProgram()).compile(fixture_path, type_check=False);
     assert not prog.errors_had;
     if code_gen.gen.py_ast and isinstance(code_gen.gen.py_ast[0], ast3.Module) {
         module_ast = code_gen.gen.py_ast[0];

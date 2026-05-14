@@ -77,7 +77,9 @@ def compile_fixture_to_js_production(fixture_name: str, fixture_dir: str = "") -
         fixture_path = os.path.join(fixture_dir, fixture_name);
     }
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture_path);
+    # Verify codegen produces JS; the fixtures exercise unusual JSX / sv-import
+    # patterns whose type-correctness isn't what this test checks.
+    ir = prog.compile(file_path=fixture_path, type_check=False);
     assert not prog.errors_had , (
         f"Compilation errors in {fixture_name}: {[str(e) for e in prog.errors_had]}"
     );

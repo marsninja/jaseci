@@ -178,8 +178,10 @@ impl HotReloader._recompile_client_code(
             del Jac.program.mod.hub[source_key];
         }
 
-        # Compile the file (this generates JS as part of the compilation)
-        mod = Jac.program.compile(source_key);
+        # Compile the file (this generates JS as part of the compilation).
+        # HMR reloads the user's module at runtime; type errors aren't its
+        # responsibility -- `jac run`/`jac build` already had their chance.
+        mod = Jac.program.compile(source_key, type_check=False);
 
         # Check for compilation errors
         if Jac.program.errors_had {

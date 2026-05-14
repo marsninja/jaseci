@@ -559,7 +559,8 @@ impl ModuleIntrospector._load_manifest -> None {
     if mod_path {
         mod = _lookup_module_in_hub(os.path.abspath(mod_path), Jac.program.mod.hub);
         if not mod {
-            mod = Jac.program.compile(mod_path);
+            # Runtime introspection compile; type errors not relevant here.
+            mod = Jac.program.compile(mod_path, type_check=False);
         }
         if mod and mod.gen.client_manifest and not mod.gen.client_manifest.exports {
             _ensure_js_generated(mod, Jac.program);
@@ -603,7 +604,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
     def get_module_ast(mod_path: str) -> (uni.Module | None) {
         ast = Jac.program.mod.hub.get(mod_path);
         if not ast {
-            ast = Jac.program.compile(mod_path);
+            ast = Jac.program.compile(mod_path, type_check=False);
         }
         return ast;
     }
@@ -722,7 +723,7 @@ impl ModuleIntrospector._analyze_endpoint_effects -> None {
     def get_module_ast(mod_path: str) -> Any {
         ast_mod = Jac.program.mod.hub.get(mod_path);
         if not ast_mod {
-            ast_mod = Jac.program.compile(mod_path);
+            ast_mod = Jac.program.compile(mod_path, type_check=False);
         }
         return ast_mod;
     }

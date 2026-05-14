@@ -334,7 +334,9 @@ test "deep imports interp mode" {
 
     Jac.set_base_path(FIXTURES);
     Jac.attach_program((prog := JacProgram()));
-    prog.compile(os.path.join(FIXTURES, "deep_import_interp.jac"));
+    # type_check=False: test guards hub layout from import resolution alone;
+    # the evaluator pulls in transitive deps that inflate the count.
+    prog.compile(os.path.join(FIXTURES, "deep_import_interp.jac"), type_check=False);
     # as we use jac_import, only main module should be in the hub
     assert len(Jac.get_program().mod.hub.keys()) == 1;
 }
