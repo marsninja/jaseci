@@ -290,7 +290,23 @@ impl NativeCompilePass._compile_and_link_native_imports(
     # that can be unreliable across llvmlite versions for cross-module
     # declarations promoted to definitions during linking.
     symbol_origins: dict = {};  # symbol_name -> module_path
+    # Parallel to symbol_origins: True when the recording module genuinely
+    # *owns* the symbol (declares it with `def:pub`), False when the symbol
+    # is only present because the module imported it and the dep's definition
+    # got pulled into its IR transitively. A real collision (E5026) requires
+    # two *owning* modules; an owner-vs-carrier overlap is the same symbol
+    # reached twice and is benign.
+    symbol_owned: dict = {};  # symbol_name -> bool
     _MAIN_ORIGIN = "(main module)";
+    # Names the main module imports from other native modules — used to tell
+    # owned definitions apart from transitively-carried ones.
+    _main_imported_names: set = set();
+    _main_manifest = module.gen.interop_manifest;
+    if _main_manifest is not None {
+        for _imp_b in _main_manifest.native_cross_module_imports {
+            _main_imported_names.add(_imp_b.name);
+        }
+    }
     # Seed symbol_origins with the main module's own non-declaration symbols.
     # Otherwise the very first imported module that legitimately *declares*
     # one of main's functions could be mis-flagged as a collision after a
@@ -307,6 +323,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             continue;
         }
         symbol_origins[_mfn.name] = _MAIN_ORIGIN;
+        symbol_owned[_mfn.name] = _mfn.name not in _main_imported_names;
     }
     for _mgv in main_mod.global_variables {
         if _mgv.is_declaration {
@@ -316,6 +333,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             continue;
         }
         symbol_origins[_mgv.name] = _MAIN_ORIGIN;
+        symbol_owned[_mgv.name] = _mgv.name not in _main_imported_names;
     }
     # Work queue: (binding, base_dir). Seeded with direct imports; transitive
     # deps are appended after each successful compile.
@@ -387,6 +405,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
         imported_llvm_str_raw = "";
         dep_clib_paths_cached: list = [];
         dep_transitive_cached: list = [];
+        # Symbols this module imports from other native modules. Set by both
+        # the cache-hit and cache-miss paths; consumed by the collision check
+        # to distinguish owned definitions from transitively-carried ones.
+        dep_imported_symbols: list[str] = [];
 
         try {
             with open(real_path, "rb") as _sf {
@@ -408,6 +430,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
                 dep_clib_paths_cached = _meta.get("clib_paths", []);
                 dep_transitive_cached = _meta.get("transitive_deps", []);
+                dep_imported_symbols = _meta.get("imported_symbols", []);
                 _cache_hit = True;
             }
         } except Exception { }
@@ -456,6 +479,11 @@ impl NativeCompilePass._compile_and_link_native_imports(
                         dep_transitive_paths.append(dep_binding.source_module);
                         work_queue.append((dep_binding, dep_base));
                     }
+                    # The imported symbol's name — a definition carrying this
+                    # name in the dep's IR is transitively linked, not owned.
+                    if dep_binding.name {
+                        dep_imported_symbols.append(dep_binding.name);
+                    }
                 }
             }
             # Write cache files (best-effort, don't fail build on cache errors)
@@ -482,7 +510,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
                 _meta_obj = {
                     "clib_paths": dep_clib_paths,
-                    "transitive_deps": dep_transitive_paths
+                    "transitive_deps": dep_transitive_paths,
+                    "imported_symbols": dep_imported_symbols
                 };
                 with open(_cache_meta_path, "w") as _wmf {
                     _wmf.write(json.dumps(_meta_obj));
@@ -562,7 +591,15 @@ impl NativeCompilePass._compile_and_link_native_imports(
             # *declarations* brought in by an earlier link_in (e.g. mid
             # declares get_leaf, then leaf defines it) are not misreported
             # as collisions.
+            #
+            # A genuine collision needs two modules that each *own* the
+            # symbol (declare it themselves). When a module merely imports a
+            # symbol, a dep's definition can still get carried into its IR
+            # transitively — that overlaps the real owner's definition but is
+            # the *same* symbol, so it is benign: skip the redundant link
+            # without raising E5026 (the real owner already provides it).
             #   linkage 0 = external, 8 = internal, 9 = private
+            dep_imported_set: set[str] = set(dep_imported_symbols);
             exported_funcs: list[str] = [];
             has_collision = False;
             for func in imported_mod.functions {
@@ -578,14 +615,16 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 exported_funcs.append(func.name);
                 # Check collision against previously recorded definitions
                 if func.name in symbol_origins {
-                    origin = symbol_origins[func.name];
-                    self.emit(
-                        E5026,
-                        symbol=func.name,
-                        existing_module=origin,
-                        new_module=full_path
-                    );
                     has_collision = True;
+                    _is_owned = func.name not in dep_imported_set;
+                    if _is_owned and symbol_owned.get(func.name, True) {
+                        self.emit(
+                            E5026,
+                            symbol=func.name,
+                            existing_module=symbol_origins[func.name],
+                            new_module=full_path
+                        );
+                    }
                 }
             }
             exported_globals: list[str] = [];
@@ -599,26 +638,34 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
                 exported_globals.append(gv.name);
                 if gv.name in symbol_origins {
-                    origin = symbol_origins[gv.name];
-                    self.emit(
-                        E5026,
-                        symbol=gv.name,
-                        existing_module=origin,
-                        new_module=full_path
-                    );
                     has_collision = True;
+                    _is_owned = gv.name not in dep_imported_set;
+                    if _is_owned and symbol_owned.get(gv.name, True) {
+                        self.emit(
+                            E5026,
+                            symbol=gv.name,
+                            existing_module=symbol_origins[gv.name],
+                            new_module=full_path
+                        );
+                    }
                 }
             }
             if has_collision {
-                continue;  # Skip link_in to avoid SIGSEGV
+                # Either a real collision (E5026 emitted above) or a benign
+                # transitive duplicate — in both cases skip link_in so the
+                # symbol is not multiply defined in main_mod.
+                continue;
             }
 
-            # Record symbol origins for future collision diagnostics
+            # Record symbol origins (and whether this module owns each symbol)
+            # for future collision diagnostics.
             for fname in exported_funcs {
                 symbol_origins[fname] = full_path;
+                symbol_owned[fname] = fname not in dep_imported_set;
             }
             for gname in exported_globals {
                 symbol_origins[gname] = full_path;
+                symbol_owned[gname] = gname not in dep_imported_set;
             }
 
             # Link the imported module into the main module at IR level
