@@ -409,6 +409,11 @@ impl NativeCompilePass._compile_and_link_native_imports(
         # the cache-hit and cache-miss paths; consumed by the collision check
         # to distinguish owned definitions from transitively-carried ones.
         dep_imported_symbols: list[str] = [];
+        # Symbols declared directly in this module's source. This is broader
+        # than dep_imported_symbols because a transitive dependency can carry
+        # globals referenced by imported functions (e.g. _TABLE) even though
+        # the importing module never names those globals in its import list.
+        dep_owned_symbols: list[str] = [];
 
         try {
             with open(real_path, "rb") as _sf {
@@ -431,6 +436,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 dep_clib_paths_cached = _meta.get("clib_paths", []);
                 dep_transitive_cached = _meta.get("transitive_deps", []);
                 dep_imported_symbols = _meta.get("imported_symbols", []);
+                dep_owned_symbols = _meta.get("owned_symbols", []);
                 _cache_hit = True;
             }
         } except Exception { }
@@ -454,7 +460,25 @@ impl NativeCompilePass._compile_and_link_native_imports(
         } else {
             # No cache hit — compile from scratch
             import from jaclang.jac0core.compile_options { CompileOptions }
-            import_options = CompileOptions(skip_native_engine=True);
+            import_options = CompileOptions(skip_native_engine=True, type_check=False);
+            try {
+                import re as _own_re;
+                with open(real_path, "r") as _src_f {
+                    _src_txt = _src_f.read();
+                }
+                _owned_seen: set[str] = set();
+                for _def_m in _own_re.finditer(
+                    r"\bdef(?::[A-Za-z_, ]+)?\s+([A-Za-z_]\w*)\s*\(", _src_txt
+                ) {
+                    _owned_seen.add(_def_m.group(1));
+                }
+                for _glob_m in _own_re.finditer(
+                    r"(?:\bglob|,)\s*([A-Za-z_]\w*)\s*:", _src_txt
+                ) {
+                    _owned_seen.add(_glob_m.group(1));
+                }
+                dep_owned_symbols = list(_owned_seen);
+            } except Exception { }
             try {
                 imported_ir = self.prog.compile(
                     file_path=full_path, options=import_options
@@ -511,7 +535,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 _meta_obj = {
                     "clib_paths": dep_clib_paths,
                     "transitive_deps": dep_transitive_paths,
-                    "imported_symbols": dep_imported_symbols
+                    "imported_symbols": dep_imported_symbols,
+                    "owned_symbols": dep_owned_symbols
                 };
                 with open(_cache_meta_path, "w") as _wmf {
                     _wmf.write(json.dumps(_meta_obj));
@@ -600,6 +625,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             # without raising E5026 (the real owner already provides it).
             #   linkage 0 = external, 8 = internal, 9 = private
             dep_imported_set: set[str] = set(dep_imported_symbols);
+            dep_owned_set: set[str] = set(dep_owned_symbols);
             exported_funcs: list[str] = [];
             has_collision = False;
             for func in imported_mod.functions {
@@ -616,7 +642,11 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 # Check collision against previously recorded definitions
                 if func.name in symbol_origins {
                     has_collision = True;
-                    _is_owned = func.name not in dep_imported_set;
+                    _is_owned = (
+                        func.name in dep_owned_set
+                            if dep_owned_set
+                            else func.name not in dep_imported_set
+                    );
                     if _is_owned and symbol_owned.get(func.name, True) {
                         self.emit(
                             E5026,
@@ -639,7 +669,11 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 exported_globals.append(gv.name);
                 if gv.name in symbol_origins {
                     has_collision = True;
-                    _is_owned = gv.name not in dep_imported_set;
+                    _is_owned = (
+                        gv.name in dep_owned_set
+                            if dep_owned_set
+                            else gv.name not in dep_imported_set
+                    );
                     if _is_owned and symbol_owned.get(gv.name, True) {
                         self.emit(
                             E5026,
@@ -661,11 +695,19 @@ impl NativeCompilePass._compile_and_link_native_imports(
             # for future collision diagnostics.
             for fname in exported_funcs {
                 symbol_origins[fname] = full_path;
-                symbol_owned[fname] = fname not in dep_imported_set;
+                symbol_owned[fname] = (
+                    fname in dep_owned_set
+                        if dep_owned_set
+                        else fname not in dep_imported_set
+                );
             }
             for gname in exported_globals {
                 symbol_origins[gname] = full_path;
-                symbol_owned[gname] = gname not in dep_imported_set;
+                symbol_owned[gname] = (
+                    gname in dep_owned_set
+                        if dep_owned_set
+                        else gname not in dep_imported_set
+                );
             }
 
             # Link the imported module into the main module at IR level
