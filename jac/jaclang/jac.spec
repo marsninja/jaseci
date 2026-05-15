@@ -224,8 +224,10 @@ lambda_param ::=
 
 jsx_element ::=
     "<>" jsx_children "</>"
-    | JSX_OPEN_START JSX_NAME ("." JSX_NAME)* jsx_attributes
-      ("/>" | JSX_TAG_END jsx_children "</" JSX_NAME ("." JSX_NAME)* JSX_TAG_END)
+    | JSX_OPEN_START ("@" | JSX_NAME ("." JSX_NAME)*) jsx_attributes (
+          "/>"
+          | JSX_TAG_END jsx_children "</" ("@" | JSX_NAME ("." JSX_NAME)*) JSX_TAG_END
+      )
 
 jsx_attributes ::=
     (

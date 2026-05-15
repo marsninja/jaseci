@@ -523,6 +523,8 @@ obj Parser {
     def parse_lambda_param -> ParamVar;
     # JSX parsing
     def parse_jsx_element -> Expr;
+    def _parse_jsx_dynamic_tag(open_kid: list) -> Expr;
+    def _consume_jsx_dynamic_close(close_kid: list);
     def parse_jsx_opening_element -> tuple;
     def parse_jsx_attributes -> list;
     def parse_jsx_children -> list;

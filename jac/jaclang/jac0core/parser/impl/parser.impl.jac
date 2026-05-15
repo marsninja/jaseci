@@ -3168,26 +3168,33 @@ impl Parser.parse_jsx_element -> Expr {
             kid=kid
         );
     }
-    # Regular element: <Tag>...</Tag> or <Tag />
+    # Regular element: <Tag>...</Tag> / <Tag /> — or a dynamic tag <@expr ...>.
     open_start_uni = self.consume_uni(TokenKind.JSX_OPEN_START);
     open_kid: list = [open_start_uni];
-    # Parse tag name (may be dotted: UI.Button, Form.Input.Text).
-    # Name parts are emitted as `Name` nodes (not bare tokens) so the
-    # symbol resolver, semantic-token emitter, and goto-definition in
-    # the LSP can link a JSX tag to its component declaration.
-    name_tok = self.expect(TokenKind.JSX_NAME);
-    name = self.make_name(name_tok);
-    name_parts: list = [name];
-    name_kid: list = [name];
-    while self.match_tok(TokenKind.DOT) {
-        name_kid.append(self.make_uni_token(self.previous()));
-        next_name_tok = self.expect(TokenKind.JSX_NAME);
-        next_name = self.make_name(next_name_tok);
-        name_parts.append(next_name);
-        name_kid.append(next_name);
+    # Parse tag name. A `@` introduces a dynamic-tag expression; otherwise the
+    # name is a (possibly dotted: UI.Button) component/host name. Name parts
+    # are emitted as `Name` nodes (not bare tokens) so the symbol resolver,
+    # semantic-token emitter, and goto-definition in the LSP can link a JSX
+    # tag to its component declaration.
+    elem_name: JsxElementName | None = None;
+    dyn_tag: Expr | None = None;
+    if self.check(TokenKind.DECOR_OP) {
+        dyn_tag = self._parse_jsx_dynamic_tag(open_kid);
+    } else {
+        name_tok = self.expect(TokenKind.JSX_NAME);
+        name = self.make_name(name_tok);
+        name_parts: list = [name];
+        name_kid: list = [name];
+        while self.match_tok(TokenKind.DOT) {
+            name_kid.append(self.make_uni_token(self.previous()));
+            next_name_tok = self.expect(TokenKind.JSX_NAME);
+            next_name = self.make_name(next_name_tok);
+            name_parts.append(next_name);
+            name_kid.append(next_name);
+        }
+        elem_name = JsxElementName(parts=name_parts, kid=name_kid);
+        open_kid.append(elem_name);
     }
-    elem_name = JsxElementName(parts=name_parts, kid=name_kid);
-    open_kid.append(elem_name);
     # Parse attributes
     attrs = self.parse_jsx_attributes();
     open_kid.extend(attrs);
@@ -3201,6 +3208,7 @@ impl Parser.parse_jsx_element -> Expr {
             children=None,
             is_self_closing=True,
             is_fragment=False,
+            dynamic_tag=dyn_tag,
             kid=open_kid
         );
     }
@@ -3213,28 +3221,34 @@ impl Parser.parse_jsx_element -> Expr {
         children=None,
         is_self_closing=False,
         is_fragment=False,
+        dynamic_tag=dyn_tag,
         kid=open_kid
     );
     kid.append(opening);
     # Parse children
     children = self.parse_jsx_children();
     kid.extend(children);
-    # Parse closing tag: </Tag>
+    # Parse closing tag: </Tag> or </@expr>
     close_start_uni = self.consume_uni(TokenKind.JSX_CLOSE_START);
     close_kid: list = [close_start_uni];
-    close_name_tok = self.expect(TokenKind.JSX_NAME);
-    close_name_node = self.make_name(close_name_tok);
-    close_parts: list = [close_name_node];
-    close_name_kid: list = [close_name_node];
-    while self.match_tok(TokenKind.DOT) {
-        close_name_kid.append(self.make_uni_token(self.previous()));
-        cn_tok = self.expect(TokenKind.JSX_NAME);
-        cn = self.make_name(cn_tok);
-        close_parts.append(cn);
-        close_name_kid.append(cn);
+    close_elem_name: JsxElementName | None = None;
+    if self.check(TokenKind.DECOR_OP) {
+        self._consume_jsx_dynamic_close(close_kid);
+    } else {
+        close_name_tok = self.expect(TokenKind.JSX_NAME);
+        close_name_node = self.make_name(close_name_tok);
+        close_parts: list = [close_name_node];
+        close_name_kid: list = [close_name_node];
+        while self.match_tok(TokenKind.DOT) {
+            close_name_kid.append(self.make_uni_token(self.previous()));
+            cn_tok = self.expect(TokenKind.JSX_NAME);
+            cn = self.make_name(cn_tok);
+            close_parts.append(cn);
+            close_name_kid.append(cn);
+        }
+        close_elem_name = JsxElementName(parts=close_parts, kid=close_name_kid);
+        close_kid.append(close_elem_name);
     }
-    close_elem_name = JsxElementName(parts=close_parts, kid=close_name_kid);
-    close_kid.append(close_elem_name);
     close_kid.append(self.consume_uni(TokenKind.JSX_TAG_END));
     closing = JsxElement(
         name=close_elem_name,
@@ -3251,8 +3265,59 @@ impl Parser.parse_jsx_element -> Expr {
         children=children,
         is_self_closing=False,
         is_fragment=False,
+        dynamic_tag=dyn_tag,
         kid=kid
     );
+}
+
+"""Parse a dynamic-tag expression after `<@`: an identifier (optionally
+dotted, `<@UI.Box>`) or a brace-wrapped expression (`<@{expr}>`). The `@`
+token and the parsed expression are appended to `open_kid`."""
+impl Parser._parse_jsx_dynamic_tag(open_kid: list) -> Expr {
+    at_uni = self.make_uni_token(self.advance());  # consume `@`
+    open_kid.append(at_uni);
+    if self.check(TokenKind.LBRACE) {
+        lb_uni = self.make_uni_token(self.advance());
+        expr = self.parse_expression();
+        rb_uni = self.consume_uni(TokenKind.RBRACE);
+        open_kid.append(lb_uni);
+        open_kid.append(expr);
+        open_kid.append(rb_uni);
+        return expr;
+    }
+    name_tok = self.expect(TokenKind.JSX_NAME);
+    expr = self.make_name(name_tok);
+    while self.match_tok(TokenKind.DOT) {
+        dot_uni = self.make_uni_token(self.previous());
+        attr_tok = self.expect(TokenKind.JSX_NAME);
+        attr = self.make_name(attr_tok);
+        expr = AtomTrailer(
+            target=expr,
+            right=attr,
+            is_attr=True,
+            is_null_ok=False,
+            kid=[expr, dot_uni, attr]
+        );
+    }
+    open_kid.append(expr);
+    return expr;
+}
+
+"""Consume a dynamic closing tag `</@expr>` loosely (the runtime tag match
+is not enforced); the consumed tokens are appended to `close_kid`."""
+impl Parser._consume_jsx_dynamic_close(close_kid: list) {
+    close_kid.append(self.make_uni_token(self.advance()));  # `@`
+    if self.check(TokenKind.LBRACE) {
+        close_kid.append(self.make_uni_token(self.advance()));
+        close_kid.append(self.parse_expression());
+        close_kid.append(self.consume_uni(TokenKind.RBRACE));
+        return;
+    }
+    close_kid.append(self.make_name(self.expect(TokenKind.JSX_NAME)));
+    while self.match_tok(TokenKind.DOT) {
+        close_kid.append(self.make_uni_token(self.previous()));
+        close_kid.append(self.make_name(self.expect(TokenKind.JSX_NAME)));
+    }
 }
 
 """Parse JSX opening element and return (name, attrs, is_self_closing)."""

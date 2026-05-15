@@ -930,6 +930,13 @@ impl Lexer.scan_jsx_tag_token -> Token {
         self.advance();
         return self.make_token(TokenKind.DOT, ".", start_line, start_col, start_pos);
     }
+    # `@` introduces a dynamic-tag expression: <@expr ...> / </@expr>
+    if ch == "@" {
+        self.advance();
+        return self.make_token(
+            TokenKind.DECOR_OP, "@", start_line, start_col, start_pos
+        );
+    }
     # Unknown - return error token
     self.error(
         f"Unexpected character in JSX tag: '{ch}'",
@@ -984,8 +991,8 @@ impl Lexer.scan_jsx_content -> Token {
             TokenKind.JSX_CLOSE_START, "</", start_line, start_col, start_pos
         );
     }
-    # Check for nested JSX element: <identifier
-    if ch == "<" and self.is_alpha(self.peek()) {
+    # Check for nested JSX element: <identifier (or a dynamic tag <@expr)
+    if ch == "<" and (self.is_alpha(self.peek()) or self.peek() == "@") {
         self.advance();  # consume <
         self.jsx_depth += 1;
         # Push JSX_TAG on top of current JSX_CONTENT
@@ -1066,7 +1073,8 @@ impl Lexer.scan_jsx_content -> Token {
             #   </  (closing tag / fragment close)
             #   <>  (fragment open)
             #   <A  (nested element — alpha means tag name)
-            if nxt == "/" or nxt == ">" or self.is_alpha(nxt) {
+            #   <@  (dynamic-tag element)
+            if nxt == "/" or nxt == ">" or nxt == "@" or self.is_alpha(nxt) {
                 break;
             }
         }
@@ -1698,12 +1706,12 @@ impl Lexer.next_token -> Token {
     if ch == "`" and self.is_alpha(self.peek()) {
         return self.scan_kwesc_name();
     }
-    # Check for JSX opening tag: <identifier
+    # Check for JSX opening tag: <identifier (or a dynamic tag <@expr).
     # Only if the previous token is NOT a value (otherwise < is a comparison operator).
     # Inside a `view` body the template is statement-based, so a `<Tag` that
     # immediately follows a block close `}` or a sibling JSX close tag still
     # opens a JSX element even though those tokens are "value"-ending.
-    if ch == "<" and self.is_alpha(self.peek()) {
+    if ch == "<" and (self.is_alpha(self.peek()) or self.peek() == "@") {
         if not self.prev_is_value() {
             return self.scan_jsx_open_start();
         }

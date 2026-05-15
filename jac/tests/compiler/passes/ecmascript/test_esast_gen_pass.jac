@@ -587,3 +587,38 @@ test "view statement-position control flow lowers to statements" {
     has_loop = ("for (" in js_code) or ("for(" in js_code);
     assert has_loop , "a statement `for` in a view should emit a JS loop";
 }
+
+test "view dynamic tags resolve the tag at runtime" {
+    # Phase 2: `<@expr />` — the JSX tag is an expression, not a static name.
+    es_ast = compile_to_esast(fixture_path("view_dynamic_tag.cl.jac"));
+    js_code = es_to_js(es_ast);
+
+    func_names = {
+        nd.id.name
+        for nd in es_ast.body
+        if isinstance(nd, es.FunctionDeclaration) and nd.id
+    };
+    assert "Box" in func_names
+    and "Icon" in func_names
+    and "Panel" in func_names
+    and "Demo" in func_names;
+
+    # A dynamic tag lowers to `__jacJsx(<expr>, ...)` — the tag is the value
+    # of the expression, never a quoted string of the identifier itself.
+    assert "__jacJsx(as_," in js_code , (
+        "<@as_> should pass the `as_` value as the tag"
+    );
+    assert '__jacJsx("as_"' not in js_code , (
+        "the dynamic tag identifier must not be emitted as a string literal"
+    );
+    assert "__jacJsx(tag," in js_code , "<@tag> should pass the `tag` value";
+    assert "__jacJsx(glyph," in js_code , (
+        "the brace-wrapped dynamic tag <@{glyph}> should pass the `glyph` value"
+    );
+
+    # Static tags around the dynamic one are unaffected.
+    assert '__jacJsx("div",' in js_code , "static host tags stay string tags";
+    assert "__jacJsx(Box," in js_code , (
+        "a view used as a normal element stays a component reference"
+    );
+}
