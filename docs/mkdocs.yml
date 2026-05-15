@@ -16,6 +16,7 @@ nav:
       - Core Concepts: "quick-guide/what-makes-jac-different.md"
       - Build to Learn - AI Day Planner: "tutorials/first-app/build-ai-day-planner.md"
       - Syntax Cheatsheet: "quick-guide/syntax-cheatsheet.md"
+      - Import Anything: "quick-guide/import-anything.md"
       - Jac vs Traditional Stack: "quick-guide/jac-vs-traditional-stack.md"
       - MCP Server: "quick-guide/mcp.md"
       - FAQ: "quick-guide/faq.md"
