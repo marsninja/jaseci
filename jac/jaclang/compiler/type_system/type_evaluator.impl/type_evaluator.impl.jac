@@ -2813,11 +2813,11 @@ impl TypeEvaluator._is_strict_site(nd: uni.UniNode) -> bool {
 Native code reinterprets `int`, `str`, function refs and `obj` instances
 as 64-bit pointers, so a handful of cross-type assignments are sound there
 but not in regular Jac. Determined from the pass's current node."""
-impl TypeEvaluator._in_native_context() -> bool {
+impl TypeEvaluator._in_native_context -> bool {
     if self._pass is None {
         return False;
     }
-    cur = getattr(self._pass, "cur_node", None);
+    cur = self._pass?.cur_node;
     if cur is None or not isinstance(cur, uni.UniNode) {
         return False;
     }
