@@ -2808,6 +2808,26 @@ impl TypeEvaluator._is_strict_site(nd: uni.UniNode) -> bool {
     return result;
 }
 
+"""True when the pass is currently checking a native (.na.jac) module.
+
+Native code reinterprets `int`, `str`, function refs and `obj` instances
+as 64-bit pointers, so a handful of cross-type assignments are sound there
+but not in regular Jac. Determined from the pass's current node."""
+impl TypeEvaluator._in_native_context() -> bool {
+    if self._pass is None {
+        return False;
+    }
+    cur = getattr(self._pass, "cur_node", None);
+    if cur is None or not isinstance(cur, uni.UniNode) {
+        return False;
+    }
+    mod = cur.find_parent_of_type(uni.Module);
+    if mod is None or mod.loc is None {
+        return False;
+    }
+    return mod.loc.mod_path.endswith(".na.jac");
+}
+
 """Match a typing special form loaded from any stdlib typing stub.
 
 Prefetch pins a single definition (e.g. typing.ParamSpec) but typeshed's
@@ -3042,9 +3062,11 @@ impl TypeEvaluator.assign_type(
         # Function reference → int: a function value is a 64-bit pointer in
         # native code, so let it be passed where an int parameter is expected
         # (e.g. clib callback slots `def cb(...) -> ...; uv_poll_start(..., cb)`).
-        # Restricted to the builtin int class so this doesn't open a back
-        # door for arbitrary user types.
-        if isinstance(dest_type, types.ClassType) and dest_type.is_builtin("int") {
+        # Restricted to the builtin int class, and only in native code so
+        # regular Jac keeps its function/int distinction.
+        if isinstance(dest_type, types.ClassType)
+        and dest_type.is_builtin("int")
+        and self._in_native_context() {
             return True;
         }
     }
@@ -3054,10 +3076,12 @@ impl TypeEvaluator.assign_type(
     # The type checker historically diverges from that — these rules let
     # ABI-shaped wrappers like `obj UVBuf { has base: str, ... }` continue
     # to compile where `reader: UVBuf = ptr_int` would otherwise fail.
+    # Gated to native modules so regular Jac keeps strict int/str checking.
     if isinstance(src_type, types.ClassType)
     and isinstance(dest_type, types.ClassType)
     and src_type.is_class_instance()
-    and dest_type.is_class_instance() {
+    and dest_type.is_class_instance()
+    and self._in_native_context() {
         src_is_ptr = (
             src_type.is_builtin("int")
             or src_type.is_builtin("str")
