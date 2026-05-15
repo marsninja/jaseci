@@ -78,10 +78,13 @@ opinionated statement-form for new code.
 
 - **Statement-body** - no `return <jsx>;` boilerplate; JSX statements
   contribute to the rendered output directly.
-- **Statement-position `if` / `for` / `match`** - replaces nested ternaries
-  and inline comprehensions.
+- **Statement-position control flow** - every block-bodied Jac construct
+  (`if`, `for`, `while`, `match`, `switch`, `with`, `try`) yields content
+  directly, replacing nested ternaries and inline comprehensions.
 - **`try` / `pending` / `except`** - declarative async/error boundaries that
-  replace manual `loading: bool` plumbing.
+  replace manual `loading: bool` plumbing. `pending` is keyed on Jac's
+  `flow` / `wait` concurrency primitive, so it carries to `sv` and `na`
+  (see [Control Flow](#try--pending--except--else)), not just the client.
 - **Bare `return;` guard pattern** - clean early-exit without nesting the
   whole body in an `if/else`.
 - **Per-element lexical scoping** - locals declared inside an element stay
@@ -90,7 +93,8 @@ opinionated statement-form for new code.
 
 **Borrowed from tsrx (with Jac voice):**
 
-- `pending` as a `try`-clause keyword.
+- `pending` as a `try`-clause keyword (here generalized to Jac's
+  `flow` / `wait`, rather than tied to JS Suspense).
 - Scoped `<style>` blocks (and `:global(…)` escape hatch).
 - `<@expr />` for dynamic tags.
 
@@ -217,8 +221,21 @@ machinery needed.
 
 ## Control Flow That Yields Content
 
-Every Jac control-flow construct (`if`, `for`, `match`, `try`) can now appear
-in template position, with branches producing template content.
+Rather than bless a fixed list of "template-aware" constructs, `view` applies
+**one rule**:
+
+> Any control-flow construct whose body is a `{ }` block may appear in
+> template position. **Each block yields a fragment** - the JSX statements
+> inside it contribute children to the rendered output, exactly as the view
+> body itself does.
+
+This is not new machinery. A `view` body already *is* a block that yields a
+fragment (see [Lexical Scoping](#lexical-scoping-the-quiet-superpower));
+nesting another block-bodied construct inside it just nests fragments. So
+`if`, `for` (both forms), `while`, `match`, `switch`, `with`, and `try` all
+work in template position with no per-construct grammar change. The
+*restrictions* are the short, explicit list - enumerated below and enforced
+by [`view_body_check`](#static-checks) - not the permissions.
 
 ### `if` / `elif` / `else`
 
@@ -237,21 +254,28 @@ view Auth(user: User | None) {
 Reuses Jac's existing `if` chain. Each branch is its own scope (see
 [Lexical Scoping](#lexical-scoping-the-quiet-superpower)).
 
-### `for…in`
+### `for` - both loop forms
+
+Plain Jac `for`, in either of the language's two loop syntaxes:
 
 ```jac
 view TodoList(items: list[Todo]) {
+    # for-in
     for (i, item) in enumerate(items) {
         if item.hidden {
             continue;
         }
         <li key={jid(item)}>{i + 1}. {item.text}</li>
     }
+    # for-to-by
+    for n = 0 to n < 3 by n += 1 {
+        <Placeholder key={n} />
+    }
 }
 ```
 
-No new loop syntax - plain Jac `for`. The two list-rendering concerns
-borrowed from tsrx are handled with existing tools:
+No new loop syntax. The two list-rendering concerns borrowed from tsrx are
+handled with existing tools:
 
 - **Iteration index** - Python/Jac's `enumerate()`.
 - **Stable identity for diffing** - a `key=` attribute on the rendered
@@ -262,12 +286,32 @@ borrowed from tsrx are handled with existing tools:
   causes state on surviving items (focus, scroll, animation) to bind to the
   wrong rows after inserts or deletes.
 
-Inside a template `for`, only `continue` is allowed for control. `break` and
-bare `return;` are compile-time errors with a hint pointing at the surrounding
-template scope. (Bare `return;` is still valid at the *view top-level* - see
-[Guard Returns](#guard-returns).)
+Inside any template loop, only `continue` is allowed for control. `break`,
+`skip`, and bare `return;` are compile-time errors with a hint pointing at
+the surrounding template scope. (Bare `return;` is still valid at the *view
+top-level* - see [Guard Returns](#guard-returns).)
 
-### `match`
+### `while`
+
+`while` is a block-bodied construct, so it yields content like any loop:
+
+```jac
+view Countdown(from_: int) {
+    n = from_;
+    while n > 0 {
+        <Tick key={n} value={n} />
+        n -= 1;
+    }
+}
+```
+
+It carries the same `key=` discipline as `for`, and `view_body_check` warns
+when a `while` emits keyless JSX. Prefer a data-driven `for` over a
+collection where you can - a `while` whose bound is not derived from data is
+a common source of unbounded re-render - but the construct is not
+special-cased away.
+
+### `match` and `switch`
 
 Jac's existing `match` works in template position with no syntactic change:
 
@@ -292,9 +336,31 @@ match action {
 }
 ```
 
-### `try` / `pending` / `except`
+Jac's C-style `switch` works the same way for the simple case-on-value form;
+reach for `match` when you need destructuring or guards.
 
-Three template-position behaviors bundled in one block:
+### `with` - context boundaries
+
+A `with` block in template position wraps its child fragment in a context
+boundary - the natural Jac spelling of a context provider:
+
+```jac
+view ThemedPage(dark: bool) {
+    with theme(dark=dark) as t {
+        <Header />
+        <Content />          # `t` is in scope for the whole subtree
+    }
+}
+```
+
+The context manager's entry value is lexically scoped to the block, the same
+as any Jac `with`. Per-target lowering maps this to the runtime's provider
+primitive (React `<Context.Provider>`, Solid context, Vue `provide`).
+
+### `try` / `pending` / `except` / `else`
+
+A template `try` is the **three-state form of an asynchronous result** -
+*Pending*, *Resolved*, *Failed* - materialized as content:
 
 ```jac
 view UserCard(userId: int) {
@@ -310,14 +376,46 @@ view UserCard(userId: int) {
 
 | Clause | Renders when |
 |--------|--------------|
-| `try { … }` | normal path |
-| `pending { … }` | a child is async/suspended (Suspense-equivalent) |
-| `except [name] { … }` | a child raises (ErrorBoundary-equivalent) |
+| `try { … }` | the async work in the block has **resolved** |
+| `pending { … }` | the work has been **dispatched but not yet joined** |
+| `except [name] { … }` | the work **raised** (ErrorBoundary-equivalent) |
+| `else { … }` | optional: `try` completed with no `except` match (ordinary Jac `try…else`) |
 
-`pending` is a new clause keyword legal only in template-position `try`. The
-ordinary Jac `try / except / finally` is unchanged elsewhere. `finally` is
-**not** valid in a template `try` - UI cleanup belongs in mount/unmount
-hooks.
+`finally` is **not** valid in a template `try` - UI cleanup belongs in
+mount/unmount hooks.
+
+**What `pending` is keyed on.** `pending` is not a JS-Suspense-specific
+concept. It is defined against Jac's existing concurrency primitive,
+`flow` / `wait`: a `flow`-dispatched task - or an `await`, which is
+`flow`+`wait` fused - that has not yet been joined is *pending*. The
+`pending` clause holds the content valid in the window between **dispatch**
+and **join**. Because `flow`/`wait` exists on every Jac target, `pending` is
+portable; what differs is only whether that window is observable in a given
+target's execution model:
+
+| Target | `flow` lowers to | `pending` is |
+|--------|------------------|--------------|
+| `cl` | a microtask/Promise; window observed via the render loop | a Suspense placeholder |
+| `sv` | a task/thread; window observed by a *remote* client | the early chunk of a streaming response (chunked / SSE), flushed before the resolved content - or, in a walker ability, a progressive `report`: report the partial, then the final |
+| `na` | an OS thread; window observed by the calling thread | the value held on the calling thread until `wait` joins |
+
+Because the construct is keyed on `flow`/`wait` and not on rendering,
+`try / pending / except` is not template-only. As an ordinary expression it
+is a tri-state join:
+
+```jac
+value = try { wait task } pending { default } except e { fallback };
+```
+
+Before the join the expression's value is the `pending` branch; after a
+clean join, the `try` branch; on failure, the `except` branch. Inside a
+`view` the branches yield content; outside, they yield values.
+
+**Reachability.** `pending` requires the `try` block to actually contain an
+`await` or a `wait` of a `flow` task. If it does not, the `pending` branch
+is unreachable and `view_body_check` reports it (see
+[Static Checks](#static-checks)) - a semantic check that replaces the old
+"pending unsupported on target X" capability gate.
 
 ### Guard Returns
 
@@ -339,7 +437,8 @@ Constraints:
 
 - `return value;` (with a value) is an error inside a view body. *"Views
   emit template content; they do not return values."*
-- `return;` inside a template `for` is an error. *"Use `continue`."*
+- `return;` inside a template loop (`for` or `while`) is an error.
+  *"Use `continue`."*
 
 ## Refs
 
@@ -827,69 +926,11 @@ A new pass `view_body_check` (after typecheck) enforces:
 | Rule | Diagnostic |
 |------|------------|
 | `return expr;` in a view body | E_VIEW_VALUE_RETURN |
-| `return;` inside a template `for` | E_VIEW_RETURN_IN_LOOP |
-| `break;` in a template `for` | E_VIEW_BREAK_IN_LOOP |
+| `return;` inside a template loop (`for` / `while`) | E_VIEW_RETURN_IN_LOOP |
+| `break;` / `skip;` in a template loop | E_VIEW_BREAK_IN_LOOP |
 | `try / finally` in a template `try` | E_VIEW_FINALLY_NOT_ALLOWED |
+| `pending` clause whose `try` block has no `await` / `wait` | E_VIEW_PENDING_UNREACHABLE |
+| `while` emitting keyless JSX | W_VIEW_WHILE_KEYLESS (warning) |
 | `{html …}` not sole child (Vue/Solid host-only) | E_VIEW_HTML_NOT_SOLE_CHILD |
 | `<@expr />` with non-`str | view`-typed expr | E_VIEW_DYN_TAG_TYPE |
 | Composite refs targeting Vue | E_VIEW_COMPOSITE_REF_UNSUPPORTED |
-| `pending` block targeting Vue | E_VIEW_PENDING_UNSUPPORTED |
-
-## Phased Implementation Path
-
-Built on top of the existing JSX infrastructure, not parallel to it.
-
-**Phase 1 - `view` declarator + statement-form body**
-
-- Grammar: add `view Name(params) { body }` parsing, sharing the same
-  internal AST as the existing `def -> JsxElement` (lowering point: body
-  statements wrap into an implicit return-fragment).
-- Type checker: reuse existing JSX type rules.
-- Codegen: lower to existing ecmascript pass; no new emitter needed.
-- Compatibility: existing `def:pub Name -> JsxElement` keeps working.
-
-**Phase 2 - Statement-position control flow**
-
-- Allow `if` / `for` / `match` at view-body statement position to emit
-  children directly (instead of having to be wrapped in `{}` as an
-  expression).
-- `view_body_check` pass with diagnostics for `return value;`,
-  `return;` in `for`, `break;` in `for`.
-- Bare-return guard pattern.
-
-**Phase 3 - Boundary clauses + scoped styles**
-
-- Template-position `try / pending / except` clauses; lower to existing
-  `@jac/runtime` Suspense/ErrorBoundary equivalents.
-- `<style>` block parsing; class-name hashing pass; `:global(…)` escape.
-- `{style "name"}` attribute form for cross-component class composition.
-
-**Phase 4 - Shared reactivity (`by view`)**
-
-- Extend `by`-clause family. Field codegen wraps reads/writes with the
-  runtime subscription primitive.
-- `useSyncExternalStore`-based lowering for current React/Preact emit
-  pipeline.
-- `view_body_check` rejects `by view` outside client-targeted code.
-
-**Phase 5 - Additional targets**
-
-- Solid emitter with `<Show>` / `<For>` / `<Switch>` / `<Suspense>` mapping.
-- Ripple emitter (close to direct pass-through).
-- Vue Vapor emitter with capability-driven rejections.
-
-**Phase 6 - Advanced**
-
-- Dynamic elements `<@expr />`.
-- Lazy loading + Suspense pairing.
-- Generic views end-to-end.
-- Walker-driven data fetching primitive (`useWalker(MyWalker, …)`).
-
-## Related Documents
-
-For deeper dives on individual sub-features (multi-target capability
-tables, per-target lowerings, bundler plugin shapes), see the
-feature-by-feature roadmap under [tsrx-in-jac/](./tsrx-in-jac/). That
-catalog still uses the original "absorb tsrx wholesale" framing; this
-document selects from it and reshapes the result for Jac's existing
-foundation.
