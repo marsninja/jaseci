@@ -556,8 +556,8 @@ test "view declarator compiles to a jsx component" {
         "view body should lower to a `__jac_view_kids` accumulator"
     );
     assert "__jac_view_kids = []" in js_code , "accumulator should be initialized";
-    assert "...__jac_view_kids" in js_code , (
-        "each JSX statement should append via array spread"
+    assert "__jac_view_kids.push(" in js_code , (
+        "each JSX statement should append to the accumulator in O(1)"
     );
     assert "__jacJsx" in js_code , "JSX should still lower to __jacJsx calls";
 

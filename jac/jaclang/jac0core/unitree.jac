@@ -691,7 +691,8 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
         signature: FuncSignature | EventSignature | None,
         decorators: (Sequence[Expr] | None) = None,
         type_params: (Sequence[TypeParam] | None) = None,
-        accessor_kind: str = "";  # "" | "property" | "setter" | "deleter"
+        accessor_kind: str = "",  # "" | "property" | "setter" | "deleter"
+        is_view: bool = False;  # parsed from a `view` declarator (pre-lowering)
 
     def postinit -> None;
     @property

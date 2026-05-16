@@ -6200,265 +6200,19 @@ impl Parser._parse_post_async_modifiers(
     return (is_override, override_tok, is_static, static_tok);
 }
 
-"""Build a synthetic Name node anchored at the given token's location."""
-impl Parser._synth_name(value: str, anchor: Token) -> Name {
-    return Name(
-        orig_src=self.get_source(),
-        name=Tok.NAME.value,
-        value=value,
-        line=anchor.loc.line,
-        end_line=anchor.loc.end_line,
-        col_start=anchor.loc.col_start,
-        col_end=anchor.loc.col_end,
-        pos_start=anchor.loc.pos_start,
-        pos_end=anchor.loc.pos_end,
-        is_enum_stmt=False,
-        is_kwesc=False
-    );
-}
-
-"""Build a synthetic UniToken anchored at the given token's location.
-
-Unlike gen_token (which anchors at the parser cursor), this anchors at an
-explicit token, so diagnostics on the view's lowered code point at the view
-rather than at wherever parsing happened to stop."""
-impl Parser._synth_tok(tok_type: str, value: str, anchor: Token) -> UniToken {
-    tok = UniToken(
-        orig_src=self.get_source(),
-        name=tok_type,
-        value=value,
-        line=anchor.loc.line,
-        end_line=anchor.loc.end_line,
-        col_start=anchor.loc.col_start,
-        col_end=anchor.loc.col_end,
-        pos_start=anchor.loc.pos_start,
-        pos_end=anchor.loc.pos_end
-    );
-    tok._is_synthetic = True;
-    return tok;
-}
-
-"""Build a synthetic Semi node anchored at the given token's location."""
-impl Parser._synth_semi(anchor: Token) -> Semi {
-    return Semi(
-        orig_src=self.get_source(),
-        name=Tok.SEMI.value,
-        value=";",
-        line=anchor.loc.line,
-        end_line=anchor.loc.end_line,
-        col_start=anchor.loc.col_start,
-        col_end=anchor.loc.col_end,
-        pos_start=anchor.loc.pos_start,
-        pos_end=anchor.loc.pos_end
-    );
-}
-
-"""Build `acc = [*acc, <jsx>];` — append one template element to the view's
-child accumulator. A plain reassignment (not `.append`) keeps the lowering
-target-neutral: it emits `acc = [...acc, jsx]` on the client and
-`acc = [*acc, jsx]` on a Python target, with no list-method dispatch."""
-impl Parser._make_view_assign(acc: str, jsx: Expr, anchor: Token) -> Assignment {
-    star = self._synth_tok("STAR_MUL", "*", anchor);
-    spread_ref = self._synth_name(acc, anchor);
-    spread = UnaryExpr(op=star, operand=spread_ref, kid=[star, spread_ref]);
-    lsq = self._synth_tok("LSQUARE", "[", anchor);
-    comma = self._synth_tok("COMMA", ",", anchor);
-    rsq = self._synth_tok("RSQUARE", "]", anchor);
-    new_list = ListVal(values=[spread, jsx], kid=[lsq, spread, comma, jsx, rsq]);
-    acc_target = self._synth_name(acc, anchor);
-    eq_uni = self._synth_tok("EQ", "=", anchor);
-    return Assignment(
-        target=[acc_target],
-        value=new_list,
-        type_tag=None,
-        kid=[acc_target, eq_uni, new_list, self._synth_semi(anchor)],
-        mutable=True,
-        aug_op=None,
-        is_enum_stmt=False
-    );
-}
-
-"""Build `<>{acc}</>` — the fragment of all template content emitted so far."""
-impl Parser._make_view_fragment(acc: str, anchor: Token) -> JsxElement {
-    lb = self._synth_tok("LBRACE", "{", anchor);
-    acc_ref = self._synth_name(acc, anchor);
-    rb = self._synth_tok("RBRACE", "}", anchor);
-    jsx_expr = JsxExpression(expr=acc_ref, kid=[lb, acc_ref, rb]);
-    frag_open = self._synth_tok("JSX_FRAG_OPEN", "<>", anchor);
-    frag_close = self._synth_tok("JSX_FRAG_CLOSE", "</>", anchor);
-    return JsxElement(
-        name=None,
-        attributes=[],
-        children=[jsx_expr],
-        is_self_closing=False,
-        is_fragment=True,
-        kid=[frag_open, jsx_expr, frag_close]
-    );
-}
-
-"""Lower a list of view-body statements.
-
-Returns a new list in which each bare JSX statement is rewritten as
-`acc = [*acc, <jsx>]`. Block-bodied control flow yields content too, so the
-lowering recurses into nested block bodies. When `owner` is given, its
-`.kid` is patched so the swapped statements stay reachable by tree walks."""
-impl Parser._lower_view_stmt_list(
-    stmts: list, owner: object, acc: str, anchor: Token
-) -> list {
-    new_stmts: list = [];
-    for s in stmts {
-        new_stmts.append(self._lower_view_one(s, acc, anchor));
-    }
-    if owner is not None {
-        changed = False;
-        new_kid: list = [];
-        for k in owner.kid {
-            replacement = k;
-            idx = 0;
-            for ob in stmts {
-                if ob is k {
-                    replacement = new_stmts[idx];
-                    if replacement is not k {
-                        changed = True;
-                    }
-                    break;
-                }
-                idx += 1;
-            }
-            new_kid.append(replacement);
-        }
-        if changed {
-            owner.set_kids(new_kid);
-        }
-    }
-    return new_stmts;
-}
-
-"""Lower one view-body statement, returning the (possibly new) node.
-
-A bare JSX statement becomes a fresh `acc = [*acc, <jsx>]` Assignment; a
-bare `return;` is rewritten in place into `return <>{acc}</>;`. Block-bodied
-control flow (`if`/`for`/`while`/`match`/`switch`/`with`/`try`) keeps its
-identity — only its nested block bodies are recursively lowered. Ordinary
-statements (assignments, `has`, nested `def` handlers) are returned as-is."""
-impl Parser._lower_view_one(stmt: object, acc: str, anchor: Token) -> object {
-    s = stmt;
-    if isinstance(s, ExprStmt) {
-        if isinstance(s.expr, JsxElement) {
-            return self._make_view_assign(acc, s.expr, anchor);
-        }
-        return s;
-    }
-    if isinstance(s, ReturnStmt) {
-        if s.expr is None {
-            frag = self._make_view_fragment(acc, anchor);
-            ret_uni = self._synth_tok("KW_RETURN", "return", anchor);
-            s.expr = frag;
-            s.set_kids([ret_uni, frag, self._synth_semi(anchor)]);
-        }
-        return s;
-    }
-    # IfStmt also matches ElseIf (a subclass).
-    if isinstance(s, IfStmt) {
-        s.body = self._lower_view_stmt_list(s.body, s, acc, anchor);
-        if s.else_body is not None {
-            self._lower_view_one(s.else_body, acc, anchor);
-        }
-        return s;
-    }
-    if isinstance(s, ElseStmt) {
-        s.body = self._lower_view_stmt_list(s.body, s, acc, anchor);
-        return s;
-    }
-    if isinstance(s, WhileStmt)
-    or isinstance(s, InForStmt)
-    or isinstance(s, IterForStmt) {
-        s.body = self._lower_view_stmt_list(s.body, s, acc, anchor);
-        if s.else_body is not None {
-            self._lower_view_one(s.else_body, acc, anchor);
-        }
-        return s;
-    }
-    if isinstance(s, WithStmt) {
-        s.body = self._lower_view_stmt_list(s.body, s, acc, anchor);
-        return s;
-    }
-    if isinstance(s, TryStmt) {
-        s.body = self._lower_view_stmt_list(s.body, s, acc, anchor);
-        for ex in s.excepts {
-            self._lower_view_one(ex, acc, anchor);
-        }
-        if s.else_body is not None {
-            self._lower_view_one(s.else_body, acc, anchor);
-        }
-        if s.finally_body is not None {
-            self._lower_view_one(s.finally_body, acc, anchor);
-        }
-        return s;
-    }
-    if isinstance(s, Except) or isinstance(s, FinallyStmt) {
-        s.body = self._lower_view_stmt_list(s.body, s, acc, anchor);
-        return s;
-    }
-    if isinstance(s, MatchStmt) {
-        for cs in s.cases {
-            self._lower_view_one(cs, acc, anchor);
-        }
-        return s;
-    }
-    if isinstance(s, SwitchStmt) {
-        for cs in s.cases {
-            self._lower_view_one(cs, acc, anchor);
-        }
-        return s;
-    }
-    if isinstance(s, MatchCase) or isinstance(s, SwitchCase) {
-        s.body = self._lower_view_stmt_list(s.body, s, acc, anchor);
-        return s;
-    }
-    return s;
-}
-
-"""Lower a parsed view body into an ordinary `def` body.
-
-Wraps the statement-based template in an accumulator: declare `acc = []`,
-let every JSX statement (recursively, through control flow) append to it,
-then `return <>{acc}</>;` so the view yields a single JsxElement."""
-impl Parser._lower_view_body(stmts: list, anchor: Token) -> list {
-    acc = "__jac_view_kids";
-    lowered = self._lower_view_stmt_list(stmts, None, acc, anchor);
-    # acc = [];
-    acc_name = self._synth_name(acc, anchor);
-    eq_uni = self._synth_tok("EQ", "=", anchor);
-    init_lsq = self._synth_tok("LSQUARE", "[", anchor);
-    init_rsq = self._synth_tok("RSQUARE", "]", anchor);
-    empty_list = ListVal(values=[], kid=[init_lsq, init_rsq]);
-    init_assign = Assignment(
-        target=[acc_name],
-        value=empty_list,
-        type_tag=None,
-        kid=[acc_name, eq_uni, empty_list, self._synth_semi(anchor)],
-        mutable=True,
-        aug_op=None,
-        is_enum_stmt=False
-    );
-    # return <>{acc}</>;
-    frag = self._make_view_fragment(acc, anchor);
-    ret_uni = self._synth_tok("KW_RETURN", "return", anchor);
-    ret_stmt = ReturnStmt(expr=frag, kid=[ret_uni, frag, self._synth_semi(anchor)]);
-    return [init_assign] + lowered + [ret_stmt];
-}
-
 """Parse a `view` declarator.
 
-`view Name[generics](params) { body }` desugars to a public ability with
-return type `JsxElement` whose body is a statement-based template (see
-_lower_view_body). The generic list and parameter list are both optional, so
-`view Name { body }` is valid. The resulting Ability shares the AST shape of
-`def:pub Name(...) -> JsxElement { ... }`, so every downstream pass —
-type-check, symbol table, ecmascript codegen — handles it unchanged."""
+`view Name[generics](params) { body }` is parsed as a faithful `Ability`
+with `is_view = True`: the real `view` keyword token is kept in the kid list,
+the body holds the author's raw statement template, and no `:pub` access or
+`-> JsxElement` return type is synthesized here. The desugaring into an
+ordinary `def:pub -> JsxElement` is done later by `ViewLowerPass`, so the
+`jac format` pipeline (which does not run that pass) round-trips `view`
+syntax faithfully. The generic list and parameter list are both optional, so
+`view Name { body }` is valid."""
 impl Parser.parse_view -> Ability {
     self.advance();  # consume the `view` keyword
+    view_uni = self.make_uni_token(self.previous());
     name_tok = self.expect_name();
     name = self.make_name(name_tok);
     # Optional generic params: view Name[T](...)
@@ -6472,27 +6226,13 @@ impl Parser.parse_view -> Ability {
         tp_rb_uni = self.consume_uni(TokenKind.RSQUARE);
     }
     signature = self.parse_func_signature();
-    # A view always returns JsxElement; synthesize the annotation when the
-    # author omitted it (the common case).
-    if signature.return_type is None {
-        ret_hint = self._synth_tok("RETURN_HINT", "->", name_tok);
-        ret_type = self._synth_name("JsxElement", name_tok);
-        signature.return_type = ret_type;
-        signature.add_kids_right([ret_hint, ret_type]);
-    }
     body_lb_uni = self.consume_uni(TokenKind.LBRACE);
     self._view_body_depth += 1;
     raw_stmts = self.parse_code_block_stmts();
     self._view_body_depth -= 1;
     body_rb_uni = self.consume_uni(TokenKind.RBRACE);
-    body = self._lower_view_body(raw_stmts, name_tok);
-    # A view is a public component — synthesize a `:pub` access tag.
-    colon_uni = self._synth_tok("COLON", ":", name_tok);
-    pub_uni = self._synth_tok("KW_PUB", "pub", name_tok);
-    access = SubTag(tag=pub_uni, kid=[colon_uni, pub_uni]);
-    # Present the result as a plain `def` so every pass treats it uniformly.
-    def_uni = self._synth_tok("KW_DEF", "def", name_tok);
-    kid: list = [def_uni, access, name];
+    # Faithful kid list — `view` token kept; `ViewLowerPass` rewrites it.
+    kid: list = [view_uni, name];
     if type_params is not None {
         kid.append(tp_lb_uni);
         for (i, tp) in enumerate(type_params) {
@@ -6505,7 +6245,7 @@ impl Parser.parse_view -> Ability {
     }
     kid.append(signature);
     kid.append(body_lb_uni);
-    kid.extend(body);
+    kid.extend(raw_stmts);
     kid.append(body_rb_uni);
     return Ability(
         name_ref=name,
@@ -6514,13 +6254,14 @@ impl Parser.parse_view -> Ability {
         is_static=False,
         is_classmethod=False,
         is_abstract=False,
-        access=access,
+        access=None,
         signature=signature,
-        body=body,
+        body=raw_stmts,
         kid=kid,
         doc=None,
         decorators=[],
-        type_params=type_params
+        type_params=type_params,
+        is_view=True
     );
 }
 

@@ -583,17 +583,6 @@ obj Parser {
     def parse_archetype -> Archetype;
     def parse_archetype_member;
     def parse_view -> Ability;
-    def _lower_view_body(stmts: list, anchor: Token) -> list;
-    def _lower_view_stmt_list(
-        stmts: list, owner: object, acc: str, anchor: Token
-    ) -> list;
-
-    def _lower_view_one(stmt: object, acc: str, anchor: Token) -> object;
-    def _make_view_assign(acc: str, jsx: Expr, anchor: Token) -> Assignment;
-    def _make_view_fragment(acc: str, anchor: Token) -> JsxElement;
-    def _synth_name(value: str, anchor: Token) -> Name;
-    def _synth_tok(tok_type: str, value: str, anchor: Token) -> UniToken;
-    def _synth_semi(anchor: Token) -> Semi;
     def _skip_semicolons;
     def _error_unexpected_member;
     def parse_has_stmt -> ArchHas;

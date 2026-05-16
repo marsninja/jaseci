@@ -946,6 +946,38 @@ test "valid: function with return on all paths" {
 
 
 # ══════════════════════════════════════════════════════════════════
+#  view_body_check — `view` declarator body rules (ViewLowerPass)
+# ══════════════════════════════════════════════════════════════════
+test "view body check flags a value-returning return (E2019)" {
+    (program, _) = compile_and_check("view_body_rules.jac");
+    assert has_diagnostic_code(program, "E2019") , (
+        "a `return <value>;` in a view body should raise E2019"
+    );
+}
+
+test "view body check flags return inside a template loop (E2020)" {
+    (program, _) = compile_and_check("view_body_rules.jac");
+    assert has_diagnostic_code(program, "E2020") , (
+        "a bare `return;` inside a template `for` should raise E2020"
+    );
+}
+
+test "view body check flags break inside a template loop (E2021)" {
+    (program, _) = compile_and_check("view_body_rules.jac");
+    assert has_diagnostic_code(program, "E2021") , (
+        "a `break;` inside a template `for` should raise E2021"
+    );
+}
+
+test "view body check warns on a keyless while (W2019)" {
+    (program, _) = compile_and_check("view_body_rules.jac");
+    assert has_diagnostic_code(program, "W2019", in_warnings=True) , (
+        "a `while` rendering keyless JSX should warn W2019"
+    );
+}
+
+
+# ══════════════════════════════════════════════════════════════════
 #  ENTRY POINT — register parametrized tests
 # ══════════════════════════════════════════════════════════════════
 with entry {
