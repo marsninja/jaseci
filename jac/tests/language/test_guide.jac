@@ -13,6 +13,7 @@ import tempfile;
 import from pathlib { Path }
 import from jaclang.cli.commands { guide, analysis, project }
 import from jaclang.cli.guide_store { get_guide, list_guides, guide_for_diagnostic }
+import from jaclang.project.template_registry { initialize_template_registry }
 
 """Absolute path to a file in the language test fixtures directory."""
 def fixture_path(name: str) -> str {
@@ -127,7 +128,9 @@ test "jac check links a type error to the jac-types guide" {
 }
 
 # --- jac create: AGENTS.md seeding ---------------------------------------------
-test "jac create seeds an AGENTS.md that points at jac guide" {
+test "jac create includes an AGENTS.md in every new project" {
+    # Register the built-in templates the way the CLI bootstrap does.
+    initialize_template_registry();
     tmp = tempfile.mkdtemp();
     old_cwd = os.getcwd();
     out = io.StringIO();
@@ -135,15 +138,27 @@ test "jac create seeds an AGENTS.md that points at jac guide" {
     os.chdir(tmp);
     sys.stdout = out;
     try {
-        project.create(name="proj");
+        code = project.create(name="proj");
     } finally {
         sys.stdout = old_out;
         os.chdir(old_cwd);
     }
+    assert code == 0 , "jac create should succeed";
     agents = Path(tmp) / "proj" / "AGENTS.md";
-    assert agents.exists() , "jac create should write AGENTS.md";
+    assert agents.exists() , "every created project must include AGENTS.md";
     assert "jac guide" in agents.read_text(encoding="utf-8");
     shutil.rmtree(tmp, ignore_errors=True);
+}
+
+test "AGENTS.md seeding never clobbers a project's existing file" {
+    tmp = tempfile.mkdtemp();
+    try {
+        assert project._seed_agent_guide(Path(tmp), False);
+        # A second seed must leave the existing AGENTS.md untouched.
+        assert not project._seed_agent_guide(Path(tmp), False);
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
 }
 
 # --- guide store: library unit tests -------------------------------------------
