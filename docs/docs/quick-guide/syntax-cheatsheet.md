@@ -1291,6 +1291,17 @@ def:pub Counter() -> JsxElement {
     </div>;
 }
 
+# `view`: statement-form component, sugar for `def:pub ... -> JsxElement`.
+# Each top-level JSX element is a statement; no `return <jsx>;` wrapper.
+view Greeting(name: str) {
+    <h1>Hello, {name}!</h1>
+    if name == "" {
+        <p>(no name given)</p>
+        return;                   # bare return; = early-exit guard
+    }
+    <p>Welcome to Jac.</p>
+}
+
 # JSX syntax reference:
 # <div>text</div>               HTML elements
 # <Component prop="val" />      Component with props
@@ -1301,6 +1312,7 @@ def:pub Counter() -> JsxElement {
 # <div {...props}>               Spread props
 # <div className="cls">         Class name (not "class")
 # <div style={{"color": "red"}} Inline styles
+# <@expr>...</@expr>            Dynamic tag (tag chosen by expression)
 
 
 # ============================================================

@@ -38,8 +38,8 @@ obj Lexer {
         # `view` declarator tracking (statement-position JSX disambiguation).
         # The view body is a statement region: a bare `<Tag>` after `}` or a
         # sibling JSX close tag must lex as JSX, not as a `<` comparison.
-        _view_decl_state: int = 0,  # 0 idle, 1 saw `view`, 2 saw `view NAME`
-        _view_decl_armed: bool = False,  # saw `view NAME (`/`[`, awaiting body `{`
+        _view_decl_state: int = 0,  # 0 idle, 1 saw `view` keyword
+        _view_decl_armed: bool = False,  # saw `view NAME`, awaiting body `{`
         _brace_depth: int = 0,  # running { } nesting depth
         _paren_depth: int = 0,  # running ( ) nesting depth
         _bracket_depth: int = 0,  # running [ ] nesting depth

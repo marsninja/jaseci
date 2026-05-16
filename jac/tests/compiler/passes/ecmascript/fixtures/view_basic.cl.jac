@@ -3,12 +3,18 @@
 Exercises the `view` keyword as sugar for `def:pub -> JsxElement`: a
 statement-based body with sibling JSX statements, nested JSX elements, a
 view calling another view, a `has`-field with a nested `def` handler,
-view-body-level `if`/`else` and `for`, and a bare `return;` guard.
+view-body-level `if`/`else` and `for`, a bare `return;` guard, and the
+no-parameter-list form (`view Name { ... }`, parens omitted).
 """
 
 obj Item {
     has label: str,
         done: bool = False;
+}
+
+"""A bare divider — no parameter list, parens omitted."""
+view Divider {
+    <hr class="divider" />
 }
 
 """A small presentational view."""
@@ -40,6 +46,7 @@ view ItemList(items: list[Item]) {
         return;
     }
     <p class="status">Showing items.</p>
+    <Divider />
     for it in items {
         <ItemRow key={jid(it)} item={it} />
     }

@@ -3625,40 +3625,35 @@ impl Parser.parse_element_stmt{
     if self.check(TokenKind.KW_TEST) {
         return self.parse_test();
     }
-    # Docstring-prefixed declarations: STRING followed by a declaration.
-    # `view` is a contextual keyword (a NAME token), so it is matched with
-    # _is_view_decl rather than the keyword lookahead — but it still routes
-    # through parse_docstring_target like every other docstring target.
+    # Docstring-prefixed declarations: STRING followed by a declaration keyword
     if self.check(TokenKind.STRING)
-    and (
-        self.check_peek_any(
-            TokenKind.KW_TEST,
-            TokenKind.KW_DEF,
-            TokenKind.KW_CAN,
-            TokenKind.KW_OVERRIDE,
-            TokenKind.KW_STATIC,
-            TokenKind.KW_ASYNC,
-            TokenKind.DECOR_OP,
-            TokenKind.KW_OBJECT,
-            TokenKind.KW_NODE,
-            TokenKind.KW_EDGE,
-            TokenKind.KW_WALKER,
-            TokenKind.KW_CLASS,
-            TokenKind.KW_ENUM,
-            TokenKind.KW_IMPL,
-            TokenKind.TYP_TYPE,
-            TokenKind.KW_GLOBAL,
-            TokenKind.KW_WITH,
-            TokenKind.KW_CLIENT,
-            TokenKind.KW_SERVER,
-            TokenKind.KW_NATIVE
-        )
-        or self._is_view_decl(1)
+    and self.check_peek_any(
+        TokenKind.KW_TEST,
+        TokenKind.KW_DEF,
+        TokenKind.KW_CAN,
+        TokenKind.KW_OVERRIDE,
+        TokenKind.KW_STATIC,
+        TokenKind.KW_ASYNC,
+        TokenKind.DECOR_OP,
+        TokenKind.KW_OBJECT,
+        TokenKind.KW_NODE,
+        TokenKind.KW_EDGE,
+        TokenKind.KW_WALKER,
+        TokenKind.KW_VIEW,
+        TokenKind.KW_CLASS,
+        TokenKind.KW_ENUM,
+        TokenKind.KW_IMPL,
+        TokenKind.TYP_TYPE,
+        TokenKind.KW_GLOBAL,
+        TokenKind.KW_WITH,
+        TokenKind.KW_CLIENT,
+        TokenKind.KW_SERVER,
+        TokenKind.KW_NATIVE
     ) {
         return self.parse_docstring_target();
     }
-    # `view` declarator — contextual keyword, sugar for `def:pub -> JsxElement`.
-    if self._is_view_decl() {
+    # `view` declarator — sugar for `def:pub -> JsxElement`.
+    if self.check(TokenKind.KW_VIEW) {
         return self.parse_view();
     }
     if self.check_any(TokenKind.KW_DEF, TokenKind.KW_CAN) {
@@ -3811,8 +3806,8 @@ impl Parser.parse_docstring_target{
         result.add_kids_left([elem_doc]);
         return result;
     }
-    # `view` declarator — contextual keyword, sugar for `def:pub -> JsxElement`.
-    if self._is_view_decl() {
+    # `view` declarator — sugar for `def:pub -> JsxElement`.
+    if self.check(TokenKind.KW_VIEW) {
         result = self.parse_view();
         result.doc = elem_doc;
         result.add_kids_left([elem_doc]);
@@ -6205,21 +6200,6 @@ impl Parser._parse_post_async_modifiers(
     return (is_override, override_tok, is_static, static_tok);
 }
 
-"""Detect a `view` declarator `offset` tokens ahead of the cursor.
-
-`view` is a contextual keyword (a plain NAME token), recognized only in the
-shape `view NAME (` or `view NAME [` so it never shadows ordinary `view`
-identifiers used as expressions (`view(x)`, `view = 5`, `return view`).
-`offset` lets callers look past a leading docstring (`STRING view ...`)."""
-impl Parser._is_view_decl(offset: int = 0) -> bool {
-    return (
-        self.peek(offset).kind == TokenKind.NAME
-        and self.peek(offset).value == "view"
-        and self.peek(offset + 1).kind == TokenKind.NAME
-        and self.peek(offset + 2).kind in [TokenKind.LPAREN, TokenKind.LSQUARE]
-    );
-}
-
 """Build a synthetic Name node anchored at the given token's location."""
 impl Parser._synth_name(value: str, anchor: Token) -> Name {
     return Name(
@@ -6473,12 +6453,13 @@ impl Parser._lower_view_body(stmts: list, anchor: Token) -> list {
 
 `view Name[generics](params) { body }` desugars to a public ability with
 return type `JsxElement` whose body is a statement-based template (see
-_lower_view_body). The resulting Ability shares the AST shape of
+_lower_view_body). The generic list and parameter list are both optional, so
+`view Name { body }` is valid. The resulting Ability shares the AST shape of
 `def:pub Name(...) -> JsxElement { ... }`, so every downstream pass —
 type-check, symbol table, ecmascript codegen — handles it unchanged."""
 impl Parser.parse_view -> Ability {
-    self.advance();  # consume the contextual `view` keyword
-    name_tok = self.advance();
+    self.advance();  # consume the `view` keyword
+    name_tok = self.expect_name();
     name = self.make_name(name_tok);
     # Optional generic params: view Name[T](...)
     type_params: list | None = None;

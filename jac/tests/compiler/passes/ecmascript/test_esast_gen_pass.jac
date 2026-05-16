@@ -545,6 +545,10 @@ test "view declarator compiles to a jsx component" {
     assert "Badge" in func_names , "view Badge should lower to a function";
     assert "ItemRow" in func_names , "view ItemRow should lower to a function";
     assert "ItemList" in func_names , "view ItemList should lower to a function";
+    # `view Divider { ... }` — the parameter list is optional.
+    assert "Divider" in func_names , (
+        "no-parens `view Divider { }` should lower to a function"
+    );
 
     # The statement body is lowered to a children accumulator that the view
     # returns as a single JSX fragment.
@@ -570,7 +574,8 @@ test "view declarator compiles to a jsx component" {
     export_line = js_code.strip().split("\n")[-1];
     assert "Badge" in export_line
     and "ItemRow" in export_line
-    and "ItemList" in export_line , "all three views should be exported";
+    and "ItemList" in export_line
+    and "Divider" in export_line , "all four views should be exported";
 }
 
 test "view statement-position control flow lowers to statements" {

@@ -47,26 +47,24 @@ impl Lexer.in_view_body -> bool {
 }
 
 impl Lexer._track_view_context(tok: Token) {
-    # Recognize `view NAME (` / `view NAME [` and track the brace depth at
-    # which the view body opens, so in_view_body() is accurate.
+    # Recognize the `view NAME` declarator head and track the brace depth at
+    # which the view body opens, so in_view_body() is accurate. The body is
+    # armed as soon as `view NAME` is seen — the parameter list `(…)`, the
+    # generic list `[…]`, and the return hint are all optional, so the body
+    # `{` is simply the next brace at paren/bracket depth 0.
     k = tok.kind;
     if self._view_decl_state == 0 {
-        if k == TokenKind.NAME and tok.value == "view" {
+        if k == TokenKind.KW_VIEW {
             self._view_decl_state = 1;
         }
     } elif self._view_decl_state == 1 {
-        if k == TokenKind.NAME {
-            self._view_decl_state = 2;
+        if k == TokenKind.NAME or k == TokenKind.KWESC_NAME {
+            self._view_decl_armed = True;
+            self._view_decl_state = 0;
+        } elif k == TokenKind.KW_VIEW {
+            self._view_decl_state = 1;
         } else {
             self._view_decl_state = 0;
-        }
-    } elif self._view_decl_state == 2 {
-        if k == TokenKind.LPAREN or k == TokenKind.LSQUARE {
-            self._view_decl_armed = True;
-        }
-        self._view_decl_state = 0;
-        if k == TokenKind.NAME and tok.value == "view" {
-            self._view_decl_state = 1;
         }
     }
     # Running nesting depths.

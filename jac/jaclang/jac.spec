@@ -462,7 +462,8 @@ ability ::=
     (NAME | KWESC_NAME)? ("[" type_params "]")? ("with" expression | func_signature)
     ("{" code_block_stmts "}" | "by" expression ";" | "abs"? ";")
 
-view ::= ("[" type_params "]")? func_signature "{" code_block_stmts "}"
+view ::= "view" (NAME | KWESC_NAME) ("[" type_params "]")? func_signature
+    "{" code_block_stmts "}"
 
 func_signature ::= ("(" func_params? ")")? ("->" pipe)?
 

@@ -238,6 +238,7 @@ glob TOKEN_KIND_TO_TOK: dict[TokenKind, str] = {
          TokenKind.KW_NODE: Tok.KW_NODE.value,
          TokenKind.KW_EDGE: Tok.KW_EDGE.value,
          TokenKind.KW_WALKER: Tok.KW_WALKER.value,
+         TokenKind.KW_VIEW: Tok.KW_VIEW.value,
          TokenKind.KW_HAS: Tok.KW_HAS.value,
          TokenKind.KW_CAN: Tok.KW_CAN.value,
          TokenKind.KW_DEF: Tok.KW_DEF.value,
@@ -582,7 +583,6 @@ obj Parser {
     def parse_archetype -> Archetype;
     def parse_archetype_member;
     def parse_view -> Ability;
-    def _is_view_decl(offset: int = 0) -> bool;
     def _lower_view_body(stmts: list, anchor: Token) -> list;
     def _lower_view_stmt_list(
         stmts: list, owner: object, acc: str, anchor: Token
