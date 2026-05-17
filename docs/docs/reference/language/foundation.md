@@ -1422,8 +1422,10 @@ def example(raw: any) {
 Its primary use is as the escape hatch for the strict gradual-typing rule (see [The `any` Type and Gradual Typing](#the-any-type-and-gradual-typing)): an `any` value -- such as a walker report -- cannot flow silently into a declared concrete type, and the cast makes that re-typing explicit:
 
 ```jac
-result = root spawn load_feed();
-tweets: list[TweetView] = result.reports[0] as list[TweetView];
+with entry {
+    result = root spawn load_feed();
+    tweets: list[TweetView] = result.reports[0] as list[TweetView];
+}
 ```
 
 **Precedence.** The cast binds just below the ternary and above every binary operator, so `a + b as T` parses as `(a + b) as T`. To cast a ternary, parenthesize it: `(x if c else y) as T`. Casts chain left-associatively, so `x as A as B` is `(x as A) as B`.
