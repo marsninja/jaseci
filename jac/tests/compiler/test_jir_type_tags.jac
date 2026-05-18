@@ -11,7 +11,7 @@ import os;
 import from pathlib { Path }
 import jaclang;
 import from jaclang.jac0core.jir_passes { JirWriter, JirReader }
-import from jaclang.jac0core.jir { SEC_TYPE_TAGS }
+import from jaclang.jac0core.jir { SEC_TYPE_TAGS, HEADER_FMT, HEADER_SIZE }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.unitree {
     MultiString,
@@ -190,4 +190,56 @@ test "name_spec restored on AstSymbolStubNode after JIR round-trip" {
             _ = n.sym;
         }
     }
+}
+
+# ── Corrupt JIR cache safety ──────────────────────────────────────────────────
+# Regression: a corrupt or version-incompatible .jir cache file must degrade to
+# a cache miss (JirReader.read_module returns None), never raise. The jac_hash
+# header field guards against package-version changes, but an editable dev
+# install keeps the same version string while the node layout shifts under it,
+# so a stale cache passes every header check (magic, format version, jac_hash)
+# and only fails deep inside the node stream — where _read_varint overruns the
+# payload or _StringPool.get indexes past the pool, raising IndexError.
+#
+# Before the fix that IndexError escaped read_module, was caught by
+# TypeEvaluator._try_read_jir_cache's broad `except Exception`, and dumped a
+# full traceback to stderr on every `jac check` of the affected file. The cache
+# is an optimization: a bad cache file must silently fall back to a fresh
+# compile, so read_module owns the JIR-format boundary and returns None for any
+# malformed input — exactly as it already does for a bad magic / version / hash.
+test "read_module returns None on JIR with an inflated node count" {
+    import struct;
+    fixture = os.path.join(JIR_FIXTURES, "jir_stub_name_spec.jac");
+    mod = JacProgram().compile(fixture, no_cgen=True);
+    assert mod is not None;
+    data = JirWriter().write_module(mod);
+
+    # Sanity: an untouched blob still round-trips.
+    assert JirReader().read_module(data) is not None;
+
+    # Corrupt only the header's ir_node_count field (the 6th HEADER_FMT value),
+    # leaving magic / format version / jac_hash intact so every header check
+    # passes and the failure surfaces inside the node stream instead.
+    header = list(struct.unpack(HEADER_FMT, data[:HEADER_SIZE]));
+    header[5] += 5000;
+    corrupt = struct.pack(HEADER_FMT, *header) + data[HEADER_SIZE:];
+
+    # Must not raise — a corrupt cache is a cache miss, not a crash.
+    assert JirReader().read_module(corrupt) is None;
+}
+
+test "read_module returns None on JIR with a truncated payload body" {
+    import zlib;
+    fixture = os.path.join(JIR_FIXTURES, "jir_stub_name_spec.jac");
+    mod = JacProgram().compile(fixture, no_cgen=True);
+    assert mod is not None;
+    data = JirWriter().write_module(mod);
+
+    # Decompress the payload, halve it, recompress: the blob still decompresses
+    # cleanly (zlib.error is already handled separately) but the node stream
+    # runs dry partway through, the path that used to raise IndexError.
+    body = zlib.decompress(data[HEADER_SIZE:]);
+    truncated = data[:HEADER_SIZE] + zlib.compress(body[:len(body) // 2]);
+
+    assert JirReader().read_module(truncated) is None;
 }

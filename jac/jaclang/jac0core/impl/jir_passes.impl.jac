@@ -464,60 +464,90 @@ impl JirReader.read_module(data: bytes) -> (Module | None) {
         return None;
     }
     payload = memoryview(payload_bytes);
-    pos = 0;
 
-    # Read string pool
-    (self._pool, pos) = _deserialize_string_pool(payload, pos);
+    # Deserialize the payload body. Any corruption, truncation, or layout
+    # incompatibility — e.g. a stale dev-build cache whose package version
+    # string is unchanged, so the jac_hash check above passes even though the
+    # node layout has shifted — must degrade to a cache miss (return None) so
+    # the caller falls back to a fresh compile. It must never raise: the JIR
+    # cache is an optimization and a bad cache file cannot be allowed to abort
+    # a `jac check` / `jac run`.
+    try {
+        pos = 0;
 
-    # Lazy-load class mapping and cache imports
-    if not self._class_map {
-        self._class_map = get_class_mapping();
-        self._init_caches();
-    }
+        # Read string pool
+        (self._pool, pos) = _deserialize_string_pool(payload, pos);
 
-    # Read node stream
-    self._nodes = [None] * ir_node_count;
-    for i in range(ir_node_count) {
-        pos = self._read_node(payload, pos, i);
-    }
-
-    # Read link table
-    pos = self._read_link_table(payload, pos);
-
-    # The last node (post-order) is the root Module
-    if self._nodes {
-        last_node = self._nodes[-1];
-        import from jaclang.jac0core.unitree { Module as ModuleCls }
-        if isinstance(last_node, ModuleCls) {
-            if self._source_path {
-                self._wire_source(last_node);
-            }
-            self._fix_param_kinds();
-            # Decode trailing TLV sections (bytecode, MTIR, LLVM IR, interop, type tags)
-            import from jaclang.jac0core.jir {
-                SEC_BYTECODE,
-                SEC_MTIR,
-                SEC_LLVM_IR,
-                SEC_INTEROP,
-                SEC_TYPE_TAGS
-            }
-            secs = self._read_trailing_sections(data);
-            self.bytecode_section = secs.get(SEC_BYTECODE);
-            self.mtir_section = secs.get(SEC_MTIR);
-            self.llvm_ir_section = secs.get(SEC_LLVM_IR);
-            self.interop_section = secs.get(SEC_INTEROP);
-            self.type_tags_section = secs.get(SEC_TYPE_TAGS);
-            if self.type_tags_section is not None {
-                try {
-                    self._apply_type_tags(self.type_tags_section);
-                } except Exception {
-                    pass;  # corrupt section — tags simply remain None
-                }
-            }
-            return last_node;
+        # Sanity check: every node occupies at least one byte on the wire, so
+        # a declared node count larger than the whole payload signals a corrupt
+        # header — bail before `[None] * ir_node_count` allocates a huge list.
+        if ir_node_count > len(payload) {
+            return None;
         }
+
+        # Lazy-load class mapping and cache imports
+        if not self._class_map {
+            self._class_map = get_class_mapping();
+            self._init_caches();
+        }
+
+        # Read node stream
+        self._nodes = [None] * ir_node_count;
+        for i in range(ir_node_count) {
+            pos = self._read_node(payload, pos, i);
+        }
+
+        # Read link table
+        pos = self._read_link_table(payload, pos);
+
+        # The last node (post-order) is the root Module
+        if self._nodes {
+            last_node = self._nodes[-1];
+            import from jaclang.jac0core.unitree { Module as ModuleCls }
+            if isinstance(last_node, ModuleCls) {
+                if self._source_path {
+                    self._wire_source(last_node);
+                }
+                self._fix_param_kinds();
+                # Decode trailing TLV sections (bytecode, MTIR, LLVM IR, interop, type tags)
+                import from jaclang.jac0core.jir {
+                    SEC_BYTECODE,
+                    SEC_MTIR,
+                    SEC_LLVM_IR,
+                    SEC_INTEROP,
+                    SEC_TYPE_TAGS
+                }
+                secs = self._read_trailing_sections(data);
+                self.bytecode_section = secs.get(SEC_BYTECODE);
+                self.mtir_section = secs.get(SEC_MTIR);
+                self.llvm_ir_section = secs.get(SEC_LLVM_IR);
+                self.interop_section = secs.get(SEC_INTEROP);
+                self.type_tags_section = secs.get(SEC_TYPE_TAGS);
+                if self.type_tags_section is not None {
+                    try {
+                        self._apply_type_tags(self.type_tags_section);
+                    } except Exception {
+                        pass;  # corrupt section — tags simply remain None
+                    }
+                }
+                return last_node;
+            }
+        }
+        return None;
+    } except (
+        IndexError,
+        KeyError,
+        ValueError,
+        struct.error,
+        UnicodeDecodeError,
+        EOFError,
+        RecursionError,
+        MemoryError,
+        OverflowError
+    ) {
+        # Malformed / version-incompatible JIR — treat as a cache miss.
+        return None;
     }
-    return None;
 }
 
 impl JirReader._read_trailing_sections(data: bytes) -> dict[int, bytes] {
