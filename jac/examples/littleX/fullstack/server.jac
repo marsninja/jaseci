@@ -1,37 +1,17 @@
-"""Little X - Social graph backend over an object-spatial user graph."""
+"""Little X - Social graph backend in idiomatic object-spatial style.
+
+The graph holds the data: `Profile` / `Tweet` / `Channel` nodes wired by
+typed edges. Walkers are the mobile agents the client spawns - each one
+declares where it starts (`with Root entry`) and what to do at every node
+type it lands on (`with Tweet entry`, ...). Traversal is `visit`, never a
+hand-rolled loop, and shared fan-out lives in small base walkers.
+"""
 
 import datetime;
 
 def _now -> str {
     return datetime.datetime.utcnow().isoformat() + "Z";
 }
-
-# --- Graph archetypes: the persisted social graph ---
-node Profile {
-    has username: str = "",
-        bio: str = "",
-        created_at: str = "";
-}
-
-node Tweet {
-    has content: str = "",
-        author_username: str = "",
-        created_at: str = "",
-        likes: list[str] = [],
-        comments: list[dict[str, str]] = [];
-}
-
-node Channel {
-    has name: str = "",
-        description: str = "",
-        creator_username: str = "",
-        created_at: str = "";
-}
-
-edge Follow {}
-edge Post {}
-edge Member {}
-edge ChannelPost {}
 
 # --- View models: the typed contract returned to the client ---
 obj UserView {
@@ -75,92 +55,114 @@ obj TrendingTag {
         count: int;
 }
 
-# --- View builders: turn graph nodes into view models ---
-def _user_view(p: Profile) -> UserView {
-    return UserView(id=jid(p), username=p.username, bio=p.bio);
-}
+# --- Edges: the relationships in the social graph ---
+edge Follow {}
+edge Post {}
+edge Member {}
+edge ChannelPost {}
 
-def _tweet_view(t: Tweet, is_mine: bool) -> TweetView {
-    return TweetView(
-        id=jid(t),
-        content=t.content,
-        author_username=t.author_username,
-        created_at=t.created_at,
-        likes=t.likes,
-        comments=t.comments,
-        is_mine=is_mine
-    );
-}
+# --- Graph nodes: data, plus the methods that present it as a view.
+#     A node knows how to describe itself; walkers decide when to ask. ---
+node Profile {
+    has username: str = "",
+        bio: str = "",
+        created_at: str = "";
 
-# Sort keys -- typed so the type checker can resolve the comparison.
-def _tweet_order(t: TweetView) -> str {
-    return t.created_at;
-}
-
-def _channel_order(c: ChannelView) -> str {
-    return c.created_at;
-}
-
-def _tag_order(t: TrendingTag) -> int {
-    return t.count;
-}
-
-# Build the full ProfileView for a profile node -- shared by the
-# `setup_profile` and `get_profile` walkers so both return the same type.
-def _profile_view(me: Profile) -> ProfileView {
-    my_id = jid(me);
-    followers: list[UserView] = [];
-    following: list[UserView] = [];
-    for r in allroots() {
-        for other in [r-->[?:Profile]] {
-            if jid(other) != my_id {
-                if [edge other->:Follow:->me] {
-                    followers.append(_user_view(other));
-                }
-                if [edge me->:Follow:->other] {
-                    following.append(_user_view(other));
-                }
-            }
-        }
+    def to_user_view -> UserView {
+        return UserView(id=jid(self), username=self.username, bio=self.bio);
     }
 
-    tweets: list[TweetView] = [_tweet_view(t, True) for t in [me-->[?:Tweet]]];
-    tweets.sort(key=_tweet_order, reverse=True);
-
-    return ProfileView(
-        id=my_id,
-        username=me.username,
-        bio=me.bio,
-        followers=followers,
-        following=following,
-        tweets=tweets
-    );
+    # Followers / following fall straight out of the edges - no graph scan.
+    def to_profile_view -> ProfileView {
+        followers = [p.to_user_view() for p in [self<-:Follow:<-[?:Profile]]];
+        following = [p.to_user_view() for p in [self->:Follow:->[?:Profile]]];
+        tweets = [t.to_view() for t in [self-->[?:Tweet]]];
+        tweets.sort(key=lambda t: TweetView : t.created_at, reverse=True);
+        return ProfileView(
+            id=jid(self),
+            username=self.username,
+            bio=self.bio,
+            followers=followers,
+            following=following,
+            tweets=tweets
+        );
+    }
 }
 
-# --- Walkers: object-spatial agents the client spawns ---
+node Tweet {
+    has content: str = "",
+        author_username: str = "",
+        created_at: str = "",
+        likes: list[str] = [],
+        comments: list[dict[str, str]] = [];
+
+    def to_view -> TweetView {
+        mine = [root-->[?:Profile]];
+        is_mine: bool = len(mine) > 0 and self.author_username == mine[0].username;
+        return TweetView(
+            id=jid(self),
+            content=self.content,
+            author_username=self.author_username,
+            created_at=self.created_at,
+            likes=self.likes,
+            comments=self.comments,
+            is_mine=is_mine
+        );
+    }
+}
+
+node Channel {
+    has name: str = "",
+        description: str = "",
+        creator_username: str = "",
+        created_at: str = "";
+
+    def to_view(with_posts: bool) -> ChannelView {
+        mine = [root-->[?:Profile]];
+        is_member: bool = len(mine) > 0 and len([edge mine[0]->:Member:->self]) > 0;
+        posts: list[TweetView] = [];
+        if with_posts {
+            posts = [t.to_view() for t in [self-->[?:Tweet]]];
+            posts.sort(key=lambda t: TweetView : t.created_at, reverse=True);
+        }
+        return ChannelView(
+            id=jid(self),
+            name=self.name,
+            description=self.description,
+            creator_username=self.creator_username,
+            created_at=self.created_at,
+            member_count=len([self<-:Member:<-[?:Profile]]),
+            is_member=is_member,
+            posts=posts
+        );
+    }
+}
+
+# --- Profile walkers: spawn at the caller's root, act on their profile ---
 walker setup_profile {
     has username: str = "",
         bio: str = "",
         reports: list[ProfileView] = [];
 
     can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            new_profile = here ++> Profile(
-                username=self.username, bio=self.bio, created_at=_now()
-            );
-            grant(new_profile[0], level=ConnectPerm);
-            report _profile_view(new_profile[0]);
+        existing = [-->[?:Profile]];
+        if existing {
+            visit existing;
         } else {
-            profile = profiles[0];
-            if self.username {
-                profile.username = self.username;
-            }
-            if self.bio {
-                profile.bio = self.bio;
-            }
-            report _profile_view(profile);
+            fresh = here ++> Profile(created_at=_now());
+            grant(fresh[0], level=ConnectPerm);
+            visit fresh;
         }
+    }
+
+    can apply with Profile entry {
+        if self.username {
+            here.username = self.username;
+        }
+        if self.bio {
+            here.bio = self.bio;
+        }
+        report here.to_profile_view();
     }
 }
 
@@ -168,277 +170,133 @@ walker get_profile {
     has reports: list[ProfileView] = [];
 
     can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            # No profile yet: report nothing so the client keeps its
-            # current `myProfile` instead of receiving an error dict.
-            disengage;
-        }
-        report _profile_view(profiles[0]);
+        visit [-->[?:Profile]];
+    }
+
+    can give with Profile entry {
+        report here.to_profile_view();
     }
 }
 
+# --- Accumulator walkers: fan out, gather at each node, report once at exit ---
 walker:pub get_all_profiles {
-    has reports: list[list[UserView]] = [];
+    has results: list[UserView] = [],
+        reports: list[list[UserView]] = [];
 
     can run with Root entry {
-        results: list[UserView] = [];
         for r in allroots() {
-            for prof in [r-->[?:Profile]] {
-                results.append(_user_view(prof));
-            }
+            visit [r-->[?:Profile]];
         }
-        report results;
     }
-}
 
-walker follow_user {
-    has target_id: str;
-
-    can run with Root entry {
-        my_profiles = [-->[?:Profile]];
-        if not my_profiles {
-            report {"error": "No profile"};
-            disengage;
-        }
-        my_profile = my_profiles[0];
-        for r in allroots() {
-            for target in [r-->[?:Profile]] {
-                if jid(target) == self.target_id {
-                    my_profile +>: Follow() :+> target;
-                    report {"success": True};
-                    disengage;
-                }
-            }
-        }
-        report {"error": "User not found"};
+    can gather with Profile entry {
+        self.results.append(here.to_user_view());
     }
-}
 
-walker unfollow_user {
-    has target_id: str;
-
-    can run with Root entry {
-        my_profiles = [-->[?:Profile]];
-        if not my_profiles {
-            report {"error": "No profile"};
-            disengage;
-        }
-        my_profile = my_profiles[0];
-        for r in allroots() {
-            for target in [r-->[?:Profile]] {
-                if jid(target) == self.target_id {
-                    follow_edges = [edge my_profile->:Follow:->target];
-                    if follow_edges {
-                        del follow_edges[0];
-                    }
-                    report {"success": True};
-                    disengage;
-                }
-            }
-        }
-        report {"error": "User not found"};
+    can deliver with Root exit {
+        report self.results;
     }
-}
-
-walker create_tweet {
-    has content: str;
-
-    can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            report {"error": "No profile"};
-            disengage;
-        }
-        profile = profiles[0];
-        new_tweets = profile +>: Post() :+> Tweet(
-            content=self.content,
-            author_username=profile.username,
-            created_at=_now(),
-            likes=[],
-            comments=[]
-        );
-        grant(new_tweets[0], level=WritePerm);
-        report _tweet_view(new_tweets[0], True);
-    }
-}
-
-walker delete_tweet {
-    has tweet_id: str;
-
-    can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            report {"error": "No profile"};
-            disengage;
-        }
-        profile = profiles[0];
-        for tweet in [profile-->[?:Tweet]] {
-            if jid(tweet) == self.tweet_id {
-                del tweet;
-                report {"success": True};
-                disengage;
-            }
-        }
-        for channel in [profile-->[?:Channel]] {
-            for tweet in [channel-->[?:Tweet]] {
-                if jid(tweet) == self.tweet_id
-                and tweet.author_username == profile.username {
-                    del tweet;
-                    report {"success": True};
-                    disengage;
-                }
-            }
-        }
-        report {"error": "Tweet not found"};
-    }
-}
-
-walker like_tweet {
-    has tweet_id: str;
-
-    can run with Root entry {
-        my_profiles = [-->[?:Profile]];
-        if not my_profiles {
-            report {"error": "No profile"};
-            disengage;
-        }
-        username = my_profiles[0].username;
-        for r in allroots() {
-            for prof in [r-->[?:Profile]] {
-                for tweet in [prof-->[?:Tweet]] {
-                    if jid(tweet) == self.tweet_id {
-                        report _toggle_like(tweet, username);
-                        disengage;
-                    }
-                }
-                for channel in [prof-->[?:Channel]] {
-                    for tweet in [channel-->[?:Tweet]] {
-                        if jid(tweet) == self.tweet_id {
-                            report _toggle_like(tweet, username);
-                            disengage;
-                        }
-                    }
-                }
-            }
-        }
-        report {"error": "Tweet not found"};
-    }
-}
-
-def _toggle_like(tweet: Tweet, username: str) -> dict[str, object] {
-    if username in tweet.likes {
-        tweet.likes = [
-            u
-            for u in tweet.likes
-            if u != username
-        ];
-        return {"liked": False, "likes": tweet.likes};
-    }
-    tweet.likes = tweet.likes + [username];
-    return {"liked": True, "likes": tweet.likes};
-}
-
-walker add_comment {
-    has tweet_id: str,
-        content: str;
-
-    can run with Root entry {
-        my_profiles = [-->[?:Profile]];
-        if not my_profiles {
-            report {"error": "No profile"};
-            disengage;
-        }
-        username = my_profiles[0].username;
-        for r in allroots() {
-            for prof in [r-->[?:Profile]] {
-                for tweet in [prof-->[?:Tweet]] {
-                    if jid(tweet) == self.tweet_id {
-                        report _add_comment(tweet, username, self.content);
-                        disengage;
-                    }
-                }
-                for channel in [prof-->[?:Channel]] {
-                    for tweet in [channel-->[?:Tweet]] {
-                        if jid(tweet) == self.tweet_id {
-                            report _add_comment(tweet, username, self.content);
-                            disengage;
-                        }
-                    }
-                }
-            }
-        }
-        report {"error": "Tweet not found"};
-    }
-}
-
-def _add_comment(tweet: Tweet, username: str, content: str) -> dict[str, object] {
-    comment = {"username": username, "content": content, "created_at": _now()};
-    tweet.comments = tweet.comments + [comment];
-    return {"success": True, "comment": comment};
 }
 
 walker get_trending {
-    has reports: list[list[TrendingTag]] = [];
+    has counts: dict[str, int] = {},
+        reports: list[list[TrendingTag]] = [];
 
     can run with Root entry {
-        tag_counts: dict[str, int] = {};
         for r in allroots() {
-            for prof in [r-->[?:Profile]] {
-                for tweet in [prof-->[?:Tweet]] {
-                    for word in tweet.content.split() {
-                        if word.startswith("#") and len(word) > 1 {
-                            tag = word.lower().rstrip(".,!?;:");
-                            if tag in tag_counts {
-                                tag_counts[tag] += 1;
-                            } else {
-                                tag_counts[tag] = 1;
-                            }
-                        }
-                    }
-                }
+            visit [r-->[?:Profile]-->[?:Tweet]];
+        }
+    }
+
+    can tally with Tweet entry {
+        for word in here.content.split() {
+            if word.startswith("#") and len(word) > 1 {
+                tag = word.lower().rstrip(".,!?;:");
+                self.counts[tag] = self.counts.get(tag, 0) + 1;
             }
         }
-        tags: list[TrendingTag] = [
-            TrendingTag(tag=tag, count=tag_counts[tag]) for tag in tag_counts
-        ];
-        tags.sort(key=_tag_order, reverse=True);
+    }
+
+    can deliver with Root exit {
+        tags = [TrendingTag(tag=t, count=self.counts[t]) for t in self.counts];
+        tags.sort(key=lambda x: TrendingTag : x.count, reverse=True);
         report tags[:8];
     }
 }
 
 walker load_feed {
     has search_query: str = "",
+        feed: list[TweetView] = [],
         reports: list[list[TweetView]] = [];
 
     can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            report [];
-            disengage;
+        mine = [-->[?:Profile]];
+        if mine {
+            me = mine[0];
+            visit [me-->[?:Tweet]];
+            visit [me->:Follow:->[?:Profile]-->[?:Tweet]];
         }
-        my_profile = profiles[0];
-        feed: list[TweetView] = [];
+    }
 
-        for tweet in [my_profile-->[?:Tweet]] {
-            feed.append(_tweet_view(tweet, True));
-        }
-        for followed in [my_profile->:Follow:->[?:Profile]] {
-            for tweet in [followed-->[?:Tweet]] {
-                feed.append(_tweet_view(tweet, False));
-            }
-        }
+    can gather with Tweet entry {
+        self.feed.append(here.to_view());
+    }
 
+    can deliver with Root exit {
+        result = self.feed;
         if self.search_query {
             q = self.search_query.lower().strip();
-            feed = [
+            result = [
                 t
-                for t in feed
+                for t in result
                 if q in t.content.lower()
             ];
         }
-        feed.sort(key=_tweet_order, reverse=True);
-        report feed;
+        result.sort(key=lambda t: TweetView : t.created_at, reverse=True);
+        report result;
+    }
+}
+
+walker get_channels {
+    has seen: dict[str, bool] = {},
+        results: list[ChannelView] = [],
+        reports: list[list[ChannelView]] = [];
+
+    can run with Root entry {
+        for r in allroots() {
+            visit [r-->[?:Profile]-->[?:Channel]];
+        }
+    }
+
+    # A channel links to every member, so it can be reached more than once.
+    can gather with Channel entry {
+        cid = jid(here);
+        if cid not in self.seen {
+            self.seen[cid] = True;
+            self.results.append(here.to_view(False));
+        }
+    }
+
+    can deliver with Root exit {
+        self.results.sort(key=lambda c: ChannelView : c.created_at, reverse=True);
+        report self.results;
+    }
+}
+
+# --- Create walkers: navigate to the caller's profile, then attach a node ---
+walker create_tweet {
+    has content: str;
+
+    can run with Root entry {
+        visit [-->[?:Profile]];
+    }
+
+    can make with Profile entry {
+        new = here +>: Post() :+> Tweet(
+            content=self.content, author_username=here.username, created_at=_now()
+        );
+        grant(new[0], level=WritePerm);
+        report new[0].to_view();
     }
 }
 
@@ -447,189 +305,183 @@ walker create_channel {
         description: str = "";
 
     can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            report {"error": "No profile"};
-            disengage;
-        }
-        profile = profiles[0];
-        new_channels = profile +>: Member() :+> Channel(
+        visit [-->[?:Profile]];
+    }
+
+    can make with Profile entry {
+        new = here +>: Member() :+> Channel(
             name=self.name,
             description=self.description,
-            creator_username=profile.username,
+            creator_username=here.username,
             created_at=_now()
         );
-        ch = new_channels[0];
-        grant(ch, level=ConnectPerm);
-        report ChannelView(
-            id=jid(ch),
-            name=ch.name,
-            description=ch.description,
-            creator_username=ch.creator_username,
-            created_at=ch.created_at,
-            member_count=1,
-            is_member=True
-        );
+        grant(new[0], level=ConnectPerm);
+        report new[0].to_view(False);
     }
 }
 
-walker join_channel {
-    has channel_id: str;
+# --- Lookup base walkers: fan out to every node of a kind so the action
+#     subclasses only have to react to the one whose `jid` matches. ---
+walker find_profile {
+    has target_id: str = "";
 
     can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            report {"error": "No profile"};
+        for r in allroots() {
+            visit [r-->[?:Profile]];
+        }
+    }
+}
+
+walker follow_user(find_profile) {
+    can act with Profile entry {
+        if jid(here) == self.target_id {
+            me = [root-->[?:Profile]][0];
+            me +>: Follow() :+> here;
+            report {"success": True};
             disengage;
         }
-        profile = profiles[0];
-        for r in allroots() {
-            for prof in [r-->[?:Profile]] {
-                for ch in [prof-->[?:Channel]] {
-                    if jid(ch) == self.channel_id {
-                        if not [edge profile->:Member:->ch] {
-                            profile +>: Member() :+> ch;
-                        }
-                        report {"success": True};
-                        disengage;
-                    }
-                }
-            }
-        }
-        report {"error": "Channel not found"};
     }
 }
 
-walker leave_channel {
-    has channel_id: str;
-
-    can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            report {"error": "No profile"};
+walker unfollow_user(find_profile) {
+    can act with Profile entry {
+        if jid(here) == self.target_id {
+            me = [root-->[?:Profile]][0];
+            edges = [edge me->:Follow:->here];
+            if edges {
+                del edges[0];
+            }
+            report {"success": True};
             disengage;
         }
-        profile = profiles[0];
-        for ch in [profile-->[?:Channel]] {
-            if jid(ch) == self.channel_id {
-                member_edges = [edge profile->:Member:->ch];
-                if member_edges {
-                    del member_edges[0];
-                }
-                report {"success": True};
-                disengage;
-            }
-        }
-        report {"error": "Channel not found"};
     }
 }
 
-walker get_channels {
-    has reports: list[list[ChannelView]] = [];
+# `actor` is resolved once on entry so Tweet abilities need no extra lookup.
+walker find_tweet {
+    has tweet_id: str = "",
+        actor: str = "";
 
     can run with Root entry {
-        my_profiles = [-->[?:Profile]];
-        my_channel_ids: list[str] = [];
-        if my_profiles {
-            for ch in [my_profiles[0]-->[?:Channel]] {
-                my_channel_ids.append(jid(ch));
-            }
+        mine = [-->[?:Profile]];
+        if mine {
+            self.actor = mine[0].username;
         }
-
-        seen: dict[str, bool] = {};
-        channels: list[ChannelView] = [];
         for r in allroots() {
-            for prof in [r-->[?:Profile]] {
-                for ch in [prof-->[?:Channel]] {
-                    ch_id = jid(ch);
-                    if ch_id not in seen {
-                        seen[ch_id] = True;
-                        channels.append(
-                            ChannelView(
-                                id=ch_id,
-                                name=ch.name,
-                                description=ch.description,
-                                creator_username=ch.creator_username,
-                                created_at=ch.created_at,
-                                member_count=len([ch<-:Member:<-[?:Profile]]),
-                                is_member=ch_id in my_channel_ids
-                            )
-                        );
-                    }
-                }
-            }
+            visit [r-->[?:Profile]-->[?:Tweet]];
+            visit [r-->[?:Profile]-->[?:Channel]-->[?:Tweet]];
         }
-        channels.sort(key=_channel_order, reverse=True);
-        report channels;
     }
 }
 
-walker get_channel_detail {
-    has channel_id: str,
-        reports: list[ChannelView] = [];
-
-    can run with Root entry {
-        my_profiles = [-->[?:Profile]];
-        my_username = my_profiles[0].username if my_profiles else "";
-
-        for r in allroots() {
-            for prof in [r-->[?:Profile]] {
-                for ch in [prof-->[?:Channel]] {
-                    if jid(ch) == self.channel_id {
-                        is_member = False;
-                        if my_profiles and [edge my_profiles[0]->:Member:->ch] {
-                            is_member = True;
-                        }
-                        posts: list[TweetView] = [
-                            _tweet_view(t, t.author_username == my_username)
-                            for t in [ch-->[?:Tweet]]
-                        ];
-                        posts.sort(key=_tweet_order, reverse=True);
-                        report ChannelView(
-                            id=jid(ch),
-                            name=ch.name,
-                            description=ch.description,
-                            creator_username=ch.creator_username,
-                            created_at=ch.created_at,
-                            member_count=len([ch<-:Member:<-[?:Profile]]),
-                            is_member=is_member,
-                            posts=posts
-                        );
-                        disengage;
-                    }
-                }
+walker like_tweet(find_tweet) {
+    can act with Tweet entry {
+        if jid(here) == self.tweet_id {
+            if self.actor in here.likes {
+                here.likes = [
+                    u
+                    for u in here.likes
+                    if u != self.actor
+                ];
+                report {"liked": False, "likes": here.likes};
+            } else {
+                here.likes = here.likes + [self.actor];
+                report {"liked": True, "likes": here.likes};
             }
-        }
-        # Channel not found: report nothing so the client sees an empty
-        # `reports` list and leaves the current view untouched.
-    }
-}
-
-walker create_channel_tweet {
-    has channel_id: str,
-        content: str;
-
-    can run with Root entry {
-        profiles = [-->[?:Profile]];
-        if not profiles {
-            report {"error": "No profile"};
             disengage;
         }
-        profile = profiles[0];
-        for ch in [profile-->[?:Channel]] {
-            if jid(ch) == self.channel_id {
-                new_tweets = ch +>: ChannelPost() :+> Tweet(
-                    content=self.content,
-                    author_username=profile.username,
-                    created_at=_now(),
-                    likes=[],
-                    comments=[]
+    }
+}
+
+walker delete_tweet(find_tweet) {
+    can act with Tweet entry {
+        if jid(here) == self.tweet_id and here.author_username == self.actor {
+            del here;
+            report {"success": True};
+            disengage;
+        }
+    }
+}
+
+walker add_comment(find_tweet) {
+    has content: str = "";
+
+    can act with Tweet entry {
+        if jid(here) == self.tweet_id {
+            comment = {
+                "username": self.actor,
+                "content": self.content,
+                "created_at": _now()
+            };
+            here.comments = here.comments + [comment];
+            report {"success": True, "comment": comment};
+            disengage;
+        }
+    }
+}
+
+walker find_channel {
+    has channel_id: str = "";
+
+    can run with Root entry {
+        for r in allroots() {
+            visit [r-->[?:Profile]-->[?:Channel]];
+        }
+    }
+}
+
+walker join_channel(find_channel) {
+    can act with Channel entry {
+        if jid(here) == self.channel_id {
+            me = [root-->[?:Profile]][0];
+            if not [edge me->:Member:->here] {
+                me +>: Member() :+> here;
+            }
+            report {"success": True};
+            disengage;
+        }
+    }
+}
+
+walker leave_channel(find_channel) {
+    can act with Channel entry {
+        if jid(here) == self.channel_id {
+            me = [root-->[?:Profile]][0];
+            edges = [edge me->:Member:->here];
+            if edges {
+                del edges[0];
+            }
+            report {"success": True};
+            disengage;
+        }
+    }
+}
+
+walker get_channel_detail(find_channel) {
+    has reports: list[ChannelView] = [];
+
+    can act with Channel entry {
+        if jid(here) == self.channel_id {
+            report here.to_view(True);
+            disengage;
+        }
+    }
+}
+
+walker create_channel_tweet(find_channel) {
+    has content: str = "";
+
+    can act with Channel entry {
+        if jid(here) == self.channel_id {
+            me = [root-->[?:Profile]][0];
+            if [edge me->:Member:->here] {
+                new = here +>: ChannelPost() :+> Tweet(
+                    content=self.content, author_username=me.username, created_at=_now()
                 );
-                grant(new_tweets[0], level=WritePerm);
-                report _tweet_view(new_tweets[0], True);
-                disengage;
+                grant(new[0], level=WritePerm);
+                report new[0].to_view();
             }
+            disengage;
         }
-        report {"error": "Not a member of this channel"};
     }
 }
