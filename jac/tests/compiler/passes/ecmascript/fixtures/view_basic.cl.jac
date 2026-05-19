@@ -1,10 +1,10 @@
-"""Phase 1 `view` declarator: statement templates and control flow.
+"""Phase 1 `defview` declarator: statement templates and control flow.
 
-Exercises the `view` keyword as sugar for `def:pub -> JsxElement`: a
+Exercises the `defview` keyword as sugar for `def:pub -> JsxElement`: a
 statement-based body with sibling JSX statements, nested JSX elements, a
-view calling another view, a `has`-field with a nested `def` handler,
-view-body-level `if`/`else` and `for`, a bare `return;` guard, and the
-no-parameter-list form (`view Name { ... }`, parens omitted).
+defview calling another defview, a `has`-field with a nested `def` handler,
+defview-body-level `if`/`else` and `for`, a bare `return;` guard, and the
+no-parameter-list form (`defview Name { ... }`, parens omitted).
 """
 
 obj Item {
@@ -13,16 +13,16 @@ obj Item {
 }
 
 """A bare divider — no parameter list, parens omitted."""
-view Divider {
+defview Divider {
     <hr class="divider" />
 }
 
 """A small presentational view."""
-view Badge(text: str) {
+defview Badge(text: str) {
     <span class="badge">{text}</span>
 }
 
-view ItemRow(item: Item) {
+defview ItemRow(item: Item) {
     if item.done {
         <Badge text="done" />
     } else {
@@ -33,7 +33,7 @@ view ItemRow(item: Item) {
     </div>
 }
 
-view ItemList(items: list[Item]) {
+defview ItemList(items: list[Item]) {
     has heading: str = "Items";
 
     def bump {

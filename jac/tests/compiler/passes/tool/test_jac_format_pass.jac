@@ -390,20 +390,20 @@ test "jsx and lambda inline compact forms stay flat" {
     );
 }
 
-test "view declarator round-trips through the formatter" {
-    # The `view` desugaring runs in ViewLowerPass, not the parser, so the
-    # format pipeline (which does not run that pass) sees the original `view`
-    # syntax and must preserve it verbatim — never rewrite it into its
-    # lowered `def:pub -> JsxElement` / accumulator form.
+test "defview declarator round-trips through the formatter" {
+    # The `defview` desugaring runs in ViewLowerPass, not the parser, so the
+    # format pipeline (which does not run that pass) sees the original
+    # `defview` syntax and must preserve it verbatim — never rewrite it into
+    # its lowered `def:pub -> JsxElement` / accumulator form.
     source = (
-        'view Greeting(name: str) {\n'
+        'defview Greeting(name: str) {\n'
         '    <h1>Hello, {name}</h1>\n'
         '    if name == "" {\n'
         '        <p>anon</p>\n'
         '    }\n'
         '}\n'
         '\n'
-        'view Empty {\n'
+        'defview Empty {\n'
         '    <hr/>\n'
         '}\n'
     );
@@ -411,11 +411,11 @@ test "view declarator round-trips through the formatter" {
     assert not prog.errors_had , f"formatter errors: {prog.errors_had}";
     formatted = prog.mod.main.gen.jac or "";
 
-    assert "view Greeting(name: str) {" in formatted , (
-        "the `view` declarator must survive formatting:\n" + str(formatted)
+    assert "defview Greeting(name: str) {" in formatted , (
+        "the `defview` declarator must survive formatting:\n" + str(formatted)
     );
-    assert "view Empty {" in formatted , (
-        "the no-parens `view` form must survive formatting:\n" + str(formatted)
+    assert "defview Empty {" in formatted , (
+        "the no-parens `defview` form must survive formatting:\n" + str(formatted)
     );
     # The lowering must never leak into formatted source.
     assert "def:pub" not in formatted , (
@@ -428,7 +428,9 @@ test "view declarator round-trips through the formatter" {
     # Idempotency: formatting the formatted output must be a no-op.
     prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
     assert not prog2.errors_had;
-    assert formatted == prog2.mod.main.gen.jac , ("view formatting is not idempotent");
+    assert formatted == prog2.mod.main.gen.jac , (
+        "defview formatting is not idempotent"
+    );
 }
 
 """Regression: top-level and multi-statement `if` blocks must still break —

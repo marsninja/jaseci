@@ -1301,9 +1301,9 @@ def:pub Counter() -> JsxElement {
     </div>;
 }
 
-# `view`: statement-form component, sugar for `def:pub ... -> JsxElement`.
+# `defview`: statement-form component, sugar for `def:pub ... -> JsxElement`.
 # Each top-level JSX element is a statement; no `return <jsx>;` wrapper.
-view Greeting(name: str) {
+defview Greeting(name: str) {
     <h1>Hello, {name}!</h1>
     if name == "" {
         <p>(no name given)</p>

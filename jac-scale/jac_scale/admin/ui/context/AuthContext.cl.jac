@@ -13,7 +13,7 @@ cl {
             currentUsername: str = "",
             tempToken: str = "",
             isLoading: bool = True,
-            screen: str = "login";
+            view: str = "login";
 
         async def validateAndRestoreSession(token: str, username: str) {
             try {
@@ -25,7 +25,7 @@ cl {
                 if data["ok"] {
                     authToken = token;
                     currentUsername = username;
-                    screen = "admin";
+                    view = "admin";
                 } else {
                     removeStorage("admin_token");
                     removeStorage("admin_username");
@@ -55,7 +55,7 @@ cl {
                     if data["data"]["requires_password_reset"] {
                         tempToken = data["data"]["token"];
                         currentUsername = username;
-                        screen = "reset";
+                        view = "reset";
                         return {"ok": True, "requiresReset": True};
                     } else {
                         token = data["data"]["token"];
@@ -63,7 +63,7 @@ cl {
                         currentUsername = username;
                         setStorage("admin_token", token);
                         setStorage("admin_username", username);
-                        screen = "admin";
+                        view = "admin";
                         return {"ok": True};
                     }
                 }
@@ -95,7 +95,7 @@ cl {
                     setStorage("admin_token", token);
                     setStorage("admin_username", currentUsername);
                     tempToken = "";
-                    screen = "admin";
+                    view = "admin";
                     return {"ok": True};
                 }
                 return {
@@ -112,7 +112,7 @@ cl {
             currentUsername = "";
             removeStorage("admin_token");
             removeStorage("admin_username");
-            screen = "login";
+            view = "login";
         }
 
         useEffect(
@@ -132,7 +132,7 @@ cl {
             "authToken": authToken,
             "currentUsername": currentUsername,
             "isLoading": isLoading,
-            "view": screen,
+            "view": view,
             "login": login,
             "resetPassword": resetPassword,
             "logout": logout

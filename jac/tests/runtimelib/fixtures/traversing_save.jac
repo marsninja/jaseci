@@ -10,7 +10,7 @@ walker build {
     }
 }
 
-walker `view {
+walker view {
     can run with Root entry {
         print(printgraph(here));
     }

@@ -318,12 +318,12 @@ def:pub app() -> JsxElement {
 
 ## Views: Statement-Form Components
 
-A **view** is a component written as a sequence of statements instead of a single `return` expression. `view Name(params) { ... }` is sugar for `def:pub Name(params) -> JsxElement { ... }` -- same call site, same per-prop type-checking, same compile pipeline. The difference is the body: each top-level JSX element is a *statement* that contributes to the rendered output, so there is no `return <jsx>;` wrapper.
+A **view** is a component written as a sequence of statements instead of a single `return` expression. `defview Name(params) { ... }` is sugar for `def:pub Name(params) -> JsxElement { ... }` -- same call site, same per-prop type-checking, same compile pipeline. The difference is the body: each top-level JSX element is a *statement* that contributes to the rendered output, so there is no `return <jsx>;` wrapper.
 
 ```jac
 to cl:
 
-view Greeting(name: str) {
+defview Greeting(name: str) {
     <h1>Hello, {name}!</h1>
     <p>Welcome to Jac.</p>
 }
@@ -344,12 +344,12 @@ def:pub Greeting(name: str) -> JsxElement {
 
 **Key points:**
 
-- `view` is sugar for `def:pub ... -> JsxElement` -- a view is always public and always returns `JsxElement`.
-- The parameter list is optional: a view with no props can be written `view Demo { ... }` (no parentheses).
-- `view` is a reserved keyword. To use `view` as an ordinary identifier, escape it with a backtick: `` `view ``.
+- `defview` is sugar for `def:pub ... -> JsxElement` -- a view is always public and always returns `JsxElement`.
+- The parameter list is optional: a view with no props can be written `defview Demo { ... }` (no parentheses).
+- Only the compound keyword `defview` is reserved -- the bare name `view` is still available for variables, fields, and parameters.
 - Top-level JSX elements are collected into a fragment automatically -- no `return` needed.
 - A view call site is identical to any other component: `<Greeting name="Alice" />`.
-- `def:pub Name -> JsxElement` components keep working unchanged -- `view` is an additive, opinionated form for new code.
+- `def:pub Name -> JsxElement` components keep working unchanged -- `defview` is an additive, opinionated form for new code.
 
 ### Control Flow as Content
 
@@ -358,7 +358,7 @@ Inside a view body, every block-bodied construct -- `if`/`elif`/`else`, `for` (b
 ```jac
 to cl:
 
-view ItemList(items: list[str]) {
+defview ItemList(items: list[str]) {
     if len(items) == 0 {
         <p className="empty">Nothing here.</p>
         return;
@@ -379,7 +379,7 @@ A view body can declare `has`-fields and nested `def` handlers exactly as a `def
 ```jac
 to cl:
 
-view Counter {
+defview Counter {
     has count: int = 0;
 
     def bump {
@@ -397,11 +397,11 @@ view Counter {
 ```jac
 to cl:
 
-view Box(as_: str, children: any = None) {
+defview Box(as_: str, children: any = None) {
     <@as_ className="box">{children}</@as_>
 }
 
-view Demo() {
+defview Demo() {
     <Box as_="article">Inside an article element</Box>
     <Box as_="section">Inside a section element</Box>
 }
@@ -527,7 +527,7 @@ def:pub app() -> JsxElement {
 | Concept | Syntax |
 |---------|--------|
 | Define component | `def:pub Name(title: str, count: int) -> JsxElement { }` |
-| Define a view | `view Name(params) { <jsx> ... }` |
+| Define a view | `defview Name(params) { <jsx> ... }` |
 | Early-exit guard | bare `return;` inside a view body |
 | Dynamic tag | `<@expr>...</@expr>` |
 | JSX element | `<div className="x">content</div>` |

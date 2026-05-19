@@ -511,7 +511,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_TEST': 'test',
          'KW_TO': 'to',
          'KW_TRY': 'try',
-         'KW_VIEW': 'view',
+         'KW_VIEW': 'defview',
          'KW_VISIT': 'visit',
          'KW_VISITOR': 'visitor',
          'KW_WAIT': 'wait',

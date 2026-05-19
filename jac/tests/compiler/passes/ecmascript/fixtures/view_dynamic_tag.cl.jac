@@ -7,22 +7,22 @@ brace-wrapped expression (`<@{expr}>`).
 """
 
 """A box whose host element is chosen by the caller."""
-view Box(as_: str, children: any = None) {
+defview Box(as_: str, children: any = None) {
     <@as_ class="box">{children}</@as_>
 }
 
-view Icon(glyph: type) {
+defview Icon(glyph: type) {
     <@{glyph} class="icon" />
 }
 
-view Panel(tag: str) {
+defview Panel(tag: str) {
     <div class="panel">
         <h2>Panel</h2>
         <@tag class="panel-body">content</@tag>
     </div>
 }
 
-view Demo() {
+defview Demo() {
     <Box as_="article">Inside an article element</Box>
     <Icon glyph={Box} />
 }
