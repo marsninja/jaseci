@@ -1263,14 +1263,39 @@ test "union_reassignment" {
     );
 }
 
-test "unannotated_reassignment_widens" {
+test "inferred_local_type_frozen" {
+    # An unannotated local is frozen to the type inferred at its first
+    # binding; reassigning an incompatible type is an error. The
+    # `None`-sentinel pattern is the one exception (the type evolves).
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_inferred_type_frozen.jac"),
+        options=NO_TC
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+    assert len(program.errors_had) == 1 , f"Expected 1 type error, but got {len(
+        program.errors_had
+    )}: " + "\n".join([err.pretty_print() for err in program.errors_had]);
+    assert program.errors_had[0].code.code == "E1001";
+    assert_error_pretty_found(
+        """
+        a = "some str";  # <-- Error
+    """,
+        program.errors_had[0].pretty_print()
+    );
+}
+
+test "unannotated_reassignment_frozen" {
+    # `None`-sentinel variables evolve their inferred type; every other
+    # unannotated variable is frozen to its first-binding type, and
+    # annotated variables enforce their annotation.
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_none_sentinel_reassignment.jac"),
         options=NO_TC
     );
     TypeCheckPass(ir_in=mod, prog=program);
-    assert len(program.errors_had) == 2 , f"Expected 2 type errors, but got {len(
+    assert len(program.errors_had) == 3 , f"Expected 3 type errors, but got {len(
         program.errors_had
     )}: " + "\n".join([err.pretty_print() for err in program.errors_had]);
     assert_error_pretty_found(
@@ -1286,6 +1311,13 @@ test "unannotated_reassignment_widens" {
         ^^^^^^^^^^^
     """,
         program.errors_had[1].pretty_print()
+    );
+    assert_error_pretty_found(
+        """
+        count = "bad";  # <-- Error
+        ^^^^^^^^^^^^^^
+    """,
+        program.errors_had[2].pretty_print()
     );
 }
 
@@ -3966,6 +3998,33 @@ test "bare_generic_in_signatures_emits_w1036" {
     assert len(bare_generic_warnings) == 8 , f"Expected 8 W1036 warnings (signatures), got {len(
         bare_generic_warnings
     )}:\n" + "\n---\n".join(w.pretty_print() for w in bare_generic_warnings);
+}
+
+test "explicit_any_annotations_emit_w1037" {
+    # Explicit `any` annotations disable type checking, so each one — on a
+    # param, return type, field, assignment, or nested inside a generic or
+    # union — should produce a W1037 warning. Specific types must not warn.
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_explicit_any.jac"), options=NO_TC
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    explicit_any_warnings = [
+        w
+        for w in program.warnings_had
+        if "W1037" in w.pretty_print()
+    ];
+    # Expected sites (6 total):
+    #   1. `x: any`          param type on `takes_any`
+    #   2. `-> any`          return type on `takes_any`
+    #   3. `y: any = 5`      annotated assignment
+    #   4. `list[any]`       nested any in a generic param
+    #   5. `any | None`      any branch of a union return type
+    #   6. `payload: any`    field annotation
+    assert len(explicit_any_warnings) == 6 , f"Expected 6 W1037 warnings, got {len(
+        explicit_any_warnings
+    )}:\n" + "\n---\n".join(w.pretty_print() for w in explicit_any_warnings);
 }
 
 """Test callable() type narrowing - validates narrowing unions by callability."""
