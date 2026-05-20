@@ -1146,6 +1146,26 @@ def:pub JsxExamples() -> JsxElement {
 }
 ```
 
+### Suspense Fallbacks: `try` with `pending`
+
+A `try` slot whose body needs to wait on async work can name its loading state with a `pending` clause. The cl lowering wraps the slot in `<JacPending fallback={...}>{...}</JacPending>` from `@jac/runtime` -- a `React.Suspense` shim -- so the `pending` body renders during the dispatched-but-not-joined window and the `try` body takes over once it settles. On `sv` and `na` targets the `pending` body is dropped with a `W2020` warning until the streaming-SSR and native-thread lowerings land.
+
+```jac
+to cl:
+
+def:pub Profile(user_id: int) -> JsxElement {
+    return <article>
+        {try {
+            <ResolvedProfile id={user_id}/>
+        } pending {
+            <p>Loading profile…</p>
+        }}
+    </article>;
+}
+```
+
+See the [components tutorial](../../tutorials/fullstack/components.md#try-with-pending-suspense-shaped-fallback) for the full model -- semantics, the `flow`/`wait` integration story, and the v1 caveats (`finally` rejected via `E2022`; `except` arms don't render through the wrapper yet).
+
 ### Comments inside JSX
 
 Use Jac's block-comment syntax wrapped in a JSX expression slot -- `{#* ... *#}` -- to leave a note inside a JSX tree. The comment renders nothing and is preserved verbatim by `jac format`:

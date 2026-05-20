@@ -727,6 +727,22 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "'while' loop in a JSX slot renders JSX without a 'key' attribute — "
          "add 'key=' so siblings keep their identity across re-renders."
      ),
+     E2022 = _err(
+         "E2022",
+         Category.SEMANTIC,
+         "'finally' is not allowed on a 'try' that has a 'pending' clause. "
+         "The dispatched-but-not-joined window and finalization semantics "
+         "are ambiguous together; move cleanup into an explicit "
+         "mount/unmount hook or drop one of the clauses."
+     ),
+     W2020 = _warn(
+         "W2020",
+         Category.SEMANTIC,
+         "'pending' is not yet implemented on the '{target}' target — "
+         "the 'pending' clause body will be ignored at runtime. Only the "
+         "'cl' (react/preact) target currently lowers 'pending' to a "
+         "Suspense fallback."
+     ),
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      # Lint warnings (W3xxx)
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

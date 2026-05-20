@@ -78,6 +78,7 @@ enum TokenKind {
     KW_TRY = "try",
     KW_EXCEPT = "except",
     KW_FINALLY = "finally",
+    KW_PENDING = "pending",
     KW_WITH = "with",
     KW_RETURN = "return",
     KW_YIELD = "yield",
@@ -315,6 +316,7 @@ glob KEYWORDS: dict[str, TokenKind] = {
          "try": TokenKind.KW_TRY,
          "except": TokenKind.KW_EXCEPT,
          "finally": TokenKind.KW_FINALLY,
+         "pending": TokenKind.KW_PENDING,
          "with": TokenKind.KW_WITH,
          # Jump statements
          "return": TokenKind.KW_RETURN,
