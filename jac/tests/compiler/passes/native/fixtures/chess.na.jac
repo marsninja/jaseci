@@ -444,30 +444,23 @@ obj Board {
     }
 
     def get_all_pieces(color: Color) -> list[Piece] {
-        # Bind subscript to a local so narrowing carries through.
-        result: list[Piece] = [];
-        for r in range(BOARD_SIZE) {
-            for c in range(BOARD_SIZE) {
-                piece: Piece | None = self.squares[r][c];
-                if piece is not None and piece.color == color {
-                    result.append(piece);
-                }
-            }
-        }
-        return result;
+        # List comprehension with nested iteration
+        return [
+            self.squares[r][c]
+            for r in range(BOARD_SIZE)
+            for c in range(BOARD_SIZE)
+            if self.squares[r][c] is not None and self.squares[r][c].color == color
+        ];
     }
 
     def get_piece_positions(color: Color) -> dict[tuple[int, int], Piece] {
-        result: dict[tuple[int, int], Piece] = {};
-        for r in range(BOARD_SIZE) {
-            for c in range(BOARD_SIZE) {
-                piece: Piece | None = self.squares[r][c];
-                if piece is not None and piece.color == color {
-                    result[(r, c)] = piece;
-                }
-            }
-        }
-        return result;
+        # Dict comprehension for position -> piece mapping
+        return {
+            (r, c): self.squares[r][c]
+            for r in range(BOARD_SIZE)
+            for c in range(BOARD_SIZE)
+            if self.squares[r][c] is not None and self.squares[r][c].color == color
+        };
     }
 
     def get_attacked_squares(by_color: Color) -> set[tuple[int, int]] {

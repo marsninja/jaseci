@@ -129,9 +129,80 @@ def int_subscript_suffix(right: uni.IndexSlice) -> str | None {
             and isinstance(start.strings[0], uni.String) {
                 return f'[{start.strings[0].lit_value!r}]';
             }
+            # items[i] - simple name index. The CFG assignment barrier
+            # parses the name back out of the key (see
+            # `key_invalidation_deps`) and invalidates the narrowing
+            # when `i` is reassigned, so `if x[i] is not None: x[i].foo`
+            # narrows under the same loop iteration while still dying
+            # the moment any index is rebound.
+            if isinstance(start, uni.Name) {
+                return f"[{start.value}]";
+            }
         }
     }
     return None;
+}
+
+"""Reference-key dependencies that invalidate narrowing when reassigned.
+
+A narrowing fact on key `K` like `x[r] is not None` is keyed by the
+exact spelling `K`, so the CFG predecessor walk already drops the
+narrowing when the same `K` is rebound. But `K = "x[r]"` *also*
+depends on the base name `x` and the index name `r` -- reassigning
+either changes what `x[r]` denotes, so the narrowing must die too.
+This returns those names (excluding `K` itself; callers already check
+that). Only Name indices contribute -- literal indices like `[0]` /
+`["host"]` are stable.
+"""
+def key_invalidation_deps(key: str) -> set[str] {
+    deps: set[str] = set();
+    if not key {
+        return deps;
+    }
+    # Base name: everything up to the first `.` or `[`.
+    i: int = 0;
+    n: int = len(key);
+    while i < n and key[i] != '.' and key[i] != '[' {
+        i += 1;
+    }
+    if i > 0 {
+        deps.add(key[:i]);
+    }
+    # Walk `[...]` segments; collect any segment that's a bare identifier.
+    # Skip integer literals (start with digit or `-`) and string literals
+    # (start with `'` or `"`).
+    i = 0;
+    while i < n {
+        if key[i] != '[' {
+            i += 1;
+            continue;
+        }
+        depth: int = 1;
+        j: int = i + 1;
+        while j < n and depth > 0 {
+            if key[j] == '[' {
+                depth += 1;
+            } elif key[j] == ']' {
+                depth -= 1;
+            }
+            j += 1;
+        }
+        inner = key[i + 1:j - 1];
+        if inner and (inner[0].isalpha() or inner[0] == '_') {
+            is_ident: bool = True;
+            for ch in inner {
+                if not (ch.isalnum() or ch == '_') {
+                    is_ident = False;
+                    break;
+                }
+            }
+            if is_ident {
+                deps.add(inner);
+            }
+        }
+        i = j;
+    }
+    return deps;
 }
 
 def get_expr_key(expr: uni.Expr) -> str | None {

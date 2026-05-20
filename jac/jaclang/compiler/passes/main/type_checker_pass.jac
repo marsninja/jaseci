@@ -56,6 +56,19 @@ class TypeCheckPass(UniPass) {
     def exit_func_call(self: TypeCheckPass, nd: uni.FuncCall) -> None;
     def exit_jsx_element(self: TypeCheckPass, nd: uni.JsxElement) -> None;
     def exit_filter_compr(self: TypeCheckPass, nd: uni.FilterCompr) -> None;
+    def enter_list_compr(self: TypeCheckPass, nd: uni.ListCompr) -> None;
+    def exit_list_compr(self: TypeCheckPass, nd: uni.ListCompr) -> None;
+    def enter_set_compr(self: TypeCheckPass, nd: uni.SetCompr) -> None;
+    def exit_set_compr(self: TypeCheckPass, nd: uni.SetCompr) -> None;
+    def enter_dict_compr(self: TypeCheckPass, nd: uni.DictCompr) -> None;
+    def exit_dict_compr(self: TypeCheckPass, nd: uni.DictCompr) -> None;
+    def enter_gen_compr(self: TypeCheckPass, nd: uni.GenCompr) -> None;
+    def exit_gen_compr(self: TypeCheckPass, nd: uni.GenCompr) -> None;
+    def _install_compr_narrowings(
+        self: TypeCheckPass, comprs: list[uni.InnerCompr]
+    ) -> None;
+
+    def _uninstall_compr_narrowings(self: TypeCheckPass) -> None;
     def exit_return_stmt(self: TypeCheckPass, nd: uni.ReturnStmt) -> None;
     def exit_formatted_value(self: TypeCheckPass, nd: uni.FormattedValue) -> None;
     def exit_edge_ref_trailer(self: TypeCheckPass, nd: uni.EdgeRefTrailer) -> None;

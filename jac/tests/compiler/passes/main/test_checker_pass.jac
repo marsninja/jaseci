@@ -4848,6 +4848,45 @@ test "numeric_kind_disallows_float_to_int" {
     )}:\n" + "\n---\n".join(e.pretty_print() for e in typed_errs);
 }
 
+test "comprehension_filter_narrows_head" {
+    # `[x for x in xs if x is not None]` must type as `list[T]`, not
+    # `list[T | None]` -- the filter proves the head value is non-None.
+    # Generalises to subscript heads under stable loop-var indices.
+    path = os.path.join(CHECKER_FIXTURES, "checker_compr_filter_narrowing.jac");
+    program = JacProgram();
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    narrow_errs = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code in ("E1099", "E1030", "E1001", "E1002")
+    ];
+    assert len(narrow_errs) == 0 , f"Expected comprehension filter narrowing to propagate to head, got {len(
+        narrow_errs
+    )}:\n" + "\n---\n".join(e.pretty_print() for e in narrow_errs);
+}
+
+test "subscript_narrowing_stable_indices" {
+    # Repeated subscript expressions `x[i]` / `x[i][j]` must narrow as
+    # aliases when neither `x` nor the indices are reassigned between
+    # reads. Pyright's "narrowable expression" rule -- plain names,
+    # int literals, and loop variables count.
+    path = os.path.join(CHECKER_FIXTURES, "checker_subscript_narrowing_stable.jac");
+    program = JacProgram();
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    narrow_errs = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code in ("E1099", "E1030", "E1001", "E1002")
+    ];
+    assert len(narrow_errs) == 0 , f"Expected stable-index subscript narrowing to propagate, got {len(
+        narrow_errs
+    )}:\n" + "\n---\n".join(e.pretty_print() for e in narrow_errs);
+}
+
 test "enum_member_assignable_to_base_type" {
     # `enum Color { RED = 1 }` — `Color.RED` is the int value 1.
     # Returning / assigning it where the base type (int / str) is
