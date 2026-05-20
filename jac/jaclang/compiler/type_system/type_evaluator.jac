@@ -168,11 +168,19 @@ obj MatchArgsToParamsResult {
         argument_errors: bool = False;
 }
 
-"""Wraps the identity of what is being narrowed (a symbol or a dotted expression)."""
+"""Wraps the identity of what is being narrowed (a symbol or a dotted expression).
+
+`deps` is the set of identifier names the key textually depends on
+beyond the key itself -- the base name plus any Name indices for
+subscript expressions (`x[r]` depends on `{x, r}`). The CFG
+assignment barrier consults this set so reassigning an index
+invalidates the narrowing without re-parsing the key string.
+"""
 obj NarrowingTarget {
     has key: str,  # "x" or "bmw.speed"
         declared_type: TypeBase,
-        symbol: uni.Symbol | None = None;  # None for expression-based narrowing
+        symbol: uni.Symbol | None = None,  # None for expression-based narrowing
+        deps: frozenset[str] = frozenset();
 }
 
 """Represents a narrowing operation from a conditional predicate."""
@@ -255,20 +263,6 @@ obj TypeEvaluator {
         # Maps symbol id → narrowed type. Set during BoolExpr(and) evaluation so
         # that RHS operands see the narrowed type from LHS isinstance checks.
         _and_narrowing_overrides: dict[int, TypeBase] = {},
-        # Temporary reference-keyed narrowing overrides. Keyed by the
-        # `create_key_for_reference` string (`x`, `obj.foo`, `x[r]`...)
-        # so non-symbol narrowable expressions (dotted paths, subscripts)
-        # can also carry temporary narrowing across a scope. Used by
-        # comprehension filter-to-head propagation -- the filter
-        # `if self.squares[r][c] is not None` deposits the narrowed type
-        # under that key so the head `self.squares[r][c]` reads it back.
-        _expr_narrowing_overrides: dict[str, TypeBase] = {},
-        # Stack of override-key lists. Comprehensions nest: each
-        # enter_*_compr pushes a list of keys it set so the matching
-        # exit handler can pop and clean up. Bare list to keep
-        # downstream evaluator unaffected when comprehensions don't
-        # contribute any narrowable filters.
-        _compr_override_stack: list[list[str]] = [],
         # Stub modules - initialized in postinit
         typing_module: uni.Module by postinit,
         types_module: uni.Module by postinit,
@@ -468,16 +462,6 @@ obj TypeEvaluator {
     ) -> TypeBase | None;
 
     def _convert_to_instance(jtype: TypeBase) -> TypeBase;
-    """Apply narrowings derived from comprehension `if` filters and install
-    them in `_expr_narrowing_overrides` for the duration of the head
-    evaluation. Returns the list of override keys to clean up.
-
-    Mirrors the override-then-cleanup pattern from BoolExpr-AND but
-    targets reference keys (so subscript and dotted-path keys
-    work, not just plain symbol names).
-    """
-    def _apply_compr_filter_narrowings(conditions: list[uni.Expr]) -> list[str];
-
     def _type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> bool;
     def _collect_unique_types(ty: TypeBase, result: list[TypeBase]) -> None;
     # --- Expected type helpers for bidirectional inference ---

@@ -130,9 +130,9 @@ def int_subscript_suffix(right: uni.IndexSlice) -> str | None {
                 return f'[{start.strings[0].lit_value!r}]';
             }
             # items[i] - simple name index. The CFG assignment barrier
-            # parses the name back out of the key (see
-            # `key_invalidation_deps`) and invalidates the narrowing
-            # when `i` is reassigned, so `if x[i] is not None: x[i].foo`
+            # consults the narrowing target's `deps` set (populated by
+            # `reference_key_deps` from the AST) so reassigning `i`
+            # invalidates the narrowing; `if x[i] is not None: x[i].foo`
             # narrows under the same loop iteration while still dying
             # the moment any index is rebound.
             if isinstance(start, uni.Name) {
@@ -145,62 +145,47 @@ def int_subscript_suffix(right: uni.IndexSlice) -> str | None {
 
 """Reference-key dependencies that invalidate narrowing when reassigned.
 
-A narrowing fact on key `K` like `x[r] is not None` is keyed by the
-exact spelling `K`, so the CFG predecessor walk already drops the
-narrowing when the same `K` is rebound. But `K = "x[r]"` *also*
-depends on the base name `x` and the index name `r` -- reassigning
-either changes what `x[r]` denotes, so the narrowing must die too.
-This returns those names (excluding `K` itself; callers already check
-that). Only Name indices contribute -- literal indices like `[0]` /
-`["host"]` are stable.
+A narrowing fact on `x[r] is not None` is keyed by the exact spelling
+`"x[r]"`, so the CFG predecessor walk drops the narrowing when the
+same key is rebound. But the key *also* depends on the base name `x`
+and the index name `r` -- reassigning either changes what `x[r]`
+denotes, so the narrowing must die too. Walks the AST to collect
+those identifier names; literal indices like `[0]` / `["host"]`
+contribute nothing because they're stable.
 """
-def key_invalidation_deps(key: str) -> set[str] {
+def reference_key_deps(expr: uni.Expr) -> set[str] {
     deps: set[str] = set();
-    if not key {
-        return deps;
-    }
-    # Base name: everything up to the first `.` or `[`.
-    i: int = 0;
-    n: int = len(key);
-    while i < n and key[i] != '.' and key[i] != '[' {
-        i += 1;
-    }
-    if i > 0 {
-        deps.add(key[:i]);
-    }
-    # Walk `[...]` segments; collect any segment that's a bare identifier.
-    # Skip integer literals (start with digit or `-`) and string literals
-    # (start with `'` or `"`).
-    i = 0;
-    while i < n {
-        if key[i] != '[' {
-            i += 1;
+    cur: uni.UniNode | None = expr;
+    while cur is not None {
+        if isinstance(cur, uni.AtomUnit) and cur.value is not None {
+            cur = cur.value;
             continue;
         }
-        depth: int = 1;
-        j: int = i + 1;
-        while j < n and depth > 0 {
-            if key[j] == '[' {
-                depth += 1;
-            } elif key[j] == ']' {
-                depth -= 1;
-            }
-            j += 1;
+        if isinstance(cur, uni.Name) {
+            deps.add(cur.value);
+            return deps;
         }
-        inner = key[i + 1:j - 1];
-        if inner and (inner[0].isalpha() or inner[0] == '_') {
-            is_ident: bool = True;
-            for ch in inner {
-                if not (ch.isalnum() or ch == '_') {
-                    is_ident = False;
-                    break;
+        if isinstance(cur, uni.AtomTrailer) {
+            if (
+                not cur.is_attr
+                and isinstance(cur.right, uni.IndexSlice)
+                and not cur.right.is_range
+                and len(cur.right.slices) == 1
+            ) {
+                idx = cur.right.slices[0];
+                if (
+                    idx.start is not None
+                    and idx.stop is None
+                    and idx.step is None
+                    and isinstance(idx.start, uni.Name)
+                ) {
+                    deps.add(idx.start.value);
                 }
             }
-            if is_ident {
-                deps.add(inner);
-            }
+            cur = cur.target;
+            continue;
         }
-        i = j;
+        break;
     }
     return deps;
 }

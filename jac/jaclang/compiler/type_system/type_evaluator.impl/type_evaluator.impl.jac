@@ -370,11 +370,14 @@ impl TypeEvaluator._get_type_of_expression_core(
                 return set_inst;
             }
 
-        # Comprehension handlers (SetCompr/GenCompr before ListCompr since they inherit from it)
+        # Comprehension handlers (SetCompr/GenCompr before ListCompr since
+        # they inherit from it). Filter narrowing flows into the head via
+        # the CFG (each `if` filter is wired as a CfgExpr predecessor of
+        # the comprehension by cfg_build_pass), so this case just walks
+        # the structural children in source order.
         case uni.SetCompr():
             if self.prefetch and self.prefetch.set_class {
                 set_inst = self._convert_to_instance(self.prefetch.set_class);
-                filter_conds: list[uni.Expr] = [];
                 for compr in expr.compr {
                     self.get_type_of_expression(compr.collection);
                     if isinstance(compr.target, uni.Name) {
@@ -383,18 +386,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if compr.conditional {
                         for cond in compr.conditional {
                             self.get_type_of_expression(cond);
-                            filter_conds.append(cond);
                         }
                     }
                 }
-                _ov_keys = self._apply_compr_filter_narrowings(filter_conds);
-                try {
-                    elem_type = self.get_type_of_expression(expr.out_expr);
-                } finally {
-                    for _ok in _ov_keys {
-                        self._expr_narrowing_overrides.pop(_ok, None);
-                    }
-                }
+                elem_type = self.get_type_of_expression(expr.out_expr);
                 if isinstance(set_inst, types.ClassType)
                 and not isinstance(elem_type, types.UnknownType) {
                     set_inst.private.type_args = [elem_type];
@@ -405,7 +400,6 @@ impl TypeEvaluator._get_type_of_expression_core(
         case uni.GenCompr():
             if self.prefetch and self.prefetch.list_class {
                 list_inst = self._convert_to_instance(self.prefetch.list_class);
-                filter_conds: list[uni.Expr] = [];
                 for compr in expr.compr {
                     self.get_type_of_expression(compr.collection);
                     if isinstance(compr.target, uni.Name) {
@@ -414,18 +408,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if compr.conditional {
                         for cond in compr.conditional {
                             self.get_type_of_expression(cond);
-                            filter_conds.append(cond);
                         }
                     }
                 }
-                _ov_keys = self._apply_compr_filter_narrowings(filter_conds);
-                try {
-                    elem_type = self.get_type_of_expression(expr.out_expr);
-                } finally {
-                    for _ok in _ov_keys {
-                        self._expr_narrowing_overrides.pop(_ok, None);
-                    }
-                }
+                elem_type = self.get_type_of_expression(expr.out_expr);
                 if isinstance(list_inst, types.ClassType)
                 and not isinstance(elem_type, types.UnknownType) {
                     list_inst.private.type_args = [elem_type];
@@ -436,7 +422,6 @@ impl TypeEvaluator._get_type_of_expression_core(
         case uni.ListCompr():
             if self.prefetch and self.prefetch.list_class {
                 list_inst = self._convert_to_instance(self.prefetch.list_class);
-                filter_conds: list[uni.Expr] = [];
                 for compr in expr.compr {
                     self.get_type_of_expression(compr.collection);
                     if isinstance(compr.target, uni.Name) {
@@ -445,18 +430,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if compr.conditional {
                         for cond in compr.conditional {
                             self.get_type_of_expression(cond);
-                            filter_conds.append(cond);
                         }
                     }
                 }
-                _ov_keys = self._apply_compr_filter_narrowings(filter_conds);
-                try {
-                    elem_type = self.get_type_of_expression(expr.out_expr);
-                } finally {
-                    for _ok in _ov_keys {
-                        self._expr_narrowing_overrides.pop(_ok, None);
-                    }
-                }
+                elem_type = self.get_type_of_expression(expr.out_expr);
                 if isinstance(list_inst, types.ClassType)
                 and not isinstance(elem_type, types.UnknownType) {
                     list_inst.private.type_args = [elem_type];
@@ -467,7 +444,6 @@ impl TypeEvaluator._get_type_of_expression_core(
         case uni.DictCompr():
             if self.prefetch and self.prefetch.dict_class {
                 dict_inst = self._convert_to_instance(self.prefetch.dict_class);
-                filter_conds: list[uni.Expr] = [];
                 for compr in expr.compr {
                     self.get_type_of_expression(compr.collection);
                     if isinstance(compr.target, uni.Name) {
@@ -482,24 +458,16 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if compr.conditional {
                         for cond in compr.conditional {
                             self.get_type_of_expression(cond);
-                            filter_conds.append(cond);
                         }
                     }
                 }
-                _ov_keys = self._apply_compr_filter_narrowings(filter_conds);
-                try {
-                    if isinstance(expr.kv_pair, uni.KVPair) {
-                        key_type = self.get_type_of_expression(expr.kv_pair.key);
-                        val_type = self.get_type_of_expression(expr.kv_pair.value);
-                        if isinstance(dict_inst, types.ClassType)
-                        and not isinstance(key_type, types.UnknownType)
-                        and not isinstance(val_type, types.UnknownType) {
-                            dict_inst.private.type_args = [key_type, val_type];
-                        }
-                    }
-                } finally {
-                    for _ok in _ov_keys {
-                        self._expr_narrowing_overrides.pop(_ok, None);
+                if isinstance(expr.kv_pair, uni.KVPair) {
+                    key_type = self.get_type_of_expression(expr.kv_pair.key);
+                    val_type = self.get_type_of_expression(expr.kv_pair.value);
+                    if isinstance(dict_inst, types.ClassType)
+                    and not isinstance(key_type, types.UnknownType)
+                    and not isinstance(val_type, types.UnknownType) {
+                        dict_inst.private.type_args = [key_type, val_type];
                     }
                 }
                 return dict_inst;
@@ -3365,17 +3333,6 @@ impl TypeEvaluator.get_type_of_expression(
     if isinstance(node_, uni.Ability) {
         return self.get_type_of_ability(node_);
     }
-    # Reference-keyed narrowing overrides win over the cached/declared
-    # type. Comprehension filter-to-head propagation deposits the
-    # narrowed type under the full expression's key (e.g.
-    # `self.squares[r][c]`); checking here applies that to chained
-    # subscripts whose AtomTrailer-target narrowing path can't see it.
-    if self._expr_narrowing_overrides {
-        ref_key = self.create_key_for_reference(node_);
-        if ref_key and ref_key in self._expr_narrowing_overrides {
-            return self._expr_narrowing_overrides[ref_key];
-        }
-    }
     # Use cached result if available, UNLESS expected_type is provided
     # for a container literal that could benefit from bidirectional inference.
     if node_.type is not None {
@@ -3383,6 +3340,20 @@ impl TypeEvaluator.get_type_of_expression(
         or not isinstance(
             node_, (uni.ListVal, uni.DictVal, uni.SetVal, uni.TupleVal)
         ) {
+            # Whole-expression CFG narrowing: chained subscripts like
+            # `self.squares[r][c]` aren't narrowed by the AtomTrailer
+            # case (which only narrows the immediate target one level
+            # at a time), so a comprehension filter
+            # `if self.squares[r][c] is not None` never reached the
+            # head. The cached `node_.type` is the un-narrowed result;
+            # per-call CFG narrowing yields the in-context view.
+            if isinstance(node_.type, (types.UnionType, types.ClassType)) {
+                if narrowed := self.get_narrowed_type_for_expr(
+                    node_, node_.type, node_
+                ) {
+                    return narrowed;
+                }
+            }
             return node_.type;
         }
     }
@@ -3398,6 +3369,13 @@ impl TypeEvaluator.get_type_of_expression(
         }
     }
     node_.type = result;
+    # Apply whole-expression CFG narrowing on the freshly-computed type
+    # as well, so callers see the in-context narrowed view immediately.
+    if isinstance(result, (types.UnionType, types.ClassType)) {
+        if narrowed := self.get_narrowed_type_for_expr(node_, result, node_) {
+            return narrowed;
+        }
+    }
     return result;
 }
 
@@ -3757,12 +3735,6 @@ impl TypeEvaluator.get_narrowed_type(
     if sym_id in self._and_narrowing_overrides {
         return self._and_narrowing_overrides[sym_id];
     }
-    # Reference-keyed overrides also apply when the symbol is a plain
-    # local/parameter: the comprehension head reads `x` after the filter
-    # `if x is not None` deposited a narrowing under key `"x"`.
-    if symbol.sym_name in self._expr_narrowing_overrides {
-        return self._expr_narrowing_overrides[symbol.sym_name];
-    }
     if sym_id in self._flow_pending_symbols {
         return None;
     }
@@ -3792,6 +3764,7 @@ impl TypeEvaluator.get_narrowed_type_for_expr(
     expr: uni.Expr, declared_type: TypeBase, at_node: uni.UniNode
 ) -> TypeBase | None {
     import from jaclang.compiler.type_system.type_evaluator { NarrowingTarget }
+    import from jaclang.compiler.symbol_utils { reference_key_deps }
     if not isinstance(declared_type, (types.UnionType, types.ClassType)) {
         return None;
     }
@@ -3799,19 +3772,16 @@ impl TypeEvaluator.get_narrowed_type_for_expr(
     if key is None {
         return None;
     }
-    # Reference-keyed temporary overrides (comprehension filter-to-head,
-    # future scoped-narrowing helpers). Wins over the CFG walk because
-    # the override is set on a derived in-flight context that the CFG
-    # doesn't model.
-    if key in self._expr_narrowing_overrides {
-        return self._expr_narrowing_overrides[key];
-    }
     if key in self._flow_pending_keys {
         return None;
     }
     self._flow_pending_keys.add(key);
     try {
-        narrowing_target = NarrowingTarget(key=key, declared_type=declared_type);
+        narrowing_target = NarrowingTarget(
+            key=key,
+            declared_type=declared_type,
+            deps=frozenset(reference_key_deps(expr)),
+        );
         flow_node = _find_cfg_node_for(at_node);
         if flow_node is not None {
             return self._get_type_from_flow_node(narrowing_target, flow_node, set());
@@ -4000,12 +3970,10 @@ impl TypeEvaluator._get_type_from_flow_node(
             import from jaclang.compiler.symbol_utils {
                 collect_assignment_target_keys,
                 find_destructure_index_path,
-                key_invalidation_deps,
             }
             target_key_matched = False;
             flat_target_matched = False;
             destructure_path: list[int] | None = None;
-            key_deps = key_invalidation_deps(key);
             for t in pred.target {
                 written_keys = collect_assignment_target_keys(t);
                 if key in written_keys {
@@ -4030,7 +3998,7 @@ impl TypeEvaluator._get_type_from_flow_node(
                 # narrowing must die. We can't re-derive a new type from
                 # the RHS, so this just falls through to `has_unnarrowed_pred`
                 # via the empty flat_target_matched / destructure_path path.
-                if key_deps and (key_deps & written_keys) {
+                if target.deps and (target.deps & written_keys) {
                     target_key_matched = True;
                     break;
                 }
@@ -4579,79 +4547,6 @@ impl TypeEvaluator._apply_narrowing(
         }
         return result;
     }
-}
-
-"""Apply narrowings derived from comprehension `if` filters.
-
-For each narrowable key the filter exposes (via `collect_narrowing_symbols`
-+ `_find_predicate_for`), compute the TRUE-branch narrowing and stash it
-in `_expr_narrowing_overrides[key]`. Returns the list of keys it set so
-the caller can clean up after `out_expr` is evaluated.
-
-Symbol-keyed narrowings (`if x is not None`) use the symbol's declared
-type as the base; reference-keyed narrowings (`if x[r] is not None`) walk
-the condition AST for the AtomTrailer whose key matches and use its
-evaluated type. Skips keys that already have an override so an outer
-comprehension's narrowing isn't clobbered.
-"""
-impl TypeEvaluator._apply_compr_filter_narrowings(
-    conditions: list[uni.Expr]
-) -> list[str] {
-    import from jaclang.compiler.type_system.type_evaluator {
-        NarrowingPredicate,
-        NarrowingTarget
-    }
-    import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
-    override_keys: list[str] = [];
-    for cond in conditions {
-        keys = collect_narrowing_symbols(cond);
-        for key in keys {
-            if key in self._expr_narrowing_overrides {
-                continue;
-            }
-            # Walk the condition AST for the subexpression whose key
-            # matches; use that node to derive the symbol (if any) and
-            # the base type. `_find_symbol_by_key` only covers the
-            # isinstance shape, so we do the lookup inline.
-            sym: uni.Symbol | None = None;
-            base_type: TypeBase | None = None;
-            stack: list[uni.UniNode] = [cond];
-            while stack {
-                cur = stack.pop();
-                if isinstance(cur, uni.Expr) {
-                    cand = self.create_key_for_reference(cur);
-                    if cand == key {
-                        base_type = self.get_type_of_expression(cur);
-                        if isinstance(cur, uni.Name) and cur.sym {
-                            sym = cur.sym;
-                        }
-                        break;
-                    }
-                }
-                for child in cur.kid {
-                    if child is not None {
-                        stack.append(child);
-                    }
-                }
-            }
-            if base_type is None
-            or not isinstance(base_type, (types.UnionType, types.ClassType)) {
-                continue;
-            }
-            target = NarrowingTarget(key=key, declared_type=base_type, symbol=sym);
-            predicate = self._find_predicate_for(target, cond);
-            if predicate is None {
-                continue;
-            }
-            narrowed = self._apply_narrowing(predicate, base_type, True, target);
-            if narrowed is None or narrowed is base_type {
-                continue;
-            }
-            self._expr_narrowing_overrides[key] = narrowed;
-            override_keys.append(key);
-        }
-    }
-    return override_keys;
 }
 
 """Refine an isinstance narrowed type by filtering the variable's declared type.
