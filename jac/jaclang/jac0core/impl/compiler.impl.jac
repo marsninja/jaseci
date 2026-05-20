@@ -650,13 +650,61 @@ impl JacCompiler.compile(
             cancel_token=options.cancel_token
         );
     }
-    if options.type_check {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_type_check_sched(),
-            cancel_token=options.cancel_token
-        );
+    # Native-compiled modules consume the central type checker's results:
+    # NaIRGenPass lowers Expr.type (via _lower_type) instead of running a
+    # parallel AST type resolver. Run the type-check schedule for any module
+    # that will be native-compiled even when options.type_check is off, so
+    # codegen has a single semantic source of truth. native_compat is set by
+    # UniTreeEnrichPass at the tail of get_ir_gen_sched, so it is known here.
+    # The _native_typecheck_running guard stops this implicit branch from
+    # recursing through the type-system modules it must itself compile.
+    global _native_typecheck_running;
+    run_type_check = options.type_check;
+    if (
+        not run_type_check
+        and not options.symtab_ir_only
+        and not _native_typecheck_running
+    ) {
+        # A module is native-compiled if it is a .na.jac file (whole module
+        # in native context) or a .jac module flagged auto-promotable by
+        # UniTreeEnrichPass. Both — including entry-less .na.jac libraries —
+        # need the type checker run so NaIRGenPass can lower Expr.type.
+        mp = mod_targ.loc.mod_path if (mod_targ?.loc and mod_targ.loc) else file_path;
+        is_native_mod = bool(mp) and mp.endswith('.na.jac');
+        if not is_native_mod and mod_targ?.gen and mod_targ.gen.native_compat {
+            is_native_mod = True;
+        }
+        if is_native_mod {
+            run_type_check = True;
+        }
+    }
+    if run_type_check {
+        prev_native_tc = _native_typecheck_running;
+        _native_typecheck_running = True;
+        # The implicit native run uses the central type checker purely for
+        # type inference — it annotates Expr.type for NaIRGenPass to lower.
+        # Native compilation keeps its own error discipline (the NA pass
+        # validates, and native numeric types like f64/i32 have conversion
+        # rules the strict checker does not model), so diagnostics from this
+        # inference-only run are discarded rather than blocking the build.
+        # An explicit `jac check` (options.type_check) keeps its diagnostics.
+        suppress_diags = not options.type_check;
+        err_mark = len(actual_program.errors_had);
+        warn_mark = len(actual_program.warnings_had);
+        try {
+            self.run_schedule(
+                mod=mod_targ,
+                target_program=actual_program,
+                passes=get_type_check_sched(),
+                cancel_token=options.cancel_token
+            );
+        } finally {
+            _native_typecheck_running = prev_native_tc;
+            if suppress_diags {
+                del actual_program.errors_had[err_mark:];
+                del actual_program.warnings_had[warn_mark:];
+            }
+        }
     }
     if (not had_parse_errors and not options.no_cgen) {
         self.run_schedule(
