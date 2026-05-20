@@ -37,6 +37,17 @@ impl Model.postinit -> None {
             _disable_debugging();
         }
         litellm.drop_params = _litellm_config.get("drop_params", True);
+        # Ollama serves open-weight models (gemma, llama, ...) whose chat
+        # templates render a `tools` list inconsistently: litellm forwards the
+        # structured field, but the model emits its tool call as plain text in
+        # `content`, so the ReAct loop sees zero tool calls. Drop to byllm's
+        # prompt-rendered tool protocol -- the tool schemas go into the system
+        # prompt and tool calls are recovered from the reply -- exactly as the
+        # in-process llama.cpp route does. See `byllm.tool_protocol`.
+        if self.model_name.startswith("ollama/")
+        or self.model_name.startswith("ollama_chat/") {
+            self.supports_native_tools = False;
+        }
     }
 }
 

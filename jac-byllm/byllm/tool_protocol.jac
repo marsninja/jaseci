@@ -391,6 +391,38 @@ def _extract_first_tool_call(content: str, tool_names: list) -> dict | None {
 }
 
 
+"""Find every tool call in `content`, in document order.
+
+Small open-weight models routinely ignore the "one tool per reply" rule and
+emit several `<tool_call>` blocks in a single message. Recovering only the
+first would silently drop the rest -- their text would linger in `content` --
+so scan the whole reply: extract a call, advance past it, and repeat. The
+ReAct loop dispatches the returned list exactly like a native multi-tool-call
+reply. The `guard` bounds a pathological reply to a sane number of calls.
+"""
+def _extract_all_tool_calls(content: str, tool_names: list) -> list[dict] {
+    calls: list[dict] = [];
+    rest = content;
+    guard = 0;
+    while guard < 64 {
+        guard += 1;
+        call = _extract_first_tool_call(rest, tool_names);
+        if call is None {
+            break;
+        }
+        calls.append(call);
+        pos = int(call.get("pos") or 0);
+        raw = call.get("raw");
+        advance = pos + (len(raw) if isinstance(raw, str) and raw else 1);
+        if advance <= 0 or advance >= len(rest) {
+            break;
+        }
+        rest = rest[advance:];
+    }
+    return calls;
+}
+
+
 """Response-side tool-call recovery.
 
 Two jobs on an OpenAI-shaped reply dict: strip model-specific control tokens
@@ -401,59 +433,82 @@ local connector's `wrap_tool_call` produces, so `BaseLLM.dispatch_*` consumes
 it identically to a native tool call. Mutates `message` in place.
 """
 def recover_tool_calls(message: object, tool_names: list[str] | None = None) -> None {
-    if not isinstance(message, dict) {
+    # `message` is a plain dict on the in-process llama.cpp route, but a litellm
+    # `Message` object on the Ollama/litellm route (litellm's stream-chunk
+    # builder rebuilds replies into typed `Message` objects). Both expose
+    # `.get()` and item assignment -- all this function needs -- yet only the
+    # former is a `dict`, so accept any object with that dict-like interface.
+    if message is None
+    or not hasattr(message, "get")
+    or not hasattr(message, "__setitem__") {
         return;
     }
+    # Access it untyped so `.get()` / item assignment type-check for the dict
+    # and the litellm `Message` shape alike.
+    msg: any = message;
     names: list[str] = tool_names if tool_names is not None else [];
-    content = message.get("content");
-    if not isinstance(content, str) or not content {
+    raw_content: any = msg.get("content");
+    if not isinstance(raw_content, str) or not raw_content {
         return;
     }
+    content: str = raw_content;
     # Normalise / strip control tokens some local models emit:
     #  - gemma renders quote characters inside tool calls as `<|"|>` tokens;
     #  - `<|channel>thought` reasoning headers and `<token|>` closers.
-    stripped = content.replace("<|\"|>", "\"").replace("<|'|>", "'");
+    stripped: str = content.replace("<|\"|>", "\"").replace("<|'|>", "'");
     stripped = re.sub("<\\|[a-z_]+>[a-z]*", "", stripped);
     stripped = re.sub("<[a-z_]+\\|>", "", stripped);
     if stripped != content {
         content = stripped;
-        message["content"] = content;
+        msg["content"] = content;
     }
-    if message.get("tool_calls") {
+    if msg.get("tool_calls") {
         return;  # already structured -- nothing more to do
     }
-    call = _extract_first_tool_call(content, names);
-    if call is None {
+    # Recover *every* tool call in the reply, not just the first: small models
+    # batch several `<tool_call>` blocks per message, and dropping the rest
+    # would leave their text stranded in `content` and stall the loop.
+    calls = _extract_all_tool_calls(content, names);
+    if not calls {
         return;
     }
-    args_raw = call.get("arguments");
-    args: dict = {};
-    if isinstance(args_raw, dict) {
-        args = args_raw;
-    } elif isinstance(args_raw, str) {
-        try {
-            decoded = json.loads(args_raw);
-            if isinstance(decoded, dict) {
-                args = decoded;
+    recovered: list = [];
+    cleaned: str = content;
+    for call in calls {
+        args_raw = call.get("arguments");
+        args: dict = {};
+        if isinstance(args_raw, dict) {
+            args = args_raw;
+        } elif isinstance(args_raw, str) {
+            try {
+                decoded = json.loads(args_raw);
+                if isinstance(decoded, dict) {
+                    args = decoded;
+                }
+            } except Exception {
+                args = {};
             }
-        } except Exception {
-            args = {};
+        }
+        recovered.append(
+            SimpleNamespace(
+                id="call_" + uuid.uuid4().hex[:12],
+                type="function",
+                function=SimpleNamespace(
+                    name=str(call["name"]), arguments=json.dumps(args)
+                )
+            )
+        );
+        # Drop the consumed tool-call text from the content as we go.
+        raw = call.get("raw");
+        if isinstance(raw, str) and raw {
+            cleaned = cleaned.replace(raw, "");
         }
     }
-    tool_call = SimpleNamespace(
-        id="call_" + uuid.uuid4().hex[:12],
-        type="function",
-        function=SimpleNamespace(name=str(call["name"]), arguments=json.dumps(args))
-    );
-    message["tool_calls"] = [tool_call];
-    # Strip the consumed tool-call JSON (and its envelope tags) from the
-    # content so it does not resurface as a stray "thought" in the stream.
-    raw = call.get("raw");
-    if isinstance(raw, str) and raw {
-        cleaned = str(content).replace(raw, "");
-        for tag in ["<tool_call>", "</tool_call>", "<|tool_call|>", "```json", "```"] {
-            cleaned = cleaned.replace(tag, "");
-        }
-        message["content"] = cleaned.strip();
+    msg["tool_calls"] = recovered;
+    # Strip the now-empty envelope tags so they do not resurface as a stray
+    # "thought" in the stream.
+    for tag in ["<tool_call>", "</tool_call>", "<|tool_call|>", "```json", "```"] {
+        cleaned = cleaned.replace(tag, "");
     }
+    msg["content"] = cleaned.strip();
 }
