@@ -51,13 +51,13 @@ obj ExecutionContext {
         call_state: ContextVar[CallState] = ContextVar('call_state'),
         # Per-context app identity. These decide which L3 backing file
         # ctx.mem points at (via `get_db_path` / `get_name`). Carrying
-        # them on the context rather than on `JacRuntime` statics is what
-        # isolates multiple in-process clients (JacTestClient, embedded
-        # REPL, MCP host) from each other — a stale `full_target_path`
-        # from a prior client cannot poison a freshly-constructed ctx.
-        # If left at None, postinit snapshots from `JacRuntime.base_path_dir`
-        # / `JacRuntime.full_target_path` for back-compat with CLI flows
-        # that set those globals up front.
+        # them on the context isolates multiple in-process clients
+        # (JacTestClient, embedded REPL, MCP host) from each other — a
+        # stale seed from a prior client cannot poison a constructed
+        # ctx. If left at None, postinit snapshots from the bootstrap
+        # seeds (`Jac.get_base_path_dir()` / `Jac.get_full_target_path()`)
+        # so CLI flows that seed app identity before any ctx exists keep
+        # working unchanged.
         base_path_dir: (str | None) = None,
         full_target_path: (str | None) = None,
         # Per-request fork support. When `_parent` is set, postinit skips

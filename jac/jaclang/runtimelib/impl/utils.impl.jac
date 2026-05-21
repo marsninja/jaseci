@@ -243,9 +243,9 @@ impl get_name(target_path: (str | None) = None) -> str | None {
     import from jaclang.project.config { get_config }
     import from jaclang.jac0core.runtime { JacRuntime }
 
-    # Per-context target wins; fall back to the process-global only when
+    # Per-context target wins; fall back to the bootstrap seed only when
     # no caller-supplied identity is available.
-    effective_target = target_path or JacRuntime.full_target_path;
+    effective_target = target_path or JacRuntime.get_full_target_path();
     if not effective_target {
         return None;
     }

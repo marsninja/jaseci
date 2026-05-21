@@ -1,14 +1,17 @@
 """Tests for ExecutionContext isolation from stale ambient runtime state.
 
-`JacRuntime.base_path_dir` and `JacRuntime.full_target_path` are process-global
-statics that decide where each `ExecutionContext`'s L3 SQLite file lives. Two
-clients in the same process (notably `JacTestClient` instances) need to be
-isolated from each other — a stale `full_target_path` from a prior client must
-not poison the L3 filename of a freshly-created context.
+App identity (`base_path_dir`, `full_target_path`) used to live on
+`JacRuntime` as process-global statics that decided each
+`ExecutionContext`'s L3 SQLite file. Two clients in the same process
+(notably `JacTestClient` instances) need to be isolated from each
+other — a stale `full_target_path` from a prior client must not poison
+the L3 filename of a freshly-created context.
 
 These tests pin the contract: an ExecutionContext's persistence path is
-decided by its own per-context base_path/target_path, not by whatever global
-value happens to be set at construction time.
+decided by its own per-context base_path/target_path, captured at
+construction time. The pre-context seeds (`Jac.set_base_path` /
+`Jac.set_full_target_path`) only feed contexts that don't get explicit
+values; subsequent seed mutations cannot poison a live ctx.
 """
 
 import os;
@@ -19,7 +22,7 @@ import from jaclang.runtimelib.memory { TieredMemory }
 import from jaclang.jac0core.runtime { JacRuntime }
 
 
-test "ExecutionContext uses explicit per-context target_path, ignoring stale ambient state" {
+test "ExecutionContext uses explicit per-context target_path, ignoring stale seed state" {
     # Standalone .jac files (no jac.toml in their directory) — `get_name`
     # resolves to the filename stem, which gives us two distinct
     # identities to assert on without relying on the JacConfig cache
@@ -27,13 +30,13 @@ test "ExecutionContext uses explicit per-context target_path, ignoring stale amb
     with TemporaryDirectory() as proj_a, TemporaryDirectory() as proj_b {
         a_target = str(Path(proj_a) / "alpha_app.jac");
         b_target = str(Path(proj_b) / "beta_app.jac");
-        orig_base = JacRuntime.base_path_dir;
-        orig_target = JacRuntime.full_target_path;
+        orig_base = JacRuntime.get_base_path_dir();
+        orig_target = JacRuntime.get_full_target_path();
         orig_ctx = JacRuntime.exec_ctx;
         try {
-            # Stale ambient state from a hypothetical prior client/CLI run.
-            JacRuntime.base_path_dir = proj_a;
-            JacRuntime.full_target_path = a_target;
+            # Stale seed state from a hypothetical prior client/CLI run.
+            JacRuntime.set_base_path(proj_a);
+            JacRuntime.set_full_target_path(a_target);
 
             # A new context constructed with EXPLICIT per-context base and
             # target — this is the contract a multi-client process needs.
@@ -47,12 +50,12 @@ test "ExecutionContext uses explicit per-context target_path, ignoring stale amb
             # The L3 file must live under proj_b and use beta's identity.
             assert proj_b in l3_path , f"L3 path {l3_path} not under proj_b";
             assert "beta_app" in os.path.basename(l3_path) , f"L3 filename {l3_path} should reflect 'beta_app'";
-            assert "alpha_app" not in l3_path , f"L3 path {l3_path} leaked stale ambient 'alpha_app'";
+            assert "alpha_app" not in l3_path , f"L3 path {l3_path} leaked stale seed 'alpha_app'";
 
             ctx.close();
         } finally {
-            JacRuntime.base_path_dir = orig_base;
-            JacRuntime.full_target_path = orig_target;
+            JacRuntime.set_base_path(orig_base);
+            JacRuntime.set_full_target_path(orig_target);
             JacRuntime.exec_ctx = orig_ctx;
         }
     }
@@ -63,8 +66,8 @@ test "two ExecutionContexts in one process keep independent persistence paths" {
     with TemporaryDirectory() as proj_a, TemporaryDirectory() as proj_b {
         a_target = str(Path(proj_a) / "alpha_app.jac");
         b_target = str(Path(proj_b) / "beta_app.jac");
-        orig_base = JacRuntime.base_path_dir;
-        orig_target = JacRuntime.full_target_path;
+        orig_base = JacRuntime.get_base_path_dir();
+        orig_target = JacRuntime.get_full_target_path();
         orig_ctx = JacRuntime.exec_ctx;
         try {
             ctx_a = ExecutionContext(base_path_dir=proj_a, full_target_path=a_target);
@@ -80,25 +83,26 @@ test "two ExecutionContexts in one process keep independent persistence paths" {
             ctx_a.close();
             ctx_b.close();
         } finally {
-            JacRuntime.base_path_dir = orig_base;
-            JacRuntime.full_target_path = orig_target;
+            JacRuntime.set_base_path(orig_base);
+            JacRuntime.set_full_target_path(orig_target);
             JacRuntime.exec_ctx = orig_ctx;
         }
     }
 }
 
 
-test "ExecutionContext without explicit base/target falls back to JacRuntime statics" {
-    # Back-compat: existing call sites (CLI commands, plugins) that construct
-    # `ExecutionContext()` with no args keep reading from the process-global
-    # JacRuntime fields the same way they always have.
+test "ExecutionContext without explicit base/target falls back to JacRuntime seeds" {
+    # Back-compat: existing call sites (CLI commands, plugins) that
+    # construct `ExecutionContext()` with no args get values from the
+    # pre-context seeds set via `Jac.set_base_path` /
+    # `Jac.set_full_target_path`.
     with TemporaryDirectory() as tmpdir {
-        orig_base = JacRuntime.base_path_dir;
-        orig_target = JacRuntime.full_target_path;
+        orig_base = JacRuntime.get_base_path_dir();
+        orig_target = JacRuntime.get_full_target_path();
         orig_ctx = JacRuntime.exec_ctx;
         try {
-            JacRuntime.base_path_dir = tmpdir;
-            JacRuntime.full_target_path = str(Path(tmpdir) / "standalone.jac");
+            JacRuntime.set_base_path(tmpdir);
+            JacRuntime.set_full_target_path(str(Path(tmpdir) / "standalone.jac"));
 
             ctx = ExecutionContext();
             assert isinstance(ctx.mem, TieredMemory);
@@ -110,8 +114,8 @@ test "ExecutionContext without explicit base/target falls back to JacRuntime sta
 
             ctx.close();
         } finally {
-            JacRuntime.base_path_dir = orig_base;
-            JacRuntime.full_target_path = orig_target;
+            JacRuntime.set_base_path(orig_base);
+            JacRuntime.set_full_target_path(orig_target);
             JacRuntime.exec_ctx = orig_ctx;
         }
     }

@@ -25,16 +25,16 @@ impl ExecutionContext.postinit -> None {
         self.full_target_path = self._parent.full_target_path;
         return;
     }
-    # Snapshot app identity from process-global JacRuntime defaults when
+    # Snapshot app identity from the module-level bootstrap seeds when
     # the caller did not pass explicit values. Doing the snapshot here —
-    # rather than reading the globals later from `get_name`/`get_db_path`
+    # rather than reading the seeds later from `get_name`/`get_db_path`
     # — is what locks in this ctx's persistence path at construction
-    # time, immune to later mutations of the globals by sibling clients.
+    # time, immune to later seed mutations by sibling clients.
     if self.base_path_dir is None {
-        self.base_path_dir = JacRuntime.base_path_dir;
+        self.base_path_dir = JacRuntime.get_base_path_dir();
     }
     if self.full_target_path is None {
-        self.full_target_path = JacRuntime.full_target_path;
+        self.full_target_path = JacRuntime.get_full_target_path();
     }
     # Create TieredMemory - persistence only enabled if base_path_dir is
     # explicitly set. If base_path_dir is None, no L3 persistence (faster

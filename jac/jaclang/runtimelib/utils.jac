@@ -66,10 +66,10 @@ def to_uuid(id: (UUID | str)) -> UUID {
 """Get project name from jac.toml if exists in same directory, None otherwise.
 
 `target_path` is the entry-file path used to discover the project — when
-omitted, falls back to the process-global `JacRuntime.full_target_path`
-for back-compat. Callers that own a per-context identity (an
-ExecutionContext, a JacTestClient) should pass it explicitly so the
-result is independent of ambient global state.
+omitted, falls back to `Jac.get_full_target_path()` (the bootstrap seed).
+Callers that own a per-context identity (an ExecutionContext, a
+JacTestClient) should pass it explicitly so the result is independent
+of ambient seed state.
 """
 def get_name(target_path: (str | None) = None) -> (str | None);
 

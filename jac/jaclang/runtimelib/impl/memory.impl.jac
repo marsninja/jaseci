@@ -1530,9 +1530,9 @@ impl TieredMemory.postinit -> None {
     if self.base_path {
         # Use project.db for projects, filename.db for standalone apps.
         # `target_path` is the per-context app identity — without it,
-        # `get_db_path` would fall back to the process-global
-        # `JacRuntime.full_target_path`, which can leak across in-process
-        # clients (see context.impl.jac for the rationale).
+        # `get_db_path` would fall back to `Jac.get_full_target_path()`
+        # (the bootstrap seed), which can leak across in-process clients
+        # (see context.impl.jac for the rationale).
         db_path = get_db_path(self.base_path, target_path=self.target_path);
         self.l3 = SqliteMemory(path=db_path);
     } else {
