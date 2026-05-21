@@ -749,6 +749,22 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "'cl' (react/preact) target currently lowers 'awaiting' to a "
          "Suspense fallback."
      ),
+     E2023 = _err(
+         "E2023",
+         Category.SEMANTIC,
+         "'has' is not allowed inside a JSX slot body. A slot body is a "
+         "statement template that re-runs on every render; declaring "
+         "reactive state there would compile to a conditional 'useState' "
+         "and violate React's rules of hooks. Declare 'has'-fields at the "
+         "component scope (the enclosing 'def -> JsxElement' body)."
+     ),
+     W2021 = _warn(
+         "W2021",
+         Category.SEMANTIC,
+         "'for' loop in a JSX slot renders JSX without a 'key' attribute — "
+         "annotate one child element with 'key=' so iteration siblings "
+         "keep their identity across re-renders."
+     ),
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      # Lint warnings (W3xxx)
      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
