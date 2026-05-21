@@ -122,7 +122,14 @@ def _topology_narrow(root_anchor: any, plan: QueryPlan) -> (set[UUID] | None) {
     if not isinstance(idx, TopologyIndex) or len(idx) == 0 {
         return None;
     }
-    return idx.resolve_chain({plan.root_id}, _chain_triples(plan.chain));
+    # bail_on_intermediate_foreign=True: when a non-final chain hop lands on
+    # a node owned by a *different* root, that node's outgoing edges live in
+    # its own root's index — not this one. Continuing here would silently
+    # undercount. Bail and let the caller fall back to the slow path (which
+    # walks the in-memory edge graph and crosses roots transparently).
+    return idx.resolve_chain(
+        {plan.root_id}, _chain_triples(plan.chain), bail_on_intermediate_foreign=True
+    );
 }
 
 
@@ -490,7 +497,7 @@ impl plan_chain(
     if not isinstance(idx, TopologyIndex) or len(idx) == 0 {
         return None;
     }
-    return idx.resolve_chain(origin_ids, chain);
+    return idx.resolve_chain(origin_ids, chain, bail_on_intermediate_foreign=True);
 }
 
 
