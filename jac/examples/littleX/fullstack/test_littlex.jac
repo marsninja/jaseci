@@ -169,10 +169,6 @@ test "search filters the feed by content" {
 }
 
 test "trending surfaces hashtags" {
-    # `get_trending` calls `allroots()`, which surfaces persistent state
-    # from sibling tests under pytest (JacTestClient shares an in-memory
-    # tier across mkdtemp clients). Re-enable once test isolation lands.
-    pytest.skip("JacTestClient allroots() leaks across tests");
     client = make_client();
     login_as(client, "alice", "secret123");
     client.post("/walker/setup_profile", json={"username": "alice"});
@@ -242,9 +238,6 @@ test "feed includes tweets from followed users" {
 }
 
 test "directory lists every registered profile" {
-    # `get_all_profiles` calls `allroots()`; see note on
-    # "trending surfaces hashtags" for why this is skipped under pytest.
-    pytest.skip("JacTestClient allroots() leaks across tests");
     client = make_client();
     client.register_user("alice", "secret123");
     client.register_user("bob", "secret123");
@@ -264,9 +257,6 @@ test "directory lists every registered profile" {
 
 # -- Channels --
 test "channel create, join, post and detail" {
-    # `get_channels` calls `allroots()`; see note on
-    # "trending surfaces hashtags" for why this is skipped under pytest.
-    pytest.skip("JacTestClient allroots() leaks across tests");
     client = make_client();
     client.register_user("alice", "secret123");
     client.register_user("bob", "secret123");
