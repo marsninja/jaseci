@@ -775,12 +775,26 @@ class JacUtils {
             user_root: User root ID for permission boundary. Required parameter.
                        Pass None for CLI/system contexts (uses system_root).
                        Pass user's root ID for authenticated server requests.
+            base_path_dir: Per-context override for the L3 storage root.
+                       When None, the new context snapshots
+                       `JacRuntime.base_path_dir` at construction time.
+            full_target_path: Per-context override for the app target file.
+                       Drives the L3 SQLite filename via `get_db_path` /
+                       `get_name`. When None, the new context snapshots
+                       `JacRuntime.full_target_path` at construction time.
 
         Storage backend is configured via plugins/environment, not per-context.
-        For file backend: auto-generates path from JacRuntime.base_path_dir.
+        For file backend: derives the path from the context's own
+        `base_path_dir` / `full_target_path` (either passed explicitly here
+        or snapshotted from JacRuntime). Subsequent mutations to the global
+        statics never poison an already-constructed ctx.
         For database backends (jac-scale): configured via environment variables.
         """
-    static def create_j_context(user_root: (str | None)) -> ExecutionContext;
+    static def create_j_context(
+        user_root: (str | None),
+        base_path_dir: (str | None) = None,
+        full_target_path: (str | None) = None
+    ) -> ExecutionContext;
 
     """Attach a JacProgram to the machine."""
     static def attach_program(jac_program: JacProgram) -> None;
