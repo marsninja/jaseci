@@ -59,6 +59,17 @@ obj SourceRef {
         loc = f"{self.file}:{self.line}";
         return f"{loc}  {self.snippet}" if self.snippet else loc;
     }
+
+    """A JSON-friendly mapping of this reference, for machine consumers."""
+    def to_dict -> dict {
+        return {
+            "file": self.file,
+            "line": self.line,
+            "col": self.col,
+            "role": self.role,
+            "snippet": self.snippet
+        };
+    }
 }
 
 
@@ -105,6 +116,24 @@ obj SymbolInfo {
         }
         return "\n".join(lines);
     }
+
+    """A JSON-friendly mapping of this symbol, for machine consumers."""
+    def to_dict -> dict {
+        return {
+            "name": self.name,
+            "kind": self.kind,
+            "file": self.file,
+            "line": self.line,
+            "col": self.col,
+            "type_str": self.type_str,
+            "doc": self.doc,
+            "signature": self.signature,
+            "fields": self.fields,
+            "abilities": self.abilities,
+            "base_classes": self.base_classes,
+            "is_genai": self.is_genai
+        };
+    }
 }
 
 
@@ -117,6 +146,16 @@ obj Diagnostic {
 
     def render -> str {
         return f"{self.severity}: {self.file}:{self.line}: {self.message}";
+    }
+
+    """A JSON-friendly mapping of this diagnostic, for machine consumers."""
+    def to_dict -> dict {
+        return {
+            "file": self.file,
+            "line": self.line,
+            "severity": self.severity,
+            "message": self.message
+        };
     }
 }
 
@@ -142,6 +181,18 @@ obj EntryPoint {
 
     def render -> str {
         return f"{self.walker_name}.{self.ability}  ({self.event} {self.node_type})  [{self.file}:{self.line}]";
+    }
+
+    """A JSON-friendly mapping of this entry point, for machine consumers."""
+    def to_dict -> dict {
+        return {
+            "walker_name": self.walker_name,
+            "ability": self.ability,
+            "node_type": self.node_type,
+            "event": self.event,
+            "file": self.file,
+            "line": self.line
+        };
     }
 }
 
@@ -177,6 +228,20 @@ obj ContextSlice {
             }
         }
         return "\n".join(parts);
+    }
+
+    """A JSON-friendly mapping of this slice, for machine consumers.
+
+    Nested records are serialised through their own `to_dict`, so the slice
+    shape stays in lockstep with the `SymbolInfo`/`SourceRef` contracts.
+    """
+    def to_dict -> dict {
+        return {
+            "query": self.query,
+            "target": self.target.to_dict() if self.target is not None else None,
+            "related": [s.to_dict() for s in self.related],
+            "uses": [u.to_dict() for u in self.uses]
+        };
     }
 }
 
