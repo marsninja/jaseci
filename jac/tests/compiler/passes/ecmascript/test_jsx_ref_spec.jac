@@ -75,10 +75,12 @@ test "value ref: Ref(initial) lowers to useRef(initial)" {
 }
 
 test "bare Ref field without a Ref() construction is rejected (E2025)" {
-    # `has r: Ref[T];` with no `= Ref()` has no ref object to hold.
+    # `has r: Ref[T];` with no `= Ref()` has no ref object to hold. The
+    # es-codegen pass detects the bare annotation and emits E2025.
     path = os.path.join(SLOT_EXT, "has_ref_bare.cl.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=path, no_cgen=True);
+    EsastGenPass(ir_in=ir, prog=prog);
     codes = [
         e.code.code
         for e in prog.errors_had

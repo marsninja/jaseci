@@ -3186,6 +3186,25 @@ impl EsastGenPass._inject_react_import(name: str, nd: uni.UniNode) -> None {
     self.injected_imports.add(name);
 }
 
+"""Leftmost identifier of a call/subscript chain, or None.
+
+`Ref` -> 'Ref'; `Ref[T]` / `Ref()` / `Ref[T]()` -> 'Ref' (unwrapping the
+`FuncCall` and `AtomTrailer` wrappers). Used to recognise the ambient `Ref`
+construction/annotation structurally, without the type system."""
+impl EsastGenPass._ref_head_name(expr: (uni.UniNode | None)) -> (str | None) {
+    cur = expr;
+    while True {
+        if isinstance(cur, uni.FuncCall) {
+            cur = cur.target;
+        } elif isinstance(cur, uni.AtomTrailer) {
+            cur = cur.target;
+        } else {
+            break;
+        }
+    }
+    return cur.value if isinstance(cur, uni.Name) else None;
+}
+
 """Transform an EventSignature ability (can with entry/exit) to useEffect call."""
 impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
     # Get the body statements
@@ -3293,13 +3312,30 @@ impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
         var_name = has_var.name.sym_name;
 
         # --- Ref[T] field -> useRef (non-reactive: no setter, no reactive_vars)
-        if has_var.is_client_ref {
+        # Detected structurally so client codegen needs no type-checker pass:
+        # a ref field is one constructed `= Ref()` / `= Ref(initial)`, or one
+        # annotated `: Ref[...]`. The construction is the canonical form; a
+        # bare annotation with no construction has no ref object to hold and is
+        # rejected (E2025), but still lowers to `useRef(null)` so the build
+        # stays usable.
+        ref_ctor = (
+            isinstance(has_var.value, uni.FuncCall)
+            and self._ref_head_name(has_var.value) == 'Ref'
+        );
+        ref_typed = (
+            has_var.type_tag is not None
+            and self._ref_head_name(has_var.type_tag.tag) == 'Ref'
+        );
+        if ref_ctor or ref_typed {
+            if ref_typed and not ref_ctor {
+                self.emit(E2025, node_override=has_var);
+            }
             self._inject_react_import('useRef', nd);
-            # The field is constructed as `= Ref()` / `= Ref(initial)`
-            # (enforced by E2025) — a Jac-only ambient with no JS counterpart.
-            # So we don't emit the `Ref(...)` call itself; we lift its sole
-            # argument (the seed for `.current`) into `useRef(seed)`,
-            # defaulting to `null` for the empty `Ref()` DOM-ref form.
+            # The field is constructed as `= Ref()` / `= Ref(initial)` — a
+            # Jac-only ambient with no JS counterpart. So we don't emit the
+            # `Ref(...)` call itself; we lift its sole argument (the seed for
+            # `.current`) into `useRef(seed)`, defaulting to `null` for the
+            # empty `Ref()` DOM-ref form.
             ref_init: es.Expression = self.sync_loc(
                 es.Literal(value=None, raw='null'), jac_node=has_var
             );

@@ -778,11 +778,7 @@ obj HasVar(AstSymbolNode, AstTypedVarNode) {
     has name: Name,
         value: (Expr | None),
         defer: bool,
-        accessors: (Sequence[Ability] | None) = None,
-        # Set by TypeCheckPass when the declared type resolves to the ambient
-        # `Ref[T]`. In client context the es-codegen reads this to lower the
-        # field to `useRef(...)` instead of `useState(...)`.
-        is_client_ref: bool = False;
+        accessors: (Sequence[Ability] | None) = None;
 
     def postinit -> None;
 }
