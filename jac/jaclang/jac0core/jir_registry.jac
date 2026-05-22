@@ -766,7 +766,8 @@ glob NODE_SPECS: tuple = (
                  FieldDesc(name="name", kind=4),
                  FieldDesc(name="value", kind=6),
                  FieldDesc(name="defer", kind=2),
-                 FieldDesc(name="accessors", kind=5)
+                 FieldDesc(name="accessors", kind=5),
+                 FieldDesc(name="is_client_ref", kind=2)
              )
          ),
          NodeSpec(

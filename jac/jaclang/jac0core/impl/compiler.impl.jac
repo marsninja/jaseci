@@ -696,23 +696,48 @@ impl JacCompiler.compile(
         if is_native_mod {
             run_type_check = True;
         }
+        # Client modules (`.cl.jac`, or a `.jac` with any `cl { ... }` block)
+        # likewise feed the type checker's results into es-codegen: a
+        # `Ref[T]`-typed has-field is marked `is_client_ref` by TypeCheckPass
+        # so it lowers to `useRef(...)` instead of `useState(...)`. Run the
+        # checker for client compilation even when options.type_check is off so
+        # that marker lands. Like the native trigger this uses the inference-
+        # only schedule with diagnostics suppressed (below), so existing client
+        # builds don't gain new type errors — explicit `jac check` still keeps
+        # the full client diagnostic surface.
+        if not run_type_check {
+            is_client_mod = bool(mp) and mp.endswith('.cl.jac');
+            if not is_client_mod and mod_targ?.body {
+                for _stmt in mod_targ.body {
+                    if isinstance(_stmt, uni.ClientBlock) {
+                        is_client_mod = True;
+                        break;
+                    }
+                }
+            }
+            if is_client_mod {
+                run_type_check = True;
+            }
+        }
     }
     if run_type_check {
         # Explicit `jac check` (options.type_check=True) runs the full
         # schedule — TypeCheckPass + StaticAnalysis + Portability + the
         # enrich-pass-second-pass + Lint — and keeps all diagnostics.
         #
-        # The implicit native run (.na.jac trigger) only needs Expr.type
-        # populated for NaIRGenPass, so it runs the inference-only schedule
-        # (TypeCheckPass alone). Rerunning UniTreeEnrichPass / Portability /
-        # Lint mutates AST state that NaIRGenPass and the cross-module linker
-        # depend on. Native compilation keeps its own error discipline (the
-        # NA pass validates, and native numeric types like f64/i32 have
-        # conversion rules the strict checker does not model), so diagnostics
-        # from this inference-only run are suppressed.
-        implicit_native = not options.type_check;
+        # An implicit run (the .na.jac native trigger, or the .cl.jac / `cl {}`
+        # client trigger) only needs the type checker's results populated on the
+        # AST — Expr.type for NaIRGenPass, the `is_client_ref` marker for
+        # es-codegen — so it runs the inference-only schedule (TypeCheckPass
+        # alone). Rerunning UniTreeEnrichPass / Portability / Lint mutates AST
+        # state that NaIRGenPass and the cross-module linker depend on. Both
+        # backends keep their own error discipline (the NA pass validates;
+        # native numeric types like f64/i32 have conversion rules the strict
+        # checker does not model; existing client builds must not gain new type
+        # errors), so diagnostics from this inference-only run are suppressed.
+        implicit_infer = not options.type_check;
         passes = get_native_inference_sched()
-            if implicit_native
+            if implicit_infer
             else get_type_check_sched();
         err_mark = len(actual_program.errors_had);
         warn_mark = len(actual_program.warnings_had);
@@ -724,7 +749,7 @@ impl JacCompiler.compile(
                 cancel_token=options.cancel_token
             );
         } finally {
-            if implicit_native {
+            if implicit_infer {
                 del actual_program.errors_had[err_mark:];
                 del actual_program.warnings_had[warn_mark:];
             }

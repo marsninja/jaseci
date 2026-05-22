@@ -899,6 +899,17 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: uni.HasVar) -> None {
     if (sym := nd.sym) {
         declared_type = self.evaluator.get_type_of_symbol(sym);
         nd.type = declared_type;
+        # Mark fields whose declared type resolves to the ambient `Ref[T]`
+        # (symbol identity, not name match — so aliases/re-exports work). In
+        # client context the es-codegen lowers these to `useRef(...)`.
+        ref_sym = self.evaluator.dom_types_module.names_in_scope.get("Ref");
+        if (
+            ref_sym is not None
+            and isinstance(declared_type, types.ClassType)
+            and declared_type.get_class_symbol() is ref_sym
+        ) {
+            nd.is_client_ref = True;
+        }
         # Warn on bare generic / explicit-any annotations (e.g. has items: list)
         if nd.type_tag and nd.type_tag.tag {
             self._check_bare_generic(nd.type_tag.tag, declared_type);
@@ -912,14 +923,24 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: uni.HasVar) -> None {
         # with the declared type (e.g., bad1: int = unknown_val;).
         if nd.value is not None and nd.type is not None {
             right_type = self.evaluator.get_type_of_expression(nd.value);
+            # For a `Ref[T]` field the initializer seeds `.current`, so check
+            # it against the element type `T`, not against `Ref[T]` itself.
+            expected_type = nd.type;
+            if (
+                nd.is_client_ref
+                and isinstance(declared_type, types.ClassType)
+                and declared_type.private.type_args
+            ) {
+                expected_type = declared_type.private.type_args[0];
+            }
             if not self.evaluator.assign_type(
-                right_type, nd.type, strict=self.evaluator._is_strict_site(nd)
+                right_type, expected_type, strict=self.evaluator._is_strict_site(nd)
             ) {
                 self.emit(
                     E1001,
                     node_override=nd,
                     actual=str(right_type),
-                    expected=str(nd.type)
+                    expected=str(expected_type)
                 );
             }
         }
