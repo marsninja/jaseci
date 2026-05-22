@@ -2067,6 +2067,23 @@ test "impl_body_type_checking" {
     assert "checker_impl_body.impl.jac" in program.errors_had[2].loc.mod_path;
 }
 
+"""Reassigning a module global from an impl-file body keeps the global's
+declared type. Without decl/impl-aware `global x;` binding the assignment
+would shadow `_rand_state` with an inferred local, dropping its `int` type and
+tripping `__mul__`/`__add__`/`__mod__` overload-resolution errors."""
+test "impl_body_global_reassignment_keeps_declared_type" {
+    program = JacProgram();
+    path = os.path.join(CHECKER_FIXTURES, "checker_impl_global_reassign.jac");
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    assert len(program.errors_had) == 0 , (
+        "Expected no type errors for an impl-body global reassignment, but got " + f"{len(
+            program.errors_had
+        )}:\n" + "\n".join([err.pretty_print() for err in program.errors_had])
+    );
+}
+
 """Test that self.x = value in impl files creates valid archetype attributes."""
 test "impl_self_member_assignment" {
     program = JacProgram();
@@ -4047,6 +4064,33 @@ test "explicit_any_annotations_emit_w1037" {
     #   4. `list[any]`       nested any in a generic param
     #   5. `any | None`      any branch of a union return type
     #   6. `payload: any`    field annotation
+    assert len(explicit_any_warnings) == 6 , f"Expected 6 W1037 warnings, got {len(
+        explicit_any_warnings
+    )}:\n" + "\n---\n".join(w.pretty_print() for w in explicit_any_warnings);
+}
+
+test "explicit_typing_any_annotations_emit_w1037" {
+    # `typing.Any` is the same gradual-typing escape hatch as the Jac `any`
+    # keyword and must warn identically. Without this, `from typing { Any }`
+    # would be a silent loophole around W1037.
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_explicit_typing_any.jac"), options=NO_TC
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    explicit_any_warnings = [
+        w
+        for w in program.warnings_had
+        if "W1037" in w.pretty_print()
+    ];
+    # Expected sites (6 total), mirroring checker_explicit_any.jac:
+    #   1. `x: Any`          param type on `takes_any`
+    #   2. `-> Any`          return type on `takes_any`
+    #   3. `y: Any = 5`      annotated assignment
+    #   4. `list[Any]`       nested Any in a generic param
+    #   5. `Any | None`      Any branch of a union return type
+    #   6. `payload: Any`    field annotation
     assert len(explicit_any_warnings) == 6 , f"Expected 6 W1037 warnings, got {len(
         explicit_any_warnings
     )}:\n" + "\n---\n".join(w.pretty_print() for w in explicit_any_warnings);

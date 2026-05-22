@@ -723,22 +723,25 @@ impl JacCompiler.compile(
     if run_type_check {
         # Explicit `jac check` (options.type_check=True) runs the full
         # schedule — TypeCheckPass + StaticAnalysis + Portability + the
-        # enrich-pass-second-pass + Lint — and keeps all diagnostics.
+        # enrich-pass-second-pass + Lint.
         #
         # An implicit run (the .na.jac native trigger, or the .cl.jac / `cl {}`
         # client trigger) only needs the type checker's results populated on the
         # AST — Expr.type for NaIRGenPass, the `is_client_ref` marker for
         # es-codegen — so it runs the inference-only schedule (TypeCheckPass
         # alone). Rerunning UniTreeEnrichPass / Portability / Lint mutates AST
-        # state that NaIRGenPass and the cross-module linker depend on. Both
-        # backends keep their own error discipline (the NA pass validates;
-        # native numeric types like f64/i32 have conversion rules the strict
-        # checker does not model; existing client builds must not gain new type
-        # errors), so diagnostics from this inference-only run are suppressed.
+        # state that NaIRGenPass and the cross-module linker depend on.
+        #
+        # Native diagnostics are kept: native code is held to the same type
+        # discipline as the rest of Jac (#6049). The implicit *client* run, by
+        # contrast, exists only to populate `is_client_ref`; its diagnostics are
+        # suppressed so existing client builds don't gain new type errors —
+        # explicit `jac check` still surfaces the full client diagnostic set.
         implicit_infer = not options.type_check;
         passes = get_native_inference_sched()
             if implicit_infer
             else get_type_check_sched();
+        suppress_client_diags = implicit_infer and is_client_mod and not is_native_mod;
         err_mark = len(actual_program.errors_had);
         warn_mark = len(actual_program.warnings_had);
         try {
@@ -749,7 +752,7 @@ impl JacCompiler.compile(
                 cancel_token=options.cancel_token
             );
         } finally {
-            if implicit_infer {
+            if suppress_client_diags {
                 del actual_program.errors_had[err_mark:];
                 del actual_program.warnings_had[warn_mark:];
             }
