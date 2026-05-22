@@ -3294,13 +3294,20 @@ impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
         # --- Ref[T] field -> useRef (non-reactive: no setter, no reactive_vars)
         if has_var.is_client_ref {
             self._inject_react_import('useRef', nd);
-            ref_init: es.Expression;
-            if has_var.value and has_var.value.gen.es_ast {
-                ref_init = cast(es.Expression, has_var.value.gen.es_ast);
-            } else {
-                ref_init = self.sync_loc(
-                    es.Literal(value=None, raw='null'), jac_node=has_var
-                );
+            # The field is constructed as `= Ref()` / `= Ref(initial)`
+            # (enforced by E2025) — a Jac-only ambient with no JS counterpart.
+            # So we don't emit the `Ref(...)` call itself; we lift its sole
+            # argument (the seed for `.current`) into `useRef(seed)`,
+            # defaulting to `null` for the empty `Ref()` DOM-ref form.
+            ref_init: es.Expression = self.sync_loc(
+                es.Literal(value=None, raw='null'), jac_node=has_var
+            );
+            if isinstance(has_var.value, uni.FuncCall) and has_var.value.params {
+                seed = has_var.value.params[0];
+                seed_expr = seed.value if isinstance(seed, uni.KWPair) else seed;
+                if seed_expr.gen.es_ast {
+                    ref_init = cast(es.Expression, seed_expr.gen.es_ast);
+                }
             }
             use_ref_call = self.sync_loc(
                 es.CallExpression(

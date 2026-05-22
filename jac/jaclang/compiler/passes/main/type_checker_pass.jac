@@ -37,7 +37,8 @@ import from jaclang.jac0core.diagnostics {
     W1037,
     W1052,
     W2014,
-    E2015
+    E2015,
+    E2025
 }
 
 """Type checker pass for JacLang."""

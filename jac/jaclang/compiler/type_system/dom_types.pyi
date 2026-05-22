@@ -26,9 +26,14 @@ _RefT = TypeVar("_RefT")
 # before use — mirroring React's `RefObject<T>.current: T | null`.
 
 class Ref(Generic[_RefT]):
-    """A mutable ref container; `.current` holds the referenced value."""
+    """A mutable ref container; `.current` holds the referenced value.
+
+    Construct with `Ref()` (an empty DOM ref, `.current` is None until React
+    attaches the node) or `Ref(initial)` (a value ref seeded with `initial`).
+    """
 
     current: _RefT | None
+    def __init__(self, initial: _RefT | None = ...) -> None: ...
 
 # ---------------------------------------------------------------------------
 # DOM Element types

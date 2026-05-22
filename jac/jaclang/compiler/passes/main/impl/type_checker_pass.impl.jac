@@ -901,7 +901,12 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: uni.HasVar) -> None {
         nd.type = declared_type;
         # Mark fields whose declared type resolves to the ambient `Ref[T]`
         # (symbol identity, not name match — so aliases/re-exports work). In
-        # client context the es-codegen lowers these to `useRef(...)`.
+        # client context the es-codegen lowers these to `useRef(...)`. Such a
+        # field must be constructed with `= Ref()` / `= Ref(initial)` so the
+        # declaration carries a value like every other `has`-field; a bare
+        # `has r: Ref[T];` has no ref object to hold (E2025). The construction
+        # is itself a `Ref[T]`, so the ordinary initializer compatibility
+        # check below validates the seed value against `T`.
         ref_sym = self.evaluator.dom_types_module.names_in_scope.get("Ref");
         if (
             ref_sym is not None
@@ -909,6 +914,18 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: uni.HasVar) -> None {
             and declared_type.get_class_symbol() is ref_sym
         ) {
             nd.is_client_ref = True;
+            init_is_ref_ctor = (
+                nd.value is not None
+                and isinstance(nd.value, uni.FuncCall)
+                and (
+                    init_t := self.evaluator.get_type_of_expression(nd.value)
+                ) is not None
+                and isinstance(init_t, types.ClassType)
+                and init_t.get_class_symbol() is ref_sym
+            );
+            if not init_is_ref_ctor {
+                self.emit(E2025, node_override=nd);
+            }
         }
         # Warn on bare generic / explicit-any annotations (e.g. has items: list)
         if nd.type_tag and nd.type_tag.tag {
@@ -923,24 +940,14 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: uni.HasVar) -> None {
         # with the declared type (e.g., bad1: int = unknown_val;).
         if nd.value is not None and nd.type is not None {
             right_type = self.evaluator.get_type_of_expression(nd.value);
-            # For a `Ref[T]` field the initializer seeds `.current`, so check
-            # it against the element type `T`, not against `Ref[T]` itself.
-            expected_type = nd.type;
-            if (
-                nd.is_client_ref
-                and isinstance(declared_type, types.ClassType)
-                and declared_type.private.type_args
-            ) {
-                expected_type = declared_type.private.type_args[0];
-            }
             if not self.evaluator.assign_type(
-                right_type, expected_type, strict=self.evaluator._is_strict_site(nd)
+                right_type, nd.type, strict=self.evaluator._is_strict_site(nd)
             ) {
                 self.emit(
                     E1001,
                     node_override=nd,
                     actual=str(right_type),
-                    expected=str(expected_type)
+                    expected=str(nd.type)
                 );
             }
         }

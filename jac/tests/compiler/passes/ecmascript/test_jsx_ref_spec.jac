@@ -61,3 +61,30 @@ test "rec 7: Ref[T] field declared with has lowers to useRef(null) in client con
         "has-field is present:\n" + js_code
     );
 }
+
+test "value ref: Ref(initial) lowers to useRef(initial)" {
+    # The second useRef shape -- `has n: Ref[int] = Ref(0);` seeds
+    # `.current` and lowers to `useRef(0)`, not `useState`.
+    js_code = es_to_js(compile_to_esast("has_ref_value.cl.jac"));
+    assert "useRef(0)" in js_code , (
+        "`= Ref(0)` should lower to useRef(0):\n" + js_code
+    );
+    assert "useState" not in js_code , (
+        "a ref field must not lower to useState:\n" + js_code
+    );
+}
+
+test "bare Ref field without a Ref() construction is rejected (E2025)" {
+    # `has r: Ref[T];` with no `= Ref()` has no ref object to hold.
+    path = os.path.join(SLOT_EXT, "has_ref_bare.cl.jac");
+    prog = JacProgram();
+    prog.compile(file_path=path, no_cgen=True, type_check=True);
+    codes = [
+        e.code.code
+        for e in prog.errors_had
+        if e.code
+    ];
+    assert "E2025" in codes , (
+        "bare `has r: Ref[T];` should emit E2025: " + str(codes)
+    );
+}
