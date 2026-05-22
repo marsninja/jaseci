@@ -1,17 +1,15 @@
-"""Executable spec -- `try`/`awaiting`/`except` view-lowering (#6082 item 3).
+"""Regression guard -- `try`/`awaiting`/`except` view-lowering (#6082 item 3).
 
-This test is expected to FAIL until the except-arm integration lands in
-`ViewLowerPass`. The file is a tracker, not a regression guard -- the
-failure shape codifies the contract the implementing PR must satisfy.
+On the `cl` target, a slot `try` that pairs an `awaiting` clause with one
+or more `except` arms lowers to a `<JacClientErrorBoundary>` (the error
+fallback) wrapping a `<JacAwaiting>` (the loading fallback) around the
+try body. Both components are auto-imported from `@jac/runtime`.
 
-Today, when a slot `try` carries an `awaiting` clause, `_lower_one`
-returns early through `_lower_try_with_awaiting` (view_lower_pass.jac)
-before the `except` arms are lowered, so the except body is parsed and
-then silently discarded. The emitted JS contains only `<JacAwaiting>`.
-
-The implementing PR also has to introduce the `JacClientErrorBoundary`
-runtime component (no analogue exists in @jac/runtime today) and the
-auto-import wiring for it.
+Before #6109, `_lower_try_with_awaiting` (view_lower_pass.jac) returned
+early once it had built the `<JacAwaiting>` wrapper, so the `except` arms
+were parsed and then silently discarded -- the emitted JS contained only
+`<JacAwaiting>`, and the authored error UI never reached the runtime.
+This file locks in the fixed shape so that gap cannot reopen.
 """
 
 import os;
@@ -68,4 +66,43 @@ test "rec 2: try/awaiting with except synthesises a JacClientErrorBoundary wrapp
     # Both the awaiting body and the except body content survive.
     assert "Loading" in js_code;
     assert "Something went wrong" in js_code;
+
+    # The boundary must WRAP the awaiting node, not sit beside it: the
+    # error fallback has to be outside the suspense fallback so a throw in
+    # the resolved try body is caught. The error-boundary call therefore
+    # opens before the awaiting call in the emitted source.
+    eb_at = js_code.index("__jacJsx(JacClientErrorBoundary,");
+    aw_at = js_code.index("__jacJsx(JacAwaiting,");
+    assert eb_at < aw_at , (
+        "<JacClientErrorBoundary> must wrap <JacAwaiting>, not the other "
+        "way around:\n" + js_code
+    );
+
+    # The except UI belongs to the boundary's fallback, not the awaiting
+    # suspense fallback: "Something went wrong" must render before the
+    # awaiting node opens.
+    assert js_code.index("Something went wrong") < aw_at , (
+        "the except body must lower into the error boundary's fallback, "
+        "ahead of the awaiting wrapper:\n" + js_code
+    );
+}
+
+test "rec 2: a body diagnostic in the except arm is emitted exactly once" {
+    # The except arm is lowered into a synthetic slot to build the error
+    # boundary's fallback. That synthetic slot must not re-run the body
+    # checker -- `exit_jsx_slot` already validated the whole raw template
+    # (with the correct loop context). A keyless `for` in the except arm
+    # must therefore warn W2021 once, not once per validation pass.
+    path = os.path.join(SLOT_EXT, "try_awaiting_except_loop.cl.jac");
+    prog = JacProgram();
+    prog.compile(file_path=path);
+    w2021 = [
+        w
+        for w in prog.warnings_had
+        if w.code is not None and w.code.code == "W2021"
+    ];
+    assert len(w2021) == 1 , (
+        "a keyless for-loop in the except arm should warn W2021 exactly "
+        f"once, got {len(w2021)}: " + str([str(w) for w in w2021])
+    );
 }
