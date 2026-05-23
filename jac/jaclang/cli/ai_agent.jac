@@ -47,7 +47,12 @@ glob yolo_mode: bool = True,
      agent_model_source: str = "default",
      # Whether to print the one-line turn summary (duration, tool calls, files
      # changed, tokens, project health) after each turn. Toggled with `/stats`.
-     show_stats: bool = True;
+     show_stats: bool = True,
+     # Rich live view: stream the model's reasoning, a `thinking... Ns` line for
+     # reasoning-less models, per-step/tool timings, and multi-line tool-result
+     # snippets. Cleared by `--quiet`/`-q`; toggled with `/verbose`. When off,
+     # only tool-call lines, one-line results, and the final answer are shown.
+     verbose: bool = True;
 
 # Tool names grouped for the turn-stat breakdown: tools that mutate files,
 # and tools that execute code or shell commands. Everything else is a read.
@@ -836,11 +841,14 @@ def print_banner {
 
 
 def print_help {
-    console.print("  /help    show this help", style="muted");
-    console.print("  /clear   reset the conversation", style="muted");
-    console.print("  /guides  list the bundled Jac reference guides", style="muted");
-    console.print("  /stats   toggle the per-turn stat line", style="muted");
-    console.print("  /exit    quit the session", style="muted");
+    console.print("  /help     show this help", style="muted");
+    console.print("  /clear    reset the conversation", style="muted");
+    console.print("  /guides   list the bundled Jac reference guides", style="muted");
+    console.print("  /stats    toggle the per-turn stat line", style="muted");
+    console.print(
+        "  /verbose  toggle live reasoning, timings, and step detail", style="muted"
+    );
+    console.print("  /exit     quit the session", style="muted");
 }
 
 
@@ -857,22 +865,6 @@ def fmt_tool_call(tool: str, args: object) -> str {
         }
     }
     return f"{tool}(" + ", ".join(parts) + ")";
-}
-
-
-"""Condense a tool result to a single clipped line for the activity log."""
-def preview_result(text: str) -> str {
-    stripped = text.strip();
-    if not stripped {
-        return "(no output)";
-    }
-    lines = stripped.splitlines();
-    head = lines[0];
-    if len(head) > 100 {
-        head = head[:100] + "...";
-    }
-    rest = len(lines) - 1;
-    return head + (f"  (+{rest} more lines)" if rest > 0 else "");
 }
 
 
@@ -999,40 +991,85 @@ def print_stats(
 }
 
 
-"""Strip tool-call protocol syntax from streamed reasoning text.
+"""Strip a model's stray control tokens from streamed reasoning prose.
 
-Models on byLLM's text tool protocol (local GGUFs, ollama families like gemma)
-emit their tool call *as content* -- `<tool_call>{...}</tool_call>` -- which
-byLLM recovers into a structured `tool_call` event but which would otherwise
-leak verbatim into the reasoning stream. Drop the call span and its stray
-protocol/control tags so only genuine prose reaches the terminal; the call
-itself renders cleanly from the `tool_call` event.
+Some local templates wrap tool syntax in `<|channel>`/`<token|>` markers and
+render quotes as `<|"|>`; clear them so only clean prose reaches the terminal.
+The tool-call JSON itself is excluded upstream by `_split_reasoning`.
 """
-def _clean_thought(text: str) -> str {
+def _strip_control(text: str) -> str {
     import re;
-    # The tool call is the tail of the reply (generation is stopped at
-    # `</tool_call>`), so drop everything from the opening tag onward -- this
-    # catches both the closed `<tool_call>...</tool_call>` form and the
-    # stop-truncated `<tool_call>{...` form, keeping any reasoning before it.
-    cleaned = re.sub("<tool_call>.*", "", text, flags=re.DOTALL);
-    for tag in ["</tool_call>", "<|tool_call|>", "</html>"] {
-        cleaned = cleaned.replace(tag, "");
-    }
-    # Control tokens some local templates emit around tool syntax.
-    cleaned = re.sub("<\\|[a-z_]+>[a-z]*", "", cleaned);
-    cleaned = re.sub("<[a-z_]+\\|>", "", cleaned);
-    return cleaned;
+    t = text.replace("<|\"|>", "\"").replace("<|'|>", "'");
+    t = re.sub("<\\|[a-z_]+>[a-z]*", "", t);
+    t = re.sub("<[a-z_]+\\|>", "", t);
+    return t;
 }
 
 
-"""Run one agent turn, rendering the full byLLM event stream to the terminal.
+"""Split accumulated reasoning into the prose safe to show and a hit flag.
 
-`ask` runs with `stream=True, logging=True`, so it yields a StreamEvent for
-every step of the ReAct loop. Reasoning (`thought`) is buffered per iteration
-and flushed -- with any tool-call protocol syntax stripped -- when the step's
-structured event lands, so a model that emits its call as text never leaks the
-raw `<tool_call>` JSON. The final answer (`chunk`) streams live; `tool_call`
-and `tool_result` events punctuate the turn.
+A reply is reasoning prose followed by the `<tool_call>` JSON the protocol
+recovers into a structured event. Return only the prose before the marker, and
+hold back a trailing partial `<tool_call` so a marker split across stream tokens
+is never shown. `hit` is True once the marker has appeared.
+"""
+def _split_reasoning(raw: str) -> tuple[str, bool] {
+    mark = "<tool_call>";
+    idx = raw.find(mark);
+    if idx >= 0 {
+        return (raw[:idx], True);
+    }
+    hold = 0;
+    k = min(len(raw), len(mark) - 1);
+    while k > 0 {
+        if mark.startswith(raw[len(raw) - k:]) {
+            hold = k;
+            break;
+        }
+        k -= 1;
+    }
+    return (raw[:len(raw) - hold], False);
+}
+
+
+"""Up to `max_lines` lines of a tool result, each clipped, with a more-marker."""
+def _result_snippet(text: str, max_lines: int) -> list[str] {
+    stripped = text.strip();
+    if not stripped {
+        return ["(no output)"];
+    }
+    lines = stripped.splitlines();
+    shown: list[str] = [];
+    for ln in lines[:max_lines] {
+        shown.append(ln[:100] + "..." if len(ln) > 100 else ln);
+    }
+    rest = len(lines) - min(len(lines), max_lines);
+    if rest > 0 {
+        shown.append(f"(+{rest} more lines)");
+    }
+    return shown;
+}
+
+
+"""Format a millisecond duration compactly: '820ms', '1.8s', '13.0s'."""
+def _fmt_ms(ms: float) -> str {
+    return f"{int(ms)}ms" if ms < 1000 else f"{ms / 1000:.1f}s";
+}
+
+# Upper bound on the live "thinking..." line, used to erase it cleanly.
+glob _THINK_WIDTH = 40;
+
+
+"""Run one agent turn, rendering the byLLM event stream live to the terminal.
+
+`ask` runs with `stream=True, logging=True`, yielding a StreamEvent per step of
+the ReAct loop. In the default (verbose) view the model's reasoning streams live
+(only the prose before the `<tool_call>` JSON, so the protocol text never
+leaks), a `thinking... Ns` line marks generation for models that emit no prose,
+and each step carries its model/tool latency with a multi-line result snippet.
+`--quiet` drops the reasoning, timings, and the live line, leaving tool calls,
+one-line results, and the final answer. The final answer (`chunk`) always
+streams live.
 """
 def run_turn(message: str) {
     console.print("");
@@ -1041,26 +1078,9 @@ def run_turn(message: str) {
     # `any`-typed handle so attribute access type-checks.
     event_stream: any = ask(message);
     out: any = sys.stdout;
-    # True while raw model tokens have been written since the last newline,
-    # so structured lines (tool calls, results) start cleanly.
-    streamed = False;
-    # Reasoning tokens for the current step, held until the step resolves so
-    # tool-call syntax can be stripped before anything is shown.
-    thought_buf = "";
-    # Flush buffered reasoning to the terminal, cleaned of tool-call syntax.
-    def flush_thought {
-        nonlocal thought_buf , streamed;
-        if not thought_buf {
-            return;
-        }
-        text = _clean_thought(thought_buf);
-        thought_buf = "";
-        if text.strip() {
-            out.write(text);
-            out.flush();
-            streamed = True;
-        }
-    }
+    # Animated `thinking...` rewrites the line with \r, which only makes sense
+    # on a terminal; piped output gets the static lines without it.
+    is_tty = bool(out?.isatty) and bool(out.isatty());
     # Reset the per-turn write flag the verify-and-continue guard reads.
     global _turn_wrote;
     _turn_wrote = False;
@@ -1072,28 +1092,91 @@ def run_turn(message: str) {
     n_run = 0;
     files: set[str] = set();
     usage: dict[str, object] = {};
+    # Live-render state.
+    streamed = False;  # raw reasoning/answer tokens on the current line
+    thought_raw = "";  # this step's accumulated reasoning tokens
+    prose_shown = 0;  # chars of this step's prose already streamed
+    step_t0 = 0.0;  # when this step's generation began
+    think_on = False;  # a live `thinking...` line is on screen
+    last_llm_ms = 0.0;  # model gen time of the step just finished
+    pend_result: any = None;  # a tool result awaiting its timing event
+    def clear_think {
+        nonlocal think_on;
+        if think_on and is_tty {
+            out.write("\r" + (" " * _THINK_WIDTH) + "\r");
+            out.flush();
+        }
+        think_on = False;
+    }
+    def end_line {
+        nonlocal streamed;
+        if streamed {
+            out.write("\n");
+            out.flush();
+            streamed = False;
+        }
+    }
+    def flush_result {
+        nonlocal pend_result;
+        if pend_result is None {
+            return;
+        }
+        (result, ms) = (pend_result["result"], pend_result["ms"]);
+        pend_result = None;
+        lines = _result_snippet(result, 3 if verbose else 1);
+        tail = f"   {_fmt_ms(ms)}" if (verbose and ms is not None) else "";
+        console.print(f"      ↳ {lines[0]}{tail}", style="dim");
+        for ln in lines[1:] {
+            console.print(f"        {ln}", style="dim");
+        }
+    }
     try {
         for event in event_stream {
             kind = event.event_type;
             data = event.data;
             if kind == "thought" {
-                # Reasoning may carry tool-call text on the text protocol -- hold
-                # it until the step resolves so it can be cleaned before display.
-                thought_buf += str(data.get("content", ""));
+                # Reasoning is shown only in the verbose view; quiet hides it.
+                if not verbose {
+                    continue;
+                }
+                tok = str(data.get("content", ""));
+                if not tok {
+                    continue;
+                }
+                if step_t0 == 0.0 {
+                    step_t0 = time.time();
+                }
+                thought_raw += tok;
+                (prose, hit) = _split_reasoning(thought_raw);
+                new_raw = prose[prose_shown:];
+                prose_shown = len(prose);
+                cleaned = _strip_control(new_raw);
+                if cleaned {
+                    clear_think();
+                    out.write(cleaned);
+                    out.flush();
+                    streamed = True;
+                }
+                # No prose yet but generating (the call is streaming as JSON):
+                # show a live, ticking activity line so a slow model is not silent.
+                if hit and not streamed and is_tty {
+                    out.write(f"\r  ● thinking… {time.time() - step_t0:.1f}s");
+                    out.flush();
+                    think_on = True;
+                }
             } elif kind == "chunk" {
-                # Final answer: never a tool call, so stream live.
+                # Final answer: never a tool call, so stream live in both views.
+                clear_think();
+                flush_result();
                 out.write(str(data.get("content", "")));
                 out.flush();
                 streamed = True;
+            } elif kind == "llm_timing" {
+                last_llm_ms = float(data.get("duration_ms", 0) or 0);
             } elif kind == "tool_call" {
-                # Show any genuine reasoning (tool-call syntax stripped); on the
-                # text protocol the buffer is just the call and cleans to empty.
-                flush_thought();
-                if streamed {
-                    out.write("\n");
-                    out.flush();
-                    streamed = False;
-                }
+                clear_think();
+                end_line();
+                flush_result();
                 tool = str(data.get("tool", "?"));
                 args = data.get("args", {});
                 # Tally the call for the turn stats: writes (and the files they
@@ -1112,7 +1195,25 @@ def run_turn(message: str) {
                 } else {
                     n_read += 1;
                 }
-                console.print(f"  ⏺ {fmt_tool_call(tool, args)}", style="cyan");
+                gen = f"   ({_fmt_ms(last_llm_ms)})"
+                    if (verbose and last_llm_ms > 0)
+                    else "";
+                console.print(f"  ⏺ {fmt_tool_call(tool, args)}{gen}", style="cyan");
+                last_llm_ms = 0.0;
+                # Next step's reasoning starts fresh.
+                thought_raw = "";
+                prose_shown = 0;
+                step_t0 = 0.0;
+            } elif kind == "tool_result" {
+                clear_think();
+                end_line();
+                flush_result();
+                pend_result = {"result": str(data.get("result", "")), "ms": None};
+            } elif kind == "tool_timing" {
+                if pend_result is not None {
+                    pend_result["ms"] = float(data.get("duration_ms", 0) or 0);
+                }
+                flush_result();
             } elif kind == "usage" {
                 # byLLM emits one `usage` event at stream end with token totals
                 # aggregated across every LLM call in the turn.
@@ -1120,31 +1221,16 @@ def run_turn(message: str) {
                 if isinstance(total, dict) {
                     usage = total;
                 }
-            } elif kind == "tool_result" {
-                flush_thought();
-                if streamed {
-                    out.write("\n");
-                    out.flush();
-                    streamed = False;
-                }
-                console.print(
-                    f"    {preview_result(str(data.get('result', '')))}", style="dim"
-                );
             } elif kind == "steps_done" {
-                flush_thought();
-                if streamed {
-                    out.write("\n");
-                    out.flush();
-                    streamed = False;
-                }
+                clear_think();
+                end_line();
+                flush_result();
                 console.print("");
             }
         }
-        flush_thought();
-        if streamed {
-            out.write("\n");
-            out.flush();
-        }
+        clear_think();
+        end_line();
+        flush_result();
     } except KeyboardInterrupt {
         console.print("\n  [interrupted]", style="yellow");
     } except Exception as e {
@@ -1241,13 +1327,15 @@ otherwise starts an interactive read-eval-print loop. Always returns 0 -- a
 failed turn reports its error but does not abort the session.
 """
 def run_agent(req: object) -> int {
-    global agent_model,yolo_mode,agent_ci,show_stats;
+    global agent_model,yolo_mode,agent_ci,show_stats,verbose;
     # `req` is an AgentRequest; access it untyped so attribute reads
     # type-check without importing the class into this byLLM-only module.
     r: any = req;
     # File writes and code execution run without prompting unless `--safe`
     # asks to confirm each one.
     yolo_mode = not r.safe;
+    # Rich live view unless `--quiet`/`-q` asks for compact output.
+    verbose = not bool(getattr(r, "quiet", False));
     # The compiler-backed project model the semantic tools navigate.
     agent_ci = r.code_intel;
     initial_prompt = str(r.prompt);
@@ -1301,6 +1389,15 @@ def run_agent(req: object) -> int {
         if line == "/stats" {
             show_stats = not show_stats;
             console.success("Turn stats on." if show_stats else "Turn stats off.");
+            continue;
+        }
+        if line == "/verbose" {
+            verbose = not verbose;
+            console.success(
+                "Verbose: streaming reasoning, timings, and step detail."
+                    if verbose
+                    else "Quiet: tool calls and the answer only."
+            );
             continue;
         }
         run_turn(line);
