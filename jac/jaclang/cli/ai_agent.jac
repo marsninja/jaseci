@@ -17,7 +17,7 @@ import time;
 import subprocess;
 import from pathlib { Path }
 
-import from byllm.lib { Model }
+import from byllm.lib { Model, IterationAction }
 import from byllm.config_loader { get_byllm_config }
 import from byllm.parallel { mark_serialize }
 
@@ -52,7 +52,10 @@ glob yolo_mode: bool = True,
 # Tool names grouped for the turn-stat breakdown: tools that mutate files,
 # and tools that execute code or shell commands. Everything else is a read.
 glob _WRITE_TOOLS: set[str] = {"write_file","edit_file"},
-     _RUN_TOOLS: set[str] = {"run_command","jac_check","start_app"};
+     _RUN_TOOLS: set[str] = {"run_command","jac_check","start_app"},
+     # Set True by `run_turn` when the turn issued a file-writing tool call, so
+     # the one-shot verify-and-continue guard only kicks in when code changed.
+     _turn_wrote: bool = False;
 
 # The shared CodeIntelligence handle for this session, set by `run_agent` from
 # the AgentRequest. The semantic tools (find_symbol, find_uses, ...) query it
@@ -718,6 +721,62 @@ def reset_history {
 }
 
 
+# A turn that rewrites one file more than this many times is not converging --
+# typically a weaker model re-emitting a whole file on each compile error. The
+# progress guard ends the turn rather than burning the iteration budget.
+glob _REWRITE_LIMIT = 5;
+
+
+"""Stop a turn that keeps rewriting the same file without making progress.
+
+byLLM calls this before each ReAct iteration. It counts how often each file has
+been written so far this turn (from the assistant tool-call history); once any
+single file crosses `_REWRITE_LIMIT`, the model is looping on an error it cannot
+fix, so end the turn with a summary instead of spending the whole budget.
+"""
+def _progress_guard(ctx: any) -> str {
+    import json;
+    counts: dict[str, int] = {};
+    for m in ctx.messages {
+        tcs = m.get("tool_calls") if isinstance(m, dict) else m?.tool_calls;
+        if not tcs {
+            continue;
+        }
+        for tc in tcs {
+            fn = tc?.function;
+            if fn is None and isinstance(tc, dict) {
+                fn = tc.get("function");
+            }
+            name = fn?.name;
+            if name is None and isinstance(fn, dict) {
+                name = fn.get("name");
+            }
+            if name not in _WRITE_TOOLS {
+                continue;
+            }
+            raw = fn?.arguments;
+            if raw is None and isinstance(fn, dict) {
+                raw = fn.get("arguments");
+            }
+            try {
+                parsed = json.loads(raw) if isinstance(raw, str) else (raw or {});
+                path = str(parsed.get("path", "")) if isinstance(parsed, dict) else "";
+            } except Exception {
+                path = "";
+            }
+            if path {
+                counts[path] = counts.get(path, 0) + 1;
+            }
+        }
+    }
+    worst = max(counts.values()) if counts else 0;
+    if worst > _REWRITE_LIMIT {
+        return IterationAction.ABORT_WITH_SUMMARY;
+    }
+    return IterationAction.CONTINUE;
+}
+
+
 """Address the user's latest message, using tools as needed."""
 def ask(message: str) -> str by agent_model(
     tools=[
@@ -743,7 +802,8 @@ def ask(message: str) -> str by agent_model(
     temperature=agent_temperature,
     max_tokens=8192,
     parallelize=True,
-    max_react_iterations=80
+    max_react_iterations=80,
+    on_iteration=_progress_guard
     # A generous output ceiling: without it the provider default (~4096 for
     # Anthropic) truncates large `write_file` tool-call arguments mid-stream,
     # so the `content` argument never arrives intact.
@@ -939,13 +999,40 @@ def print_stats(
 }
 
 
+"""Strip tool-call protocol syntax from streamed reasoning text.
+
+Models on byLLM's text tool protocol (local GGUFs, ollama families like gemma)
+emit their tool call *as content* -- `<tool_call>{...}</tool_call>` -- which
+byLLM recovers into a structured `tool_call` event but which would otherwise
+leak verbatim into the reasoning stream. Drop the call span and its stray
+protocol/control tags so only genuine prose reaches the terminal; the call
+itself renders cleanly from the `tool_call` event.
+"""
+def _clean_thought(text: str) -> str {
+    import re;
+    # The tool call is the tail of the reply (generation is stopped at
+    # `</tool_call>`), so drop everything from the opening tag onward -- this
+    # catches both the closed `<tool_call>...</tool_call>` form and the
+    # stop-truncated `<tool_call>{...` form, keeping any reasoning before it.
+    cleaned = re.sub("<tool_call>.*", "", text, flags=re.DOTALL);
+    for tag in ["</tool_call>", "<|tool_call|>", "</html>"] {
+        cleaned = cleaned.replace(tag, "");
+    }
+    # Control tokens some local templates emit around tool syntax.
+    cleaned = re.sub("<\\|[a-z_]+>[a-z]*", "", cleaned);
+    cleaned = re.sub("<[a-z_]+\\|>", "", cleaned);
+    return cleaned;
+}
+
+
 """Run one agent turn, rendering the full byLLM event stream to the terminal.
 
 `ask` runs with `stream=True, logging=True`, so it yields a StreamEvent for
-every step of the ReAct loop. Both the model's reasoning (`thought`) and its
-final answer (`chunk`) arrive as token-level events and are written straight
-to stdout as they land, so the whole turn streams live; `tool_call` and
-`tool_result` events punctuate it.
+every step of the ReAct loop. Reasoning (`thought`) is buffered per iteration
+and flushed -- with any tool-call protocol syntax stripped -- when the step's
+structured event lands, so a model that emits its call as text never leaks the
+raw `<tool_call>` JSON. The final answer (`chunk`) streams live; `tool_call`
+and `tool_result` events punctuate the turn.
 """
 def run_turn(message: str) {
     console.print("");
@@ -957,6 +1044,26 @@ def run_turn(message: str) {
     # True while raw model tokens have been written since the last newline,
     # so structured lines (tool calls, results) start cleanly.
     streamed = False;
+    # Reasoning tokens for the current step, held until the step resolves so
+    # tool-call syntax can be stripped before anything is shown.
+    thought_buf = "";
+    # Flush buffered reasoning to the terminal, cleaned of tool-call syntax.
+    def flush_thought {
+        nonlocal thought_buf , streamed;
+        if not thought_buf {
+            return;
+        }
+        text = _clean_thought(thought_buf);
+        thought_buf = "";
+        if text.strip() {
+            out.write(text);
+            out.flush();
+            streamed = True;
+        }
+    }
+    # Reset the per-turn write flag the verify-and-continue guard reads.
+    global _turn_wrote;
+    _turn_wrote = False;
     # Turn-stat accumulators -- declared before the try so the `finally` can
     # render them even if the stream errors out partway through.
     started = time.time();
@@ -969,13 +1076,19 @@ def run_turn(message: str) {
         for event in event_stream {
             kind = event.event_type;
             data = event.data;
-            if kind == "thought" or kind == "chunk" {
-                # Stream every model token live -- reasoning and answer alike.
-                # console.print buffers and takes no flush arg, so write direct.
+            if kind == "thought" {
+                # Reasoning may carry tool-call text on the text protocol -- hold
+                # it until the step resolves so it can be cleaned before display.
+                thought_buf += str(data.get("content", ""));
+            } elif kind == "chunk" {
+                # Final answer: never a tool call, so stream live.
                 out.write(str(data.get("content", "")));
                 out.flush();
                 streamed = True;
             } elif kind == "tool_call" {
+                # Show any genuine reasoning (tool-call syntax stripped); on the
+                # text protocol the buffer is just the call and cleans to empty.
+                flush_thought();
                 if streamed {
                     out.write("\n");
                     out.flush();
@@ -987,6 +1100,7 @@ def run_turn(message: str) {
                 # touch), code/shell runs, and everything else as a read.
                 if tool in _WRITE_TOOLS {
                     n_write += 1;
+                    _turn_wrote = True;
                     if isinstance(args, dict) {
                         path = args.get("path");
                         if path {
@@ -1007,6 +1121,7 @@ def run_turn(message: str) {
                     usage = total;
                 }
             } elif kind == "tool_result" {
+                flush_thought();
                 if streamed {
                     out.write("\n");
                     out.flush();
@@ -1016,6 +1131,7 @@ def run_turn(message: str) {
                     f"    {preview_result(str(data.get('result', '')))}", style="dim"
                 );
             } elif kind == "steps_done" {
+                flush_thought();
                 if streamed {
                     out.write("\n");
                     out.flush();
@@ -1024,6 +1140,7 @@ def run_turn(message: str) {
                 console.print("");
             }
         }
+        flush_thought();
         if streamed {
             out.write("\n");
             out.flush();
@@ -1043,6 +1160,74 @@ def run_turn(message: str) {
         if show_stats {
             print_stats(time.time() - started, n_read, n_write, n_run, files, usage);
         }
+    }
+}
+
+
+"""The project's current error diagnostics, or [] if no model is built yet."""
+def _project_errors -> list {
+    ci = code_intel();
+    if ci is None or not ci.is_loaded() {
+        return [];
+    }
+    try {
+        return [
+            d
+            for d in ci.diagnostics()
+            if d.severity == "error"
+        ];
+    } except Exception {
+        return [];
+    }
+}
+
+
+"""After a one-shot build, keep going until the project compiles.
+
+A weaker model often declares a multi-file task done while the project still
+has compile errors. Rather than accept broken code, feed the outstanding
+errors back and let the agent fix them -- bounded by `max_rounds`, and stopping
+as soon as a round fails to reduce the error count, so a model that cannot make
+progress exits instead of looping. No-op when the initial turn changed no code
+(e.g. a read-only query) or the project already compiles.
+"""
+def verify_and_continue(max_rounds: int = 3) {
+    if not _turn_wrote {
+        return;
+    }
+    rnd = 0;
+    prev_count = -1;
+    while rnd < max_rounds {
+        errs = _project_errors();
+        if not errs {
+            break;
+        }
+        # The last round did not shrink the error count -- the model is stuck,
+        # so stop nudging rather than burn another round on the same wall.
+        if prev_count >= 0 and len(errs) >= prev_count {
+            break;
+        }
+        prev_count = len(errs);
+        rnd += 1;
+        shown = errs[:12];
+        lines = [f"  {d.file}:{d.line}: {d.message}" for d in shown];
+        more = (
+            f"\n  ... and {len(errs) - len(shown)} more"
+                if len(errs) > len(shown)
+                else ""
+        );
+        console.print("");
+        console.print(
+            f"  build left {len(errs)} compile error(s); continuing to fix "
+            f"(round {rnd}/{max_rounds})",
+            style="yellow"
+        );
+        msg = (
+            f"The project does not compile yet -- {len(errs)} error(s):\n" + "\n".join(
+                lines
+            ) + more + "\n\nFix these. Read each failing file, correct it, and re-run " + "jac_check until the whole project compiles cleanly. Do not finish " + "while errors remain."
+        );
+        run_turn(msg);
     }
 }
 
@@ -1076,6 +1261,8 @@ def run_agent(req: object) -> int {
 
     if initial_prompt {
         run_turn(initial_prompt);
+        # Don't let a one-shot build exit on code that doesn't compile.
+        verify_and_continue();
         return 0;
     }
 
