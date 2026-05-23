@@ -1199,6 +1199,13 @@ test "list valid negative index" {
     assert f() == 30;
 }
 
+test "list method on object field (pop)" {
+    (eng, _) = compile_native("list_field_methods.na.jac");
+    # pop() on a field list must shrink it: depth 2 -> 1 encodes as 21.
+    f = get_func(eng, "field_pop_shrinks", ctypes.c_int64);
+    assert f() == 21;
+}
+
 test "runtime errors list index at len" {
     (eng, _) = compile_native("runtime_errors.na.jac");
     f = get_func(eng, "test_list_index_at_len", ctypes.c_int64);

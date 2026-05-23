@@ -196,12 +196,22 @@ def marshal_value(
     # Simple scalars
     if llvm_type in ("i64", "i32", "i16", "i8") {
         val = int(raw);
-        # Check if this field is enum-typed
+        # Enum-typed struct field: map ordinal -> Python enum member.
         if (field_info and field_info.enum_type) {
             emap = enum_maps.get(field_info.enum_type);
             if (emap and 0 <= val < len(emap) and emap[val] is not None) {
                 return emap[val];
             }
+        }
+        # Enum-typed function return: map ordinal -> enum member; an
+        # out-of-range value is the -1 None sentinel for a `T | None` return.
+        _ret_enum = func_layout?.ret_enum_type if func_layout else None;
+        if _ret_enum {
+            emap = enum_maps.get(_ret_enum);
+            if (emap and 0 <= val < len(emap) and emap[val] is not None) {
+                return emap[val];
+            }
+            return None;
         }
         return val;
     }
