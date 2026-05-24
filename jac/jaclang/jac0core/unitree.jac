@@ -1353,13 +1353,11 @@ Single-expression slots (`{name}`, `{1 + 2}`, `{<p>hi</p>}`) still emit
 `JsxExpression` so the cheap path (no IIFE) is preserved.
 """
 obj JsxSlot(JsxChild) {
-    has body: list[UniNode],
-        view_raw_src: str = "";
-    # Verbatim source span of the `{...}` slot, captured by ViewLowerPass
-    # before it desugars the body in place. The lowered body is invalid
-    # JSX surface syntax, so the formatter/unparser emit this raw span to
-    # round-trip the source. Empty when the slot was never lowered (the
-    # format-only pipeline does not run ViewLowerPass).
+    has body: list[UniNode];
+    # The body holds the author's faithful `{ stmt; ... }` statement
+    # template. No pre-codegen pass mutates it — the cl-target accumulator
+    # IIFE is synthesized at codegen time (EsastGenPass), so the surface
+    # tokens round-trip through the formatter/unparser unchanged.
     def postinit -> None;
 }
 
