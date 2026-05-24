@@ -70,6 +70,8 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
         self._codegen_while(nd);
     } elif isinstance(nd, uni.InForStmt) {
         self._codegen_for(nd);
+    } elif isinstance(nd, uni.Ability) {
+        self._codegen_nested_ability(nd);
     } elif isinstance(nd, uni.Assignment) {
         self._codegen_assignment(nd);
     } elif isinstance(nd, uni.CtrlStmt) {
