@@ -290,6 +290,30 @@ impl NaIRGenPass._codegen_name(nd: uni.Name) -> (ir.Value | None) {
     return None;
 }
 
+"""Generate pipe-forward `|>` expression.
+
+`lhs |> f` is sugar for `f(lhs)`; a tuple lhs spreads into positional
+arguments, so `(a, b) |> f` is `f(a, b)`. We desugar by synthesizing a
+FuncCall (target = rhs, params = lhs / lhs.values) and delegating to the
+normal call path, which reuses all builtin/method/user dispatch. This
+mirrors how the Python pathway lowers pipe-forward.
+"""
+impl NaIRGenPass._codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None) {
+    if isinstance(nd.left, uni.TupleVal) and nd.left.values {
+        call_params = list(nd.left.values);
+    } else {
+        call_params = [nd.left];
+    }
+    call = uni.FuncCall(
+        target=nd.right,
+        params=call_params,
+        genai_call=None,
+        kid=[nd.right, *call_params]
+    );
+    call.parent = nd.parent;
+    return self._codegen_expr(call);
+}
+
 """Generate binary expression."""
 impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     op = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);
@@ -299,9 +323,12 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     # Trying to evaluate `nd.left` first would return None, and the
     # function would silently exit returning None — masking the real
     # gap. Catch known-unsupported ops here so the error is loud.
-    if op in (Tok.WALRUS_EQ, Tok.PIPE_FWD) {
+    if op == Tok.WALRUS_EQ {
         self.emit(E5090, node_override=nd, kind="binary operator", name=op);
         return None;
+    }
+    if op == Tok.PIPE_FWD {
+        return self._codegen_pipe_fwd(nd);
     }
     left = self._codegen_expr(nd.left);
     right = self._codegen_expr(nd.right);
