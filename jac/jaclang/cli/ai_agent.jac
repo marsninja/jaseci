@@ -106,13 +106,16 @@ usual provider env vars). Local models additionally read the runtime knobs
 """
 def build_model(model_override: str = "", n_ctx: int = 0) -> Model;
 
-# Built at import time from jac.toml (or the bundled default) so `ask`'s `by`
+# Built at import time from jac.toml (or the bundled default) so every `by`
 # clause always has a model; `run_agent` rebuilds it when flags are passed.
-glob agent_model = build_model(),
-     # The running conversation. byLLM's `conversation=` kwarg splices this list
-     # into each turn and writes the updated history back in place. Pre-seeded with
-     # the agent's system message by `reset_history`.
-     history: list[object] = [];
+glob agent_model = build_model();
+
+# The durable session memory: a compact ledger of changes and notes that
+# persists across turns and is visible to every state. Each turn's walker is
+# spawned with it; raw per-phase transcripts live on the nodes and are ephemeral.
+# `_active_session` lets the `note` tool reach the running walker's ledger.
+glob _session_ledger: Ledger | None = None,
+     _active_session: AgentSession | None = None;
 
 #===============================================================================
 # TOOL HELPERS
@@ -354,63 +357,22 @@ with entry {
 #===============================================================================
 glob AGENT_RULES = """\
 You are Jac AI, a coding agent working inside the user's terminal in their Jac
-project. You help the user read, write, and debug Jac code.
+project. You read, write, and debug Jac code, and verify it really works. You
+move through states -- planning, building, QA -- and the state you are in tells
+you what to do now; these are the habits that hold across all of them.
 
-Work like this:
-- Plan first. For any multi-file task, open with a short plan -- the files you
-  will create or change and what each is for -- then carry it out.
-- Scaffold, don't hand-build. For a new project or app, run `jac create --use
-  <template> <name>` with run_command instead of writing the project layout by
-  hand. Templates: default, client, fullstack. Then adapt the generated files.
+Universal habits:
 - Batch aggressively. Independent tool calls run in parallel, so issue them
-  together in ONE step -- never one at a time. Reading five files is one step
-  with five read_file calls. Loading the guides you need is one step. Grepping
-  or checking several paths is one step. Writes to different files go in one
-  step. Sequence a call only when it truly needs an earlier call's output.
-- Decide and commit. When two or more approaches would both work, pick the
-  simplest and build it. Do not re-litigate a choice you have already acted on,
-  and never write a file just to delete it -- think the choice through first.
-- Navigate by meaning, not text. To find where a node, walker, edge, or
-  ability is defined or used, call find_symbol or find_uses -- they read the
-  compiler's symbol table and are exact. Use project_map for a structural
-  overview of an unfamiliar project, find_walkers to see how a node is
-  traversed, and context_slice to read a symbol's typed neighbourhood. Reserve
-  grep for plain text -- comments, strings, TODOs.
-- Never guess. Read a file before editing it; consult the guides before
-  writing unfamiliar Jac. The bundled guides are the authoritative spec for
-  correct, idiomatic Jac.
-- Keep files focused and modest in size; split large archetypes into impl
-  files. For a large file, write a skeleton first, then fill it with edit_file.
-- Make minimal, targeted changes. Prefer edit_file over rewriting a whole file.
-- Drive a browser when it helps. A headless browser is built in: use browse_open
-  to load a running web app, browse_snapshot to read the page, and the
-  browse_click/fill/type/press tools to exercise user flows. No install needed.
-- Fix as you go. Every write_file and edit_file result reports the compiler
-  errors and warnings your edit caused -- in the file you wrote and in any
-  other file it affects. Fix them before moving on; never leave a write with
-  errors behind.
-- QA before you finish. This is mandatory: never report a task as done until
-  the QA pass below has been run and comes back clean.
-
-QA pass -- before you consider the task done, run every step that applies, in
-order, and fix anything it surfaces (then run the pass again):
-1. `jac check .` -- a whole-project type-check. It must report zero errors.
-2. For any runnable app, call start_app and confirm it boots with no errors in
-   the startup logs.
-3. For a web or fullstack app, also QA it in a real browser with the built-in
-   browse_* tools (a headless browser is built in -- nothing to install):
-   - Start the server detached so it stays up during the test -- from the app's
-     directory run `nohup jac start <entry> > /tmp/jac_qa.log 2>&1 &` through
-     run_command, wait a few seconds, then read /tmp/jac_qa.log for the URL it
-     serves on.
-   - browse_open(url), then browse_snapshot to read the page. Exercise the main
-     user flows with browse_click / browse_fill / browse_type / browse_press,
-     calling browse_snapshot again after each step to see the result.
-   - Confirm the expected content rendered and check for errors -- use
-     browse_eval to inspect page state (e.g. count error nodes) when in doubt.
-   - browse_close when finished, then stop the server: `pkill -f "jac start"`.
-Once QA is clean, finish with a short plain-language summary of what you
-changed and why, plus one line on the QA you ran and that it passed.
+  together in ONE step -- never one at a time.
+- Navigate by meaning, not text. find_symbol, find_uses, project_map,
+  find_walkers, and context_slice read the compiler's symbol table and are
+  exact; reserve grep for plain text -- comments, strings, TODOs.
+- Never guess. Read a file before editing it, and consult the bundled guides
+  before writing unfamiliar Jac -- they are the authoritative spec for correct,
+  idiomatic Jac.
+- Leave a note. When you make a decision, rely on an assumption, or spot
+  something a later state should check, call `note` -- notes stay visible to
+  every later state and turn.
 
 Jac gotchas -- the type checker rejects all of these, so never write them:
 - There is no `pass` statement. For an empty block, write empty braces: `{}`.
@@ -425,8 +387,8 @@ Jac gotchas -- the type checker rejects all of these, so never write them:
 def system_prompt -> str;
 
 
-"""Reset the conversation to just the agent's system message."""
-def reset_history;
+"""Clear the durable session memory (the cross-turn ledger)."""
+def reset_session;
 
 
 # A turn that rewrites one file more than this many times is not converging --
@@ -445,100 +407,93 @@ fix, so end the turn with a summary instead of spending the whole budget.
 def _progress_guard(ctx: any) -> str;
 
 
-# Each phase of the agent is one byLLM ReAct call scoped to that phase's tools.
-# `instructions` is the phase's node semstring (its role), and `objective` is
-# the user's request; both are sent as inputs, on top of the shared `history`
-# so each phase sees what the previous phases did. `max_tokens=8192` is a
-# generous output ceiling so large write_file arguments are not truncated
-# mid-stream by a provider default.
-"""Run the planning phase: explore the project and produce a concrete plan."""
-def plan_ask(instructions: str, objective: str) -> str by agent_model(
-    tools=[
-        read_file,
-        list_dir,
-        grep,
-        find_symbol,
-        find_uses,
-        project_map,
-        find_walkers,
-        context_slice,
-        search_guides,
-        read_guide
-    ],
-    conversation=history,
+#===============================================================================
+# AGENT MEMORY, TOOLS, PROMPTS, AND THE PHASE RUNNER
+#===============================================================================
+"""Compact, durable memory shared across phases and turns.
+
+Holds a short record of the changes made and free-form notes any phase may
+leave. Every phase's prompt is built from `render()`, so later phases -- and
+later turns -- see what earlier ones did without carrying their raw transcripts.
+"""
+obj Ledger {
+    has changes: list = [],
+        notes: list = [];
+
+    """Record what a phase accomplished, as a one-line ledger entry."""
+    def record(phase: str, summary: str);
+
+    """Leave a free-form note visible to every later phase and turn."""
+    def remember(text: str);
+
+    """Render the ledger as compact text for injection into a phase prompt."""
+    def render -> str;
+}
+
+
+"""Running tool-call tallies for a turn, folded in from each phase."""
+obj TurnStats {
+    has n_read: int = 0,
+        n_write: int = 0,
+        n_run: int = 0,
+        files: set[str] = set(),
+        usage: dict = {};
+
+    """Fold one phase's render_stream result into the running totals."""
+    def absorb(st: dict);
+}
+
+
+"""The tool set each phase exposes, grouped by what that phase may do.
+
+Each state node returns one of these from its `tools()` override, so the
+allowed actions are a property of the node type: Plan reads and explores,
+Build writes and checks, QA verifies and drives the browser. Every set
+includes `note` so any phase can leave durable notes.
+"""
+obj PhaseTools {
+    static def plan -> list;
+    static def build -> list;
+    static def qa -> list;
+}
+
+
+"""Builds a phase's system prompt: base rules + the node's own role + the ledger."""
+obj Prompt {
+    """Compose the system message for a state, given the objective and memory."""
+    static def for_phase(state_ty: type, objective: str, ledger: Ledger) -> str;
+}
+
+
+# One byLLM ReAct call, scoped to whatever `tools` and `ctx` the calling state
+# passes in -- so a single runner serves every phase. `max_tokens=8192` is a
+# generous ceiling so large write_file arguments are not truncated mid-stream.
+"""Run the current phase: the LLM works with `tools` over the phase's own `ctx`."""
+def run_phase(directive: str, tools: list, ctx: list) -> str by agent_model(
+    tools=tools,
+    conversation=ctx,
     stream=True,
     logging=True,
     temperature=agent_temperature,
     max_tokens=8192,
     parallelize=True,
-    max_react_iterations=40,
+    max_react_iterations=60,
     on_iteration=_progress_guard
 );
 
-sem plan_ask.instructions = "The planning-phase instructions for the agent.";
-sem plan_ask.objective = "The user's request to plan for.";
+sem run_phase.directive = "A short instruction kicking off the current phase.";
 
 
-"""Run the building phase: write and edit code to carry out the plan."""
-def build_ask(instructions: str, objective: str) -> str by agent_model(
-    tools=[
-        read_file,
-        write_file,
-        edit_file,
-        list_dir,
-        grep,
-        find_symbol,
-        find_uses,
-        context_slice,
-        jac_check,
-        run_command,
-        search_guides,
-        read_guide
-    ],
-    conversation=history,
-    stream=True,
-    logging=True,
-    temperature=agent_temperature,
-    max_tokens=8192,
-    parallelize=True,
-    max_react_iterations=80,
-    on_iteration=_progress_guard
-);
+"""Record a note onto the active session's ledger (see the `note` tool)."""
+def note(text: str) -> str;
 
-sem build_ask.instructions = "The building-phase instructions for the agent.";
-sem build_ask.objective = "The user's request being built.";
+sem note = "Record a short note that stays visible to every later phase (Plan, Build, QA) and in later turns. Use it to flag a decision, an assumption, or something to verify.";
+sem note.text = "The note to remember.";
 
-
-"""Run the QA phase: type-check, boot the app, and drive the browser."""
-def qa_ask(instructions: str, objective: str) -> str by agent_model(
-    tools=[
-        read_file,
-        jac_check,
-        start_app,
-        run_command,
-        browse_open,
-        browse_navigate,
-        browse_snapshot,
-        browse_click,
-        browse_type,
-        browse_fill,
-        browse_press,
-        browse_get,
-        browse_eval,
-        browse_close
-    ],
-    conversation=history,
-    stream=True,
-    logging=True,
-    temperature=agent_temperature,
-    max_tokens=8192,
-    parallelize=True,
-    max_react_iterations=50,
-    on_iteration=_progress_guard
-);
-
-sem qa_ask.instructions = "The QA-phase instructions for the agent.";
-sem qa_ask.objective = "The user's request being verified.";
+# `note` mutates the shared ledger, so keep it out of parallel tool batches.
+with entry {
+    mark_serialize(note);
+}
 
 #===============================================================================
 # TERMINAL UI
@@ -639,7 +594,7 @@ glob _THINK_WIDTH = 40;
 
 """Consume one byLLM phase event stream, rendering it live.
 
-A phase ability calls this with the stream returned by a `*_ask` byLLM call
+A phase ability calls this with the stream returned by the `run_phase` byLLM call
 (typed `-> str` for the streaming contract, but with `logging=True` it yields
 StreamEvent objects). Renders reasoning, tool calls, and the answer live, and
 returns this phase's tool-call tallies for the walker to accumulate.
@@ -648,49 +603,66 @@ def render_stream(event_stream: any) -> dict;
 
 
 #===============================================================================
-# OSP AGENT: Plan -> Build -> QA state graph
+# OSP AGENT: a walker the LLM routes through Plan / Build / QA / Done states
 #===============================================================================
-# The agent is a walker that visits three state nodes in turn. Each node owns
-# its phase prompt as a `sem` string and runs that phase as a tool-scoped byLLM
-# call over the shared conversation `history`. The walker carries the user's
-# objective and accumulates each phase's stats; QA can send it back to Build
-# when the project still has compile errors.
-node PlanState {
+# The agent is an AgentSession walker over a small state graph. A Hub node
+# routes the walker to the next state with `visit [-->] by`, reading each
+# candidate state's `sem` description plus the ledger to decide. Each state owns
+# its phase prompt (its `sem`) and its tool set (its `tools()` override); the
+# shared base `PhaseState.run` ability runs that phase over the node's own
+# ephemeral `ctx`, records a ledger entry, and returns the walker to the Hub.
+"""A phase state: a self-contained step with its own prompt, tools, and context."""
+node PhaseState {
+    has ctx: list = [];
+
+    """The tools this state exposes (overridden per state)."""
+    def tools -> list;
+
     can run with AgentSession entry;
 }
 
-sem PlanState = "You are in the PLANNING phase of a Jac coding task. Do not write or edit any files yet. Understand the request and the existing project first: call project_map for an unfamiliar project, find_symbol / find_uses / context_slice to navigate by meaning, read_file to read anything you will change, and the guides (search_guides / read_guide) for unfamiliar Jac. Finish the phase by stating a short, concrete plan -- the files you will create or change and what each is for.";
-
-node BuildState {
-    can run with AgentSession entry;
+node Plan(PhaseState) {
+    def tools -> list;
 }
 
-sem BuildState = "You are in the BUILDING phase. Carry out the plan. For a new project or app, scaffold with `jac create --use <template> <name>` (templates: default, client, fullstack) via run_command rather than hand-building the layout, then adapt the generated files. Write and edit files -- prefer edit_file for targeted changes, and read a file before editing it. Every write reports the compiler errors it introduced; fix them before moving on. Keep files focused and split large archetypes into impl files. Never finish the phase with a write that still has errors.";
+sem Plan = "the PLANNING state: understand the request and the existing project before writing anything. Use project_map for an unfamiliar project, find_symbol / find_uses / context_slice to navigate by meaning, read_file to read what you will change, and the guides for unfamiliar Jac. Do not write or edit files here. Finish by stating a short, concrete plan -- the files to create or change and what each is for.";
 
-node QAState {
-    can run with AgentSession entry;
+node Build(PhaseState) {
+    def tools -> list;
 }
 
-sem QAState = "You are in the QA phase. Verify the work end to end and fix anything you find. Run `jac check .` -- it must report zero errors. For a runnable app, call start_app and confirm it boots with no errors in the logs. For a web or fullstack app, drive the built-in browser: start the server detached (`nohup jac start <entry> > /tmp/jac_qa.log 2>&1 &` via run_command), read the log for its URL, then browse_open that URL, browse_snapshot to read the page, exercise the main user flows with browse_click / browse_fill / browse_type / browse_press (snapshotting again after each step), check for errors with browse_eval, browse_close, and stop the server with `pkill -f \"jac start\"`. End with a short plain-language summary of what changed and the QA you ran.";
+sem Build = "the BUILDING state: carry out the plan. Scaffold a new app with `jac create --use <template> <name>` (templates: default, client, fullstack) via run_command rather than hand-building the layout, then adapt it. Write and edit files -- prefer edit_file, and read a file before editing it. Every write reports the compiler errors it introduced; fix them before moving on. Keep files focused; split large archetypes into impl files.";
+
+node QA(PhaseState) {
+    def tools -> list;
+}
+
+sem QA = "the QA state: verify the work end to end and fix what you find. Run `jac check .` (zero errors required). For a runnable app, start_app and confirm it boots cleanly. For a web or fullstack app, drive the built-in browser: start the server detached (`nohup jac start <entry> > /tmp/jac_qa.log 2>&1 &` via run_command), read the log for its URL, browse_open it, browse_snapshot to read the page, exercise the main flows with browse_click / browse_fill / browse_type / browse_press (snapshotting after each), check for errors with browse_eval, then browse_close and stop the server with `pkill -f \"jac start\"`. Do not conclude the app works until you have actually run and exercised it.";
+
+"""The terminal state: the task is complete and verified."""
+node Done {
+    can finish with AgentSession entry;
+}
+
+sem Done = "the DONE state: choose this only when the objective is fully built AND QA has actually verified it (type-checked, and for an app, run and exercised). Ends the session.";
+
+"""Routes the walker to the next state from the ledger and the states' roles."""
+node Hub {
+    can route with AgentSession entry;
+}
 
 walker AgentSession {
     has objective: str,
-        builder: object = None,
-        qa_rounds: int = 0,
-        max_qa_rounds: int = 2,
-        n_read: int = 0,
-        n_write: int = 0,
-        n_run: int = 0,
-        files: set[str] = set(),
-        usage: dict = {};
+        ledger: Ledger,
+        stats: TurnStats,
+        steps: int = 0,
+        max_steps: int = 16;
 
     can begin with Root entry;
-    """Fold one phase's render_stream stats into the running turn totals."""
-    def absorb(st: dict);
 }
 
 
-"""Run one agent turn: walk Plan -> Build -> QA, then render the turn summary."""
+"""Run one agent turn: spawn the session walker, then render the turn summary."""
 def run_turn(message: str);
 
 
@@ -1308,9 +1280,9 @@ impl system_prompt -> str {
     );
 }
 
-impl reset_history{
-    history.clear();
-    history.append({"role": "system", "content": system_prompt()});
+impl reset_session{
+    global _session_ledger;
+    _session_ledger = Ledger();
 }
 
 impl _progress_guard(ctx: any) -> str {
@@ -1593,6 +1565,7 @@ impl render_stream(event_stream: any) -> dict {
     n_run = 0;
     files: set[str] = set();
     usage: dict[str, object] = {};
+    answer = "";  # the phase's final answer text, captured for the ledger
     # Live-render state.
     streamed = False;  # raw reasoning/answer tokens on the current line
     thought_raw = "";  # this step's accumulated reasoning tokens
@@ -1670,7 +1643,9 @@ impl render_stream(event_stream: any) -> dict {
                 # Final answer: never a tool call, so stream live in both views.
                 clear_think();
                 flush_result();
-                out.write(str(data.get("content", "")));
+                tok = str(data.get("content", ""));
+                answer += tok;
+                out.write(tok);
                 out.flush();
                 streamed = True;
             } elif kind == "llm_timing" {
@@ -1748,65 +1723,34 @@ impl render_stream(event_stream: any) -> dict {
         "n_write": n_write,
         "n_run": n_run,
         "files": files,
-        "usage": usage
+        "usage": usage,
+        "answer": answer.strip()
     };
 }
 
-impl PlanState.run{
-    console.print("\n  ● Planning", style="bold blue");
-    instr = str(getattr(type(self), "_jac_semstr", "") or "");
-    visitor.absorb(render_stream(plan_ask(instr, visitor.objective)));
-    visit [-->];
+impl Ledger.record(phase: str, summary: str) {
+    self.changes.append({"phase": phase, "summary": truncate(summary, 400)});
 }
 
-impl BuildState.run{
-    console.print("\n  ● Building", style="bold blue");
-    instr = str(getattr(type(self), "_jac_semstr", "") or "");
-    visitor.absorb(render_stream(build_ask(instr, visitor.objective)));
-    visit [-->];
+impl Ledger.remember(text: str) {
+    self.notes.append(text);
 }
 
-impl QAState.run{
-    console.print("\n  ● QA", style="bold blue");
-    instr = str(getattr(type(self), "_jac_semstr", "") or "");
-    visitor.absorb(render_stream(qa_ask(instr, visitor.objective)));
-    # If the project still does not compile and we have a Build to return
-    # to, loop back for another build round; otherwise the walk ends.
-    errs = _project_errors();
-    if errs
-    and visitor.builder is not None
-    and visitor.qa_rounds < visitor.max_qa_rounds {
-        visitor.qa_rounds += 1;
-        console.print(
-            f"  QA found {len(errs)} compile error(s); returning to Build "
-            f"(round {visitor.qa_rounds}/{visitor.max_qa_rounds})",
-            style="yellow"
-        );
-        history.append(
-            {
-                "role": "user",
-                "content": f"QA found {len(
-                    errs
-                )} compile error(s) still in the project. Return to building: fix them and re-check."
-            }
-        );
-        visit visitor.builder;
+impl Ledger.render -> str {
+    if not self.changes and not self.notes {
+        return "(nothing done yet)";
     }
+    lines: list = [];
+    for c in self.changes {
+        lines.append(f"- [{c['phase']}] {c['summary']}");
+    }
+    for n in self.notes {
+        lines.append(f"- note: {n}");
+    }
+    return "\n".join(lines);
 }
 
-impl AgentSession.begin{
-    # Build the Plan -> Build -> QA graph on root, then walk into it.
-    plan = PlanState();
-    build = BuildState();
-    qa = QAState();
-    here ++> plan;
-    plan ++> build;
-    build ++> qa;
-    self.builder = build;
-    visit plan;
-}
-
-impl AgentSession.absorb(st: dict) {
+impl TurnStats.absorb(st: dict) {
     self.n_read += int(st["n_read"]);
     self.n_write += int(st["n_write"]);
     self.n_run += int(st["n_run"]);
@@ -1816,19 +1760,167 @@ impl AgentSession.absorb(st: dict) {
     }
 }
 
+impl PhaseTools.plan -> list {
+    return [
+        read_file,
+        list_dir,
+        grep,
+        find_symbol,
+        find_uses,
+        project_map,
+        find_walkers,
+        context_slice,
+        search_guides,
+        read_guide,
+        note
+    ];
+}
+
+impl PhaseTools.build -> list {
+    return [
+        read_file,
+        write_file,
+        edit_file,
+        list_dir,
+        grep,
+        find_symbol,
+        find_uses,
+        context_slice,
+        jac_check,
+        run_command,
+        search_guides,
+        read_guide,
+        note
+    ];
+}
+
+impl PhaseTools.qa -> list {
+    return [
+        read_file,
+        jac_check,
+        start_app,
+        run_command,
+        browse_open,
+        browse_navigate,
+        browse_snapshot,
+        browse_click,
+        browse_type,
+        browse_fill,
+        browse_press,
+        browse_get,
+        browse_eval,
+        browse_close,
+        note
+    ];
+}
+
+impl Prompt.for_phase(state_ty: type, objective: str, ledger: Ledger) -> str {
+    role = str(getattr(state_ty, "_jac_semstr", "") or "");
+    return (
+        system_prompt() + "\n\n## Current state\n\nYou are in " + role + "\n\n## Objective\n\n" + objective + "\n\n## Progress so far (shared across states)\n\n" + ledger.render()
+    );
+}
+
+impl note(text: str) -> str {
+    if _active_session is not None {
+        _active_session.ledger.remember(text);
+        return f"noted: {text}";
+    }
+    return "(no active session to note onto)";
+}
+
+impl PhaseState.tools -> list {
+    return [];
+}
+
+impl Plan.tools -> list {
+    return PhaseTools.plan();
+}
+
+impl Build.tools -> list {
+    return PhaseTools.build();
+}
+
+impl QA.tools -> list {
+    return PhaseTools.qa();
+}
+
+impl PhaseState.run{
+    global _active_session;
+    _active_session = visitor;
+    label = type(self).__name__;
+    console.print(f"\n  ● {label}", style="bold blue");
+    # Refresh the framing system message with the latest ledger, but keep this
+    # node's own working messages from any earlier visit (its memory lives here).
+    sysmsg = {
+        "role": "system",
+        "content": Prompt.for_phase(type(self), visitor.objective, visitor.ledger)
+    };
+    if not self.ctx {
+        self.ctx.append(sysmsg);
+    } else {
+        self.ctx[0] = sysmsg;
+    }
+    result = render_stream(
+        run_phase(f"Carry out the {label} state now.", self.tools(), self.ctx)
+    );
+    visitor.stats.absorb(result);
+    visitor.ledger.record(label, str(result.get("answer", "") or "(no summary)"));
+    # Return to the routing hub (this state's only incoming edge) for the next decision.
+    visit [<--];
+}
+
+impl Done.finish{
+    # No onward visit: the walker's queue empties here and the session ends.
+    console.print("\n  ● Done", style="bold green");
+}
+
+impl Hub.route{
+    visitor.steps += 1;
+    # Safety valve: never loop forever -- force completion past the cap.
+    if visitor.steps > visitor.max_steps {
+        visit [-->][?:Done];
+    } else {
+        visit [-->] by agent_model(
+            incl_info={
+                "Objective": visitor.objective,
+                "Progress so far": visitor.ledger.render(),
+                "Step": f"{visitor.steps} of at most {visitor.max_steps}",
+                "How to choose": "Pick the single next state. Typical order is Plan, then Build, then QA; return to Build if QA finds problems; choose Done only once QA has actually verified the result."
+            }
+        );
+    }
+}
+
+impl AgentSession.begin{
+    # Build the routing hub with the four states as its options, then enter it.
+    # Each state returns to the hub via its incoming edge, so no reference is kept.
+    hub = Hub();
+    here ++> hub;
+    hub ++> Plan();
+    hub ++> Build();
+    hub ++> QA();
+    hub ++> Done();
+    visit hub;
+}
+
 impl run_turn(message: str) {
-    global _turn_wrote;
+    global _turn_wrote,_session_ledger;
     _turn_wrote = False;
+    # The session ledger persists across turns; create it on first use.
+    ledger = _session_ledger;
+    if ledger is None {
+        ledger = Ledger();
+        _session_ledger = ledger;
+    }
     started = time.time();
-    session = AgentSession(objective=message) spawn root;
+    session = AgentSession(
+        objective=message, ledger=ledger, stats=TurnStats()
+    ) spawn root;
     if show_stats {
+        st = session.stats;
         print_stats(
-            time.time() - started,
-            session.n_read,
-            session.n_write,
-            session.n_run,
-            session.files,
-            session.usage
+            time.time() - started, st.n_read, st.n_write, st.n_run, st.files, st.usage
         );
     }
 }
@@ -1912,7 +2004,7 @@ impl run_agent(req: object) -> int {
         agent_model = build_model(str(r.model), int(r.n_ctx));
     }
     print_banner();
-    reset_history();
+    reset_session();
 
     if initial_prompt {
         run_turn(initial_prompt);
@@ -1943,7 +2035,7 @@ impl run_agent(req: object) -> int {
             continue;
         }
         if line == "/clear" {
-            reset_history();
+            reset_session();
             console.success("Conversation cleared.");
             continue;
         }
