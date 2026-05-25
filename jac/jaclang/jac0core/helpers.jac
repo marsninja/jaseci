@@ -466,12 +466,13 @@ def _describe_nodes_list(objects: Sequence) -> str {
     """
 obj DistFacade {
     has _dist: (object | None);
+    has project_name: str {
+        getter;
+    }
 
-    @property
-    def project_name -> str;
-
-    @property
-    def version -> str;
+    has version: str {
+        getter;
+    }
 }
 
 """Emit a one-line stderr warning when jac.toml fails to parse during

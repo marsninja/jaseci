@@ -1,26 +1,22 @@
 """Implementation for codeinfo constructs."""
 
 """True if the bridge is a single hop (e.g. sv→na)."""
-@property
-impl InteropBinding.is_direct -> bool {
+impl InteropBinding.is_direct.getter -> bool {
     return (len(self.route) == 2);
 }
 
 """True if the bridge requires multiple hops (e.g. cl→sv→na)."""
-@property
-impl InteropBinding.is_composed -> bool {
+impl InteropBinding.is_composed.getter -> bool {
     return (len(self.route) > 2);
 }
 
 """True if the function is imported from another module."""
-@property
-impl InteropBinding.is_cross_module -> bool {
+impl InteropBinding.is_cross_module.getter -> bool {
     return (self.source_module is not None);
 }
 
 """Server (Python) functions that native code calls."""
-@property
-impl InteropManifest.native_imports -> list[InteropBinding] {
+impl InteropManifest.native_imports.getter -> list[InteropBinding] {
     return [
         b
         for b in self.bindings.values()
@@ -32,8 +28,7 @@ impl InteropManifest.native_imports -> list[InteropBinding] {
 }
 
 """Native functions that server (Python) code calls."""
-@property
-impl InteropManifest.native_exports -> list[InteropBinding] {
+impl InteropManifest.native_exports.getter -> list[InteropBinding] {
     return [
         b
         for b in self.bindings.values()
@@ -45,8 +40,7 @@ impl InteropManifest.native_exports -> list[InteropBinding] {
 }
 
 """Native functions imported from other .na.jac modules."""
-@property
-impl InteropManifest.native_cross_module_imports -> list[InteropBinding] {
+impl InteropManifest.native_cross_module_imports.getter -> list[InteropBinding] {
     return [
         b
         for b in self.bindings.values()
@@ -59,8 +53,7 @@ impl InteropManifest.native_cross_module_imports -> list[InteropBinding] {
 }
 
 """Server functions that client (JS) code calls."""
-@property
-impl InteropManifest.server_exports_to_client -> list[InteropBinding] {
+impl InteropManifest.server_exports_to_client.getter -> list[InteropBinding] {
     return [
         b
         for b in self.bindings.values()
@@ -72,8 +65,7 @@ impl InteropManifest.server_exports_to_client -> list[InteropBinding] {
 }
 
 """Server functions imported from another server module via sv import."""
-@property
-impl InteropManifest.server_exports_to_server -> list[InteropBinding] {
+impl InteropManifest.server_exports_to_server.getter -> list[InteropBinding] {
     return [
         b
         for b in self.bindings.values()

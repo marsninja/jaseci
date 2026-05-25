@@ -1740,9 +1740,16 @@ impl DocIRGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
     nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
 }
 
-"""Generate DocIR for has variable declarations."""
+"""Generate DocIR for has variable declarations.
+
+A plain `has x: T = v` emits inline. A property `has x: T { getter; setter;
+deleter; }` emits its accessor block like an ability body: each accessor on
+its own hard line, indented one level inside the braces.
+"""
 impl DocIRGenPass.exit_has_var(nd: uni.HasVar) -> None {
     parts: list[doc.DocType] = [];
+    acc_parts: list[doc.DocType] = [];
+    in_acc = False;
     for i in nd.kid {
         if (isinstance(i, uni.Token) and (i.name == Tok.EQ)) {
             parts.append(self.space());
@@ -1753,6 +1760,20 @@ impl DocIRGenPass.exit_has_var(nd: uni.HasVar) -> None {
         ) {
             parts.append(self.space());
             parts.append(i.gen.doc_ir);
+        } elif (isinstance(i, uni.Token) and (i.name == Tok.LBRACE)) {
+            parts.append(self.space());
+            parts.append(i.gen.doc_ir);
+            acc_parts.append(self.hard_line());
+            in_acc = True;
+        } elif (isinstance(i, uni.Token) and (i.name == Tok.RBRACE)) {
+            in_acc = False;
+            self.trim_trailing_line(acc_parts);
+            parts.append(self.indent(self.concat(acc_parts), ast_node=nd));
+            parts.append(self.hard_line());
+            parts.append(i.gen.doc_ir);
+        } elif in_acc {
+            acc_parts.append(i.gen.doc_ir);
+            acc_parts.append(self.hard_line());
         } else {
             parts.append(i.gen.doc_ir);
         }
