@@ -366,6 +366,34 @@ impl JacWalker.`visit(
     }
 }
 
+"""Classify an ability's trigger once and cache it on the function.
+
+    Replaces the per-dispatch `all_issubclass` reflection: the trigger type is
+    resolved (via the compiler-stamped thunk) and bucketed into a TriggerKind
+    the traversal loop can compare as an int. OTHER is a truthy trigger that is
+    neither a location nor a walker type — it fires in no phase, matching the
+    legacy `all_issubclass` guards.
+    """
+impl JacWalker._trigger_kind(i: ObjectSpatialFunction) -> TriggerKind {
+    import from jaclang.runtimelib.utils { all_issubclass }
+    if i.kind != TriggerKind.UNRESOLVED {
+        return i.kind;
+    }
+    trigger = i.trigger;
+    if trigger is None {
+        i.kind = TriggerKind.UNTYPED;
+    } elif (
+        all_issubclass(trigger, NodeArchetype) or all_issubclass(trigger, EdgeArchetype)
+    ) {
+        i.kind = TriggerKind.ON_LOC;
+    } elif all_issubclass(trigger, WalkerArchetype) {
+        i.kind = TriggerKind.ON_WALKER;
+    } else {
+        i.kind = TriggerKind.OTHER;
+    }
+    return i.kind;
+}
+
 """Execute all entry abilities for current location.
 
     Returns True if walker should continue, False if disengaged.
@@ -375,14 +403,9 @@ impl JacWalker._execute_entries(
     `walker: WalkerAnchor,
     current_loc: (NodeArchetype | EdgeArchetype)
 ) -> bool {
-    import from jaclang.runtimelib.utils { all_issubclass }
     for i in warch._jac_entry_funcs_ {
         if (
-            i.trigger
-            and (
-                all_issubclass(i.trigger, NodeArchetype)
-                or all_issubclass(i.trigger, EdgeArchetype)
-            )
+            JacWalker._trigger_kind(i) == TriggerKind.ON_LOC
             and isinstance(current_loc, i.trigger)
         ) {
             i.func(warch, current_loc);
@@ -392,7 +415,7 @@ impl JacWalker._execute_entries(
         }
     }
     for i in current_loc._jac_entry_funcs_ {
-        if not i.trigger {
+        if JacWalker._trigger_kind(i) == TriggerKind.UNTYPED {
             i.func(current_loc, warch);
         }
         if `walker.disengaged {
@@ -401,8 +424,7 @@ impl JacWalker._execute_entries(
     }
     for i in current_loc._jac_entry_funcs_ {
         if (
-            i.trigger
-            and all_issubclass(i.trigger, WalkerArchetype)
+            JacWalker._trigger_kind(i) == TriggerKind.ON_WALKER
             and isinstance(warch, i.trigger)
         ) {
             i.func(current_loc, warch);
@@ -423,11 +445,9 @@ impl JacWalker._execute_exits(
     `walker: WalkerAnchor,
     current_loc: (NodeArchetype | EdgeArchetype)
 ) -> bool {
-    import from jaclang.runtimelib.utils { all_issubclass }
     for i in current_loc._jac_exit_funcs_ {
         if (
-            i.trigger
-            and all_issubclass(i.trigger, WalkerArchetype)
+            JacWalker._trigger_kind(i) == TriggerKind.ON_WALKER
             and isinstance(warch, i.trigger)
         ) {
             i.func(current_loc, warch);
@@ -437,7 +457,7 @@ impl JacWalker._execute_exits(
         }
     }
     for i in current_loc._jac_exit_funcs_ {
-        if not i.trigger {
+        if JacWalker._trigger_kind(i) == TriggerKind.UNTYPED {
             i.func(current_loc, warch);
         }
         if `walker.disengaged {
@@ -446,11 +466,7 @@ impl JacWalker._execute_exits(
     }
     for i in warch._jac_exit_funcs_ {
         if (
-            i.trigger
-            and (
-                all_issubclass(i.trigger, NodeArchetype)
-                or all_issubclass(i.trigger, EdgeArchetype)
-            )
+            JacWalker._trigger_kind(i) == TriggerKind.ON_LOC
             and isinstance(current_loc, i.trigger)
         ) {
             i.func(warch, current_loc);
@@ -580,14 +596,9 @@ impl JacWalker._async_execute_entries(
     `walker: WalkerAnchor,
     current_loc: (NodeArchetype | EdgeArchetype)
 ) -> bool {
-    import from jaclang.runtimelib.utils { all_issubclass }
     for i in warch._jac_entry_funcs_ {
         if (
-            i.trigger
-            and (
-                all_issubclass(i.trigger, NodeArchetype)
-                or all_issubclass(i.trigger, EdgeArchetype)
-            )
+            JacWalker._trigger_kind(i) == TriggerKind.ON_LOC
             and isinstance(current_loc, i.trigger)
         ) {
             result = i.func(warch, current_loc);
@@ -600,7 +611,7 @@ impl JacWalker._async_execute_entries(
         }
     }
     for i in current_loc._jac_entry_funcs_ {
-        if not i.trigger {
+        if JacWalker._trigger_kind(i) == TriggerKind.UNTYPED {
             result = i.func(current_loc, warch);
             if isinstance(result, Coroutine) {
                 await result;
@@ -612,8 +623,7 @@ impl JacWalker._async_execute_entries(
     }
     for i in current_loc._jac_entry_funcs_ {
         if (
-            i.trigger
-            and all_issubclass(i.trigger, WalkerArchetype)
+            JacWalker._trigger_kind(i) == TriggerKind.ON_WALKER
             and isinstance(warch, i.trigger)
         ) {
             result = i.func(current_loc, warch);
@@ -637,11 +647,9 @@ impl JacWalker._async_execute_exits(
     `walker: WalkerAnchor,
     current_loc: (NodeArchetype | EdgeArchetype)
 ) -> bool {
-    import from jaclang.runtimelib.utils { all_issubclass }
     for i in current_loc._jac_exit_funcs_ {
         if (
-            i.trigger
-            and all_issubclass(i.trigger, WalkerArchetype)
+            JacWalker._trigger_kind(i) == TriggerKind.ON_WALKER
             and isinstance(warch, i.trigger)
         ) {
             result = i.func(current_loc, warch);
@@ -654,7 +662,7 @@ impl JacWalker._async_execute_exits(
         }
     }
     for i in current_loc._jac_exit_funcs_ {
-        if not i.trigger {
+        if JacWalker._trigger_kind(i) == TriggerKind.UNTYPED {
             result = i.func(current_loc, warch);
             if isinstance(result, Coroutine) {
                 await result;
@@ -666,11 +674,7 @@ impl JacWalker._async_execute_exits(
     }
     for i in warch._jac_exit_funcs_ {
         if (
-            i.trigger
-            and (
-                all_issubclass(i.trigger, NodeArchetype)
-                or all_issubclass(i.trigger, EdgeArchetype)
-            )
+            JacWalker._trigger_kind(i) == TriggerKind.ON_LOC
             and isinstance(current_loc, i.trigger)
         ) {
             result = i.func(warch, current_loc);

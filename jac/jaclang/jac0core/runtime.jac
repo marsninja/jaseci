@@ -36,7 +36,8 @@ import from jaclang.jac0core.archetype {
     ObjectSpatialDestination,
     ObjectSpatialFunction,
     ObjectSpatialPath,
-    Root
+    Root,
+    TriggerKind
 }
 import from jaclang.jac0core.constant { EdgeDir, colors }
 import from jaclang.jac0core.constructs {
@@ -232,6 +233,11 @@ class JacWalker {
             ),
         insert_loc: int = -1
     ) -> bool;
+
+    """Classify an ability's trigger (location/walker/untyped), caching the
+        result on the ObjectSpatialFunction so dispatch avoids re-running
+        `all_issubclass` on every visited location."""
+    static def _trigger_kind(i: ObjectSpatialFunction) -> TriggerKind;
 
     """Execute all entry abilities for current location.
 
