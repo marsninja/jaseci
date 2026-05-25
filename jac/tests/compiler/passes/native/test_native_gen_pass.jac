@@ -3246,6 +3246,27 @@ test "nested awaits evaluate inside-out" {
     assert f(-5) == 0;
 }
 
+# ─── flow / wait (synchronous model) ─────────────────────────────────────
+test "flow then wait returns the task result" {
+    (eng, _) = compile_native("flow_wait.na.jac");
+    f = get_func(eng, "run_one", ctypes.c_int64, ctypes.c_int64);
+    assert f(5) == 10;
+    assert f(0) == 0;
+}
+
+test "wait directly on a flow expression" {
+    (eng, _) = compile_native("flow_wait.na.jac");
+    f = get_func(eng, "run_inline", ctypes.c_int64, ctypes.c_int64);
+    assert f(7) == 14;
+}
+
+test "multiple flow handles waited independently" {
+    (eng, _) = compile_native("flow_wait.na.jac");
+    f = get_func(eng, "run_two", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    # task(3)+task(4) = 6+8 = 14
+    assert f(3, 4) == 14;
+}
+
 # ─── C-style iter-for loop ───────────────────────────────────────────────
 test "iter-for sums a counted range" {
     (eng, _) = compile_native("iter_for.na.jac");
