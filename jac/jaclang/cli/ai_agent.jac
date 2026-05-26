@@ -345,20 +345,20 @@ def note(text: str) -> str;
 # this table, so adding a tool means adding one row here. Order is the order
 # tools are offered to the model within a phase.
 glob TOOLS: list[ToolSpec] = [
-         ToolSpec(fn=read_file, category="read", phases={"plan","build","qa"}),
+         ToolSpec(fn=read_file, category="read", phases={"plan", "build", "qa"}),
          ToolSpec(fn=write_file, category="write", serialize=True, phases={"build"}),
          ToolSpec(fn=edit_file, category="write", serialize=True, phases={"build"}),
-         ToolSpec(fn=list_dir, category="read", phases={"plan","build"}),
-         ToolSpec(fn=grep, category="read", phases={"plan","build"}),
-         ToolSpec(fn=find_symbol, category="read", phases={"plan","build"}),
-         ToolSpec(fn=find_uses, category="read", phases={"plan","build"}),
+         ToolSpec(fn=list_dir, category="read", phases={"plan", "build"}),
+         ToolSpec(fn=grep, category="read", phases={"plan", "build"}),
+         ToolSpec(fn=find_symbol, category="read", phases={"plan", "build"}),
+         ToolSpec(fn=find_uses, category="read", phases={"plan", "build"}),
          ToolSpec(fn=project_map, category="read", phases={"plan"}),
          ToolSpec(fn=find_walkers, category="read", phases={"plan"}),
-         ToolSpec(fn=context_slice, category="read", phases={"plan","build"}),
-         ToolSpec(fn=jac_check, category="run", phases={"build","qa"}),
+         ToolSpec(fn=context_slice, category="read", phases={"plan", "build"}),
+         ToolSpec(fn=jac_check, category="run", phases={"build", "qa"}),
          ToolSpec(fn=start_app, category="run", serialize=True, phases={"qa"}),
          ToolSpec(
-             fn=run_command, category="run", serialize=True, phases={"build","qa"}
+             fn=run_command, category="run", serialize=True, phases={"build", "qa"}
          ),
          ToolSpec(fn=browse_open, category="run", serialize=True, phases={"qa"}),
          ToolSpec(fn=browse_navigate, category="run", serialize=True, phases={"qa"}),
@@ -370,10 +370,10 @@ glob TOOLS: list[ToolSpec] = [
          ToolSpec(fn=browse_get, category="read", serialize=True, phases={"qa"}),
          ToolSpec(fn=browse_eval, category="run", serialize=True, phases={"qa"}),
          ToolSpec(fn=browse_close, category="run", serialize=True, phases={"qa"}),
-         ToolSpec(fn=search_guides, category="read", phases={"plan","build"}),
-         ToolSpec(fn=read_guide, category="read", phases={"plan","build"}),
+         ToolSpec(fn=search_guides, category="read", phases={"plan", "build"}),
+         ToolSpec(fn=read_guide, category="read", phases={"plan", "build"}),
          ToolSpec(
-             fn=note, category="read", serialize=True, phases={"plan","build","qa"}
+             fn=note, category="read", serialize=True, phases={"plan", "build", "qa"}
          )
      ];
 
