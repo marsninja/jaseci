@@ -26,7 +26,18 @@ import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.passes { Alert }
 
 # Directories never worth compiling -- generated output, vendored deps, VCS.
-glob _SKIP_DIRS: set[str] = {"__pycache__","__jac_gen__",".git",".venv","venv","node_modules","build","dist",".mypy_cache",".pytest_cache"},
+glob _SKIP_DIRS: set[str] = {
+         "__pycache__",
+         "__jac_gen__",
+         ".git",
+         ".venv",
+         "venv",
+         "node_modules",
+         "build",
+         "dist",
+         ".mypy_cache",
+         ".pytest_cache"
+     },
      # Archetype keyword -> readable kind. Falls back to the raw token value.
      _ARCH_KIND: dict[str, str] = {
          "node": "node",

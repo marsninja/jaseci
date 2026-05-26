@@ -685,9 +685,7 @@ test "long set literal wraps one element per line like a list" {
         f"long set literal must break across lines, got:\n{formatted}"
     );
     # No two elements may share a line once broken.
-    assert not any(
-        ('"alpha"' in ln) and ('"bravo"' in ln) for ln in lines
-    ) , (
+    assert not any(('"alpha"' in ln) and ('"bravo"' in ln) for ln in lines) , (
         f"broken set must place one element per line, got:\n{formatted}"
     );
     # Idempotency
