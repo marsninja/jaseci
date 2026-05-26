@@ -1,0 +1,1468 @@
+"""Implementations for the `jac ai` coding agent (see ai_agent.jac)."""
+
+import os;
+import re;
+import sys;
+import time;
+import subprocess;
+import from pathlib { Path }
+
+import from byllm.lib { Model, IterationAction }
+import from byllm.config_loader { get_byllm_config }
+
+import from jaclang.cli.console { console }
+import from jaclang.cli.guide_store { list_guides as gs_list, get_guide as gs_get }
+import from jaclang.cli.browser_engine {
+    cmd_open as br_open,
+    cmd_navigate as br_navigate,
+    cmd_snapshot as br_snapshot,
+    cmd_click as br_click,
+    cmd_type as br_type,
+    cmd_fill as br_fill,
+    cmd_press as br_press,
+    cmd_get as br_get,
+    cmd_eval as br_eval,
+    cmd_close as br_close
+}
+
+
+impl resolve_model_name(model_override: str = "") -> str {
+    global agent_model_source;
+    flag = model_override.strip();
+    if flag {
+        agent_model_source = "command line";
+        return flag;
+    }
+    # Read the raw [plugins.byllm.model] table -- not the defaults-merged
+    # config -- so an unset `default_model` does not masquerade as a choice.
+    toml_model = "";
+    try {
+        raw = get_byllm_config().get_jac_config().get_plugin_config("byllm");
+        model_section = raw.get("model", {});
+        if isinstance(model_section, dict) {
+            toml_model = str(model_section.get("default_model", "")).strip();
+        }
+    } except Exception {
+        toml_model = "";
+    }
+    if toml_model {
+        agent_model_source = "jac.toml";
+        return toml_model;
+    }
+    agent_model_source = "default";
+    return "local:gemma-4-e4b";
+}
+
+impl build_model(model_override: str = "", n_ctx: int = 0) -> Model {
+    global agent_threads,agent_temperature;
+    name = resolve_model_name(model_override);
+    cfg: dict[str, object] = {};
+    is_local = name.startswith("local:");
+    # Reset first: a rebuild may swap a local model for a cloud one, and the
+    # banner must not keep showing a stale thread count.
+    agent_threads = 0;
+    # Pin local models to a low temperature for deterministic code edits;
+    # leave cloud models at the provider default (newer ones reject the param).
+    agent_temperature = 0.3 if is_local else None;
+    if is_local {
+        try {
+            cfg = dict(get_byllm_config().get_local_config());
+        } except Exception {
+            cfg = {};
+        }
+        # Cap CPU usage so local inference does not peg (and overheat) the
+        # machine: a jac.toml [plugins.byllm.local] n_threads wins, otherwise
+        # default to half the cores.
+        if not cfg.get("n_threads") {
+            cores = os.cpu_count() or 2;
+            cfg["n_threads"] = max(1, cores // 2);
+        }
+        agent_threads = int(cfg.get("n_threads") or 0);
+    }
+    if n_ctx > 0 {
+        cfg["n_ctx"] = n_ctx;
+    }
+    return Model(model_name=name, config=cfg);
+}
+
+impl truncate(text: str, limit: int = 12000) -> str {
+    if len(text) > limit {
+        extra = len(text) - limit;
+        return text[:limit] + f"\n... [truncated, {extra} more chars]";
+    }
+    return text;
+}
+
+impl confirm(action: str) -> bool {
+    if yolo_mode {
+        return True;
+    }
+    console.print(f"  needs approval: {action}", style="yellow");
+    try {
+        answer = input("  Allow this action? [y/N] ").strip().lower();
+    } except EOFError {
+        return False;
+    }
+    return answer in ("y", "yes");
+}
+
+impl write_feedback(path: str) -> str {
+    global agent_ci_dirty;
+    if agent_ci is None or not inline_feedback {
+        # When inline feedback is off the project model is still stale after a
+        # write; flag it so the next semantic query (or `jac_check`) refreshes.
+        if agent_ci is not None and not inline_feedback {
+            agent_ci_dirty = True;
+        }
+        return "";
+    }
+    # The write changed the project; mark dirty up front so a failed refresh
+    # still triggers a rebuild on the next semantic query.
+    agent_ci_dirty = True;
+    try {
+        # refresh_and_diff recompiles and returns the diagnostics this edit is
+        # responsible for: all of `path`, plus breakage in dependent modules.
+        diags: list = list(agent_ci.refresh_and_diff(path));
+    } except Exception {
+        return "";
+    }
+    agent_ci_dirty = False;
+    if not diags {
+        return "";
+    }
+    n_err = len(
+        [
+            d
+            for d in diags
+            if d.severity == "error"
+        ]
+    );
+    n_warn = len(diags) - n_err;
+    lines = [
+        f"\ncompiler feedback for editing {path} -- {n_err} error(s), "
+        f"{n_warn} warning(s); fix what you introduced (some may be in other "
+        "files your edit affects):"
+    ];
+    for d in diags[:20] {
+        lines.append("  " + str(d.render()));
+    }
+    if len(diags) > 20 {
+        lines.append(f"  ... and {len(diags) - 20} more");
+    }
+    return "\n".join(lines);
+}
+
+sem read_file = "Read and return the full text of a file.";
+sem read_file.path = "Path to the file to read, relative to the project.";
+impl read_file(path: str) -> str {
+    try {
+        return truncate(Path(path).read_text());
+    } except Exception as e {
+        return f"ERROR reading {path}: {e}";
+    }
+}
+
+sem write_file = "Create a file or overwrite it entirely with new content.";
+sem write_file.path = "Path of the file to write.";
+sem write_file.content = "The full new contents of the file.";
+impl write_file(path: str, content: str) -> str {
+    if not confirm(f"write {len(content)} chars to {path}") {
+        return "DENIED: the user declined this write.";
+    }
+    try {
+        p = Path(path);
+        p.parent.mkdir(parents=True, exist_ok=True);
+        p.write_text(content);
+        return f"OK: wrote {len(content)} chars to {path}" + write_feedback(path);
+    } except Exception as e {
+        return f"ERROR writing {path}: {e}";
+    }
+}
+
+sem edit_file = "Replace one exact, unique occurrence of text in a file.";
+sem edit_file.path = "Path of the file to edit.";
+sem edit_file.old_text = "Exact text to find; must occur exactly once in the file.";
+sem edit_file.new_text = "Text to replace it with.";
+impl edit_file(path: str, old_text: str, new_text: str) -> str {
+    try {
+        original = Path(path).read_text();
+    } except Exception as e {
+        return f"ERROR reading {path}: {e}";
+    }
+    occurrences = original.count(old_text);
+    if occurrences == 0 {
+        return f"ERROR: old_text was not found in {path}. Read the file first.";
+    }
+    if occurrences > 1 {
+        return (
+            f"ERROR: old_text appears {occurrences} times in {path}; "
+            "include more surrounding context so it matches exactly once."
+        );
+    }
+    if not confirm(f"edit {path}") {
+        return "DENIED: the user declined this edit.";
+    }
+    try {
+        Path(path).write_text(original.replace(old_text, new_text));
+        return f"OK: edited {path}" + write_feedback(path);
+    } except Exception as e {
+        return f"ERROR writing {path}: {e}";
+    }
+}
+
+sem list_dir = "List the entries of a directory (hidden entries excluded).";
+sem list_dir.path = "Directory path; empty string means the current directory.";
+impl list_dir(path: str) -> str {
+    try {
+        target = Path(path or ".");
+        names: list[str] = [];
+        for entry in sorted(target.iterdir()) {
+            if entry.name.startswith(".") {
+                continue;
+            }
+            names.append(entry.name + ("/" if entry.is_dir() else ""));
+        }
+        return "\n".join(names) or "(empty directory)";
+    } except Exception as e {
+        return f"ERROR listing {path}: {e}";
+    }
+}
+
+sem grep = "Search for a regular expression across .jac files (or one file).";
+sem grep.pattern = "Python regular expression to search for.";
+sem grep.path = "File or directory to search; empty string means current directory.";
+impl grep(pattern: str, path: str) -> str {
+    try {
+        regex = re.compile(pattern);
+    } except Exception as e {
+        return f"ERROR: invalid regular expression: {e}";
+    }
+    search_root = Path(path or ".");
+    if search_root.is_file() {
+        files = [search_root];
+    } elif search_root.is_dir() {
+        files = [
+            f
+            for f in search_root.rglob("*.jac")
+            if f.is_file()
+        ];
+    } else {
+        return f"ERROR: no such path: {path}";
+    }
+    hits: list[str] = [];
+    for f in files {
+        try {
+            text = f.read_text();
+        } except Exception {
+            continue;
+        }
+        for (line_no, line) in enumerate(text.splitlines(), 1) {
+            if regex.search(line) {
+                hits.append(f"{f}:{line_no}: {line.strip()}");
+                if len(hits) >= 100 {
+                    return "\n".join(hits) + "\n... [stopped at 100 matches]";
+                }
+            }
+        }
+    }
+    return "\n".join(hits) or "(no matches)";
+}
+
+impl run_jac_cli(subcommand: str, path: str) -> str {
+    try {
+        result = subprocess.run(
+            [sys.executable, "-m", "jaclang", subcommand, path],
+            capture_output=True,
+            text=True,
+            timeout=120
+        );
+        combined = ((result.stdout or "") + (result.stderr or "")).strip();
+        return truncate(combined or f"(no output; exit code {result.returncode})");
+    } except Exception as e {
+        return f"ERROR running `jac {subcommand} {path}`: {e}";
+    }
+}
+
+sem run_command = "Run a shell command in the project directory and return its combined output. Use this to scaffold a new project (`jac create --use fullstack <name>`), install dependencies (`jac install`), run a file (`jac run <file>`), run tests, or any other shell task. `jac create` templates: default, client, fullstack.";
+sem run_command.command = "The shell command to run.";
+impl run_command(command: str) -> str {
+    if not confirm(f"run shell command: {command}") {
+        return "DENIED: the user declined to run this command.";
+    }
+    # Put the running interpreter's bin directory first on PATH so `jac` (and
+    # other console scripts installed alongside it) resolve even when the
+    # session was launched without the environment activated.
+    env = dict(os.environ);
+    bin_dir = os.path.dirname(sys.executable);
+    if bin_dir {
+        env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "");
+    }
+    try {
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True, timeout=180, env=env
+        );
+        combined = ((result.stdout or "") + (result.stderr or "")).strip();
+        return truncate(combined or f"(no output; exit code {result.returncode})");
+    } except subprocess.TimeoutExpired {
+        return f"ERROR: `{command}` timed out after 180s.";
+    } except Exception as e {
+        return f"ERROR running `{command}`: {e}";
+    }
+}
+
+sem jac_check = "Type-check and compile Jac code with `jac check`. Pass a single file, or a directory (`.` for the whole project) to check everything at once. Use this after writing or editing Jac code to confirm it is valid.";
+sem jac_check.path = "File or directory to check; '.' or empty string checks the whole project.";
+impl jac_check(path: str) -> str {
+    return run_jac_cli("check", path or ".");
+}
+
+sem start_app = "Start the app with `jac start` for ~12 seconds to confirm it boots, then stop it; returns the startup logs. Use this after building an app to catch errors that `jac check` cannot.";
+sem start_app.entry_file = "Entry .jac file to start; empty string means 'main.jac'.";
+impl start_app(entry_file: str) -> str {
+    entry_path = entry_file or "main.jac";
+    if not confirm(f"start the app with `jac start {entry_path}`") {
+        return "DENIED: the user declined to start the app.";
+    }
+    # `jac start` resolves the project (and its installed deps) from the entry
+    # file's own directory, so run it there -- not wherever the session was
+    # launched -- which matters when the app was scaffolded into a subfolder.
+    work_dir = os.path.dirname(entry_path) or ".";
+    target = os.path.basename(entry_path);
+    try {
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "jaclang", "start", target],
+            cwd=work_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        );
+    } except Exception as e {
+        return f"ERROR launching `jac start {entry_path}`: {e}";
+    }
+    # Let it boot, then stop it -- we only want the startup diagnostics, not a
+    # server left running after the tool returns. The boot window defaults to
+    # 12s but can be shortened via JAC_AI_START_TIMEOUT (seconds), mainly so
+    # tests need not wait the full default.
+    boot_wait = 12.0;
+    try {
+        raw = os.environ.get("JAC_AI_START_TIMEOUT");
+        if raw {
+            boot_wait = float(raw);
+        }
+    } except Exception as e {
+        _ = e;
+    }
+    time.sleep(boot_wait);
+    proc.terminate();
+    try {
+        output = proc.communicate(timeout=10)[0];
+    } except Exception {
+        proc.kill();
+        output = proc.communicate()[0];
+    }
+    return truncate(str(output) if output else "(no startup output)");
+}
+
+sem search_guides = "Search the bundled Jac reference guides; returns matching guide names and descriptions ranked by relevance. Matches any word in the query, so several keywords broaden the search.";
+sem search_guides.keyword = "Keywords to search guide names, descriptions, and bodies for.";
+impl search_guides(keyword: str) -> str {
+    words = [
+        w
+        for w in keyword.lower().split()
+        if w
+    ];
+    if not words {
+        return "(empty search)";
+    }
+    scored: list[tuple[int, str]] = [];
+    for g in gs_list() {
+        haystack = f"{g.name}\n{g.description}\n{g.body}".lower();
+        hits = sum(
+            [
+                1
+                for w in words
+                if w in haystack
+            ]
+        );
+        if hits > 0 {
+            # Negative hit count sorts most-relevant-first under a plain sort.
+            scored.append((-hits, f"{g.name}: {g.description}"));
+        }
+    }
+    if not scored {
+        return f"(no guides match '{keyword}')";
+    }
+    scored.sort();
+    return "\n".join([line for (_, line) in scored]);
+}
+
+sem read_guide = "Read a bundled Jac reference guide in full -- the authoritative spec for writing correct, idiomatic Jac.";
+sem read_guide.name = "Exact guide name, e.g. 'jac-walker-patterns'.";
+impl read_guide(name: str) -> str {
+    guide = gs_get(name);
+    if guide is None {
+        available = ", ".join([g.name for g in gs_list()]);
+        return f"ERROR: no guide named '{name}'. Available guides: {available}";
+    }
+    return truncate(guide.body, 16000);
+}
+
+impl code_intel -> any {
+    global agent_ci_dirty;
+    if agent_ci is None {
+        return None;
+    }
+    if agent_ci_dirty {
+        try {
+            agent_ci.refresh();
+        } except Exception { }
+        agent_ci_dirty = False;
+    }
+    return agent_ci;
+}
+
+sem find_symbol = "Look up a Jac symbol (node, walker, edge, obj, enum, ability, ...) by name via the compiler's symbol table. Returns its exact definition site, fields, abilities, base classes, and every place it is used. This is precise -- unlike grep it never matches a comment or an unrelated identifier. Prefer this over grep whenever you know the name of the thing you are looking for.";
+sem find_symbol.name = "The symbol name to look up, e.g. 'User' or 'make_user'.";
+impl find_symbol(name: str) -> str {
+    ci = code_intel();
+    if ci is None {
+        return "ERROR: code intelligence is unavailable in this session.";
+    }
+    hits = ci.lookup(name);
+    if not hits {
+        return f"No Jac symbol named '{name}' is defined in this project.";
+    }
+    out: list[str] = [];
+    for info in hits {
+        out.append(str(info.render()));
+    }
+    uses = [
+        r
+        for r in ci.references(name)
+        if r.role == "use"
+    ];
+    if uses {
+        out.append(f"\nused in {len(uses)} place(s):");
+        for r in uses[:25] {
+            out.append("  " + str(r.render()));
+        }
+    }
+    return "\n".join(out);
+}
+
+sem find_uses = "List every definition and use of a symbol across the whole project, computed from the compiler's def/use chains. Use this before renaming or changing a symbol to see exactly what it touches.";
+sem find_uses.name = "The symbol name whose references to list.";
+impl find_uses(name: str) -> str {
+    ci = code_intel();
+    if ci is None {
+        return "ERROR: code intelligence is unavailable in this session.";
+    }
+    refs = ci.references(name);
+    if not refs {
+        return f"No definitions or uses of '{name}' were found.";
+    }
+    lines: list[str] = [];
+    for r in refs {
+        lines.append(f"{r.role}  {r.render()}");
+    }
+    return "\n".join(lines);
+}
+
+sem project_map = "Show every node, walker, edge, and object archetype in the project with its location -- a structural overview built from the compiler, not a directory listing. Use this first to understand an unfamiliar project.";
+impl project_map -> str {
+    ci = code_intel();
+    if ci is None {
+        return "ERROR: code intelligence is unavailable in this session.";
+    }
+    archs = ci.archetypes();
+    if not archs {
+        return "(no nodes, walkers, edges, or objects found in the project)";
+    }
+    rows: list[str] = [];
+    for a in archs {
+        rows.append(f"{a.kind:7} {a.name}    [{a.file}:{a.line}]");
+    }
+    return "\n".join(sorted(rows));
+}
+
+sem find_walkers = "Find every walker entry point that traverses a given node type -- an Object-Spatial query the compiler answers from walker entry signatures. Use this to see how a node is visited.";
+sem find_walkers.node_type = "The node archetype name, e.g. 'User'.";
+impl find_walkers(node_type: str) -> str {
+    ci = code_intel();
+    if ci is None {
+        return "ERROR: code intelligence is unavailable in this session.";
+    }
+    eps = ci.walkers_visiting(node_type);
+    if not eps {
+        return f"No walkers traverse a '{node_type}' node.";
+    }
+    lines: list[str] = [];
+    for ep in eps {
+        lines.append(str(ep.render()));
+    }
+    return "\n".join(lines);
+}
+
+sem context_slice = "Get a typed context slice for a symbol: its definition, the types it depends on, and where it is used -- a focused, compiler-accurate neighbourhood to read instead of opening whole files.";
+sem context_slice.name = "The symbol to build a context slice around.";
+impl context_slice(name: str) -> str {
+    ci = code_intel();
+    if ci is None {
+        return "ERROR: code intelligence is unavailable in this session.";
+    }
+    return str(ci.slice_for(name).render());
+}
+
+impl _browse_err(e: Exception) -> str {
+    msg = str(e);
+    if "no live browser" in msg {
+        return "ERROR: no browser is open -- call browse_open(url) first.";
+    }
+    return f"ERROR: {msg}";
+}
+
+sem browse_open = "Launch a headless browser (or reuse the one already open) and navigate to a URL. Use this to QA a running web app, then read the page with browse_snapshot. An empty URL opens a blank page.";
+sem browse_open.url = "URL to open, e.g. 'http://localhost:8000'. Empty string opens about:blank.";
+impl browse_open(url: str) -> str {
+    if url and not confirm(f"open a browser at {url}") {
+        return "DENIED: the user declined opening the browser.";
+    }
+    try {
+        return br_open(_BROWSE_SESSION, url or None);
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_navigate = "Navigate the open browser to a different URL and wait for it to load.";
+sem browse_navigate.url = "The URL to navigate to.";
+impl browse_navigate(url: str) -> str {
+    if not confirm(f"navigate the browser to {url}") {
+        return "DENIED: the user declined this navigation.";
+    }
+    try {
+        return br_navigate(_BROWSE_SESSION, url);
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_snapshot = "Read the current page as an accessibility tree. Interactive elements are tagged with @e1/@e2 refs that you pass to browse_click, browse_type, and browse_fill. Call this after navigating, and again after any action that changes the page, to see the new state.";
+impl browse_snapshot -> str {
+    try {
+        return truncate(br_snapshot(_BROWSE_SESSION));
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_click = "Click an element with a real, trusted mouse event. Pass an @ref from browse_snapshot (e.g. '@e5') or a CSS selector (e.g. '#submit').";
+sem browse_click.target = "An @ref from browse_snapshot, or a CSS selector.";
+impl browse_click(target: str) -> str {
+    if not confirm(f"click {target} in the browser") {
+        return "DENIED: the user declined this click.";
+    }
+    try {
+        return br_click(_BROWSE_SESSION, target);
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_type = "Focus an element and type text into it as real key events, appending to whatever is already there.";
+sem browse_type.target = "An @ref from browse_snapshot, or a CSS selector.";
+sem browse_type.text = "The text to type.";
+impl browse_type(target: str, text: str) -> str {
+    if not confirm(f"type into {target} in the browser") {
+        return "DENIED: the user declined this input.";
+    }
+    try {
+        return br_type(_BROWSE_SESSION, target, text);
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_fill = "Clear a field and set its value to the given text. Prefer this over browse_type for form fields.";
+sem browse_fill.target = "An @ref from browse_snapshot, or a CSS selector.";
+sem browse_fill.text = "The text to set the field to.";
+impl browse_fill(target: str, text: str) -> str {
+    if not confirm(f"fill {target} in the browser") {
+        return "DENIED: the user declined this input.";
+    }
+    try {
+        return br_fill(_BROWSE_SESSION, target, text);
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_press = "Press a single key in the browser, e.g. 'Enter', 'Tab', 'Escape', or a chord like 'Ctrl+A'.";
+sem browse_press.key = "The key or chord to press.";
+impl browse_press(key: str) -> str {
+    if not confirm(f"press {key} in the browser") {
+        return "DENIED: the user declined this key press.";
+    }
+    try {
+        return br_press(_BROWSE_SESSION, key);
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_get = "Read a property of the current page: 'url', 'title', or 'text' (the visible text of the element named by selector).";
+sem browse_get.what = "One of 'url', 'title', or 'text'.";
+sem browse_get.selector = "CSS selector for 'text'; empty string for 'url' or 'title'.";
+impl browse_get(what: str, selector: str) -> str {
+    try {
+        return truncate(str(br_get(_BROWSE_SESSION, what, selector or None)));
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_eval = "Evaluate a JavaScript expression in the page and return its result. Use this to inspect page state or check for errors, e.g. \"document.querySelectorAll('.error').length\".";
+sem browse_eval.expression = "A JavaScript expression to evaluate.";
+impl browse_eval(expression: str) -> str {
+    if not confirm(f"run JavaScript in the browser: {expression}") {
+        return "DENIED: the user declined this script.";
+    }
+    try {
+        return truncate(str(br_eval(_BROWSE_SESSION, expression)));
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+sem browse_close = "Close the browser and free its resources. Call this when finished with browser QA.";
+impl browse_close -> str {
+    try {
+        return br_close(_BROWSE_SESSION);
+    } except Exception as e {
+        return _browse_err(e);
+    }
+}
+
+impl _browse_shutdown{
+    try {
+        br_close(_BROWSE_SESSION);
+    } except Exception {
+    # The browser may never have been opened this session; nothing to clean.
+    }
+}
+
+impl system_prompt -> str {
+    index_lines: list[str] = [];
+    for g in gs_list() {
+        index_lines.append(f"- {g.name}: {g.description}");
+    }
+    guide_index = "\n".join(index_lines);
+    cheatsheet = gs_get("jac-core-cheatsheet");
+    cheatsheet_body = cheatsheet.body if cheatsheet is not None else "";
+    return (
+        AGENT_RULES + "\n## Reference guides available (open one with read_guide)\n\n" + guide_index + "\n\n## Jac core cheatsheet\n\n" + cheatsheet_body
+    );
+}
+
+impl reset_session{
+    global _session_ledger;
+    _session_ledger = Ledger();
+}
+
+impl _progress_guard(ctx: any) -> str {
+    import json;
+    counts: dict[str, int] = {};
+    for m in ctx.messages {
+        tcs = m.get("tool_calls") if isinstance(m, dict) else m?.tool_calls;
+        if not tcs {
+            continue;
+        }
+        for tc in tcs {
+            fn = tc?.function;
+            if fn is None and isinstance(tc, dict) {
+                fn = tc.get("function");
+            }
+            name = fn?.name;
+            if name is None and isinstance(fn, dict) {
+                name = fn.get("name");
+            }
+            if name not in _WRITE_TOOLS {
+                continue;
+            }
+            raw = fn?.arguments;
+            if raw is None and isinstance(fn, dict) {
+                raw = fn.get("arguments");
+            }
+            try {
+                parsed = json.loads(raw) if isinstance(raw, str) else (raw or {});
+                path = str(parsed.get("path", "")) if isinstance(parsed, dict) else "";
+            } except Exception {
+                path = "";
+            }
+            if path {
+                counts[path] = counts.get(path, 0) + 1;
+            }
+        }
+    }
+    worst = max(counts.values()) if counts else 0;
+    if worst > _REWRITE_LIMIT {
+        return IterationAction.ABORT_WITH_SUMMARY;
+    }
+    return IterationAction.CONTINUE;
+}
+
+impl print_banner{
+    console.print("");
+    console.print("  Jac AI -- interactive coding agent", style="bold");
+    console.print(
+        f"  model: {agent_model.model_name}  (from {agent_model_source})", style="muted"
+    );
+    if agent_threads > 0 {
+        console.print(f"  inference threads: {agent_threads}", style="muted");
+    }
+    if yolo_mode {
+        console.print(
+            "  file writes and commands run without confirmation (use --safe to confirm each)",
+            style="yellow"
+        );
+    }
+    console.print("  type a request, /help for commands, /exit to quit", style="muted");
+    console.print("");
+}
+
+impl print_help{
+    console.print("  /help     show this help", style="muted");
+    console.print("  /clear    reset the conversation", style="muted");
+    console.print("  /guides   list the bundled Jac reference guides", style="muted");
+    console.print("  /stats    toggle the per-turn stat line", style="muted");
+    console.print(
+        "  /verbose  toggle live reasoning, timings, and step detail", style="muted"
+    );
+    console.print(
+        "  /feedback toggle inline compiler feedback after each write", style="muted"
+    );
+    console.print("  /exit     quit the session", style="muted");
+}
+
+impl fmt_tool_call(tool: str, args: object) -> str {
+    parts: list[str] = [];
+    if isinstance(args, dict) {
+        for (key, value) in args.items() {
+            sval = str(value).replace("\n", " ");
+            if len(sval) > 60 {
+                sval = sval[:60] + "...";
+            }
+            parts.append(f"{key}={sval}");
+        }
+    }
+    return f"{tool}(" + ", ".join(parts) + ")";
+}
+
+impl _short_num(n: int) -> str {
+    return f"{n / 1000:.1f}k" if n >= 1000 else str(n);
+}
+
+impl _estimate_cost(prompt_tokens: int, completion_tokens: int) -> float {
+    try {
+        import litellm;
+        costs: any = litellm.cost_per_token(
+            model=agent_model.model_name,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens
+        );
+        return float(str(costs[0])) + float(str(costs[1]));
+    } except Exception {
+        return 0.0;
+    }
+}
+
+impl _format_tokens(usage: dict[str, object]) -> str {
+    prompt = int(usage.get("prompt_tokens", 0) or 0);
+    completion = int(usage.get("completion_tokens", 0) or 0);
+    if prompt == 0 and completion == 0 {
+        return "";
+    }
+    text = f"{_short_num(prompt)} in / {_short_num(completion)} out";
+    cost = _estimate_cost(prompt, completion);
+    if cost > 0 {
+        text += f" (~${cost:.4f})";
+    }
+    return text;
+}
+
+impl _format_health -> str {
+    ci = code_intel();
+    if ci is None or not ci.is_loaded() {
+        return "";
+    }
+    try {
+        diags: list[any] = list(ci.diagnostics());
+    } except Exception {
+        return "";
+    }
+    n_err = len(
+        [
+            d
+            for d in diags
+            if d.severity == "error"
+        ]
+    );
+    n_warn = len(diags) - n_err;
+    if n_err == 0 and n_warn == 0 {
+        return "project: clean";
+    }
+    return f"project: {n_err} error(s), {n_warn} warning(s)";
+}
+
+impl print_stats(
+    elapsed: float,
+    n_read: int,
+    n_write: int,
+    n_run: int,
+    files: set[str],
+    usage: dict[str, object]
+) {
+    parts: list[str] = [f"{elapsed:.1f}s"];
+    n_tools = n_read + n_write + n_run;
+    if n_tools > 0 {
+        breakdown: list[str] = [];
+        if n_read {
+            breakdown.append(f"{n_read} read");
+        }
+        if n_write {
+            breakdown.append(f"{n_write} write");
+        }
+        if n_run {
+            breakdown.append(f"{n_run} run");
+        }
+        parts.append(f"{n_tools} tools (" + ", ".join(breakdown) + ")");
+    }
+    if files {
+        suffix = "" if len(files) == 1 else "s";
+        parts.append(f"{len(files)} file{suffix} changed");
+    }
+    tokens = _format_tokens(usage);
+    if tokens {
+        parts.append(tokens);
+    }
+    # Generation throughput: completion tokens over the wall-clock turn time.
+    # Reported alongside the token totals so the speed of the model (local or
+    # cloud) is visible per turn.
+    completion = int(usage.get("completion_tokens", 0) or 0);
+    if completion > 0 and elapsed > 0 {
+        parts.append(f"{completion / elapsed:.1f} tok/s");
+    }
+    health = _format_health();
+    if health {
+        parts.append(health);
+    }
+    console.print("  " + "  ·  ".join(parts), style="muted");
+}
+
+impl _strip_control(text: str) -> str {
+    import re;
+    t = text.replace("<|\"|>", "\"").replace("<|'|>", "'");
+    t = re.sub("<\\|[a-z_]+>[a-z]*", "", t);
+    t = re.sub("<[a-z_]+\\|>", "", t);
+    return t;
+}
+
+impl _split_reasoning(raw: str) -> tuple[str, bool] {
+    mark = "<tool_call>";
+    idx = raw.find(mark);
+    if idx >= 0 {
+        return (raw[:idx], True);
+    }
+    hold = 0;
+    k = min(len(raw), len(mark) - 1);
+    while k > 0 {
+        if mark.startswith(raw[len(raw) - k:]) {
+            hold = k;
+            break;
+        }
+        k -= 1;
+    }
+    return (raw[:len(raw) - hold], False);
+}
+
+impl _result_snippet(text: str, max_lines: int) -> list[str] {
+    stripped = text.strip();
+    if not stripped {
+        return ["(no output)"];
+    }
+    lines = stripped.splitlines();
+    shown: list[str] = [];
+    for ln in lines[:max_lines] {
+        shown.append(ln[:100] + "..." if len(ln) > 100 else ln);
+    }
+    rest = len(lines) - min(len(lines), max_lines);
+    if rest > 0 {
+        shown.append(f"(+{rest} more lines)");
+    }
+    return shown;
+}
+
+impl _fmt_ms(ms: float) -> str {
+    return f"{int(ms)}ms" if ms < 1000 else f"{ms / 1000:.1f}s";
+}
+
+impl _fmt_gen(ms: float, tokens: int) -> str {
+    if ms <= 0 {
+        return "";
+    }
+    if tokens > 0 {
+        tps = tokens / (ms / 1000);
+        return f"   ({_fmt_ms(ms)}, {tps:.0f} tps)";
+    }
+    return f"   ({_fmt_ms(ms)})";
+}
+
+impl _ci_event(info: any) {
+    op = str(info.get("op", "?"));
+    recompiled = int(info.get("recompiled", 0));
+    total = int(info.get("total", 0));
+    raw_ms = info.get("ms", 0.0);
+    ms = raw_ms if isinstance(raw_ms, float) else 0.0;
+    fname: str = str(info.get("file", ""));
+    name = os.path.basename(fname);
+    if op == "load" {
+        what = f"load · compiled {recompiled} files";
+    } else {
+        # create / edit / delete: show the recompiled count against the project
+        # size so an incremental refresh is visibly cheaper than a full build.
+        what = f"{op} {name} · recompiled {recompiled}/{total}";
+    }
+    console.print(f"      ⚙ code intel · {what} · {_fmt_ms(ms)}", style="dim");
+}
+
+impl render_stream(event_stream: any) -> dict {
+    out: any = sys.stdout;
+    # Animated `thinking...` rewrites the line with \r, which only makes sense
+    # on a terminal; piped output gets the static lines without it.
+    is_tty = bool(out?.isatty) and bool(out.isatty());
+    # A write tool anywhere in the turn arms the verify-and-continue guard.
+    global _turn_wrote;
+    # Phase-stat accumulators -- declared before the try so the `except`
+    # handlers can still return them if the stream errors out partway through.
+    n_read = 0;
+    n_write = 0;
+    n_run = 0;
+    files: set[str] = set();
+    usage: dict[str, object] = {};
+    answer = "";  # the phase's final answer text, captured for the ledger
+    # Live-render state.
+    streamed = False;  # raw reasoning/answer tokens on the current line
+    thought_raw = "";  # this step's accumulated reasoning tokens
+    prose_shown = 0;  # chars of this step's prose already streamed
+    step_t0 = 0.0;  # when this step's generation began
+    think_on = False;  # a live `thinking...` line is on screen
+    last_llm_ms = 0.0;  # model gen time of the step just finished
+    last_llm_tokens = 0;  # completion tokens of that step, for tokens/sec
+    pend_result: any = None;  # a tool result awaiting its timing event
+    def clear_think {
+        nonlocal think_on;
+        if think_on and is_tty {
+            out.write("\r" + (" " * _THINK_WIDTH) + "\r");
+            out.flush();
+        }
+        think_on = False;
+    }
+    def end_line {
+        nonlocal streamed;
+        if streamed {
+            out.write("\n");
+            out.flush();
+            streamed = False;
+        }
+    }
+    def flush_result {
+        nonlocal pend_result;
+        if pend_result is None {
+            return;
+        }
+        (result, ms) = (pend_result["result"], pend_result["ms"]);
+        pend_result = None;
+        lines = _result_snippet(result, 3 if verbose else 1);
+        tail = f"   {_fmt_ms(ms)}" if (verbose and ms is not None) else "";
+        console.print(f"      ↳ {lines[0]}{tail}", style="dim");
+        for ln in lines[1:] {
+            console.print(f"        {ln}", style="dim");
+        }
+    }
+    try {
+        for event in event_stream {
+            kind = event.event_type;
+            data = event.data;
+            if kind == "thought" {
+                # Reasoning is shown only in the verbose view; quiet hides it.
+                if not verbose {
+                    continue;
+                }
+                tok = str(data.get("content", ""));
+                if not tok {
+                    continue;
+                }
+                if step_t0 == 0.0 {
+                    step_t0 = time.time();
+                }
+                thought_raw += tok;
+                (prose, hit) = _split_reasoning(thought_raw);
+                new_raw = prose[prose_shown:];
+                prose_shown = len(prose);
+                cleaned = _strip_control(new_raw);
+                if cleaned {
+                    clear_think();
+                    out.write(cleaned);
+                    out.flush();
+                    streamed = True;
+                }
+                # No prose yet but generating (the call is streaming as JSON):
+                # show a live, ticking activity line so a slow model is not silent.
+                if hit and not streamed and is_tty {
+                    out.write(f"\r  ● thinking… {time.time() - step_t0:.1f}s");
+                    out.flush();
+                    think_on = True;
+                }
+            } elif kind == "chunk" {
+                # Final answer: never a tool call, so stream live in both views.
+                clear_think();
+                flush_result();
+                tok = str(data.get("content", ""));
+                answer += tok;
+                out.write(tok);
+                out.flush();
+                streamed = True;
+            } elif kind == "llm_timing" {
+                last_llm_ms = float(data.get("duration_ms", 0) or 0);
+                last_llm_tokens = int(data.get("completion_tokens", 0) or 0);
+            } elif kind == "tool_call" {
+                clear_think();
+                end_line();
+                flush_result();
+                tool = str(data.get("tool", "?"));
+                args = data.get("args", {});
+                # Tally the call for the turn stats: writes (and the files they
+                # touch), code/shell runs, and everything else as a read.
+                if tool in _WRITE_TOOLS {
+                    n_write += 1;
+                    _turn_wrote = True;
+                    if isinstance(args, dict) {
+                        path = args.get("path");
+                        if path {
+                            files.add(str(path));
+                        }
+                    }
+                } elif tool in _RUN_TOOLS {
+                    n_run += 1;
+                } else {
+                    n_read += 1;
+                }
+                gen = _fmt_gen(last_llm_ms, last_llm_tokens) if verbose else "";
+                console.print(f"  ⏺ {fmt_tool_call(tool, args)}{gen}", style="cyan");
+                last_llm_ms = 0.0;
+                last_llm_tokens = 0;
+                # Next step's reasoning starts fresh.
+                thought_raw = "";
+                prose_shown = 0;
+                step_t0 = 0.0;
+            } elif kind == "tool_result" {
+                clear_think();
+                end_line();
+                flush_result();
+                pend_result = {"result": str(data.get("result", "")), "ms": None};
+            } elif kind == "tool_timing" {
+                if pend_result is not None {
+                    pend_result["ms"] = float(data.get("duration_ms", 0) or 0);
+                }
+                flush_result();
+            } elif kind == "usage" {
+                # byLLM emits one `usage` event at stream end with token totals
+                # aggregated across every LLM call in the turn.
+                total = data.get("total", {});
+                if isinstance(total, dict) {
+                    usage = total;
+                }
+            } elif kind == "steps_done" {
+                clear_think();
+                end_line();
+                flush_result();
+                console.print("");
+            }
+        }
+        clear_think();
+        end_line();
+        flush_result();
+    } except KeyboardInterrupt {
+        console.print("\n  [interrupted]", style="yellow");
+    } except Exception as e {
+        console.print("");
+        console.error(f"agent error: {e}");
+        if os.environ.get("JAC_AI_DEBUG") {
+            import traceback;
+            traceback.print_exc();
+        }
+    }
+    return {
+        "n_read": n_read,
+        "n_write": n_write,
+        "n_run": n_run,
+        "files": files,
+        "usage": usage,
+        "answer": answer.strip()
+    };
+}
+
+impl Ledger.record(phase: str, summary: str) {
+    self.changes.append({"phase": phase, "summary": truncate(summary, 400)});
+}
+
+impl Ledger.remember(text: str) {
+    self.notes.append(text);
+}
+
+impl Ledger.render -> str {
+    if not self.changes and not self.notes {
+        return "(nothing done yet)";
+    }
+    lines: list = [];
+    for c in self.changes {
+        lines.append(f"- [{c['phase']}] {c['summary']}");
+    }
+    for n in self.notes {
+        lines.append(f"- note: {n}");
+    }
+    return "\n".join(lines);
+}
+
+impl TurnStats.absorb(st: dict) {
+    self.n_read += int(st["n_read"]);
+    self.n_write += int(st["n_write"]);
+    self.n_run += int(st["n_run"]);
+    self.files |= set(st["files"]);
+    for (k, v) in st["usage"].items() {
+        self.usage[k] = self.usage.get(k, 0) + v if isinstance(v, (int, float)) else v;
+    }
+}
+
+impl PhaseTools.plan -> list {
+    return [
+        read_file,
+        list_dir,
+        grep,
+        find_symbol,
+        find_uses,
+        project_map,
+        find_walkers,
+        context_slice,
+        search_guides,
+        read_guide,
+        note
+    ];
+}
+
+impl PhaseTools.build -> list {
+    return [
+        read_file,
+        write_file,
+        edit_file,
+        list_dir,
+        grep,
+        find_symbol,
+        find_uses,
+        context_slice,
+        jac_check,
+        run_command,
+        search_guides,
+        read_guide,
+        note
+    ];
+}
+
+impl PhaseTools.qa -> list {
+    return [
+        read_file,
+        jac_check,
+        start_app,
+        run_command,
+        browse_open,
+        browse_navigate,
+        browse_snapshot,
+        browse_click,
+        browse_type,
+        browse_fill,
+        browse_press,
+        browse_get,
+        browse_eval,
+        browse_close,
+        note
+    ];
+}
+
+impl Prompt.for_phase(state_ty: type, objective: str, ledger: Ledger) -> str {
+    role = str(getattr(state_ty, "_jac_semstr", "") or "");
+    return (
+        system_prompt() + "\n\n## Current state\n\nYou are in " + role + "\n\n## Objective\n\n" + objective + "\n\n## Progress so far (shared across states)\n\n" + ledger.render()
+    );
+}
+
+sem note = "Record a short note that stays visible to every later phase (Plan, Build, QA) and in later turns. Use it to flag a decision, an assumption, or something to verify.";
+sem note.text = "The note to remember.";
+impl note(text: str) -> str {
+    if _active_session is not None {
+        _active_session.ledger.remember(text);
+        return f"noted: {text}";
+    }
+    return "(no active session to note onto)";
+}
+
+impl PhaseState.tools -> list {
+    return [];
+}
+
+sem Plan = "the PLANNING state: understand the request and the existing project before writing anything. Use project_map for an unfamiliar project, find_symbol / find_uses / context_slice to navigate by meaning, read_file to read what you will change, and the guides for unfamiliar Jac. Do not write or edit files here. Finish by stating a short, concrete plan -- the files to create or change and what each is for.";
+impl Plan.tools -> list {
+    return PhaseTools.plan();
+}
+
+sem Build = "the BUILDING state: carry out the plan. Scaffold a new app with `jac create --use <template> <name>` (templates: default, client, fullstack) via run_command rather than hand-building the layout, then adapt it. Write and edit files -- prefer edit_file, and read a file before editing it. Every write reports the compiler errors it introduced; fix them before moving on. Keep files focused; split large archetypes into impl files.";
+impl Build.tools -> list {
+    return PhaseTools.build();
+}
+
+sem QA = "the QA state: verify the work end to end and fix what you find. Run `jac check .` (zero errors required). For a runnable app, start_app and confirm it boots cleanly. For a web or fullstack app, drive the built-in browser: start the server detached (`nohup jac start <entry> > /tmp/jac_qa.log 2>&1 &` via run_command), read the log for its URL, browse_open it, browse_snapshot to read the page, exercise the main flows with browse_click / browse_fill / browse_type / browse_press (snapshotting after each), check for errors with browse_eval, then browse_close and stop the server with `pkill -f \"jac start\"`. Do not conclude the app works until you have actually run and exercised it.";
+impl QA.tools -> list {
+    return PhaseTools.qa();
+}
+
+sem run_phase.directive = "A short instruction kicking off the current phase.";
+impl PhaseState.run{
+    global _active_session;
+    _active_session = visitor;
+    label = type(self).__name__;
+    console.print(f"\n  ● {label}", style="bold blue");
+    # Refresh the framing system message with the latest ledger, but keep this
+    # node's own working messages from any earlier visit (its memory lives here).
+    sysmsg = {
+        "role": "system",
+        "content": Prompt.for_phase(type(self), visitor.objective, visitor.ledger)
+    };
+    if not self.ctx {
+        self.ctx.append(sysmsg);
+    } else {
+        self.ctx[0] = sysmsg;
+    }
+    result = render_stream(
+        run_phase(f"Carry out the {label} state now.", self.tools(), self.ctx)
+    );
+    visitor.stats.absorb(result);
+    visitor.ledger.record(label, str(result.get("answer", "") or "(no summary)"));
+    # Return to the routing hub (this state's only incoming edge) for the next decision.
+    visit [<--];
+}
+
+sem Done = "the DONE state: choose this only when the objective is fully built AND QA has actually verified it (type-checked, and for an app, run and exercised). Ends the session.";
+impl Done.finish{
+    # No onward visit: the walker's queue empties here and the session ends.
+    console.print("\n  ● Done", style="bold green");
+}
+
+impl Hub.route{
+    visitor.steps += 1;
+    # Safety valve: never loop forever -- force completion past the cap.
+    if visitor.steps > visitor.max_steps {
+        visit [-->][?:Done];
+    } else {
+        visit [-->] by agent_model(
+            incl_info={
+                "Objective": visitor.objective,
+                "Progress so far": visitor.ledger.render(),
+                "Step": f"{visitor.steps} of at most {visitor.max_steps}",
+                "How to choose": "Pick the single next state. Typical order is Plan, then Build, then QA; return to Build if QA finds problems; choose Done only once QA has actually verified the result."
+            }
+        );
+    }
+}
+
+impl AgentSession.begin{
+    # Each state returns to the hub via its incoming edge, so no reference is kept.
+    hub = Hub();
+    here ++> hub;
+    hub ++> Plan();
+    hub ++> Build();
+    hub ++> QA();
+    hub ++> Done();
+    visit hub;
+}
+
+impl run_turn(message: str) {
+    global _turn_wrote,_session_ledger;
+    _turn_wrote = False;
+    # The session ledger persists across turns; create it on first use.
+    ledger = _session_ledger;
+    if ledger is None {
+        ledger = Ledger();
+        _session_ledger = ledger;
+    }
+    started = time.time();
+    session = AgentSession(
+        objective=message, ledger=ledger, stats=TurnStats()
+    ) spawn root;
+    if show_stats {
+        st = session.stats;
+        print_stats(
+            time.time() - started, st.n_read, st.n_write, st.n_run, st.files, st.usage
+        );
+    }
+}
+
+impl _project_errors -> list {
+    ci = code_intel();
+    if ci is None or not ci.is_loaded() {
+        return [];
+    }
+    try {
+        return [
+            d
+            for d in ci.diagnostics()
+            if d.severity == "error"
+        ];
+    } except Exception {
+        return [];
+    }
+}
+
+impl verify_and_continue(max_rounds: int = 3) {
+    if not _turn_wrote {
+        return;
+    }
+    rnd = 0;
+    prev_count = -1;
+    while rnd < max_rounds {
+        errs = _project_errors();
+        if not errs {
+            break;
+        }
+        # The last round did not shrink the error count -- the model is stuck,
+        # so stop nudging rather than burn another round on the same wall.
+        if prev_count >= 0 and len(errs) >= prev_count {
+            break;
+        }
+        prev_count = len(errs);
+        rnd += 1;
+        shown = errs[:12];
+        lines = [f"  {d.file}:{d.line}: {d.message}" for d in shown];
+        more = (
+            f"\n  ... and {len(errs) - len(shown)} more"
+                if len(errs) > len(shown)
+                else ""
+        );
+        console.print("");
+        console.print(
+            f"  build left {len(errs)} compile error(s); continuing to fix "
+            f"(round {rnd}/{max_rounds})",
+            style="yellow"
+        );
+        msg = (
+            f"The project does not compile yet -- {len(errs)} error(s):\n" + "\n".join(
+                lines
+            ) + more + "\n\nFix these. Read each failing file, correct it, and re-run " + "jac_check until the whole project compiles cleanly. Do not finish " + "while errors remain."
+        );
+        run_turn(msg);
+    }
+}
+
+impl run_agent(req: object) -> int {
+    global agent_model,yolo_mode,agent_ci,show_stats,verbose,inline_feedback;
+    # `req` is an AgentRequest; access it untyped so attribute reads
+    # type-check without importing the class into this byLLM-only module.
+    r: any = req;
+    # File writes and code execution run without prompting unless `--safe`
+    # asks to confirm each one.
+    yolo_mode = not r.safe;
+    # Rich live view unless `--quiet`/`-q` asks for compact output.
+    verbose = not bool(getattr(r, "quiet", False));
+    # The compiler-backed project model the semantic tools navigate. Surface its
+    # recompiles in the live view so the work behind writes and queries is visible.
+    agent_ci = r.code_intel;
+    if agent_ci is not None {
+        agent_ci.on_event = _ci_event;
+    }
+    initial_prompt = str(r.prompt);
+    # The import-time `agent_model` already covers jac.toml/default; only
+    # rebuild when a flag actually changes the model or its context window.
+    if r.model or r.n_ctx > 0 {
+        agent_model = build_model(str(r.model), int(r.n_ctx));
+    }
+    print_banner();
+    reset_session();
+
+    if initial_prompt {
+        run_turn(initial_prompt);
+        # Don't let a one-shot build exit on code that doesn't compile.
+        verify_and_continue();
+        _browse_shutdown();
+        return 0;
+    }
+
+    while True {
+        try {
+            line = input("\n> ").strip();
+        } except EOFError {
+            console.print("");
+            break;
+        } except KeyboardInterrupt {
+            console.print("");
+            continue;
+        }
+        if not line {
+            continue;
+        }
+        if line in ("/exit", "/quit") {
+            break;
+        }
+        if line == "/help" {
+            print_help();
+            continue;
+        }
+        if line == "/clear" {
+            reset_session();
+            console.success("Conversation cleared.");
+            continue;
+        }
+        if line == "/guides" {
+            for g in gs_list() {
+                console.print(f"  {g.name}", style="bold");
+                console.print(f"      {g.description}", style="muted");
+            }
+            continue;
+        }
+        if line == "/stats" {
+            show_stats = not show_stats;
+            console.success("Turn stats on." if show_stats else "Turn stats off.");
+            continue;
+        }
+        if line == "/verbose" {
+            verbose = not verbose;
+            console.success(
+                "Verbose: streaming reasoning, timings, and step detail."
+                    if verbose
+                    else "Quiet: tool calls and the answer only."
+            );
+            continue;
+        }
+        if line == "/feedback" {
+            inline_feedback = not inline_feedback;
+            console.success(
+                "Inline compiler feedback on: writes report errors they introduce."
+                    if inline_feedback
+                    else "Inline compiler feedback off: use jac_check to compile."
+            );
+            continue;
+        }
+        run_turn(line);
+    }
+
+    _browse_shutdown();
+    console.print("Bye.");
+    return 0;
+}
