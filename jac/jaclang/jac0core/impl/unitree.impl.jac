@@ -1812,7 +1812,7 @@ impl MultiString.postinit -> None {
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.STRING);
 }
 
-impl MultiString.lit_value -> str {
+impl MultiString.lit_value.getter -> str {
     parts: list[str] = [];
     for s in self.strings {
         if isinstance(s, String) {
