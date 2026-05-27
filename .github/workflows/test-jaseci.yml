@@ -311,7 +311,20 @@ jobs:
           wait: 120s
           config: /tmp/kind-config.yaml
 
+      # Bake the Jac toolchain (apt deps + Bun + editable installs) into a
+      # single image ONCE, then load it into the kind node. The deploy tests
+      # set install_jaseci=False against this image so each app pod skips the
+      # apt/Bun/clone/pip build that otherwise runs from scratch in every pod
+      # on every deploy. Tag is non-':latest' so the default imagePullPolicy
+      # (IfNotPresent) uses the loaded image instead of pulling from a registry.
+      - name: Build and load Jac runtime image
+        run: |
+          docker build -f jac-scale/scripts/Dockerfile.allinone.citest -t jac-runtime:citest .
+          kind load docker-image jac-runtime:citest --name jaseci-test
+
       - name: Run K8 tests
+        env:
+          JAC_RUNTIME_IMAGE: jac-runtime:citest
         run: |
           pytest  -s -x jac-scale/jac_scale/tests/test_k8s_utils.jac
           pytest  -s -x jac-scale/jac_scale/tests/test_deploy_k8s.jac

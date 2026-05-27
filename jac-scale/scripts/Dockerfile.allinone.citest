@@ -1,0 +1,54 @@
+# CI-only runtime image for the all-in-one Kubernetes e2e tests
+# (jac-scale/jac_scale/tests/test_deploy_k8s.jac).
+#
+# It bakes the full Jac toolchain (apt deps + Bun + editable installs of the
+# PR's jac / jac-scale / jac-client / jac-byllm / jac-mcp) ONCE so each app pod
+# can deploy with install_jaseci=False and skip the apt/Bun/clone/pip build
+# that otherwise reruns from scratch inside every pod on every deploy.
+#
+# This is deliberately separate from Dockerfile.microservice.exp: the
+# microservice path bakes a fixed app into the image, whereas the all-in-one
+# tests mount app code via a PVC at runtime and build a React frontend with
+# `jac install`, so this image must carry Bun and the full `--extras all` set
+# but must NOT bake an app.
+#
+# Build context = repo root.
+
+FROM python:3.12-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Disable the apt sandbox: CAP_SETUID/CAP_SETGID are dropped in the deploy
+# security context, and dropping the trixie-updates/-security suites avoids
+# apt-get hanging on Release files that don't exist yet on Debian testing.
+RUN echo 'APT::Sandbox::User "root";' > /etc/apt/apt.conf.d/00sandbox \
+    && sed -i '/trixie-updates\|trixie-security/d' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true \
+    && sed -i -E '/^Suites:/ s/[[:space:]]+trixie-updates//g' /etc/apt/sources.list.d/*.sources 2>/dev/null || true \
+    && apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 update || true \
+    && apt-get install -y --no-install-recommends git curl unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# See Dockerfile.microservice for the safe.directory rationale.
+RUN git config --system --add safe.directory '*'
+
+# Bun is required for jac-client frontend builds at app deploy time.
+RUN curl -fsSL https://bun.sh/install | bash
+ENV BUN_INSTALL="/root/.bun"
+ENV PATH="/root/.bun/bin:${PATH}"
+
+RUN pip install --no-cache-dir --upgrade pip
+
+WORKDIR /opt/jaseci
+COPY jac ./jac
+COPY jac-scale ./jac-scale
+COPY jac-client ./jac-client
+COPY jac-byllm ./jac-byllm
+COPY jac-mcp ./jac-mcp
+RUN pip install --no-cache-dir pluggy \
+    && pip install --no-cache-dir -e ./jac \
+    && jac install -e ./jac-scale --extras all \
+    && jac install -e ./jac-client \
+    && jac install -e ./jac-byllm \
+    && jac install -e ./jac-mcp
+
+RUN jac --version

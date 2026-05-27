@@ -226,6 +226,17 @@ test "deploy all in one" {
     target_config["mongodb_dashboard"] = True;
     target_config["loki_enabled"] = True;
 
+    # CI bakes the Jac toolchain into a prebuilt image and loads it into the
+    # kind node (see .github/workflows/test-jaseci.yml). When that image is
+    # present, deploy against it with install_jaseci=False so each pod skips
+    # the apt/Bun/clone/pip build. Falls back to the from-scratch runtime
+    # build for local runs where the image isn't available.
+    runtime_image = os.environ.get("JAC_RUNTIME_IMAGE");
+    if runtime_image {
+        target_config["python_image"] = runtime_image;
+        target_config["install_jaseci"] = False;
+    }
+
     (repo_url, branch, commit) = _get_git_config();
     assert repo_url , "repo_url must be a non-empty string";
     assert branch , "branch must be a non-empty string";
@@ -1817,6 +1828,13 @@ test "early exit" {
     target_config["app_name"] = app_name;
     target_config["namespace"] = namespace;
     target_config["ingress_node_port"] = 30081;
+
+    # Reuse the CI-baked toolchain image when present (see "deploy all in one").
+    runtime_image = os.environ.get("JAC_RUNTIME_IMAGE");
+    if runtime_image {
+        target_config["python_image"] = runtime_image;
+        target_config["install_jaseci"] = False;
+    }
 
     logger = UtilityFactory.create_logger("standard");
 

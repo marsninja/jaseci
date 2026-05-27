@@ -183,6 +183,19 @@ obj KubernetesTarget(DeploymentTarget) {
         config = self.k8s_config;
         commands = [];
 
+        # When the base image is pre-provisioned with the Jac toolchain
+        # (apt deps, Bun, and an installed jaclang/jac-scale/jac-client/...),
+        # skip the expensive from-scratch runtime build and only install the
+        # app's own dependencies and launch it. This is how CI keeps the K8s
+        # e2e tests fast: the toolchain is baked once into the image instead
+        # of being rebuilt inside every pod on every deploy.
+        if not config.install_jaseci {
+            commands.append(f"cd {config.app_mount_path}");
+            commands.append('jac install');
+            commands.append(f"jac start {app_config.file_name}");
+            return ['bash', '-c', ' && '.join(commands)];
+        }
+
         # Base setup
         commands.append('export DEBIAN_FRONTEND=noninteractive');
         # Disable apt sandbox: CAP_SETUID/CAP_SETGID are dropped in the container
