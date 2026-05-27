@@ -267,6 +267,17 @@ obj TurnRenderer {
     live, and returns this phase's tool-call tallies for the walker to accumulate.
     """
     def render_stream(event_stream: any) -> dict;
+
+    """Forward one byLLM StreamEvent from a `visit [-->] by model` routing call.
+
+    Passed as the `stream_handler` to the QA routing model so the structured
+    edge selection still streams: every raw token is teed to the live firehose
+    and any clean reasoning prose is shown in the feed, while `visit [-->] by`
+    keeps the choice constrained to a real successor edge. Lighter than
+    `render_stream` -- routing is one cheap call, not a phase, so it skips the
+    tool and turn-stat bookkeeping.
+    """
+    def route_stream_event(event: any) -> None;
 }
 
 """A live, in-process feed of structured agent events for the `--ui` web view.
@@ -630,20 +641,6 @@ def run_phase(directive: str, tools: list, ctx: list) -> str by agent_model(
     parallelize=True,
     max_react_iterations=60,
     on_iteration=_progress_guard
-);
-
-
-# QA's next-state choice, run as a streamed (no-tool) call instead of the
-# structured `visit [-->] by` routing, so its tokens reach the live firehose and
-# its reasoning shows in the feed. `PhaseState.run` renders the stream and visits
-# the state named in the reply (safe default: Build).
-"""Decide QA's next state by reasoning over its own `ctx`; reply ends in a choice."""
-def choose_next(ctx: list) -> str by agent_model(
-    conversation=ctx,
-    stream=True,
-    logging=True,
-    temperature=agent.cfg.temperature,
-    max_tokens=2048
 );
 
 

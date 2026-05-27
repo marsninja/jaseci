@@ -1754,42 +1754,41 @@ impl PhaseState.run{
         visit [-->][?:Build];
     } else {
         # Several successors (QA -> Build / Plan / Done) and the project
-        # compiles: let the model choose. Run it as a streamed call (rendered
-        # like a phase) instead of the structured `visit [-->] by`, so the
-        # decision's tokens reach the live firehose and its reasoning shows in
-        # the feed; then visit the state it names (safe default: Build).
-        self.ctx.append(
-            {
-                "role": "user",
-                "content": (
-                    "QA is complete and the project compiles. Decide the single "
-                    "next step and end your reply with exactly one word on its "
-                    "own line: DONE if the objective is fully built and verified, "
-                    "BUILD to fix problems you found, or PLAN to rethink the "
-                    f"approach. (Step {visitor.steps} of at most "
-                    f"{visitor.max_steps}.)"
-                )
+        # compiles: let the model choose along this node's own out-edges,
+        # reading each candidate state's `sem`, the objective, and the ledger.
+        # Streamed via a stream_handler so the routing call's tokens reach the
+        # live firehose, while `visit [-->] by` still constrains the choice to a
+        # real successor edge (no free-text parsing, no manual default).
+        visit [-->] by agent_model(
+            stream=True,
+            stream_handler=agent.view.route_stream_event,
+            incl_info={
+                "Objective": visitor.objective,
+                "Progress so far": visitor.ledger.render(),
+                "Step": f"{visitor.steps} of at most {visitor.max_steps}",
+                "How to choose": "Pick the single next state. Choose Done only once you have actually verified the result; go back to Build to fix problems QA found, or to Plan to rethink the approach."
             }
         );
-        choice = agent.view.render_stream(choose_next(self.ctx));
-        if agent.bus.cancel_requested {
-            return;
-        }
-        words = [
-            w
-            for w in str(choice.get("answer", "")).lower().replace("\n", " ").split()
-            if w
-        ];
-        last = words[len(words) - 1] if words else "";
-        if "done" in last {
-            console.print("  ↳ QA chose Done", style="bold green");
-            visit [-->][?:Done];
-        } elif "plan" in last {
-            console.print("  ↳ QA chose Plan", style="yellow");
-            visit [-->][?:Plan];
-        } else {
-            console.print("  ↳ QA chose Build", style="yellow");
-            visit [-->][?:Build];
+    }
+}
+
+impl TurnRenderer.route_stream_event(event: any) -> None {
+    # Stop pressed in the UI: drop further routing tokens immediately.
+    if agent.bus.cancel_requested {
+        return;
+    }
+    tok = str(event.data.get("content", "")) if event.data else "";
+    if not tok {
+        return;
+    }
+    # Every routing token is raw model output -- the structured choice JSON, or
+    # reasoning a backend streams ahead of it. Tee it all to the firehose; show
+    # only clean reasoning prose (`thought`) in the live reasoning feed.
+    agent.bus.feed_token(tok);
+    if event.event_type == "thought" {
+        cleaned = self._strip_control(tok);
+        if cleaned {
+            agent.bus.emit_stream("reasoning", cleaned);
         }
     }
 }
