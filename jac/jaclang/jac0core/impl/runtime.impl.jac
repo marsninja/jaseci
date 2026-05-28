@@ -1326,7 +1326,7 @@ impl JacBasics.jac_test(description: str = "") -> Callable {
         file_path = getfile(test_fun);
         func_name = test_fun.__name__;
         def test_deco {
-            test_fun(JacTestCheck());
+            test_fun();
         }
         test_deco.__name__ = test_fun.__name__;
         JacTestCheck.add_test(
