@@ -17,6 +17,7 @@ spawn drains them onto the walker and commits the persistence buffer on
 success.
 """
 
+import inspect;
 import from types { UnionType }
 import from typing { cast }
 import from jaclang.jac0core.archetype {
@@ -184,4 +185,120 @@ def make_sv_runtime -> OspRuntime {
         node_desc=_sv_node_desc,
         on_complete=_sv_on_complete
     );
+}
+
+# ---------------------------------------------------------------------------
+# Async variant: mirrors the sync kernel algorithm but `await`s any coroutine
+# result returned by an ability so async walker abilities run to completion.
+# Lives in the sv binding (not the portable kernel) because `Coroutine` and
+# `await` are Python-specific; cl / na will provide their own async handling
+# in their own bindings.
+# ---------------------------------------------------------------------------
+"""Run typed slots whose trigger matches `b`'s type, awaiting any coroutine
+returned by an ability. Stops early on disengage."""
+async def _run_typed_async(rt: OspRuntime, slots: list[Slot], a: any, b: any) -> None {
+    btag: int = rt.tag_of(b);
+    for s in slots {
+        if (s.trig_tag != UNTYPED) and rt.is_a(btag, s.trig_tag) {
+            result = s.fn(a, b);
+            if inspect.iscoroutine(result) {
+                await result;
+            }
+            if _walk_stack and _walk_stack[-1].disengaged {
+                return;
+            }
+        }
+    }
+}
+
+"""Run untyped slots, awaiting any coroutine returned by an ability."""
+async def _run_untyped_async(slots: list[Slot], a: any, b: any) -> None {
+    for s in slots {
+        if s.trig_tag == UNTYPED {
+            result = s.fn(a, b);
+            if inspect.iscoroutine(result) {
+                await result;
+            }
+            if _walk_stack and _walk_stack[-1].disengaged {
+                return;
+            }
+        }
+    }
+}
+
+"""Async DFS-recursive visit (mirrors `osp_kernel._visit_recursive` but
+`await`s coroutine returns from abilities)."""
+async def _visit_recursive_async(
+    rt: OspRuntime, scope: WalkScope, wdesc: WalkerDesc, loc: any
+) -> bool {
+    scope.path.append(loc);
+    loc_tag: int = rt.tag_of(loc);
+    ndesc = rt.node_desc(loc_tag);
+    await _run_typed_async(rt, wdesc.entry, scope.wlk, loc);
+    if scope.disengaged {
+        return False;
+    }
+    await _run_untyped_async(ndesc.entry, loc, scope.wlk);
+    if scope.disengaged {
+        return False;
+    }
+    await _run_typed_async(rt, ndesc.entry, loc, scope.wlk);
+    if scope.disengaged {
+        return False;
+    }
+    while scope.next and (not scope.disengaged) {
+        child = scope.next.pop(0);
+        if child not in scope.ignores {
+            if not await _visit_recursive_async(rt, scope, wdesc, child) {
+                return False;
+            }
+        }
+    }
+    if scope.disengaged {
+        return False;
+    }
+    await _run_typed_async(rt, ndesc.exit, loc, scope.wlk);
+    if scope.disengaged {
+        return False;
+    }
+    await _run_untyped_async(ndesc.exit, loc, scope.wlk);
+    if scope.disengaged {
+        return False;
+    }
+    await _run_typed_async(rt, wdesc.exit, scope.wlk, loc);
+    return not scope.disengaged;
+}
+
+"""Async counterpart to `osp_kernel.osp_spawn`. Uses the same `WalkScope` /
+`_walk_stack` / `on_complete` plumbing so async walks participate in the same
+scope-stack the sync kernel does; that lets `osp_visit` / `osp_report` /
+`osp_disengage` work inside async abilities without a separate path."""
+async def osp_spawn_async(
+    rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list
+) -> any {
+    scope = WalkScope(wlk=wlk, path=[], next=`list(starts), ignores=[], reports=[]);
+    _walk_stack.append(scope);
+    ok = False;
+    try {
+        if scope.next {
+            anchor = scope.next[0];
+            await _run_untyped_async(wdesc.entry, wlk, anchor);
+        }
+        while scope.next and (not scope.disengaged) {
+            nxt = scope.next.pop(0);
+            if nxt not in scope.ignores {
+                if not await _visit_recursive_async(rt, scope, wdesc, nxt) {
+                    break;
+                }
+            }
+        }
+        if scope.path and (not scope.disengaged) {
+            await _run_untyped_async(wdesc.exit, wlk, scope.path[-1]);
+        }
+        ok = True;
+    } finally {
+        _walk_stack.pop();
+        rt.on_complete(scope, ok);
+    }
+    return wlk;
 }
