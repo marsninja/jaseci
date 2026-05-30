@@ -3,7 +3,7 @@
 # Run from this directory with the project venv active (provides python3 + jac).
 
 # Collected wall-clock times for the summary table (filled in per section).
-t_python="n/a"; t_jac="n/a"; t_autonative="n/a"; t_na="n/a"; t_native="n/a"; t_c="n/a"
+t_python="n/a"; t_jac="n/a"; t_autonative="n/a"; t_na="n/a"; t_native="n/a"; t_cpp="n/a"
 t_na_compile="n/a"; t_na_run="n/a"
 t_autonative_compile="n/a"; t_autonative_run="n/a"
 
@@ -17,9 +17,9 @@ echo
 
 echo "=============================================="
 echo "1) Python"
-echo "Running: time python3 chess.py -b 20"
+echo "Running: time python3 other_langs/chess.py -b 20"
 echo "=============================================="
-_s=$(date +%s.%N); time python3 chess.py -b 20; _e=$(date +%s.%N)
+_s=$(date +%s.%N); time python3 other_langs/chess.py -b 20; _e=$(date +%s.%N)
 t_python=$(awk "BEGIN{printf \"%.3f\", $_e-$_s}")
 echo "interesting..."
 sleep 1
@@ -83,12 +83,12 @@ sleep 1
 
 echo
 echo "=============================================="
-echo "6) C reference (cc -O2, same engine ported to C)"
-echo "Running: cc -O2 -o chess_c chess.c  then  time ./chess_c -b 20"
+echo "6) C++ reference (faithful OOP port of the Jac types)"
+echo "Running: c++ -O2 -o chess_cpp other_langs/chess.cpp  then  time ./chess_cpp -b 20"
 echo "=============================================="
-cc -O2 -o chess_c chess.c
-_s=$(date +%s.%N); time ./chess_c -b 20; _e=$(date +%s.%N)
-t_c=$(awk "BEGIN{printf \"%.3f\", $_e-$_s}")
+c++ -O2 -o chess_cpp other_langs/chess.cpp
+_s=$(date +%s.%N); time ./chess_cpp -b 20; _e=$(date +%s.%N)
+t_cpp=$(awk "BEGIN{printf \"%.3f\", $_e-$_s}")
 echo "interesting..."
 
 echo
@@ -100,5 +100,5 @@ printf "%-38s %12s\n" "2) Jac, default backend"               "$t_jac"
 printf "%-38s %12s   (compile ~%s + run ~%s)\n" "3) Jac, --autonative"       "$t_autonative" "$t_autonative_compile" "$t_autonative_run"
 printf "%-38s %12s   (compile ~%s + run ~%s)\n" "4) Jac run of chess.na.jac" "$t_na" "$t_na_compile" "$t_na_run"
 printf "%-38s %12s\n" "5) Native binary (AOT, run only)"      "$t_native"
-printf "%-38s %12s\n" "6) C reference (cc -O2, run only)"     "$t_c"
+printf "%-38s %12s\n" "6) C++ reference (faithful OOP)"        "$t_cpp"
 echo "==================================================================="
