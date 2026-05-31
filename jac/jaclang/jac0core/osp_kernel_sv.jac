@@ -54,20 +54,32 @@ obj _ContextStack {
     }
 
     def _list -> list {
+        # Read-only view of the current context's stack. Never `.set()` here:
+        # a bare read must not bind a list into the (possibly ancestor) context,
+        # or descendant asyncio tasks would inherit and share that object.
         v = self._var.get();
-        if v is None {
-            v = [];
-            self._var.set(v);
-        }
-        return v;
+        return v if v is not None else [];
     }
 
     def append(x: any) {
-        self._list().append(x);
+        # Copy-on-write. A ContextVar only isolates on `.set()`; mutating a list
+        # obtained from `.get()` in place leaks across every context that
+        # inherited the same list object -- e.g. concurrent walker spawns in
+        # `asyncio.gather` tasks created under a context where the stack was
+        # already populated would all push onto one shared list and clobber each
+        # other's scope. Rebinding a fresh list keeps each context isolated.
+        cur = self._var.get();
+        new = `list(cur) if cur is not None else [];
+        new.append(x);
+        self._var.set(new);
     }
 
     def pop -> any {
-        return self._list().pop();
+        cur = self._var.get();
+        new = `list(cur) if cur is not None else [];
+        val = new.pop();
+        self._var.set(new);
+        return val;
     }
 
     def __getitem__(k: any) -> any {

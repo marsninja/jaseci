@@ -1053,12 +1053,27 @@ impl JacBasics.field(
 
 """Jac's report stmt feature."""
 impl JacBasics.log_report(expr: any, custom: bool = False) -> None {
-    import from jaclang.jac0core.osp_kernel { osp_report }
+    import from jaclang.jac0core.osp_kernel { osp_report, _current_scope }
     if custom {
         JacRuntimeInterface.get_context().custom = expr;
     } else {
         JacConsole.get_console().print(expr);
-        osp_report(expr);
+        if _current_scope() is not None {
+            # Inside a walk: hand the value to the kernel scope, which bubbles
+            # collected reports to the request CallState at the spawn boundary.
+            osp_report(expr);
+        } else {
+            # No active walk (e.g. `report` inside a plain `def:pub` function
+            # served via `/function/...`): bridge straight to the request
+            # CallState -- the same sink the in-walk path reaches when the
+            # kernel bubbles `scope.reports`. This preserves function-level
+            # reports (including streamed generator reports). No CallState
+            # (cl/na, or outside a server request) -> no-op.
+            cs = JacRuntimeInterface.get_context().call_state.get(None);
+            if cs is not None {
+                cs.reports.put_nowait(expr);
+            }
+        }
     }
 }
 
