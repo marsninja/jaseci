@@ -104,6 +104,31 @@ with entry {
     _kernel._walk_stack = _ContextStack();
 }
 
+"""Install a fresh, empty walk-scope stack for the current request context.
+
+The sv server shares process-global ContextVars across in-process requests:
+an in-process sv-to-sv RPC (or any nested in-process request, e.g. a
+`TestClient` call made from inside a walker) runs in a *copy* of the caller's
+context and so inherits the caller's walk-scope stack. Without resetting it,
+the provider request's walk would see the caller's scope already on the stack,
+be misclassified as a *nested* spawn by `_sv_on_complete`, and bubble its
+reports into the caller's scope instead of delivering them to its own
+request's `CallState` -- so the RPC response would come back with empty
+`reports`. (In separate-process deployments each process has its own stack, so
+the leak only shows in-process, e.g. under the test client.)
+
+Call this at the request boundary, alongside the per-request `CallState`
+reset. Each request runs in its own ContextVar context, so the fresh stack is
+isolated to that request and discarded with its context -- no restore needed,
+and genuine in-process nested spawns (which do not cross a request boundary)
+keep their report-bubbling. No-op when the stack is the plain-list kernel
+default (cl / na, which never serve requests)."""
+def isolate_request_walk_stack {
+    if isinstance(_kernel._walk_stack, _ContextStack) {
+        _kernel._walk_stack._var.set([]);
+    }
+}
+
 """class -> int tag, the inverse list (index == tag), and a descriptor cache."""
 glob _tag_of_cls: dict[(any, int)] = {},
      _cls_of_tag: list[any] = [],
