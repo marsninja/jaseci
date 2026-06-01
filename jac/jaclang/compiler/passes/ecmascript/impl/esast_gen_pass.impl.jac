@@ -199,10 +199,14 @@ impl EsastGenPass.exit_cast_expr(nd: uni.CastExpr) -> None {
 
 """Process ternary expression."""
 impl EsastGenPass.exit_if_else_expr(nd: uni.IfElseExpr) -> None {
-    `test = cast(
-        es.Expression,
-        nd.condition.gen.es_ast
-        or self.sync_loc(es.Identifier(name='condition'), jac_node=nd.condition)
+    `test = self._coerce_truthy(
+        nd.condition,
+        cast(
+            es.Expression,
+            nd.condition.gen.es_ast
+            or self.sync_loc(es.Identifier(name='condition'), jac_node=nd.condition)
+        ),
+        nd
     );
     consequent = cast(
         es.Expression,
@@ -894,11 +898,7 @@ impl EsastGenPass.exit_atom_trailer(nd: uni.AtomTrailer) -> None {
                         or self.sync_loc(es.Literal(value=0), jac_node=nd)
                     )
                 );
-                member_expr = self.sync_loc(
-                    es.MemberExpression(object=`obj, property=idx, computed=True),
-                    jac_node=nd
-                );
-                nd.gen.es_ast = member_expr;
+                nd.gen.es_ast = self._lower_subscript(nd.target, `obj, idx, nd);
             } else {
                 nd.gen.es_ast = `obj;
             }
@@ -1927,6 +1927,16 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
         nd.gen.es_ast = expr_stmt;
         return;
     }
+    # Negative-index list assignment (`xs[-1] = v`) needs a runtime shim; a raw
+    # JS subscript would create a bogus "-1" property instead of writing the
+    # element counted from the end.
+    if len(nd.target) == 1 {
+        _setitem = self._try_subscript_setitem(nd.target[0], value_expr, nd);
+        if _setitem is not None {
+            nd.gen.es_ast = _setitem;
+            return;
+        }
+    }
     targets_info: list[AssignmentTargetInfo] = [];
     for target_node in nd.target {
         (left, reference, decl_name) = self._convert_assignment_target(target_node);
@@ -2095,6 +2105,34 @@ impl EsastGenPass._convert_assignment_target(
     if isinstance(target, uni.SubTag) {
         return self._convert_assignment_target(target.tag);
     }
+    # A subscript in store position must stay a valid computed-member LHS.
+    # `_lower_subscript` rewrites reads to `obj.at(idx)` / `_jac.poly.getitem`,
+    # neither of which is assignable, so rebuild the raw `obj[idx]` member here.
+    # (Negative-index list writes are upgraded to `_jac.poly.setitem` in
+    # `exit_assignment`; this keeps every other subscript target assignable.)
+    if (
+        isinstance(target, uni.AtomTrailer)
+        and isinstance(target.right, uni.IndexSlice)
+        and (not target.right.is_range)
+    ) {
+        _si = target.right.gen.es_ast;
+        if isinstance(_si, es.IndexInfo) {
+            _obj = cast(
+                es.Expression,
+                target.target.gen.es_ast
+                or self.sync_loc(es.Identifier(name='obj'), jac_node=target)
+            );
+            _idx = cast(
+                es.Expression,
+                _si.value or self.sync_loc(es.Literal(value=0), jac_node=target)
+            );
+            _member = self.sync_loc(
+                es.MemberExpression(object=_obj, property=_idx, computed=True),
+                jac_node=target
+            );
+            return (_member, _member, None);
+        }
+    }
     left = cast(
         (es.Pattern | es.Expression),
         target.gen.es_ast or self.sync_loc(es.Identifier(name='temp'), jac_node=target)
@@ -2182,6 +2220,187 @@ impl EsastGenPass._try_primitive_op(
     return self.sync_loc(es.Identifier(name=_result), jac_node=jac_node);
 }
 
+"""Resolve the primitive type name of an expression, or "" if unknown."""
+impl EsastGenPass._expr_type_name(expr_node: uni.UniNode) -> str {
+    _obj_type = None;
+    try {
+        _te = self.prog.get_type_evaluator();
+        if _te {
+            _obj_type = _te.get_type_of_expression(expr_node);
+        }
+    } except Exception {
+        _obj_type = None;
+    }
+    return self._resolve_primitive_type_name(_obj_type);
+}
+
+"""True if an expression is statically a collection whose JS truthiness and
+subscript semantics diverge from Python (list/dict/set/tuple/bytes). str is
+excluded: empty-string falsiness and `.at()` already agree with Python."""
+impl EsastGenPass._is_collection_expr(expr_node: uni.UniNode) -> bool {
+    return self._expr_type_name(expr_node) in {
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "frozenset",
+        "bytes"
+    };
+}
+
+"""Build a member-access chain like `_jac.poly.getitem` from a name path."""
+impl EsastGenPass._build_jac_ref(
+    path: list[str], jac_node: uni.UniNode
+) -> es.Expression {
+    ref: es.Expression = self.sync_loc(es.Identifier(name=path[0]), jac_node=jac_node);
+    for name in path[1:] {
+        ref = self.sync_loc(
+            es.MemberExpression(
+                object=ref,
+                property=self.sync_loc(es.Identifier(name=name), jac_node=jac_node),
+                computed=False
+            ),
+            jac_node=jac_node
+        );
+    }
+    return ref;
+}
+
+"""Build a runtime helper call (e.g. `_jac.poly.getitem(a, b)`) and flag the
+`_jac` runtime for injection."""
+impl EsastGenPass._build_jac_call(
+    path: list[str], args: list[es.Expression], jac_node: uni.UniNode
+) -> es.Expression {
+    self.needs_jac_runtime = True;
+    return self.sync_loc(
+        es.CallExpression(
+            callee=self._build_jac_ref(path, jac_node),
+            arguments=cast(list[(es.Expression | es.SpreadElement)], args)
+        ),
+        jac_node=jac_node
+    );
+}
+
+"""Wrap a condition in Python-truthiness coercion when its static type is a
+collection (JS treats every array/object/Set as truthy). Scalars and unknown
+types are left untouched: numbers, strings and None already share Python's
+truthiness in JS, and wrapping unknown values would churn output needlessly."""
+impl EsastGenPass._coerce_truthy(
+    expr_node: (uni.UniNode | None), es_expr: es.Expression, jac_node: uni.UniNode
+) -> es.Expression {
+    if (expr_node is not None) and self._is_collection_expr(expr_node) {
+        return self._build_jac_call(["_jac", "builtin", "bool"], [es_expr], jac_node);
+    }
+    return es_expr;
+}
+
+"""Lower a `obj[idx]` subscript with Python indexing semantics. Python counts
+negative indices from the end, which a raw JS subscript (`obj[-1]` -> undefined)
+does not. A non-negative integer literal is identical in both languages and
+stays a plain computed member. Known sequences use JS `.at()` (native
+negative-from-end). Known mappings stay a key lookup. For an unknown static
+type, `_jac.poly.getitem` dispatches at runtime."""
+impl EsastGenPass._lower_subscript(
+    target_node: uni.UniNode,
+    obj_es: es.Expression,
+    idx_es: es.Expression,
+    jac_node: uni.UniNode
+) -> es.Expression {
+    _is_nonneg_literal = (
+        isinstance(idx_es, es.Literal)
+        and isinstance(idx_es.value, int)
+        and (not isinstance(idx_es.value, bool))
+        and (idx_es.value >= 0)
+    );
+    if _is_nonneg_literal {
+        return self.sync_loc(
+            es.MemberExpression(object=obj_es, property=idx_es, computed=True),
+            jac_node=jac_node
+        );
+    }
+    _tname = self._expr_type_name(target_node);
+    if _tname in {"list", "tuple", "str", "bytes"} {
+        return self.sync_loc(
+            es.CallExpression(
+                callee=self.sync_loc(
+                    es.MemberExpression(
+                        object=obj_es,
+                        property=self.sync_loc(
+                            es.Identifier(name='at'), jac_node=jac_node
+                        ),
+                        computed=False
+                    ),
+                    jac_node=jac_node
+                ),
+                arguments=[cast((es.Expression | es.SpreadElement), idx_es)]
+            ),
+            jac_node=jac_node
+        );
+    }
+    if _tname == "dict" {
+        return self.sync_loc(
+            es.MemberExpression(object=obj_es, property=idx_es, computed=True),
+            jac_node=jac_node
+        );
+    }
+    return self._build_jac_call(
+        ["_jac", "poly", "getitem"], [obj_es, idx_es], jac_node
+    );
+}
+
+"""If `target` is a list subscript with a possibly-negative index, lower the
+assignment to `_jac.poly.setitem(obj, idx, value)` so a negative index writes
+the element counted from the end (a raw JS `obj[-1] = v` would create a bogus
+"-1" property). Returns None for any target that a plain computed-member LHS
+already handles correctly (non-negative literal index, dict/unknown targets)."""
+impl EsastGenPass._try_subscript_setitem(
+    target: uni.UniNode, value_es: (es.Expression | None), jac_node: uni.UniNode
+) -> (es.Statement | None) {
+    if (
+        not isinstance(target, uni.AtomTrailer)
+        or not isinstance(target.right, uni.IndexSlice)
+        or target.right.is_range
+    ) {
+        return None;
+    }
+    _si = target.right.gen.es_ast;
+    if not isinstance(_si, es.IndexInfo) {
+        return None;
+    }
+    _idx = cast(
+        es.Expression,
+        _si.value or self.sync_loc(es.Literal(value=0), jac_node=jac_node)
+    );
+    _is_nonneg_literal = (
+        isinstance(_idx, es.Literal)
+        and isinstance(_idx.value, int)
+        and (not isinstance(_idx.value, bool))
+        and (_idx.value >= 0)
+    );
+    if _is_nonneg_literal {
+        return None;
+    }
+    # Only `list` needs the runtime shim: dict writes are plain key sets, and
+    # str/tuple/bytes are immutable (no subscript assignment). Unknown targets
+    # keep the raw computed-member form to avoid churn on dict-like writes.
+    if self._expr_type_name(target.target) != "list" {
+        return None;
+    }
+    _obj = cast(
+        es.Expression,
+        target.target.gen.es_ast
+        or self.sync_loc(es.Identifier(name='obj'), jac_node=jac_node)
+    );
+    _val = cast(
+        es.Expression,
+        value_es or self.sync_loc(es.Identifier(name='undefined'), jac_node=jac_node)
+    );
+    _call = self._build_jac_call(
+        ["_jac", "poly", "setitem"], [_obj, _idx, _val], jac_node
+    );
+    return self.sync_loc(es.ExpressionStatement(expression=_call), jac_node=jac_node);
+}
+
 """Process unary expression."""
 impl EsastGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
     operand = cast(
@@ -2204,6 +2423,11 @@ impl EsastGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
     }
     operator = ES_UNARY_OPS.get(op_tok) if op_tok else None;
     operator = operator or '!';
+    # `not <collection>` must test Python emptiness, not JS truthiness
+    # (every array/object/Set is truthy in JS), so coerce the operand first.
+    if (op_tok == Tok.NOT) {
+        operand = self._coerce_truthy(nd.operand, operand, nd);
+    }
     unary_expr = self.sync_loc(
         es.UnaryExpression(operator=operator, prefix=True, argument=operand),
         jac_node=nd
@@ -2354,12 +2578,22 @@ impl EsastGenPass.exit_bool_expr(nd: uni.BoolExpr) -> None {
     op_tok = Tok(nd.op.name) if (nd.op.name in Tok.__members__) else None;
     logical_op = ES_LOGICAL_OPS.get(op_tok) if op_tok else None;
     logical_op = logical_op or '&&';
+    # Python's `and`/`or` return an *operand* (not a boolean) and decide which
+    # by Python truthiness. JS `&&`/`||` do the same but on JS truthiness, so
+    # for a tested operand that is a collection (empty list/dict/set is falsy
+    # in Python but truthy in JS) we must route through `_jac.poly.and_/or_`.
+    # Those helpers take the right side as a thunk to preserve short-circuit
+    # evaluation while evaluating the left exactly once.
+    _helper = "and_" if (op_tok == Tok.KW_AND) else "or_";
     result: es.Expression = cast(
         es.Expression,
         self._get_ast_or_default(
             nd.values[0], default_factory=lambda _src: any : es.Literal(value=None)
         )
     );
+    # Once any tested-position operand is a collection the accumulated result
+    # may itself be one, so stay on the helper form for the rest of the chain.
+    left_maybe_collection = self._is_collection_expr(nd.values[0]);
     for val in nd.values[1:] {
         right = cast(
             es.Expression,
@@ -2367,10 +2601,23 @@ impl EsastGenPass.exit_bool_expr(nd: uni.BoolExpr) -> None {
                 val, default_factory=lambda _src: any : es.Literal(value=None)
             )
         );
-        result = self.sync_loc(
-            es.LogicalExpression(operator=logical_op, left=result, right=right),
-            jac_node=nd
-        );
+        if left_maybe_collection {
+            right_thunk = self.sync_loc(
+                es.ArrowFunctionExpression(params=[], body=right, expression=True),
+                jac_node=nd
+            );
+            result = self._build_jac_call(
+                ["_jac", "poly", _helper],
+                [result, cast(es.Expression, right_thunk)],
+                nd
+            );
+        } else {
+            result = self.sync_loc(
+                es.LogicalExpression(operator=logical_op, left=result, right=right),
+                jac_node=nd
+            );
+        }
+        left_maybe_collection = left_maybe_collection or self._is_collection_expr(val);
     }
     nd.gen.es_ast = result;
 }
@@ -3105,8 +3352,15 @@ impl EsastGenPass.exit_iter_for_stmt(nd: uni.IterForStmt) -> None {
 
 """Process while statement."""
 impl EsastGenPass.exit_while_stmt(nd: uni.WhileStmt) -> None {
-    `test = self._get_ast_or_default(
-        nd.condition, default_factory=lambda _src: any : es.Literal(value=True)
+    `test = self._coerce_truthy(
+        nd.condition,
+        cast(
+            es.Expression,
+            self._get_ast_or_default(
+                nd.condition, default_factory=lambda _src: any : es.Literal(value=True)
+            )
+        ),
+        nd
     );
     body = self._build_block_statement(nd, nd.body);
     while_stmt = self.sync_loc(es.WhileStatement(`test=`test, body=body), jac_node=nd);
@@ -3123,8 +3377,15 @@ impl EsastGenPass.exit_else_stmt(nd: uni.ElseStmt) -> None {
 
 """Process else-if clause."""
 impl EsastGenPass.exit_else_if(nd: uni.ElseIf) -> None {
-    `test = self._get_ast_or_default(
-        nd.condition, default_factory=lambda _src: any : es.Literal(value=True)
+    `test = self._coerce_truthy(
+        nd.condition,
+        cast(
+            es.Expression,
+            self._get_ast_or_default(
+                nd.condition, default_factory=lambda _src: any : es.Literal(value=True)
+            )
+        ),
+        nd
     );
     consequent = self._build_block_statement(nd, nd.body);
     alternate: (es.Statement | None) = None;
@@ -3140,8 +3401,15 @@ impl EsastGenPass.exit_else_if(nd: uni.ElseIf) -> None {
 
 """Process if statement."""
 impl EsastGenPass.exit_if_stmt(nd: uni.IfStmt) -> None {
-    `test = self._get_ast_or_default(
-        nd.condition, default_factory=lambda _src: any : es.Literal(value=True)
+    `test = self._coerce_truthy(
+        nd.condition,
+        cast(
+            es.Expression,
+            self._get_ast_or_default(
+                nd.condition, default_factory=lambda _src: any : es.Literal(value=True)
+            )
+        ),
+        nd
     );
     consequent = self._build_block_statement(nd, nd.body);
     alternate: (es.Statement | None) = None;

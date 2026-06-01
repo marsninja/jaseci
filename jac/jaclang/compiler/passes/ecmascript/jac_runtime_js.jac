@@ -354,6 +354,61 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
         return Object.prototype.hasOwnProperty.call(c, x);
       }
       return false;
+    },
+    getitem(c, i) {
+      // Python-equivalent subscript for a value of unknown static type.
+      // Sequences (string/array) support negative indices counting from the
+      // end and raise IndexError out of range; mappings raise KeyError on a
+      // missing key. JS would instead return `undefined` silently.
+      if (typeof c === "string" || Array.isArray(c)) {
+        const n = c.length;
+        const k = i < 0 ? i + n : i;
+        if (k < 0 || k >= n) {
+          throw new _jac.exc.IndexError(
+            (typeof c === "string" ? "string index" : "list index") +
+            " out of range"
+          );
+        }
+        return c[k];
+      }
+      if (c instanceof Map) {
+        if (!c.has(i)) throw new _jac.exc.KeyError("KeyError: " + i);
+        return c.get(i);
+      }
+      if (c !== null && typeof c === "object") {
+        if (!Object.prototype.hasOwnProperty.call(c, i)) {
+          throw new _jac.exc.KeyError("KeyError: " + i);
+        }
+        return c[i];
+      }
+      return c[i];
+    },
+    setitem(c, i, v) {
+      // Python-equivalent subscript assignment. Lists honor negative indices
+      // counting from the end and raise IndexError out of range; a raw JS
+      // `c[-1] = v` would instead create a bogus "-1" property.
+      if (Array.isArray(c)) {
+        const n = c.length;
+        const k = i < 0 ? i + n : i;
+        if (k < 0 || k >= n) {
+          throw new _jac.exc.IndexError("list assignment index out of range");
+        }
+        c[k] = v;
+        return v;
+      }
+      if (c instanceof Map) { c.set(i, v); return v; }
+      c[i] = v;
+      return v;
+    },
+    and_(a, bf) {
+      // Python `a and b`: returns `a` when it is falsy, else evaluates and
+      // returns `b`. `bf` is a thunk so the right operand keeps short-circuit
+      // (lazy) evaluation, and `a` is evaluated exactly once by the caller.
+      return _jac.builtin.bool(a) ? bf() : a;
+    },
+    or_(a, bf) {
+      // Python `a or b`: returns `a` when it is truthy, else `b`.
+      return _jac.builtin.bool(a) ? a : bf();
     }
   },
 
