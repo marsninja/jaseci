@@ -257,6 +257,9 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         # bindings, so a spawn whose walker is held in a variable (`w spawn n`)
         # can identify the walker side without type inference.
         _osp_var_arch_cache: (dict | None) = None,
+        # Memoized {archetype name -> direct local base archetype names}, for the
+        # subtype `is_a` table (a `with Base entry` ability firing on a `Sub`).
+        _osp_bases_cache: (dict | None) = None,
         # Primitive emitter instances for codegen dispatch (lazily initialized to avoid circular imports)
         _primitive_emitters: (dict[str, object] | None) = None,
         _builtin_emitter: (object | None) = None,
@@ -321,6 +324,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _osp_arch_kinds -> dict[str, str];
     def _osp_arch_set -> set[str];
     def _osp_var_arch -> dict[str, str];
+    def _osp_arch_bases -> dict[str, list[str]];
     def _spawn_walker_arch(expr: uni.Expr) -> (str | None);
     def _build_osp_graph_call(
         nd: uni.BinaryExpr, left: es.Expression, right: es.Expression

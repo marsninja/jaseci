@@ -4312,6 +4312,39 @@ impl EsastGenPass._local_walker_names -> set[str] {
     return names;
 }
 
+"""Memoized {archetype name -> its direct local base archetype names}, the input
+to the subtype `is_a` table so a `with Base entry` ability dispatches on a
+`Sub`. Only bases that are themselves local OSP archetypes are recorded."""
+impl EsastGenPass._osp_arch_bases -> dict[str, list[str]] {
+    if self._osp_bases_cache is not None {
+        return self._osp_bases_cache;
+    }
+    bases: dict[str, list[str]] = {};
+    kinds = self._osp_arch_kinds();
+    if kinds {
+        scan_root = self.ir_in
+            if isinstance(self.ir_in, uni.Module)
+            else self.get_main_mod();
+        for arch in scan_root.get_all_sub_nodes(uni.Archetype) {
+            if (arch.name is None) or (arch.name.sym_name not in kinds) {
+                continue;
+            }
+            direct: list[str] = [];
+            if arch.base_classes {
+                for bc in arch.base_classes {
+                    bname = self._ref_head_name(bc);
+                    if (bname is not None) and (bname in kinds) {
+                        direct.append(bname);
+                    }
+                }
+            }
+            bases[arch.name.sym_name] = direct;
+        }
+    }
+    self._osp_bases_cache = bases;
+    return bases;
+}
+
 """Memoized {variable name -> local archetype name} for `x = Arch(...)` bindings
 in a local-OSP module. Lets a spawn whose walker is held in a variable
 (`w spawn n`) identify the walker side without type inference (which cl skips)."""
@@ -4437,12 +4470,29 @@ impl EsastGenPass._build_osp_setup_js -> str {
         }
         bucket[owner].append(slot);
     }
+    # Closed-world subtype table: each tag is-a itself plus its transitive local
+    # base archetypes, so `with Base entry` fires on a `Sub`.
+    bases = self._osp_arch_bases();
     lines: list[str] = [];
     isa_parts: list[str] = [];
     for (name, tag) in tags.items() {
         lines.append(f"{name}.prototype.__tag = {tag};");
-        # Closed-world subtype table; flat for now (each tag is-a itself).
-        isa_parts.append(f"{tag}: new Set([{tag}])");
+        isa_tags: list[int] = [tag];
+        pending: list[str] = `list(bases.get(name, []));
+        visited_bases: set[str] = set();
+        while pending {
+            bname = pending.pop();
+            if bname in visited_bases {
+                continue;
+            }
+            visited_bases.add(bname);
+            if bname in tags {
+                isa_tags.append(tags[bname]);
+            }
+            pending.extend(bases.get(bname, []));
+        }
+        isa_members = ", ".join([str(t) for t in isa_tags]);
+        isa_parts.append(f"{tag}: new Set([{isa_members}])");
     }
     lines.append("const __ospISA = {" + ", ".join(isa_parts) + "};");
     desc_parts: list[str] = [];

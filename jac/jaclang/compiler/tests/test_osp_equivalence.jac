@@ -25,9 +25,9 @@ Backend support today (see each fixture's docstring for specifics):
     So only the entry-only fixtures (`osp_acc`, `osp_multi_walker`,
     `osp_nested_spawn`) carry `require=["na"]`.
   - cl: runs local-archetype walkers in-process through the kernel -- entry
-    dispatch, `visit`, edge connect/refs, `disengage`, `report`, and exit
-    abilities -- so every fixture except `subtype_dispatch` (flat subtype table)
-    carries `require=["cl"]`.
+    dispatch, `visit`, edge connect/refs, `disengage`, `report`, exit abilities,
+    and subtype / tuple-trigger dispatch -- so every fixture carries
+    `require=["cl"]`.
 """
 
 import from jaclang.compiler.tests.xbackend_equiv { run_with_both, run_py_fixture }
@@ -37,7 +37,7 @@ import from jaclang.compiler.tests.xbackend_equiv { run_with_both, run_py_fixtur
 # ---------------------------------------------------------------------------
 test "osp acc: typed entry ability accumulates walker state across spawns" {
     assert run_py_fixture("osp_acc", "acc_py") == {"total": 42};
-    run_with_both("osp_acc.jac", "acc_py", "acc_cl", "acc_na", require=["na"]);
+    run_with_both("osp_acc.jac", "acc_py", "acc_cl", "acc_na", require=["na", "cl"]);
 }
 
 test "osp multi-walker: independent walkers do not share state" {
@@ -66,8 +66,8 @@ test "osp nested spawn: an ability spawns a second walker and folds its result" 
 # Traversal subset -- cl runs these in-process through the kernel (visit, edge
 # connect/refs, disengage, report, exit abilities), so they are enforced
 # cross-backend on cl (require=["cl"]). na still rejects visit/edges/report/
-# disengage with E5090, so it is skipped automatically. `subtype_dispatch` stays
-# py-only: cl's subtype table is flat (no `with Base entry` firing on `Sub`).
+# disengage with E5090, so it is skipped automatically. `subtype_dispatch` also
+# runs on cl via the emitted subtype `is_a` table.
 # ---------------------------------------------------------------------------
 test "osp visit order: chain / diamond / fan-out / cycle DFS traversal" {
     assert run_py_fixture("osp_visit_order", "visit_order_py") == {
@@ -107,7 +107,8 @@ test "osp subtype dispatch: `with Base entry` fires on Sub; tuple trigger" {
         "osp_subtype_dispatch.jac",
         "subtype_dispatch_py",
         "subtype_dispatch_cl",
-        "subtype_dispatch_na"
+        "subtype_dispatch_na",
+        require=["cl"]
     );
 }
 
