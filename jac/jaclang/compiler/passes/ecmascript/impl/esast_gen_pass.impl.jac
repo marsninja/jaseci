@@ -5308,12 +5308,24 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
     }
     stubs: list[es.Statement] = [];
     osp_archs = self._osp_arch_set();
-    for (type_name, info) in manifest.boundary_types.items() {
-        # A local-OSP archetype emits a complete client class (constructor +
-        # slot methods); its boundary stub would be a duplicate declaration.
-        if type_name in osp_archs {
-            continue;
+    # A local-OSP archetype emits its full client class (constructor + slot
+    # methods) in `exit_archetype`, so a boundary stub `class <name>` would be a
+    # duplicate declaration. But such a type can still cross the wire (returned
+    # by a server-walker RPC), so it needs hydration too -- map each OSP class by
+    # name and graft `__from_wire`/`__to_wire` onto it below instead of emitting
+    # a second class.
+    osp_class_map: dict[str, es.ClassDeclaration] = {};
+    for item in self._merge_module_bodies(nd) {
+        if (
+            isinstance(item, uni.Archetype)
+            and (item.name is not None)
+            and isinstance(item.gen.es_ast, es.ClassDeclaration)
+        ) {
+            osp_class_map[item.name.sym_name] = item.gen.es_ast;
         }
+    }
+    for (type_name, info) in manifest.boundary_types.items() {
+        is_osp = type_name in osp_archs;
         if info.kind == "enum" {
             # const Priority = Object.freeze({ LOW: "low", MEDIUM: "medium" });
             enum_props: list[es.Property] = [];
@@ -5890,11 +5902,68 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                 static=False,
                 computed=False
             );
-            class_body = es.ClassBody(body=[ctor_def, from_wire_def, to_wire_def]);
-            class_decl = es.ClassDeclaration(
-                id=es.Identifier(name=type_name), superClass=None, body=class_body
-            );
-            stubs.append(class_decl);
+            if is_osp {
+                # Graft hydration onto the existing local-OSP class -- a second
+                # `class <name>` would redeclare it. The OSP class already has
+                # its own constructor; for a node, patch that constructor to
+                # carry `_jac_id` from the wire so the hydrated instance keeps
+                # graph identity (set only when present, so a freshly-spawned
+                # local node with no id yet still makes jid() throw).
+                osp_class = osp_class_map.get(type_name);
+                if osp_class is not None {
+                    if info.kind == "node" {
+                        for member in osp_class.body.body {
+                            if (
+                                isinstance(member, es.MethodDefinition)
+                                and (member.kind == "constructor")
+                            ) {
+                                member.value.body.body.append(
+                                    es.IfStatement(
+                                        test=es.CallExpression(
+                                            callee=es.MemberExpression(
+                                                object=es.Identifier(name='props'),
+                                                property=es.Identifier(
+                                                    name='hasOwnProperty'
+                                                ),
+                                                computed=False
+                                            ),
+                                            arguments=[es.Literal(value='_jac_id')]
+                                        ),
+                                        consequent=es.ExpressionStatement(
+                                            expression=es.AssignmentExpression(
+                                                operator='=',
+                                                left=es.MemberExpression(
+                                                    object=es.ThisExpression(),
+                                                    property=es.Identifier(
+                                                        name='_jac_id'
+                                                    ),
+                                                    computed=False
+                                                ),
+                                                right=es.MemberExpression(
+                                                    object=es.Identifier(name='props'),
+                                                    property=es.Identifier(
+                                                        name='_jac_id'
+                                                    ),
+                                                    computed=False
+                                                )
+                                            )
+                                        ),
+                                        alternate=None
+                                    )
+                                );
+                            }
+                        }
+                    }
+                    osp_class.body.body.append(from_wire_def);
+                    osp_class.body.body.append(to_wire_def);
+                }
+            } else {
+                class_body = es.ClassBody(body=[ctor_def, from_wire_def, to_wire_def]);
+                class_decl = es.ClassDeclaration(
+                    id=es.Identifier(name=type_name), superClass=None, body=class_body
+                );
+                stubs.append(class_decl);
+            }
         }
     }
     return stubs;
