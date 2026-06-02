@@ -2666,6 +2666,13 @@ impl EsastGenPass.exit_binary_expr(nd: uni.BinaryExpr) -> None {
                     else es.Literal(value=0)
         )
     );
+    # Edge connect (`a ++> b`, `a +>:E():+> b`): the operator is a ConnectOp,
+    # not a token. Lower to the cl OSP graph runtime.
+    connect_call = self._build_osp_graph_call(nd, left, right);
+    if connect_call is not None {
+        nd.gen.es_ast = connect_call;
+        return;
+    }
     op_name_str = nd.op?.name;
     op_name = Tok(op_name_str) if (op_name_str in Tok.__members__) else None;
     if (op_name == Tok.KW_SPAWN) {
@@ -4251,29 +4258,46 @@ impl EsastGenPass._emit_osp_slot_method(nd: uni.Ability, osp: dict) -> None {
     );
 }
 
-"""Memoized set of local archetype names that participate in OSP: every
-walker/node/edge declared with an event ability, plus the node/edge types those
-abilities trigger on. Scanned up front from all abilities in the module so that
-emission order (a trigger node declared before its walker) doesn't matter."""
-impl EsastGenPass._osp_arch_set -> set[str] {
+"""Memoized {archetype name -> kind ('walker'/'node'/'edge')} for a module with
+local OSP. A module "has local OSP" if any locally-declared walker/node/edge has
+an event ability; when so, EVERY local walker/node/edge is included -- including
+edge types with no abilities (used only in connects/refs), which still need a
+type tag + field constructor. Empty for non-OSP modules. Scanned up front so
+emission order (an edge or trigger node declared before its walker) doesn't
+matter."""
+impl EsastGenPass._osp_arch_kinds -> dict[str, str] {
     if self._osp_prescan is not None {
         return self._osp_prescan;
     }
-    names: set[str] = set();
+    kinds: dict[str, str] = {};
     scan_root = self.ir_in
         if isinstance(self.ir_in, uni.Module)
         else self.get_main_mod();
-    for ability in scan_root.get_all_sub_nodes(uni.Ability) {
-        info = self._osp_ability_info(ability);
-        if info is not None {
-            names.add(info["owner"]);
-            for trig in info["triggers"] {
-                names.add(trig);
+    arches: list[uni.Archetype] = [];
+    has_osp = False;
+    for arch in scan_root.get_all_sub_nodes(uni.Archetype) {
+        if (arch.name is not None)
+        and (arch.arch_type.value in ("walker", "node", "edge")) {
+            arches.append(arch);
+            for ability in arch.get_all_sub_nodes(uni.Ability) {
+                if isinstance(ability.signature, uni.EventSignature) {
+                    has_osp = True;
+                }
             }
         }
     }
-    self._osp_prescan = names;
-    return names;
+    if has_osp {
+        for arch in arches {
+            kinds[arch.name.sym_name] = arch.arch_type.value;
+        }
+    }
+    self._osp_prescan = kinds;
+    return kinds;
+}
+
+"""Local archetype names participating in OSP (keys of `_osp_arch_kinds`)."""
+impl EsastGenPass._osp_arch_set -> set[str] {
+    return set(self._osp_arch_kinds().keys());
 }
 
 """Names of local walker archetypes (declared with abilities in this unit), the
@@ -4288,45 +4312,70 @@ impl EsastGenPass._local_walker_names -> set[str] {
     return names;
 }
 
-"""Symbol type of a spawn side's head, e.g. `Item(...)` / `Item` -> NODE_ARCH,
-`Acc()` -> WALKER_ARCH, a local variable -> its (non-archetype) symbol type.
-None when unresolved. Used to find the target (node/edge) side of a spawn
-without relying on type inference (which cl skips for `.cl.jac`)."""
-impl EsastGenPass._spawn_side_arch_type(expr: uni.Expr) -> (SymbolType | None) {
-    import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
-    target = expr.target if isinstance(expr, uni.FuncCall) else expr;
-    if not isinstance(target, (uni.Name, uni.SpecialVarRef)) {
-        return None;
+"""Memoized {variable name -> local archetype name} for `x = Arch(...)` bindings
+in a local-OSP module. Lets a spawn whose walker is held in a variable
+(`w spawn n`) identify the walker side without type inference (which cl skips)."""
+impl EsastGenPass._osp_var_arch -> dict[str, str] {
+    if self._osp_var_arch_cache is not None {
+        return self._osp_var_arch_cache;
     }
-    main_mod = self.ir_in
-        if isinstance(self.ir_in, uni.Module)
-        else self.get_main_mod();
-    sym = resolve_expr_symbol(target, main_mod);
-    return sym.sym_type if sym else None;
+    bindings: dict[str, str] = {};
+    kinds = self._osp_arch_kinds();
+    if kinds {
+        scan_root = self.ir_in
+            if isinstance(self.ir_in, uni.Module)
+            else self.get_main_mod();
+        for asn in scan_root.get_all_sub_nodes(uni.Assignment) {
+            if isinstance(asn.value, uni.FuncCall) {
+                head = self._ref_head_name(asn.value);
+                if (head is not None) and (head in kinds) {
+                    for tgt in asn.target {
+                        if isinstance(tgt, uni.Name) {
+                            bindings[tgt.sym_name] = head;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    self._osp_var_arch_cache = bindings;
+    return bindings;
 }
 
-"""Lower `walker spawn target` to an in-process kernel call when the target is a
-local node/edge archetype constructor (a fresh local graph node), running the
-walker through the portable kernel rather than the `__jacSpawn` server RPC:
-`osp_spawn(__ospRT, w, __ospDESC[w.__tag], [target])`. A server walker spawned
-at `root` (no local node constructor) falls through to the RPC path. Returns
-None when this isn't a local-archetype spawn."""
+"""If `expr` denotes a local walker -- a constructor `W(...)` of a local walker
+archetype, or a variable bound to one -- return that walker archetype's name,
+else None. A server (sv-imported) walker isn't in `_osp_arch_kinds`, so it
+returns None and the spawn stays an RPC."""
+impl EsastGenPass._spawn_walker_arch(expr: uni.Expr) -> (str | None) {
+    kinds = self._osp_arch_kinds();
+    head = self._ref_head_name(expr);
+    if (head is not None) and (kinds.get(head) == "walker") {
+        return head;
+    }
+    if isinstance(expr, uni.Name) {
+        bound = self._osp_var_arch().get(expr.sym_name);
+        if (bound is not None) and (kinds.get(bound) == "walker") {
+            return bound;
+        }
+    }
+    return None;
+}
+
+"""Lower `walker spawn target` to an in-process kernel call when the walker is a
+local archetype (constructor or variable), running it through the portable
+kernel rather than the `__jacSpawn` server RPC:
+`osp_spawn(__ospRT, w, __ospDESC[w.__tag], [target])`. A server (sv-imported)
+walker isn't a local archetype, so it falls through to the RPC path. Returns
+None when neither side is a local walker."""
 impl EsastGenPass._build_local_osp_spawn(
     nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
 ) -> (es.Expression | None) {
-    # Only meaningful once this unit has at least one local walker with abilities.
-    if not self._local_walker_names() {
-        return None;
-    }
-    node_kinds = (SymbolType.NODE_ARCH, SymbolType.EDGE_ARCH);
-    left_kind = self._spawn_side_arch_type(nd.left);
-    right_kind = self._spawn_side_arch_type(nd.right);
     walker_es: (es.Expression | None) = None;
     target_es: (es.Expression | None) = None;
-    if (right_kind in node_kinds) and (left_kind not in node_kinds) {
+    if self._spawn_walker_arch(nd.left) is not None {
         walker_es = left;
         target_es = right;
-    } elif (left_kind in node_kinds) and (right_kind not in node_kinds) {
+    } elif self._spawn_walker_arch(nd.right) is not None {
         walker_es = right;
         target_es = left;
     } else {
@@ -4370,22 +4419,18 @@ on each archetype prototype, the closed-world subtype table, the per-archetype
 methods), and the cl `NoopHost` `OspRuntime`. Emitted after the archetype
 classes so `<Cls>.prototype` is defined."""
 impl EsastGenPass._build_osp_setup_js -> str {
-    # Stable tag per archetype, in first-encounter order.
+    # Stable tag for every local OSP archetype (walkers, nodes, AND edges, so
+    # edge types used only in connects/refs get a tag too), in declaration order.
+    arch_kinds = self._osp_arch_kinds();
     tags: dict[str, int] = {};
-    for name in self._osp_arch_names {
-        if name not in tags {
-            tags[name] = len(tags);
-        }
+    for name in arch_kinds.keys() {
+        tags[name] = len(tags);
     }
-    # Group slots by owner / phase; track which archetypes are walkers.
+    # Group ability slots by owner / phase.
     entry_by_owner: dict[str, list] = {};
     exit_by_owner: dict[str, list] = {};
-    walkers: set[str] = set();
     for slot in self._osp_slots {
         owner = slot["owner"];
-        if slot["kind"] == "walker" {
-            walkers.add(owner);
-        }
         bucket = entry_by_owner if slot["is_entry"] else exit_by_owner;
         if owner not in bucket {
             bucket[owner] = [];
@@ -4402,7 +4447,7 @@ impl EsastGenPass._build_osp_setup_js -> str {
     lines.append("const __ospISA = {" + ", ".join(isa_parts) + "};");
     desc_parts: list[str] = [];
     for (name, tag) in tags.items() {
-        desc_cls = "WalkerDesc" if (name in walkers) else "NodeDesc";
+        desc_cls = "WalkerDesc" if (arch_kinds[name] == "walker") else "NodeDesc";
         entry_js = self._osp_slots_js(entry_by_owner.get(name, []), tags);
         exit_js = self._osp_slots_js(exit_by_owner.get(name, []), tags);
         desc_parts.append(
@@ -4433,6 +4478,189 @@ impl EsastGenPass._osp_slots_js(slots: list, tags: dict) -> str {
         }
     }
     return "[" + ", ".join(parts) + "]";
+}
+
+"""`visit <target>`: enqueue locations onto the active walk via the kernel.
+`osp_visit(targets, insert_loc)`. The target list comes from an edge ref
+(`[-->]`) or an explicit node/list; a single node is wrapped in a one-element
+array so the kernel always receives a list."""
+impl EsastGenPass.exit_visit_stmt(nd: uni.VisitStmt) -> None {
+    self.needs_osp_kernel = True;
+    self.needs_jac_runtime = True;
+    target = cast(
+        es.Expression,
+        self._get_ast_or_default(
+            nd.target,
+            default_factory=lambda _src: any : es.ArrayExpression(elements=[])
+        )
+    );
+    # Ensure a list: edge refs / list literals already produce arrays; wrap a
+    # bare node expression.
+    if not isinstance(nd.target, (uni.EdgeRefTrailer, uni.ListVal)) {
+        target = self.sync_loc(es.ArrayExpression(elements=[target]), jac_node=nd);
+    }
+    insert: es.Expression = self.sync_loc(
+        es.UnaryExpression(operator='-', argument=es.Literal(value=1), prefix=True),
+        jac_node=nd
+    );
+    if nd.insert_loc and nd.insert_loc.gen.es_ast {
+        insert = cast(es.Expression, nd.insert_loc.gen.es_ast);
+    }
+    nd.gen.es_ast = self.sync_loc(
+        es.ExpressionStatement(
+            expression=self.sync_loc(
+                es.CallExpression(
+                    callee=self.sync_loc(es.Identifier(name='osp_visit'), jac_node=nd),
+                    arguments=[target, insert]
+                ),
+                jac_node=nd
+            )
+        ),
+        jac_node=nd
+    );
+}
+
+"""`disengage`: halt the active walk -> `osp_disengage()`."""
+impl EsastGenPass.exit_disengage_stmt(nd: uni.DisengageStmt) -> None {
+    self.needs_osp_kernel = True;
+    nd.gen.es_ast = self.sync_loc(
+        es.ExpressionStatement(
+            expression=self.sync_loc(
+                es.CallExpression(
+                    callee=self.sync_loc(
+                        es.Identifier(name='osp_disengage'), jac_node=nd
+                    ),
+                    arguments=[]
+                ),
+                jac_node=nd
+            )
+        ),
+        jac_node=nd
+    );
+}
+
+"""`report <expr>`: collect a value for the spawn boundary -> `osp_report(expr)`."""
+impl EsastGenPass.exit_report_stmt(nd: uni.ReportStmt) -> None {
+    self.needs_osp_kernel = True;
+    expr = cast(
+        es.Expression,
+        self._get_ast_or_default(
+            nd.expr, default_factory=lambda _src: any : es.Literal(value=None)
+        )
+    );
+    nd.gen.es_ast = self.sync_loc(
+        es.ExpressionStatement(
+            expression=self.sync_loc(
+                es.CallExpression(
+                    callee=self.sync_loc(es.Identifier(name='osp_report'), jac_node=nd),
+                    arguments=[expr]
+                ),
+                jac_node=nd
+            )
+        ),
+        jac_node=nd
+    );
+}
+
+"""An edge reference `[-->]` / `[->:E:->]` / `[edge -->]` -> a cl OSP graph
+lookup `__ospRefs(origin, dir, edgeTag, edges_only)`. The origin of a bare ref is
+the current location `here`. The edge type (if any) is the first chain step's
+type filter; direction is its `edge_dir` (IN=1, OUT=2, ANY=3)."""
+impl EsastGenPass.exit_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> None {
+    result = self._build_edge_ref(nd);
+    if result is not None {
+        nd.gen.es_ast = result;
+    }
+}
+
+impl EsastGenPass._build_edge_ref(nd: uni.EdgeRefTrailer) -> (es.Expression | None) {
+    if not nd.chain {
+        return None;
+    }
+    step = nd.chain[0];
+    if not isinstance(step, uni.EdgeOpRef) {
+        return None;
+    }
+    self.needs_osp_graph = True;
+    # Origin: a bare edge ref resolves from the current location `here`.
+    origin: es.Expression = self.sync_loc(es.Identifier(name='here'), jac_node=nd);
+    direction = self.sync_loc(es.Literal(value=int(step.edge_dir.value)), jac_node=nd);
+    edge_tag: es.Expression = self.sync_loc(es.Literal(value=None), jac_node=nd);
+    fcond = step.filter_cond;
+    if (fcond is not None) and (fcond.f_type is not None) {
+        edge_tag = self.sync_loc(
+            es.MemberExpression(
+                object=self.sync_loc(
+                    es.MemberExpression(
+                        object=self.sync_loc(
+                            es.Identifier(name=fcond.f_type.value), jac_node=nd
+                        ),
+                        property=self.sync_loc(
+                            es.Identifier(name='prototype'), jac_node=nd
+                        ),
+                        computed=False
+                    ),
+                    jac_node=nd
+                ),
+                property=self.sync_loc(es.Identifier(name='__tag'), jac_node=nd),
+                computed=False
+            ),
+            jac_node=nd
+        );
+    }
+    edges_only = self.sync_loc(es.Literal(value=bool(nd.edges_only)), jac_node=nd);
+    return self.sync_loc(
+        es.CallExpression(
+            callee=self.sync_loc(es.Identifier(name='__ospRefs'), jac_node=nd),
+            arguments=[origin, direction, edge_tag, edges_only]
+        ),
+        jac_node=nd
+    );
+}
+
+"""`a ++> b` / `a +>:E():+> b` (a ConnectOp binary expr) -> a cl OSP graph
+connect `__ospConn(src, tgt, makeEdge, undirected)`. OUT keeps src=left, IN
+swaps, ANY (undirected) keeps src=left with undirected=true. `makeEdge` is an
+arrow building the typed edge, or null for a generic edge."""
+impl EsastGenPass._build_osp_graph_call(
+    nd: uni.BinaryExpr, left: es.Expression, right: es.Expression
+) -> (es.Expression | None) {
+    co = nd.op;
+    if not isinstance(co, uni.ConnectOp) {
+        return None;
+    }
+    self.needs_osp_graph = True;
+    dir_val = int(co.edge_dir.value);
+    # EdgeDir: IN=1, OUT=2, ANY=3.
+    undirected = dir_val == 3;
+    if dir_val == 1 {
+        (src, tgt) = (right, left);
+    } else {
+        (src, tgt) = (left, right);
+    }
+    make_edge: es.Expression = self.sync_loc(es.Literal(value=None), jac_node=nd);
+    if (co.conn_type is not None) and co.conn_type.gen.es_ast {
+        make_edge = self.sync_loc(
+            es.ArrowFunctionExpression(
+                params=[],
+                body=cast(es.Expression, co.conn_type.gen.es_ast),
+                expression=True
+            ),
+            jac_node=nd
+        );
+    }
+    return self.sync_loc(
+        es.CallExpression(
+            callee=self.sync_loc(es.Identifier(name='__ospConn'), jac_node=nd),
+            arguments=[
+                src,
+                tgt,
+                make_edge,
+                self.sync_loc(es.Literal(value=undirected), jac_node=nd)
+            ]
+        ),
+        jac_node=nd
+    );
 }
 
 """Ensure ImplDef body is properly parented for traversal."""
@@ -5663,6 +5891,19 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     # classes (the setup writes `<Cls>.prototype.__tag` and references the
     # archetype classes). `osp_spawn` calls in module functions are hoisted, so
     # they see `__ospRT` by the time they run.
+    if self.needs_osp_graph {
+        import from jaclang.compiler.passes.ecmascript.jac_runtime_js {
+            build_osp_graph_js
+        }
+        body.append(
+            self.sync_loc(
+                es.ExpressionStatement(
+                    expression=es.Identifier(name=build_osp_graph_js())
+                ),
+                jac_node=nd
+            )
+        );
+    }
     if self.needs_osp_kernel {
         import from jaclang.compiler.passes.ecmascript.jac_runtime_js {
             build_osp_kernel_js
