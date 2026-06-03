@@ -22,8 +22,7 @@ impl runtime_api_names -> set {
     names: set = set();
     # Top-level `def`/`glob`, optionally `async` and/or an access tag (`:pub`).
     for m in re.finditer(
-        r"(?m)^(?:async\s+)?(?:def|glob)(?::\w+)?\s+([A-Za-z_][A-Za-z0-9_]*)",
-        text
+        r"(?m)^(?:async\s+)?(?:def|glob)(?::\w+)?\s+([A-Za-z_][A-Za-z0-9_]*)", text
     ) {
         names.add(m.group(1));
     }

@@ -1409,7 +1409,9 @@ on demand under `.jac/client/configs/`; bun is auto-installed into `.jac/bin/`
 by the bundler when needed.
 """
 impl JacClientBundle.get_client_bundle_builder -> ClientBundleBuilder {
-    import from jaclang.runtimelib.client.vite_client_bundle { make_client_bundle_builder }
+    import from jaclang.runtimelib.client.vite_client_bundle {
+        make_client_bundle_builder
+    }
     return make_client_bundle_builder();
 }
 

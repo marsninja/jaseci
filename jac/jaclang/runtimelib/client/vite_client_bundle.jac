@@ -37,4 +37,6 @@ runtime's base path. Generates `.jac/client/configs/package.json` on demand.
 This is the single construction point shared by the core
 `get_client_bundle_builder` hook default and the jac-client build targets.
 """
-def make_client_bundle_builder(base_path: (Path | None) = None) -> ViteClientBundleBuilder;
+def make_client_bundle_builder(
+    base_path: (Path | None) = None
+) -> ViteClientBundleBuilder;

@@ -110,7 +110,9 @@ impl WebTarget.build(
 ) -> Path {
     import shutil;
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    import from jaclang.runtimelib.client.vite_client_bundle { make_client_bundle_builder }
+    import from jaclang.runtimelib.client.vite_client_bundle {
+        make_client_bundle_builder
+    }
 
     bundler = ViteBundler(project_dir=project_dir);
 

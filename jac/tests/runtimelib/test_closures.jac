@@ -10,7 +10,9 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
          str(os.path.dirname(os.path.dirname(jaclang.__file__))),
-         "tests", "runtimelib", "fixtures"
+         "tests",
+         "runtimelib",
+         "fixtures"
      );
 
 test "nested function closures compile to JS" {

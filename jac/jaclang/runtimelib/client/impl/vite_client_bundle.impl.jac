@@ -1,7 +1,9 @@
 import from jaclang.cli.console { console }
 
 """Construct a Vite client bundle builder for a project (shared construction)."""
-impl make_client_bundle_builder(base_path: (Path | None) = None) -> ViteClientBundleBuilder {
+impl make_client_bundle_builder(
+    base_path: (Path | None) = None
+) -> ViteClientBundleBuilder {
     import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
     if base_path is None {
         import from jaclang.runtimelib.runtime { JacRuntime as Jac }

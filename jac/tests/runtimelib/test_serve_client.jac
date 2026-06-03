@@ -25,7 +25,7 @@ Rendering a client page now runs the real Vite/Bun pipeline (bun + npm install
 run only when JAC_CLIENT_INTEGRATION is set (and are covered by jac-client's own
 suite); core CI skips them.
 """
-def _require_client_integration() -> None {
+def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
         pytest.skip(
             "client render requires the Vite/Bun toolchain; "
