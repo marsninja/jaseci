@@ -963,7 +963,7 @@ test "npmrc from jac toml" {
             assert "@mycompany:registry=https://npm.pkg.github.com" in npmrc_content;
             assert "@myorg:registry=https://registry.example.com" in npmrc_content;
 
-            # Verify auth entry — env var should pass through as literal
+            # Verify auth entry - env var should pass through as literal
             # (interpolation swallows ValueError when env var is unset)
             assert "//npm.pkg.github.com/:_authToken=" in npmrc_content;
         } finally {

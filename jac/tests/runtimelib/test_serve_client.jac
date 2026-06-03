@@ -1867,14 +1867,14 @@ test "CallState.reports is thread-safe (sync walker worker threads put safely)" 
     # a non-event-loop thread (its internal Future wakeup path relies on
     # loop-affine state). The production flow "works" only because the
     # drain runs strictly after the walker joins, so no getter is ever
-    # waiting — but that is a latent invariant. Use a thread-safe queue
+    # waiting - but that is a latent invariant. Use a thread-safe queue
     # so the type itself documents and enforces cross-thread put.
     import asyncio;
     import from jaclang.runtimelib.context { CallState }
 
     call_state = CallState();
 
-    # Type guard — fails today (asyncio.Queue), passes after fix.
+    # Type guard - fails today (asyncio.Queue), passes after fix.
     assert not isinstance(call_state.reports, asyncio.Queue) , (
         "CallState.reports must not be an asyncio.Queue: put_nowait from "
         "a worker thread is thread-unsafe. Use queue.Queue (or another "
@@ -1882,7 +1882,7 @@ test "CallState.reports is thread-safe (sync walker worker threads put safely)" 
         "by construction, not by relying on drain-after-join ordering."
     );
 
-    # Behavioral guard — the invariant we want preserved after the fix:
+    # Behavioral guard - the invariant we want preserved after the fix:
     # many worker threads put concurrently, event loop drains afterward,
     # no lost or duplicated reports.
     total_threads = 50;
@@ -1936,7 +1936,7 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
     # Before the fix, the server mutated `ctx.user_root` directly on the
     # process-global ExecutionContext. Under N concurrent requests from
     # *different* users, the `await ctx.aset_user_root(...)` calls
-    # interleave on the event loop and the last writer wins — so an
+    # interleave on the event loop and the last writer wins - so an
     # in-flight walker launched by user A could end up executing against
     # user B's root. This test would fail in that world.
     #
@@ -1978,7 +1978,7 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
             ];
             return await asyncio.gather(*tasks);
         }
-        # Async walker path — most sensitive: the await inside the walker
+        # Async walker path - most sensitive: the await inside the walker
         # guarantees interleaving at the point a shared-ctx bug would
         # manifest. Each task must still observe its own user_root.
         async_results = asyncio.run(run_probe(async_walker));
@@ -1990,15 +1990,15 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
             expected = root_ids[uname];
             assert got["start_root_id"] == expected , (
                 f"async: {uname} saw start_root_id={got['start_root_id']}, "
-                f"expected {expected} — ctx.user_root race regression"
+                f"expected {expected} - ctx.user_root race regression"
             );
             assert got["end_root_id"] == expected , (
                 f"async: {uname} saw end_root_id={got['end_root_id']} after "
-                f"await, expected {expected} — another request overwrote "
+                f"await, expected {expected} - another request overwrote "
                 f"user_root during the await"
             );
         }
-        # Sync walker path — proves isolation propagates across the
+        # Sync walker path - proves isolation propagates across the
         # asyncio.to_thread boundary (ContextVars copy into the worker).
         sync_results = asyncio.run(run_probe(sync_walker));
         for (uname, result) in zip(users, sync_results) {

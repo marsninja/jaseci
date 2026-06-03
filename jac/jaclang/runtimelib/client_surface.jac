@@ -13,7 +13,7 @@ from here so the rule lives in one place:
 
 """A `@jac/runtime` symbol that needs special compiler handling.
 
-`source` is the module the compiler imports the symbol from — `@jac/runtime` for
+`source` is the module the compiler imports the symbol from - `@jac/runtime` for
 everything the runtime backs, `react` for primitives (e.g. `useRef`) taken
 straight from React. `prepend` marks the bare global identifiers the compiler
 emits without an explicit import node; the bundle paths prepend a single import
@@ -26,7 +26,7 @@ obj RuntimeSymbol {
 }
 
 glob CLIENT_RUNTIME_SURFACE: list[RuntimeSymbol] = [
-         # JSX factory + walker spawn — emitted as bare globals, prepended as a
+         # JSX factory + walker spawn - emitted as bare globals, prepended as a
          # single bundle import.
          RuntimeSymbol(name="__jacJsx", prepend=True),
          RuntimeSymbol(name="__jacSpawn", prepend=True),
@@ -48,7 +48,7 @@ def runtime_symbol(name: str) -> (RuntimeSymbol | None) {
 """Module the compiler imports `name` from.
 
 Returns the declared source (`@jac/runtime`, or `react` for React primitives).
-Undeclared names fall back to `@jac/runtime` — the historical default — so an
+Undeclared names fall back to `@jac/runtime` - the historical default - so an
 unforeseen emission never breaks a build.
 """
 def runtime_import_source(name: str) -> str {

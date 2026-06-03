@@ -277,7 +277,7 @@ impl __doFuncFetch(function_name: str, args: dict) -> any {
 }
 
 # ============================================================================
-# AUTO-CACHE DISPATCH — shared by __jacSpawn and __jacCallFunction
+# AUTO-CACHE DISPATCH - shared by __jacSpawn and __jacCallFunction
 # ============================================================================
 impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> any {
     effects = __getEndpointEffects();
@@ -318,12 +318,12 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
         }
         return data;
     }
-    # Unknown endpoint (no metadata) — direct fetch, no caching
+    # Unknown endpoint (no metadata) - direct fetch, no caching
     return await fetch_fn();
 }
 
 # ============================================================================
-# PUBLIC API — __jacSpawn and __jacCallFunction with auto-caching
+# PUBLIC API - __jacSpawn and __jacCallFunction with auto-caching
 # ============================================================================
 impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
     # Auth walkers always skip cache
@@ -1082,7 +1082,7 @@ impl __jacReportError(
 }
 
 """onError prop for JacClientErrorBoundary. The FallbackComponent React passes
-to ErrorBoundary only receives `{error, resetErrorBoundary}` — `info` (and
+to ErrorBoundary only receives `{error, resetErrorBoundary}` - `info` (and
 therefore `info.componentStack`, the only thing that names user components when
 the JS stack lives inside react-dom) is exclusively delivered to onError.
 Wiring this here is the one place we can capture it."""

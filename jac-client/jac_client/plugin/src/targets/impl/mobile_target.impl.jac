@@ -254,7 +254,7 @@ impl MobileTarget.dev(
     }
 
     console.print(
-        f"\nMobile dev (Capacitor + Vite HMR) — {plat.capitalize()}", style="bold"
+        f"\nMobile dev (Capacitor + Vite HMR) - {plat.capitalize()}", style="bold"
     );
     _try_check_mobile_dependencies(plat);
     _require_macos_for_ios(plat);
@@ -287,7 +287,7 @@ impl MobileTarget.dev(
     compiler = builder._get_compiler();
     compiler.compiled_dir.mkdir(parents=True, exist_ok=True);
     # Full compile graph (entry + all .jac deps) with add_runtime_imports per file,
-    # matching production dev — compiling only the entry leaves imported modules
+    # matching production dev - compiling only the entry leaves imported modules
     # (e.g. components/*.js) without __jacJsx and causes "__jacJsx is not defined".
     (_, mod, _) = compiler.jac_compiler.compile_module(entry_file);
     if not mod {
@@ -330,7 +330,7 @@ impl MobileTarget.dev(
     }
 
     # `jac start --dev` normally starts HotReloader, but the mobile pre-hook cancels that
-    # handler — so we watch .jac here and re-run the same ViteCompiler.compile graph Vite serves.
+    # handler - so we watch .jac here and re-run the same ViteCompiler.compile graph Vite serves.
     if _mobile_ensure_watchdog() {
         import from jaclang.runtimelib.watcher { JacFileWatcher }
 

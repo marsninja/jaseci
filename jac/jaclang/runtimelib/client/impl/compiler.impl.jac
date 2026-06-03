@@ -475,7 +475,7 @@ impl ViteCompiler._scan_and_compile_pages(
 """Generate _routes.js manifest from previously scanned route entries."""
 impl ViteCompiler._generate_routes_manifest(self: ViteCompiler) -> None {
     scanner = self._route_scanner;
-    # Use cached results from _scan_and_compile_pages — don't re-scan
+    # Use cached results from _scan_and_compile_pages - don't re-scan
     routes = scanner._routes;
     layouts = scanner.get_layouts();
     lines: list[str] = [];
