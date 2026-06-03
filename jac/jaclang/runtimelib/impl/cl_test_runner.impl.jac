@@ -6,8 +6,9 @@ import re;
 import shutil;
 import socket;
 import subprocess;
+import sys;
 import tempfile;
-import threading;
+import time;
 import importlib;
 import from contextlib { suppress }
 import from pathlib { Path }
@@ -169,66 +170,94 @@ impl find_server_entry(test_filepath: str) -> (str | None) {
 }
 
 impl _serve_in_background(server_entry: str, base_path: str) -> Iterator[int] {
-    import from jaclang { JacRuntime as Jac }
-    import from jaclang.runtimelib.server { JacAPIServer }
-
+    # Pick a free ephemeral port for the child to bind.
     sock = socket.socket();
     sock.bind(("127.0.0.1", 0));
     port = sock.getsockname()[1];
     sock.close();
 
-    (base, mod) = os.path.split(server_entry);
-    base = base or "./";
-    if mod.endswith(".jac") {
-        mod = mod[:-4];
-    }
+    # Isolate persistence to the throwaway base dir for both the base runtime
+    # (honors JAC_DATA_PATH) and jac-scale (cwd-relative shelf db); never touch a
+    # real Mongo the developer happens to have configured.
+    env = dict(os.environ);
+    env["JAC_DATA_PATH"] = base_path;
+    env.pop("MONGODB_URI", None);
 
-    Jac.set_base_path(base_path);
-    ctx = Jac.create_j_context(
-        user_root=None,
-        base_path_dir=base_path,
-        full_target_path=str(Path(server_entry).resolve())
+    log_path = Path(base_path) / "cl_test_server.log";
+    logf = open(str(log_path), "w+", encoding="utf-8");
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            _SERVER_LAUNCHER,
+            str(Path(server_entry).resolve()),
+            str(port)
+        ],
+        cwd=base_path,
+        env=env,
+        stdout=logf,
+        stderr=subprocess.STDOUT,
+        text=True
     );
-    Jac.set_context(ctx);
-    Jac.jac_import(target=mod, base_path=base, lng="jac");
 
-    server = JacAPIServer(module_name=mod, port=port, base_path=base_path);
-    server.load_module();
-
-    ready = threading.Event();
-    error = {};
-
-    def _on_ready(*a: any) {
-        ready.set();
-    }
-
-    def _run {
-        try {
-            server.start(no_client=True, on_ready=_on_ready);
-        } except Exception as exc {
-            error["exc"] = exc;
-            ready.set();
+    def _server_log -> str {
+        with suppress(Exception) {
+            logf.flush();
+            return Path(str(log_path)).read_text(
+                encoding="utf-8", errors="replace"
+            ).strip();
         }
+        return "";
     }
 
-    thread = threading.Thread(target=_run, daemon=True);
-    thread.start();
-    if not ready.wait(timeout=30) {
-        raise RuntimeError(f"cl test server ({server_entry}) failed to start");
-    }
-    if "exc" in error {
-        raise RuntimeError(f"cl test server ({server_entry}) errored: {error['exc']}");
-    }
     try {
+        # Wait until the server accepts TCP connections (server-class agnostic),
+        # failing fast if the child dies first.
+        deadline = time.monotonic() + 30.0;
+        while True {
+            if proc.poll() is not None {
+                raise RuntimeError(
+                    f"cl test server ({server_entry}) exited early "
+                    f"(code {proc.returncode}):\n{_server_log() or 'no output'}"
+                );
+            }
+            probe = socket.socket();
+            probe.settimeout(0.5);
+            connected = False;
+            try {
+                probe.connect(("127.0.0.1", port));
+                connected = True;
+            } except OSError {
+                ;
+            } finally {
+                probe.close();
+            }
+            if connected {
+                break;
+            }
+            if time.monotonic() > deadline {
+                raise RuntimeError(
+                    f"cl test server ({server_entry}) was not reachable within "
+                    f"30s:\n{_server_log() or 'no output'}"
+                );
+            }
+            time.sleep(0.1);
+        }
         yield port;
     } finally {
-        # Teardown must never mask test results.
+        # Teardown must never mask test results. SIGTERM lets jac-scale drain
+        # gracefully; fall back to a hard kill if it lingers.
         with suppress(Exception) {
-            if server.server is not None {
-                server.server.shutdown();
+            proc.terminate();
+            try {
+                proc.wait(timeout=5);
+            } except subprocess.TimeoutExpired {
+                proc.kill();
             }
         }
-        thread.join(timeout=5);
+        with suppress(Exception) {
+            logf.close();
+        }
     }
 }
 

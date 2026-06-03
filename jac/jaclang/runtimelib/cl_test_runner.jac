@@ -79,6 +79,19 @@ for (const [name, description, fn] of __JAC_TEST_FNS__) {
   }
 }
 console.log("%%SENTINEL%%" + JSON.stringify(__jac_results));
+""",
+     # Server-boot launcher run via `python -c` in a child process. We go through
+     # the real `jac start` entrypoint so the *active plugin's* server class is
+     # resolved (e.g. jac-scale's uvicorn server) and driven on its own main
+     # thread -- the only place its signal-based lifecycle works. `--no-client`
+     # skips the client bundle; the parent isolates storage via cwd / env.
+     _SERVER_LAUNCHER: str = """
+import sys
+import jaclang
+from jaclang.cli.commands import execution
+execution.start(
+    filename=sys.argv[1], port=int(sys.argv[2]), main=True, no_client=True
+)
 """;
 
 """Outcome of a single client `test` block."""
@@ -131,11 +144,14 @@ for a sibling `server.jac` / `main.jac`. Returns `None` when no backend is
 found (the test is then run without a server)."""
 def find_server_entry(test_filepath: str) -> (str | None);
 
-"""Boot `server_entry` as a JacAPIServer on an ephemeral port in a thread.
+"""Boot `server_entry` on an ephemeral port in a child process.
 
-Yields the chosen port. Mirrors `JacTestClient` module loading but with a real
-socket so the bun process can reach it over HTTP. The server and its isolated
-storage are torn down on exit."""
+Launches the real `jac start` entrypoint via `python -c` so the active plugin's
+server class is resolved and driven on the subprocess main thread (where
+jac-scale's uvicorn + signal-drain lifecycle works); a real socket lets the bun
+process reach it over HTTP. Yields the chosen port once the socket accepts
+connections. Storage is isolated to `base_path` (cwd + `JAC_DATA_PATH`) and the
+process is terminated on exit."""
 @contextmanager
 def _serve_in_background(server_entry: str, base_path: str) -> Iterator[int];
 
