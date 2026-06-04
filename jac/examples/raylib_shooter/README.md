@@ -111,6 +111,15 @@ wrinkle the Jac backend sidesteps: a conventional linker records raylib's
 **SONAME** (`libraylib.so.600`) rather than the plain `libraylib.so`, so the
 `--zig` path stages the release's full versioned symlink set beside the binary.
 
+The twin does diverge in one spot, and it's instructive: **mouse-look uses
+`GetMouseDelta()`**, which returns a `Vector2` (two floats) **by value**. That's
+exactly the by-value-struct case the Jac native backend can't yet lower across
+the FFI boundary (see the caveat below), so the Jac twin instead diffs the
+scalar `GetMouseX/Y` position - which reads as zero motion while `DisableCursor`
+has the cursor locked on some backends (Wayland/WSLg), i.e. no mouse-look. Zig's
+full C ABI returns the `Vector2` in a register just like C, so it can call
+raylib's proper relative-motion API and mouse-look works under a locked cursor.
+
 ### Controls
 
 | Key / device   | Action                     |

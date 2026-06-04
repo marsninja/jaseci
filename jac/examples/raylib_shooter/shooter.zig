@@ -17,6 +17,13 @@
 
 const std = @import("std");
 
+// raylib's Vector2, used here only for GetMouseDelta's by-value return. The Jac
+// native backend can't yet lower a by-value struct across the FFI boundary,
+// which is why the Jac twin polls scalar GetMouseX/Y instead; Zig's full C ABI
+// returns this in a register just like C, so the Zig twin can use raylib's
+// proper relative-motion API for mouse-look (see handle_input).
+const Vector2 = extern struct { x: f32, y: f32 };
+
 // ── raylib bindings (resolved from libraylib at link time) ──────────────────
 // `extern fn` uses the C calling convention by default, so these line up with
 // raylib's C ABI without any per-declaration annotation.
@@ -30,8 +37,7 @@ extern fn DrawFPS(pos_x: c_int, pos_y: c_int) void;
 extern fn GetFrameTime() f32;
 extern fn IsKeyDown(key: c_int) bool;
 extern fn IsKeyPressed(key: c_int) bool;
-extern fn GetMouseX() c_int;
-extern fn GetMouseY() c_int;
+extern fn GetMouseDelta() Vector2;
 extern fn IsMouseButtonPressed(button: c_int) bool;
 extern fn DisableCursor() void;
 extern fn EnableCursor() void;
@@ -101,14 +107,14 @@ fn key_tapped(code: c_int) bool {
     return IsKeyPressed(code);
 }
 
-/// Current mouse X in pixels (as a float - matches the Jac float(GetMouseX())).
-fn mouse_x() f64 {
-    return @floatFromInt(GetMouseX());
-}
-
-/// Current mouse Y in pixels (as a float).
-fn mouse_y() f64 {
-    return @floatFromInt(GetMouseY());
+/// Per-frame relative mouse motion in pixels (raylib's GetMouseDelta).
+///
+/// This is the robust API for FPS-style look: it reports raw movement even
+/// while the cursor is locked by DisableCursor, whereas diffing the absolute
+/// GetMouseX/Y position (what the Jac twin must do, lacking a by-value-struct
+/// FFI) reads as zero motion under a locked cursor on some backends.
+fn mouse_delta() Vector2 {
+    return GetMouseDelta();
 }
 
 /// Pressed-this-frame test for a mouse button (0 = left).
@@ -276,8 +282,6 @@ var fire_cd: f64 = 0.0;
 var world_t: f64 = 0.0;
 var score: i32 = 0;
 var rng: i64 = 987654321;
-var prev_mx: f64 = 0.0;
-var prev_my: f64 = 0.0;
 var mouse_warmup: i32 = 12;
 var mouse_sens: f64 = 0.12;
 var mouse_captured: bool = false;
@@ -429,20 +433,19 @@ fn handle_input(step: f64) void {
     }
 
     if (mouse_captured) {
-        const mx = mouse_x();
-        const my = mouse_y();
+        const d = mouse_delta();
         if (mouse_warmup > 0) {
+            // Skip the first few frames after capture: the cursor recenters and
+            // the initial delta can be a large jump.
             mouse_warmup -= 1;
         } else {
-            const ddx = mx - prev_mx;
-            const ddy = my - prev_my;
+            const ddx: f64 = d.x;
+            const ddy: f64 = d.y;
             if (ddx < 150.0 and ddx > -150.0 and ddy < 150.0 and ddy > -150.0) {
                 yaw -= ddx * mouse_sens;
                 pitch -= ddy * mouse_sens;
             }
         }
-        prev_mx = mx;
-        prev_my = my;
     }
 
     if (pitch > 85.0) {
