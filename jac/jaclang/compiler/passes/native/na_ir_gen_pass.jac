@@ -439,6 +439,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _generate_inherited_method_wrappers -> None;
     # Phase 6: Complex Chains and Type Inference
+    def _struct_name_of_type(t: any) -> (str | None);
+    def _peel_optional(t: any) -> any;
+    def _list_spec_of_llvm(elem_llvm: ir.Type) -> str;
+    def _dict_specs_of_llvm(k_llvm: ir.Type, v_llvm: ir.Type) -> tuple;
+    def _list_elem_spec_of_type(t: any) -> (str | None);
+    def _dict_specs_of_type(t: any) -> (tuple | None);
     def _infer_type_name(val: ir.Value) -> (str | None);
     def _infer_list_elem_type(val: ir.Value) -> (str | None);
     def _peel_list_type(type_node: (object | None)) -> tuple;

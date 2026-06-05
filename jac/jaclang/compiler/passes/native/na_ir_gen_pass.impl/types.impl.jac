@@ -98,12 +98,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
             }
             elem_llvm = _e;
         }
-        spec = "i64";
-        if isinstance(elem_llvm, ir.DoubleType) {
-            spec = "f64";
-        } elif isinstance(elem_llvm, ir.PointerType) {
-            spec = "ptr";
-        }
+        spec = self._list_spec_of_llvm(elem_llvm);
         self._emit_list_helpers(spec, elem_llvm);
         return self.list_types[spec].as_pointer();
     }
@@ -120,27 +115,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
             k_llvm = _k;
             v_llvm = _v;
         }
-        # Key spec: i64 / f64 / ptr / tuple{size}.
-        k_spec = "i64";
-        k_size = 0;
-        if isinstance(k_llvm, ir.DoubleType) {
-            k_spec = "f64";
-        } elif isinstance(k_llvm, ir.PointerType) {
-            k_spec = "ptr";
-            if isinstance(k_llvm.pointee, ir.LiteralStructType) {
-                k_size = self._get_struct_size(k_llvm.pointee);
-                k_spec = f"tuple{k_size}";
-            }
-        }
-        # Value spec: i64 / f64 / ptr / jacval.
-        v_spec = "i64";
-        if isinstance(v_llvm, ir.DoubleType) {
-            v_spec = "f64";
-        } elif isinstance(v_llvm, ir.PointerType) {
-            v_spec = "ptr";
-        } elif self?.jacval_type and v_llvm == self.jacval_type {
-            v_spec = "jacval";
-        }
+        (k_spec, v_spec, k_size) = self._dict_specs_of_llvm(k_llvm, v_llvm);
         self._emit_dict_helpers(k_spec, v_spec, k_llvm, v_llvm, k_size);
         return self.dict_types[f"{k_spec}:{v_spec}"].as_pointer();
     }
@@ -1658,30 +1633,189 @@ impl NaIRGenPass._emit_comparison(
 }
 
 # ─── Phase 1: Enums ──────────────────────────────────────────
-"""Infer the struct type name from an LLVM value's type."""
-impl NaIRGenPass._infer_type_name(val: ir.Value) -> (str | None) {
-    if not isinstance(val.type, ir.PointerType) {
+"""Struct/archetype name carried by a central type, peeling `T | None`, or None.
+
+Consumes the central TypeBase (ClassType, or a UnionType whose non-None member
+is a class) and returns the archetype name iff it is a known native struct.
+This replaces the LLVM-shape reverse-scan of struct_types (#6386).
+"""
+impl NaIRGenPass._struct_name_of_type(t: any) -> (str | None) {
+    if t is None {
         return None;
     }
-    for (sname, stype) in self.struct_types.items() {
-        if val.type == stype.as_pointer() {
-            return sname;
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _CT,
+            UnionType as _UT
         }
+    } except ImportError {
+        return None;
+    }
+    if isinstance(t, _UT) {
+        for m in (t.types or []) {
+            if isinstance(m, _CT) and m.shared.class_name in ("NoneType", "None") {
+                continue;
+            }
+            _r = self._struct_name_of_type(m);
+            if _r is not None {
+                return _r;
+            }
+        }
+        return None;
+    }
+    if isinstance(t, _CT) and t.shared.class_name in self.struct_types {
+        return t.shared.class_name;
     }
     return None;
 }
 
-"""Infer the list element type name from an LLVM value's type."""
-impl NaIRGenPass._infer_list_elem_type(val: ir.Value) -> (str | None) {
-    if not isinstance(val.type, ir.PointerType) {
-        return None;
+"""Infer the struct type name of a value from its central type (#6386).
+
+Consumes the `jac_type` stamp (the central `Expr.type`) instead of reverse-
+scanning struct_types for an LLVM pointer-shape match. The old scan was a lossy
+proxy -- it could not see through `T | None`, conflated distinct structs with
+the same lowered shape, and only worked for stamped pointer values.
+"""
+impl NaIRGenPass._infer_type_name(val: ir.Value) -> (str | None) {
+    return self._struct_name_of_type(self._type_of(val));
+}
+
+"""Map a list element's LLVM type to its list_types spec key (i64/f64/ptr).
+
+Single source for the spec selection consumed by both _lower_class_type (at
+list-helper emit time) and _list_elem_spec_of_type (at inference time) (#6386).
+"""
+impl NaIRGenPass._list_spec_of_llvm(elem_llvm: ir.Type) -> str {
+    if isinstance(elem_llvm, ir.DoubleType) {
+        return "f64";
     }
-    for (ename, ltype) in self.list_types.items() {
-        if val.type == ltype.as_pointer() {
-            return ename;
+    if isinstance(elem_llvm, ir.PointerType) {
+        return "ptr";
+    }
+    return "i64";
+}
+
+"""Map dict key/value LLVM types to (key_spec, val_spec, key_size).
+
+Single source for the dict spec selection consumed by both _lower_class_type
+and _dict_specs_of_type (#6386). key_spec is i64/f64/ptr/tuple{N}; val_spec is
+i64/f64/ptr/jacval.
+"""
+impl NaIRGenPass._dict_specs_of_llvm(k_llvm: ir.Type, v_llvm: ir.Type) -> tuple {
+    k_spec = "i64";
+    k_size = 0;
+    if isinstance(k_llvm, ir.DoubleType) {
+        k_spec = "f64";
+    } elif isinstance(k_llvm, ir.PointerType) {
+        k_spec = "ptr";
+        if isinstance(k_llvm.pointee, ir.LiteralStructType) {
+            k_size = self._get_struct_size(k_llvm.pointee);
+            k_spec = f"tuple{k_size}";
         }
     }
-    return None;
+    v_spec = "i64";
+    if isinstance(v_llvm, ir.DoubleType) {
+        v_spec = "f64";
+    } elif isinstance(v_llvm, ir.PointerType) {
+        v_spec = "ptr";
+    } elif self?.jacval_type and v_llvm == self.jacval_type {
+        v_spec = "jacval";
+    }
+    return (k_spec, v_spec, k_size);
+}
+
+"""Non-None member of a `T | None` union, or the type itself; None-safe (#6386)."""
+impl NaIRGenPass._peel_optional(t: any) -> any {
+    if t is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _CT,
+            UnionType as _UT
+        }
+    } except ImportError {
+        return t;
+    }
+    if isinstance(t, _UT) {
+        for m in (t.types or []) {
+            if isinstance(m, _CT) and m.shared.class_name in ("NoneType", "None") {
+                continue;
+            }
+            return m;
+        }
+        return None;
+    }
+    return t;
+}
+
+"""list[T] element spec (i64/f64/ptr) from a central type, or None (#6386).
+
+Mirrors the spec selection in _lower_class_type so it keys self.list_types the
+same way the list was created, replacing the LLVM-shape reverse-scan.
+"""
+impl NaIRGenPass._list_elem_spec_of_type(t: any) -> (str | None) {
+    pt = self._peel_optional(t);
+    if pt is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _CT }
+    } except ImportError {
+        return None;
+    }
+    if not (isinstance(pt, _CT) and pt.shared.class_name == "list") {
+        return None;
+    }
+    elem_llvm: ir.Type = ir.IntType(64);
+    ta = pt.private.type_args or [];
+    if ta {
+        _e = self._lower_type(ta[0]);
+        if _e is None {
+            return None;
+        }
+        elem_llvm = _e;
+    }
+    return self._list_spec_of_llvm(elem_llvm);
+}
+
+"""(key_spec, val_spec) of a dict[K,V] central type, or None (#6386).
+
+Mirrors the key/value spec selection in _lower_class_type so it keys
+self.dict_types the same way the dict was created.
+"""
+impl NaIRGenPass._dict_specs_of_type(t: any) -> (tuple | None) {
+    pt = self._peel_optional(t);
+    if pt is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _CT }
+    } except ImportError {
+        return None;
+    }
+    if not (isinstance(pt, _CT) and pt.shared.class_name == "dict") {
+        return None;
+    }
+    k_llvm: ir.Type = ir.IntType(64);
+    v_llvm: ir.Type = ir.IntType(64);
+    ta = pt.private.type_args or [];
+    if len(ta) >= 2 {
+        _k = self._lower_type(ta[0]);
+        _v = self._lower_type(ta[1]);
+        if _k is None or _v is None {
+            return None;
+        }
+        k_llvm = _k;
+        v_llvm = _v;
+    }
+    (k_spec, v_spec, _ks) = self._dict_specs_of_llvm(k_llvm, v_llvm);
+    return (k_spec, v_spec);
+}
+
+"""Infer the list element spec from a value's central type (#6386)."""
+impl NaIRGenPass._infer_list_elem_type(val: ir.Value) -> (str | None) {
+    return self._list_elem_spec_of_type(self._type_of(val));
 }
 
 """Peel one layer from a list type annotation: list[T] → (T_node, T_llvm_type, T_elem_type_name).

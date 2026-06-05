@@ -1391,19 +1391,8 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
     return None;
 }
 
-"""Infer dict type info from an LLVM value. Returns (key_type_name, val_type_name) or None."""
+"""Infer dict (key_spec, val_spec) from a value's central type (#6386)."""
 impl NaIRGenPass._infer_dict_type(val: ir.Value) -> (tuple | None) {
-    if not isinstance(val.type, ir.PointerType) {
-        return None;
-    }
-    for (dict_key, dtype) in self.dict_types.items() {
-        if val.type == dtype.as_pointer() {
-            parts = dict_key.split(":");
-            if len(parts) == 2 {
-                return (parts[0], parts[1]);
-            }
-        }
-    }
-    return None;
+    return self._dict_specs_of_type(self._type_of(val));
 }
 # ─── Phase 1: Boolean Expressions (short-circuit) ────────────
