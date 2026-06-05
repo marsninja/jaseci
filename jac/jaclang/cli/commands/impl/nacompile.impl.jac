@@ -40,7 +40,7 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
 
 """Inject main() into the LLVM IR for Mach-O (macOS).
 
-Only main() is needed — dyld handles entry via LC_MAIN, and the
+Only main() is needed - dyld handles entry via LC_MAIN, and the
 system CRT manages _start. No exit() declaration needed since
 returning from main() is handled by dyld.
 """
@@ -56,7 +56,9 @@ def _inject_entry_macho(llvm_ir_str: str) -> str {
 
 
 """Compile a .na.jac file to a standalone native binary."""
-impl nacompile(filename: str, output: str = "", scrub: bool = False) -> int {
+impl nacompile(
+    filename: str, output: str = "", scrub: bool = False, target: str = ""
+) -> int {
     # Validate input
     if not filename.endswith(".na.jac") and not filename.endswith(".jac") {
         console.error("Input must be a .jac or .na.jac file.");
@@ -65,6 +67,15 @@ impl nacompile(filename: str, output: str = "", scrub: bool = False) -> int {
     if not os.path.exists(filename) {
         console.error(f"File not found: {filename}");
         return 1;
+    }
+
+    # wasm32 target: emit a browser-loadable wasm module instead of a host binary.
+    # The native LLVM backend already targets wasm32; we set the triple before
+    # compiling so NaIRGenPass picks it up (data layout + ABI), then link the
+    # single relocatable object into a module with the pure-Jac wasm linker.
+    is_wasm = target in ["wasm", "wasm32", "wasm32-unknown-unknown"];
+    if is_wasm {
+        os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
     }
 
     # Scrub: wipe all .jac_ir/ cache directories under the source tree
@@ -95,6 +106,9 @@ impl nacompile(filename: str, output: str = "", scrub: bool = False) -> int {
             output = output[:-7];
         } elif output.endswith(".jac") {
             output = output[:-4];
+        }
+        if is_wasm {
+            output = output + ".wasm";
         }
     }
 
@@ -165,6 +179,49 @@ impl nacompile(filename: str, output: str = "", scrub: bool = False) -> int {
         console.print("  Auto-promoted to native compilation.");
     }
 
+    # wasm32 path: emit one relocatable object and link it into a module.
+    # Undefined externs (raylib, malloc/free/memcpy, __multi3, ...) stay as wasm
+    # imports for the JS host. No entry injection / DT_NEEDED - JS calls the
+    # exported functions directly.
+    if is_wasm {
+        import llvmlite.binding as llvm;
+        llvm.initialize_all_targets();
+        llvm.initialize_all_asmprinters();
+        wasm_ir_str = str(ir_module.gen.llvm_ir);
+        try {
+            wmod = llvm.parse_assembly(wasm_ir_str);
+            wmod.verify();
+        } except Exception as e {
+            console.error(f"LLVM IR verification failed: {e}");
+            return 1;
+        }
+        wtm = llvm.Target.from_triple("wasm32-unknown-unknown").create_target_machine(
+            opt=2
+        );
+        # Optimise (clean reloc set), but do NOT internalize: every defined
+        # function is an export the JS host may call.
+        pto = llvm.create_pipeline_tuning_options(speed_level=2, size_level=0);
+        pb = llvm.create_pass_builder(wtm, pto);
+        pb.getModulePassManager().run(wmod, pb);
+        obj_bytes = wtm.emit_object(wmod);
+        console.print(f"  Wasm object emitted ({len(obj_bytes)} bytes).");
+        import from jaclang.compiler.passes.native.wasm_linker { WasmLinker }
+        try {
+            wasm_bytes = WasmLinker.link(obj_bytes, [], 256);
+        } except Exception as e {
+            console.error(f"Wasm linking failed: {e}");
+            import traceback;
+            traceback.print_exc();
+            return 1;
+        }
+        with open(output, "wb") as _wf {
+            _wf.write(wasm_bytes);
+        }
+        console.print(f"  Wasm module written to {output} ({len(wasm_bytes)} bytes).");
+        console.print(f"  Instantiate in a browser/Node with an `env` import object.");
+        return 0;
+    }
+
     # Step 2: Check for Python/server interop (can't compile standalone)
     manifest = ir_module.gen.interop_manifest;
     if manifest and manifest.native_imports {
@@ -207,7 +264,7 @@ impl nacompile(filename: str, output: str = "", scrub: bool = False) -> int {
     }
 
     # Step 5: Determine needed libraries
-    # Note: libgc (Boehm GC) no longer needed — using reference counting
+    # Note: libgc (Boehm GC) no longer needed - using reference counting
     if is_macos {
         needed_libs: list[str] = ["/usr/lib/libSystem.B.dylib"];
     } else {
