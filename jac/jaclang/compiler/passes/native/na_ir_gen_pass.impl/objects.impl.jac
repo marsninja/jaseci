@@ -184,16 +184,12 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
             }
         }
     }
-    # Pass 3.5: Build vtable layouts (topological order via MRO)
-    for topo_name in topo_order {
-        if topo_name in self.has_vtable {
-            self._build_vtable(topo_name);
-        }
-    }
     # Pass 3.6: Compute non-overridden methods for devirtualization
     # A method M on class C is "non-overridden" if NO child class has its own C.M.
     # For these methods, we can emit direct calls instead of vtable dispatch.
-    for (base_name, layout) in self.vtable_layouts.items() {
+    # Vtable slot names come from LayoutRegistry via _vtable_method_names (#6386).
+    for base_name in self.has_vtable {
+        layout = self._vtable_method_names(base_name);
         non_overridden: set[str] = set();
         for method_name in layout {
             # Find the class that defines this method (walk MRO)
@@ -351,13 +347,11 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
     layout_reg = get_layout_registry(self.ir_in, self.prog);
     _fields = layout_reg.get_fields(arch_name);
-    _pfs = layout_reg.get_parent_field_start(arch_name);
     if not _fields {
         _owner = nd.find_parent_of_type(uni.Module);
         if _owner is not None and _owner is not self.ir_in {
             _owner_reg = get_layout_registry(_owner, self.prog);
             _fields = _owner_reg.get_fields(arch_name);
-            _pfs = _owner_reg.get_parent_field_start(arch_name);
         }
     }
     for fi in _fields {
@@ -387,16 +381,6 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                 self.struct_field_enum_type[arch_name][fi.name] = ftag_name;
             }
         }
-    }
-    # Per-ancestor field-region start: registry is vtable-agnostic, so shift by
-    # the implicit vtable slot to match native indices.
-    _pfs = layout_reg.get_parent_field_start(arch_name);
-    if _pfs {
-        _adj: dict[(str, int)] = {};
-        for (_anc, _i) in _pfs.items() {
-            _adj[_anc] = _i + vtable_off;
-        }
-        self.parent_field_start[arch_name] = _adj;
     }
     # Define the struct body (always call set_body, even with empty field_types,
     # to make the struct type non-opaque so GEP operations work)

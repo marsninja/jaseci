@@ -1,34 +1,39 @@
 """Virtual table (vtable) support for inheritance with C3 MRO."""
-"""Build vtable layout for a class (merge from all MRO ancestors + own methods)."""
-impl NaIRGenPass._build_vtable(arch_name: str) -> None {
-    # Consume the centralized vtable slot assignment (merged from MRO ancestors
-    # + own methods, in canonical order) instead of re-deriving it from a
-    # string-prefix scan of method_funcs (#6386, Category C).
+"""Vtable method-slot names for a class, in slot order, from LayoutRegistry.
+
+Consumes the centralized vtable slot assignment directly instead of caching it
+in a vtable_layouts shadow dict (#6386, Category C). Imported archetypes resolve
+against their defining module's registry.
+"""
+impl NaIRGenPass._vtable_method_names(arch_name: str) -> list[str] {
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    layout_reg = get_layout_registry(self.ir_in, self.prog);
-    _methods = layout_reg.get_methods(arch_name);
-    if not _methods {
-        # Imported archetype: vtable slot order lives in its defining module.
+    methods = get_layout_registry(self.ir_in, self.prog).get_methods(arch_name);
+    if not methods {
         _arch = self.arch_ast_map.get(arch_name);
         _owner = _arch.find_parent_of_type(uni.Module) if _arch is not None else None;
         if _owner is not None and _owner is not self.ir_in {
-            _methods = get_layout_registry(_owner, self.prog).get_methods(arch_name);
+            methods = get_layout_registry(_owner, self.prog).get_methods(arch_name);
         }
     }
-    layout: list[str] = [];
-    index_map: dict[(str, int)] = {};
-    for mslot in _methods {
-        layout.append(mslot.name);
-        index_map[mslot.name] = mslot.index;
+    return [m.name for m in methods];
+}
+
+"""Vtable slot index of a method on a class, or None (#6386)."""
+impl NaIRGenPass._vtable_method_index(
+    arch_name: str, method_name: str
+) -> (int | None) {
+    for (i, n) in enumerate(self._vtable_method_names(arch_name)) {
+        if n == method_name {
+            return i;
+        }
     }
-    self.vtable_layouts[arch_name] = layout;
-    self.vtable_method_indices[arch_name] = index_map;
+    return None;
 }
 
 """Emit a vtable global constant for a class."""
 impl NaIRGenPass._emit_vtable_global(arch_name: str) -> None {
-    layout = self.vtable_layouts.get(arch_name);
-    if layout is None or not layout {
+    layout = self._vtable_method_names(arch_name);
+    if not layout {
         return;
     }
     i8_ptr = ir.IntType(8).as_pointer();
@@ -66,8 +71,8 @@ Devirtualizes to direct call when the method is never overridden by any subclass
 impl NaIRGenPass._codegen_virtual_call(
     obj_val: ir.Value, method_name: str, args: list[ir.Value], obj_type_name: str
 ) -> (ir.Value | None) {
-    indices = self.vtable_method_indices.get(obj_type_name);
-    if indices is None or method_name not in indices {
+    method_idx = self._vtable_method_index(obj_type_name, method_name);
+    if method_idx is None {
         return None;
     }
     # Find the resolved function (walk MRO)
@@ -99,7 +104,6 @@ impl NaIRGenPass._codegen_virtual_call(
         return self.builder.call(func, coerced, name=f"call.{method_name}");
     }
     # Full vtable dispatch for overridden methods
-    method_idx = indices[method_name];
     i32 = ir.IntType(32);
     i8_ptr = ir.IntType(8).as_pointer();
     # Load vtable pointer from field 0
@@ -130,7 +134,7 @@ impl NaIRGenPass._generate_inherited_method_wrappers -> None {
         # Collect all methods from ancestors via MRO
         seen_methods: set[str] = set();
         for ancestor_name in mro[1:] {
-            ancestor_layout = self.vtable_layouts.get(ancestor_name, []);
+            ancestor_layout = self._vtable_method_names(ancestor_name);
             for method_name in ancestor_layout {
                 if method_name in seen_methods {
                     continue;

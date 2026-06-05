@@ -107,11 +107,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         class_hierarchy: dict[str, str] = {},
         class_parents: dict[str, list[str]] = {},
         mro_order: dict[str, list[str]] = {},
-        parent_field_start: dict[str, dict[str, int]] = {},
         arch_ast_map: dict[str, object] = {},
         has_vtable: dict[str, bool] = {},
-        vtable_layouts: dict[str, list[str]] = {},
-        vtable_method_indices: dict[str, dict] = {},
         vtable_globals: dict[str, ir.GlobalVariable] = {},
         _non_overridden_methods: dict[str, set[str]] = {},
         # Tuple support (Phase 9)
@@ -431,7 +428,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
     ) -> None;
     # Phase 5: Inheritance, Vtables, and C3 MRO
-    def _build_vtable(arch_name: str) -> None;
+    def _vtable_method_names(arch_name: str) -> list[str];
+    def _vtable_method_index(arch_name: str, method_name: str) -> (int | None);
     def _emit_vtable_global(arch_name: str) -> None;
     def _codegen_virtual_call(
         obj_val: ir.Value, method_name: str, args: list[ir.Value], obj_type_name: str
