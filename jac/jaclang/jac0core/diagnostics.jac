@@ -1129,6 +1129,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native pathway does not yet support {kind} '{name}'",
          help="This Jac construct is supported on the @sv/Python pathway but is not implemented in the .na.jac native compiler yet. Move the code to a non-native context, or extend NaIRGenPass to handle this node type."
      ),
+     E5091 = _err(
+         "E5091",
+         Category.CODEGEN,
+         "Cannot determine the native type of {what}; the central type checker left it unresolved",
+         help="Native codegen consumes the central type checker's result rather than guessing. Add an explicit type annotation so TypeCheckPass can resolve it, or extend NaIRGenPass._lower_type to handle this type category. (Previously this was silently coerced to i64, which could miscompile -- see #6386.)"
+     ),
      # Language server
      E5070 = _err("E5070", Category.CODEGEN, "Error during type check: {error}"),
      E5071 = _err("E5071", Category.CODEGEN, "Error during formatting: {error}"),

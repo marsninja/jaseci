@@ -135,6 +135,14 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     # allocations without needing a loc parameter threaded through.
     if _result is not None {
         _result.jac_loc = _jac_loc;
+        # Stamp the central semantic type (TypeBase from TypeCheckPass) onto
+        # the produced value, mirroring the is_owned marker. This makes the
+        # value self-describing so downstream type dispatch can read
+        # `_type_of(val)` instead of re-deriving the type from the lowered
+        # LLVM shape or scanning name-keyed shadow tables (#6386).
+        if isinstance(nd, uni.Expr) and nd?.type is not None {
+            _result.jac_type = nd.type;
+        }
     }
     return _result;
 }

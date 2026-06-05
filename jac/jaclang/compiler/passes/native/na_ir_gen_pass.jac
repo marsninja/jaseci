@@ -12,7 +12,7 @@ import from llvmlite { ir }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5026, E5060, E5090 }
+import from jaclang.jac0core.diagnostics { E5026, E5060, E5090, E5091 }
 
 # ── Sentinel refcount value for static (immortal) strings.
 # INT64_MAX = 0x7FFFFFFFFFFFFFFF — never reaches 0 even if accidentally decremented.
@@ -261,6 +261,13 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _lower_type(t: any) -> (ir.Type | None);
     def _lower_class_type(t: any) -> (ir.Type | None);
     def _lower_function_type(t: any) -> ir.Type;
+    # Read the central semantic type (TypeBase) stamped onto a produced
+    # ir.Value by _codegen_expr, or None. Mirrors _is_owned (#6386).
+    def _type_of(val: (ir.Value | None)) -> (any | None);
+    # Canonical "consume the central type or fail loudly" accessor. Lowers a
+    # type-bearing AST node's Expr.type to an ir.Type; emits E5091 (never a
+    # silent i64) when the central checker left it unresolved (#6386).
+    def _require_type(type_src: (uni.UniNode | None), what: str) -> ir.Type;
     def _resolve_type_str(type_name: str) -> ir.Type;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;

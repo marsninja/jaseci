@@ -216,6 +216,41 @@ impl NaIRGenPass._lower_function_type(t: any) -> ir.Type {
     return ir.FunctionType(ret_type, param_types).as_pointer();
 }
 
+"""Read the central semantic type stamped onto a produced ir.Value.
+
+_codegen_expr stamps `val.jac_type = nd.type` (the central TypeBase) on every
+value it produces, mirroring the is_owned marker. This reads it back so type
+dispatch can consume the central analysis instead of re-deriving the type from
+the lowered LLVM shape or scanning name-keyed shadow tables (#6386). Returns
+None for values produced outside _codegen_expr (e.g. raw helper temporaries).
+"""
+impl NaIRGenPass._type_of(val: (ir.Value | None)) -> (any | None) {
+    if val is None {
+        return None;
+    }
+    return val?.jac_type;
+}
+
+"""Lower a type-bearing AST node's central type to an LLVM type, or fail loudly.
+
+This is the canonical "consume the central type checker" accessor for places
+that previously coerced a missing/unresolved type to i64 (Category B in #6386).
+A genuinely-absent type is a compile error (E5091), not a silent guess.
+"""
+impl NaIRGenPass._require_type(type_src: (uni.UniNode | None), what: str) -> ir.Type {
+    if isinstance(type_src, uni.Expr) and type_src?.type is not None {
+        lowered = self._lower_type(type_src.type);
+        if lowered is not None {
+            return lowered;
+        }
+    }
+    # No central type to consume: emit a hard diagnostic instead of i64. The
+    # returned type only lets codegen unwind without a secondary crash -- the
+    # emitted error has already marked the module as failed.
+    self.emit(E5091, node_override=type_src, what=what);
+    return ir.IntType(64);
+}
+
 """Resolve a Jac type expression to an LLVM type.
 
 An annotation Expr carries a `.type` (TypeBase) populated by TypeCheckPass;

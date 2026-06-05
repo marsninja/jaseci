@@ -623,6 +623,15 @@ test "cross-module chained method calls" {
     assert f() == 12;
 }
 
+# Regression lock for #6386 Category B: a cross-module callee whose signature is
+# resolved from central analysis must marshal a float argument as a double, not
+# as a synthesized all-i64 signature (which would reinterpret the bit pattern).
+test "cross-module float argument marshalled correctly" {
+    (eng, _) = compile_native("na_float_arg.na.jac");
+    f = get_func(eng, "test_cross_module_float", ctypes.c_double);
+    assert f() == 7.0;
+}
+
 # --- TestNativeBuiltins ---
 test "builtins char at" {
     (eng, _) = compile_native("builtins.na.jac");
