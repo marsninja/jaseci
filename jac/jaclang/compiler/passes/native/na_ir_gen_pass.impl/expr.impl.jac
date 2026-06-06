@@ -1012,6 +1012,22 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
     if nd.is_attr {
         target_name = self._get_name(nd.target);
         right_name = self._get_name(nd.right);
+        # complex `.real` / `.imag` — JacComplex is {f64 real, f64 imag}. These
+        # are attribute reads (not method calls), so resolve them up front
+        # before the name/enum/struct attribute paths (which don't model
+        # complex). Handles both a complex var and a complex sub-expression.
+        if right_name == "real" or right_name == "imag" {
+            _cv = self._codegen_expr(nd.target);
+            if _cv is not None and _cv.type == self.complex_struct_type.as_pointer() {
+                _ci = 0 if right_name == "real" else 1;
+                _cfp = self.builder.gep(
+                    _cv,
+                    [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), _ci)],
+                    name=f"complex.{right_name}.ptr"
+                );
+                return self.builder.load(_cfp, name=f"complex.{right_name}");
+            }
+        }
         # Check .value / .name on a direct enum member: Priority.HIGH.value.
         # The member access nests as AtomTrailer(AtomTrailer(Enum, MEMBER), attr),
         # and _get_name(nd.target) is None for the inner trailer, so this must run

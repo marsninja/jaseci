@@ -542,10 +542,13 @@ impl NaIRGenPass._codegen_iter_for(nd: uni.IterForStmt) -> None {
 """Generate a match statement.
 
 The subject is evaluated once into a temp slot, then each case is lowered
-to an if/elif chain: test the pattern, optionally bind captures and check
-the guard, then run the body and jump to the shared end block. Supported
-patterns are literal value, singleton, wildcard, capture (`as`), and OR of
-those. Structural patterns (sequence/mapping/class) emit E5090.
+to an if/elif chain. Each case's pattern is compiled by `_emit_match_test`,
+which emits a short-circuiting sequence of checks that branch to the next
+case on any mismatch and bind captures incrementally on the matching path.
+Structural patterns (sequence, mapping, class/archetype, star) compile to
+length/key/type guards plus recursive sub-pattern tests; element access is
+ordered AFTER its guard so an out-of-shape subject never indexes out of
+bounds. Patterns the backend cannot lower emit E5090.
 """
 impl NaIRGenPass._codegen_match(nd: uni.MatchStmt) -> None {
     subj = self._codegen_expr(nd.target);
@@ -560,27 +563,27 @@ impl NaIRGenPass._codegen_match(nd: uni.MatchStmt) -> None {
     n = len(nd.cases);
     for (ci, case) in enumerate(nd.cases) {
         subj_val = self.builder.load(subj_alloca, name="match.subj.l");
-        cond = self._match_pattern_cond(case.pattern, subj_val);
         body_bb = func.append_basic_block(name=f"match.c{ci}.body");
         next_bb = func.append_basic_block(name=f"match.c{ci}.next")
             if ci < n - 1
             else end_bb;
-        if cond is None {
+        # Emit the pattern test. On mismatch it branches to next_bb; on
+        # success it leaves the builder positioned in a block where the
+        # pattern held and every capture is already bound.
+        ok = self._emit_match_test(case.pattern, subj_val, next_bb);
+        if not ok {
             # Unsupported pattern — E5090 already emitted. Keep the IR valid
             # by skipping straight to the next test.
-            self.builder.branch(next_bb);
+            if not self.builder.block.is_terminated {
+                self.builder.branch(next_bb);
+            }
             if next_bb is not end_bb {
                 self.builder.position_at_end(next_bb);
             }
             continue;
         }
+        # Captures are bound and visible here; the guard (if any) may use them.
         if case.guard is not None {
-            # Bind captures before the guard so the guard can reference them,
-            # then gate the body on the guard result.
-            bind_bb = func.append_basic_block(name=f"match.c{ci}.bind");
-            self.builder.cbranch(cond, bind_bb, next_bb);
-            self.builder.position_at_end(bind_bb);
-            self._bind_match_pattern(case.pattern, subj_val);
             gval = self._codegen_expr(case.guard);
             if gval is not None {
                 self.builder.cbranch(self._to_bool(gval), body_bb, next_bb);
@@ -588,12 +591,9 @@ impl NaIRGenPass._codegen_match(nd: uni.MatchStmt) -> None {
                 self.builder.branch(next_bb);
             }
         } else {
-            self.builder.cbranch(cond, body_bb, next_bb);
+            self.builder.branch(body_bb);
         }
-        # Case body — bind captures (the guard path already did, a repeat
-        # store is harmless) then emit the statements.
         self.builder.position_at_end(body_bb);
-        self._bind_match_pattern(case.pattern, subj_val);
         if isinstance(case.body, (list, tuple)) {
             self._codegen_body(case.body);
         }
@@ -605,6 +605,356 @@ impl NaIRGenPass._codegen_match(nd: uni.MatchStmt) -> None {
         }
     }
     self.builder.position_at_end(end_bb);
+}
+
+"""Emit a short-circuiting test that `pat` matches `subj`.
+
+On mismatch, control branches to `fail_bb`. On a successful match the
+builder is left positioned in a block dominated by all the checks (so any
+captures introduced by `pat` are bound and visible to the caller). Returns
+False (after emitting E5090) for pattern kinds the backend cannot lower.
+
+Flat patterns (value/singleton/wildcard/OR) reuse `_match_pattern_cond` to
+produce a single i1; structural patterns recurse through dedicated helpers.
+"""
+impl NaIRGenPass._emit_match_test(
+    pat: uni.MatchPattern, subj: ir.Value, fail_bb: object
+) -> bool {
+    func = self.builder.function;
+    if isinstance(pat, uni.MatchWild) {
+        return True;  # always matches, binds nothing
+    }
+    if isinstance(pat, uni.MatchAs) {
+        # `case x:` binds x to the subject; `case <p> as x:` tests p first.
+        if pat.pattern is not None {
+            if not self._emit_match_test(pat.pattern, subj, fail_bb) {
+                return False;
+            }
+        }
+        self._bind_match_capture(pat.name, subj);
+        return True;
+    }
+    if isinstance(pat, uni.MatchSequence) {
+        return self._emit_match_sequence(pat, subj, fail_bb);
+    }
+    if isinstance(pat, uni.MatchMapping) {
+        return self._emit_match_mapping(pat, subj, fail_bb);
+    }
+    if isinstance(pat, uni.MatchArch) {
+        return self._emit_match_arch(pat, subj, fail_bb);
+    }
+    # Value / Singleton / OR — a single i1 condition with no captures.
+    cond = self._match_pattern_cond(pat, subj);
+    if cond is None {
+        return False;
+    }
+    ok_bb = func.append_basic_block(name="match.ok");
+    self.builder.cbranch(cond, ok_bb, fail_bb);
+    self.builder.position_at_end(ok_bb);
+    return True;
+}
+
+"""Bind a match capture name to `subj` in the current scope.
+
+Tracks the capture's archetype type (when `subj` is a known struct
+pointer) so attribute access on the capture resolves correctly.
+"""
+impl NaIRGenPass._bind_match_capture(
+    name_node: (uni.UniNode | None), subj: ir.Value
+) -> None {
+    cap_name = self._get_name(name_node) if name_node is not None else None;
+    if cap_name is None {
+        return;
+    }
+    alloca = self._entry_alloca(subj.type, cap_name);
+    self.builder.store(subj, alloca);
+    self.local_vars[cap_name] = alloca;
+    tn = self._infer_type_name(subj);
+    if tn is not None {
+        self.type_var_map[cap_name] = tn;
+    }
+}
+
+"""Lower a sequence pattern `[p0, p1, ...]` over a native list subject.
+
+Without a star: matches iff `len(subj) == N` and each element matches its
+sub-pattern. With one star `*rest`: matches iff `len(subj) >= N-1`, the
+fixed prefix/suffix elements match, and `rest` binds a fresh list holding
+the middle slice. The length guard is emitted first so element indexing on
+the success path is always in bounds.
+"""
+impl NaIRGenPass._emit_match_sequence(
+    pat: uni.MatchSequence, subj: ir.Value, fail_bb: object
+) -> bool {
+    elem_name = self._infer_list_elem_type(subj);
+    helpers = self.list_helpers.get(elem_name) if elem_name is not None else None;
+    if helpers is None {
+        self.emit(
+            E5090,
+            node_override=pat,
+            kind="match pattern",
+            name="MatchSequence over a non-list subject"
+        );
+        return False;
+    }
+    i64 = ir.IntType(64);
+    func = self.builder.function;
+    patterns = pat.values;
+    star_idx = -1;
+    for (i, sub) in enumerate(patterns) {
+        if isinstance(sub, uni.MatchStar) {
+            if star_idx >= 0 {
+                self.emit(
+                    E5090,
+                    node_override=pat,
+                    kind="match pattern",
+                    name="MatchSequence with multiple stars"
+                );
+                return False;
+            }
+            star_idx = i;
+        }
+    }
+    n = len(patterns);
+    len_val = self.builder.call(helpers["len"], [subj], name="seq.len");
+    ok_bb = func.append_basic_block(name="seq.len.ok");
+    if star_idx < 0 {
+        cond = self.builder.icmp_signed(
+            "==", len_val, ir.Constant(i64, n), name="seq.len.eq"
+        );
+        self.builder.cbranch(cond, ok_bb, fail_bb);
+        self.builder.position_at_end(ok_bb);
+        for (i, sub) in enumerate(patterns) {
+            elem = self.builder.call(
+                helpers["get"], [subj, ir.Constant(i64, i)], name=f"seq.get{i}"
+            );
+            if not self._emit_match_test(sub, elem, fail_bb) {
+                return False;
+            }
+        }
+        return True;
+    }
+    # Star present: at least the fixed (non-star) elements must be there.
+    n_fixed = n - 1;
+    cond = self.builder.icmp_signed(
+        ">=", len_val, ir.Constant(i64, n_fixed), name="seq.len.ge"
+    );
+    self.builder.cbranch(cond, ok_bb, fail_bb);
+    self.builder.position_at_end(ok_bb);
+    # Fixed prefix: indices 0 .. star_idx-1.
+    for i in range(star_idx) {
+        elem = self.builder.call(
+            helpers["get"], [subj, ir.Constant(i64, i)], name=f"seq.pre{i}"
+        );
+        if not self._emit_match_test(patterns[i], elem, fail_bb) {
+            return False;
+        }
+    }
+    # Fixed suffix: indices len-suffix_count .. len-1.
+    suffix_count = n - 1 - star_idx;
+    for j in range(suffix_count) {
+        idx = self.builder.add(
+            len_val, ir.Constant(i64, -suffix_count + j), name=f"seq.sufidx{j}"
+        );
+        elem = self.builder.call(helpers["get"], [subj, idx], name=f"seq.suf{j}");
+        if not self._emit_match_test(patterns[star_idx + 1 + j], elem, fail_bb) {
+            return False;
+        }
+    }
+    # Bind the star capture to the middle slice [star_idx, len-suffix_count).
+    star_pat = patterns[star_idx];
+    star_name = self._get_name(star_pat.name) if star_pat?.name else None;
+    if star_name is not None {
+        end_idx = self.builder.sub(
+            len_val, ir.Constant(i64, suffix_count), name="star.end"
+        );
+        sub_list = self._emit_build_sublist(
+            elem_name, helpers, subj, ir.Constant(i64, star_idx), end_idx
+        );
+        s_alloca = self._entry_alloca(sub_list.type, star_name);
+        self.builder.store(sub_list, s_alloca);
+        self.local_vars[star_name] = s_alloca;
+    }
+    return True;
+}
+
+"""Build a fresh list[elem] holding subj[start:end] (end exclusive).
+
+Used to materialize a `*rest` star capture. Pointer elements are retained
+by `__list_append_ptr`; the new list is marked owned like a list literal.
+"""
+impl NaIRGenPass._emit_build_sublist(
+    elem_name: str, helpers: dict, subj: ir.Value, start: ir.Value, end: ir.Value
+) -> ir.Value {
+    i64 = ir.IntType(64);
+    func = self.builder.function;
+    sub = self.builder.call(helpers["new"], [], name="star.sub");
+    self._mark_owned(sub);
+    idx_slot = self._entry_alloca(i64, "star.i");
+    self.builder.store(start, idx_slot);
+    loop_bb = func.append_basic_block(name="star.loop");
+    body_bb = func.append_basic_block(name="star.body");
+    done_bb = func.append_basic_block(name="star.done");
+    self.builder.branch(loop_bb);
+    self.builder.position_at_end(loop_bb);
+    cur = self.builder.load(idx_slot, name="star.cur");
+    keep = self.builder.icmp_signed("<", cur, end, name="star.keep");
+    self.builder.cbranch(keep, body_bb, done_bb);
+    self.builder.position_at_end(body_bb);
+    elem = self.builder.call(helpers["get"], [subj, cur], name="star.elem");
+    self.builder.call(helpers["append"], [sub, elem]);
+    nxt = self.builder.add(cur, ir.Constant(i64, 1), name="star.nxt");
+    self.builder.store(nxt, idx_slot);
+    self.builder.branch(loop_bb);
+    self.builder.position_at_end(done_bb);
+    return sub;
+}
+
+"""Lower a mapping pattern `{k0: p0, ...}` over a native dict subject.
+
+Matches iff, for each key, the dict contains that key and the value
+matches the sub-pattern. Keys are constant expressions (string/int/...);
+element access is gated on a `contains` check so a missing key falls
+through to the next case rather than raising KeyError. `**rest` capture is
+not lowered (emits E5090).
+"""
+impl NaIRGenPass._emit_match_mapping(
+    pat: uni.MatchMapping, subj: ir.Value, fail_bb: object
+) -> bool {
+    dinfo = self._infer_dict_type(subj);
+    if dinfo is None {
+        self.emit(
+            E5090,
+            node_override=pat,
+            kind="match pattern",
+            name="MatchMapping over a non-dict subject"
+        );
+        return False;
+    }
+    (key_tn, val_tn) = dinfo;
+    helpers = self.dict_helpers.get(f"{key_tn}:{val_tn}");
+    if helpers is None {
+        self.emit(E5090, node_override=pat, kind="match pattern", name="MatchMapping");
+        return False;
+    }
+    func = self.builder.function;
+    for kv in pat.values {
+        if isinstance(kv, uni.MatchStar) {
+            self.emit(
+                E5090,
+                node_override=pat,
+                kind="match pattern",
+                name="MatchMapping with **rest"
+            );
+            return False;
+        }
+        # A mapping key is wrapped as a MatchValue pattern (literal) or used
+        # directly as a NameAtom/AtomExpr; unwrap to the underlying expr.
+        key_node = kv.key.value if isinstance(kv.key, uni.MatchValue) else kv.key;
+        key_val = self._codegen_expr(key_node);
+        if key_val is None {
+            self.emit(
+                E5090,
+                node_override=pat,
+                kind="match pattern",
+                name="MatchMapping non-constant key"
+            );
+            return False;
+        }
+        key_val = self._coerce_type(key_val, helpers["key_type"]);
+        has_key = self.builder.call(
+            helpers["contains"], [subj, key_val], name="map.has"
+        );
+        ok_bb = func.append_basic_block(name="map.has.ok");
+        self.builder.cbranch(has_key, ok_bb, fail_bb);
+        self.builder.position_at_end(ok_bb);
+        val = self.builder.call(helpers["get"], [subj, key_val], name="map.get");
+        if not self._emit_match_test(kv.value, val, fail_bb) {
+            return False;
+        }
+    }
+    return True;
+}
+
+"""Lower a class/archetype pattern `Cls(pos..., kw=...)` over an obj subject.
+
+Emits a runtime `isinstance` guard (statically folded to true when the
+subject's declared type already is/derives the pattern class), then matches
+keyword sub-patterns against the named fields and positional sub-patterns
+against fields in declaration order (the native `__match_args__`).
+"""
+impl NaIRGenPass._emit_match_arch(
+    pat: uni.MatchArch, subj: ir.Value, fail_bb: object
+) -> bool {
+    cls_name = self._get_name(pat.name);
+    if cls_name is None or cls_name not in self.struct_types {
+        self.emit(
+            E5090,
+            node_override=pat,
+            kind="match pattern",
+            name=f"MatchArch '{cls_name}'"
+        );
+        return False;
+    }
+    func = self.builder.function;
+    inst = self._emit_isinstance_check(subj, cls_name);
+    if inst is None {
+        return False;
+    }
+    # Cast the subject to the pattern's concrete struct pointer so field
+    # access resolves against the right layout (the static type may be a base).
+    target_ptr = self.struct_types[cls_name].as_pointer();
+    if isinstance(inst, ir.Constant) and inst.constant == 1 {
+        casted = self.builder.bitcast(subj, target_ptr, name="arch.self")
+            if subj.type != target_ptr
+            else subj;
+    } else {
+        ok_bb = func.append_basic_block(name="arch.is.ok");
+        self.builder.cbranch(inst, ok_bb, fail_bb);
+        self.builder.position_at_end(ok_bb);
+        casted = self.builder.bitcast(subj, target_ptr, name="arch.self")
+            if subj.type != target_ptr
+            else subj;
+    }
+    # Positional patterns bind to fields in declaration (index) order.
+    arg_pats = pat.arg_patterns or [];
+    if arg_pats {
+        order = self._arch_field_order(cls_name);
+        if len(arg_pats) > len(order) {
+            self.emit(
+                E5090,
+                node_override=pat,
+                kind="match pattern",
+                name=f"MatchArch '{cls_name}' with too many positional patterns"
+            );
+            return False;
+        }
+        for (i, sub) in enumerate(arg_pats) {
+            fld = self._codegen_field_access(casted, order[i], cls_name);
+            if fld is None {
+                return False;
+            }
+            if not self._emit_match_test(sub, fld, fail_bb) {
+                return False;
+            }
+        }
+    }
+    # Keyword patterns bind to named fields.
+    kw_pats = pat.kw_patterns or [];
+    for kv in kw_pats {
+        fname = self._get_name(kv.key);
+        if fname is None {
+            return False;
+        }
+        fld = self._codegen_field_access(casted, fname, cls_name);
+        if fld is None {
+            return False;
+        }
+        if not self._emit_match_test(kv.value, fld, fail_bb) {
+            return False;
+        }
+    }
+    return True;
 }
 
 """Compute an i1 condition for whether `pat` matches `subj`.

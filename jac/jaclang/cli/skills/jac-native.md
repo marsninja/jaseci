@@ -32,6 +32,12 @@ jac nacompile sum.na.jac -o sum    # emits the native binary `sum`
 - `def` functions with typed params/returns; recursion and loops; `_`-prefixed private helpers.
 - Types: `int`, `float`, `bool`, `str`, **plus C-ABI fixed-width numerics** `i32`, `i64`, `u8`, `f32`, `f64` (use these in FFI signatures so they match the C side). `glob` module-level constants (incl. hex literals like `0x1701`) and `obj` structs (`has` fields) also work.
 - Control flow: `if/elif/else`, `while`, `for ... in range(...)`; arithmetic, comparisons, `//`, augmented assignment (`+=`), and `int(...)`/`float(...)` casts.
+- `match` including structural patterns: sequence `case [a, b]`, star `case [first, *rest]`, mapping `case {"k": v}`, and class/archetype `case Point(x=0, y=ay)` (plus value/OR/wildcard/`as`/guards).
+- Containers with their methods: `list`, `dict` (`get`/`pop`/`update`/`clear`/`keys`/`values`/`items`/...), `set` & `frozenset` (`add`/`remove`/`discard`/`union`/`intersection`/...), `tuple`; and a broad `str` method surface (`upper`/`lower`/`strip`/`split`/`join`/`find`/`replace`/`startswith`/`endswith`/...).
+- `complex` numbers: `complex(re, im)`, `.real`/`.imag`, and `+ - * /`.
+- Nested `def`s, including closures that capture enclosing-function locals (and recurse).
+- `isinstance(x, T)` (inheritance-aware for `obj`/`node`/`edge`/`walker` archetypes) and `type(x)` (returns the type name as a `str`).
+- `try`/`except`/`finally`, `raise`, and custom exception classes (`obj MyError(Exception)`).
 - `f"..."` formatting and `print(...)`.
 - A `with entry { ... }` block - the program's entry point.
 - Booleans are `True` / `False` (capitalized). Lowercase `true`/`false` parse as undefined names and fail with a misleading `E1002: Cannot return <Unknown>, expected bool` - see `jac-core-cheatsheet`.
@@ -67,6 +73,7 @@ with entry {
 
 - **The file MUST be named `*.na.jac`**, built with `jac nacompile <file> -o <name>`, then run `./<name>`. (`jac run` is the interpreted path, not native.)
 - **A `with entry { }` block is REQUIRED.** Without one, `jac nacompile` hard-errors: *"No entry point found."* A bare library of `def`s does not produce a binary.
-- **⚠ Python imports and Python builtins over iterables do NOT work** - this is a native binary with no Python. `import math; math.pi` and `sum(range(1, 101))` *compile* but silently emit empty/garbage output at runtime (no error). Inline constants and write loops explicitly. This is the Python stdlib - it is **distinct from** the C-FFI `import from "...so" { … }` above, which is the supported way to pull in external functionality.
-- **No graph / OSP / async in native.** Nodes, edges, walkers, `spawn`, `visit`, `report`, persistence (`root`), `async`, and `by llm` belong to the interpreted/served runtimes - not the native subset.
+- **⚠ Arbitrary Python stdlib imports do NOT work** - this is a native binary with no Python. Only a curated set is lowered (`sys`, `math`, `time`, `os`, `random` - e.g. `import math; math.pi` and `math.sqrt(x)` now work); any other `import json`-style module is rejected at compile time (`E5090`), **not** silently dropped. This is the Python stdlib - it is **distinct from** the C-FFI `import from "...so" { … }` above, which is the supported way to pull in external functionality.
+- **Unsupported builtins fail loud, not silent.** A builtin the native subset cannot lower (e.g. `sum(range(...))`) is now a compile error (`E5090`), not a binary that prints garbage. Builtins that can *never* exist in a native binary - `eval`/`exec`/`compile`/`globals`/`locals`/`vars`/`dir`/`getattr`/`setattr`/`hasattr`/`delattr` - report `E5091` with the reason (no interpreter / no runtime reflection). `bytes(...)` construction is not lowered yet (`E5090`).
+- **No graph / OSP / async in native.** Nodes, edges, walkers, `spawn`, `visit`, `report`, persistence (`root`), `async`, and `by llm` belong to the interpreted/served runtimes - not the native subset. (`obj`/`node`/`edge`/`walker` archetypes still compile as structs with methods, and `isinstance` understands their hierarchy - it is the graph *traversal* semantics that are out of scope.)
 - The binary's stdout is exactly what you `print` - none of the `jac run` setup/compile chatter.

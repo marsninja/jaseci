@@ -3672,12 +3672,16 @@ impl NativeDictEmitter.emit_pop(
             default_val = ir.Constant(val_type, 0);
         }
     }
+    # _emit_runtime_raise splits the block (it inserts the always-true raise
+    # check), so the real predecessor of done_bb is the builder's CURRENT
+    # block, not notfound_bb — capture it for a well-formed PHI.
+    notfound_pred = b.basic_block;
     b.branch(done_bb);
     # Merge
     b.position_at_start(done_bb);
     result = b.phi(val_type, name="dpop.result");
     result.add_incoming(saved_val, shift_done);
-    result.add_incoming(default_val, notfound_bb);
+    result.add_incoming(default_val, notfound_pred);
     return result;
 }
 

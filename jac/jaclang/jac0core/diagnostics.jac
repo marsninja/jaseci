@@ -1129,6 +1129,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native pathway does not yet support {kind} '{name}'",
          help="This Jac construct is supported on the @sv/Python pathway but is not implemented in the .na.jac native compiler yet. Move the code to a non-native context, or extend NaIRGenPass to handle this node type."
      ),
+     E5091 = _err(
+         "E5091",
+         Category.CODEGEN,
+         "'{name}' cannot run in a native binary: {reason}",
+         help="A native binary has no Python interpreter or runtime object model, so this can never be lowered (it is not a 'not yet' gap). Move this code to a non-native (@sv/Python) context, or use the native alternative noted in the message."
+     ),
      # Language server
      E5070 = _err("E5070", Category.CODEGEN, "Error during type check: {error}"),
      E5071 = _err("E5071", Category.CODEGEN, "Error during formatting: {error}"),

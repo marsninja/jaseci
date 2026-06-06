@@ -1636,6 +1636,260 @@ impl NaIRGenPass._infer_type_name(val: ir.Value) -> (str | None) {
     return None;
 }
 
+"""Load an object's runtime type-tag string (i8*) from its alloc header.
+
+The tag lives at `user_ptr + HDR_TAG_OFF` (an i8* slot written by
+`_emit_set_type_tag` at allocation). `subj` may be any struct pointer.
+"""
+impl NaIRGenPass._read_type_tag(subj: ir.Value) -> ir.Value {
+    i8p = ir.IntType(8).as_pointer();
+    i64 = ir.IntType(64);
+    subj_i8 = self.builder.bitcast(subj, i8p, name="tag.base")
+        if subj.type != i8p
+        else subj;
+    tag_slot = self.builder.gep(
+        subj_i8, [ir.Constant(i64, HDR_TAG_OFF)], name="tag.slot"
+    );
+    tag_pp = self.builder.bitcast(tag_slot, i8p.as_pointer(), name="tag.pp");
+    return self.builder.load(tag_pp, name="tag");
+}
+
+"""Return `class_name` plus every archetype that derives from it (per MRO).
+
+Used so a runtime `isinstance(x, Base)` accepts any subclass instance.
+"""
+impl NaIRGenPass._subclasses_of(class_name: str) -> list[str] {
+    out: list[str] = [class_name];
+    for cname in self.struct_types.keys() {
+        if cname == class_name {
+            continue;
+        }
+        mro = self.mro_order.get(cname, [cname]);
+        if class_name in mro {
+            out.append(cname);
+        }
+    }
+    return out;
+}
+
+"""Field names of `class_name` in declaration (struct-index) order.
+
+This is the native analog of Python's `__match_args__`, used to bind the
+positional sub-patterns of a class pattern `Cls(p0, p1, ...)`.
+"""
+impl NaIRGenPass._arch_field_order(class_name: str) -> list[str] {
+    idx_map = self.struct_field_indices.get(class_name);
+    if idx_map is None {
+        return [];
+    }
+    pairs = sorted(idx_map.items(), key=(lambda kv : kv[1]));
+    return [name for (name, _idx) in pairs];
+}
+
+"""Compute an i1 'is `subj` an instance of `class_name`?'.
+
+Folds to a constant when the subject's declared type already is or derives
+`class_name` (the common monomorphic case). Otherwise reads the runtime
+type tag and compares it (via strcmp) against `class_name` and all of its
+subclasses, so the check is inheritance-correct. Returns None (after
+emitting nothing) only when the subject is not a struct pointer and the
+class is unknown — callers decide how to surface that.
+"""
+impl NaIRGenPass._emit_isinstance_check(
+    subj: ir.Value, class_name: str
+) -> (ir.Value | None) {
+    i1 = ir.IntType(1);
+    if class_name not in self.struct_types {
+        return None;
+    }
+    static_tn = self._infer_type_name(subj);
+    if static_tn is not None {
+        mro = self.mro_order.get(static_tn, [static_tn]);
+        if class_name in mro {
+            return ir.Constant(i1, 1);
+        }
+    }
+    if not isinstance(subj.type, ir.PointerType) {
+        return ir.Constant(i1, 0);
+    }
+    i8p = ir.IntType(8).as_pointer();
+    i32 = ir.IntType(32);
+    tag = self._read_type_tag(subj);
+    strcmp_fn = self._get_or_declare_extern("strcmp", i32, [i8p, i8p]);
+    result: ir.Value = ir.Constant(i1, 0);
+    for cand in self._subclasses_of(class_name) {
+        name_gv = self._get_snprintf_fmt(cand);
+        name_ptr = self.builder.gep(
+            name_gv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="isi.name"
+        );
+        cmp = self.builder.call(strcmp_fn, [tag, name_ptr], name="isi.cmp");
+        eq = self.builder.icmp_signed("==", cmp, ir.Constant(i32, 0), name="isi.eq");
+        result = self.builder.or_(result, eq, name="isi.or");
+    }
+    return result;
+}
+
+"""Static isinstance test for primitive type names.
+
+Returns 1/0 when `class_name` is a native primitive/container kind whose
+membership is decidable from the value's LLVM type, else None (so the
+caller can try the archetype path or emit a diagnostic).
+"""
+impl NaIRGenPass._static_isinstance(subj: ir.Value, class_name: str) -> (int | None) {
+    t = subj.type;
+    if class_name == "bool" {
+        return 1 if (isinstance(t, ir.IntType) and t.width == 1) else 0;
+    }
+    if class_name == "int" {
+        return 1 if (isinstance(t, ir.IntType) and t.width >= 32) else 0;
+    }
+    if class_name == "float" {
+        return 1 if isinstance(t, ir.DoubleType) else 0;
+    }
+    if class_name == "str" {
+        return 1
+            if (isinstance(t, ir.PointerType) and t.pointee == ir.IntType(8))
+            else 0;
+    }
+    if class_name == "list" {
+        for (_n, lt) in self.list_types.items() {
+            if t == lt.as_pointer() {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    if class_name == "dict" {
+        for (_n, dt) in self.dict_types.items() {
+            if t == dt.as_pointer() {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    if class_name == "set" {
+        for (_n, st) in self.set_types.items() {
+            if t == st.as_pointer() {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    return None;
+}
+
+"""Native type name of a value from its LLVM type (primitives/containers)."""
+impl NaIRGenPass._static_type_name(subj: ir.Value) -> (str | None) {
+    t = subj.type;
+    if isinstance(t, ir.IntType) {
+        return "bool" if t.width == 1 else "int";
+    }
+    if isinstance(t, ir.DoubleType) {
+        return "float";
+    }
+    if isinstance(t, ir.PointerType) {
+        if t.pointee == ir.IntType(8) {
+            return "str";
+        }
+        for (_n, lt) in self.list_types.items() {
+            if t == lt.as_pointer() {
+                return "list";
+            }
+        }
+        for (_n, dt) in self.dict_types.items() {
+            if t == dt.as_pointer() {
+                return "dict";
+            }
+        }
+        for (_n, st) in self.set_types.items() {
+            if t == st.as_pointer() {
+                return "set";
+            }
+        }
+    }
+    return None;
+}
+
+"""Lower `isinstance(x, Cls)` to an i1.
+
+Archetype classes use an inheritance-aware runtime (or statically folded)
+type-tag check; primitive/container kinds use a static LLVM-type test. The
+tuple form `isinstance(x, (A, B))` and unknown class names emit E5090.
+"""
+impl NaIRGenPass._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
+    params = nd.params or [];
+    if len(params) < 2 {
+        self.emit(
+            E5090, node_override=nd, kind="function", name="isinstance (needs 2 args)"
+        );
+        return None;
+    }
+    subj = self._codegen_expr(params[0]);
+    if subj is None {
+        return None;
+    }
+    cls_name = self._get_name(params[1]);
+    if cls_name is None {
+        self.emit(
+            E5090,
+            node_override=nd,
+            kind="function",
+            name="isinstance with a non-name type (e.g. a tuple of types)"
+        );
+        return None;
+    }
+    if cls_name in self.struct_types {
+        chk = self._emit_isinstance_check(subj, cls_name);
+        if chk is not None {
+            return chk;
+        }
+    }
+    prim = self._static_isinstance(subj, cls_name);
+    if prim is not None {
+        return ir.Constant(ir.IntType(1), prim);
+    }
+    self.emit(
+        E5090,
+        node_override=nd,
+        kind="function",
+        name=f"isinstance against unknown type '{cls_name}'"
+    );
+    return None;
+}
+
+"""Lower `type(x)` to a str of the value's type name.
+
+For objects this is the declared archetype name; for primitives/containers
+it is the native kind ("int", "float", "str", "list", ...). Native is
+statically typed and has no runtime type objects, so the result is a name
+string (use `isinstance` for inheritance-aware, runtime-correct checks).
+"""
+impl NaIRGenPass._emit_type_name(nd: uni.FuncCall) -> (ir.Value | None) {
+    params = nd.params or [];
+    if len(params) < 1 {
+        self.emit(E5090, node_override=nd, kind="function", name="type (needs 1 arg)");
+        return None;
+    }
+    subj = self._codegen_expr(params[0]);
+    if subj is None {
+        return None;
+    }
+    tn = self._infer_type_name(subj);
+    if tn is None {
+        tn = self._static_type_name(subj);
+    }
+    if tn is None {
+        self.emit(
+            E5090,
+            node_override=nd,
+            kind="function",
+            name="type() of an unsupported value"
+        );
+        return None;
+    }
+    return self._make_global_string(tn);
+}
+
 """Infer the list element type name from an LLVM value's type."""
 impl NaIRGenPass._infer_list_elem_type(val: ir.Value) -> (str | None) {
     if not isinstance(val.type, ir.PointerType) {

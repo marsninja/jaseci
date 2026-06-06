@@ -52,36 +52,21 @@ def fmt_errors(prog: JacProgram) -> str {
 # ─────────────────────────────────────────────────────────────────────
 # Statement-level gaps
 # ─────────────────────────────────────────────────────────────────────
-# Value / OR / capture / wildcard / guard match patterns are supported
-# (see test_native_gen_pass.jac). Structural patterns (sequence/mapping/
-# class) are not yet lowered and must still raise E5090.
-test "guardrail: structural match pattern is rejected" {
+# Value / OR / capture / wildcard / guard AND structural patterns
+# (sequence, star, mapping, class/archetype) are now supported — see the
+# "match: ..." behavioral tests in test_native_gen_pass.jac. The remaining
+# structural gap is a mapping `**rest` capture, which must still raise E5090.
+test "guardrail: mapping **rest capture is rejected" {
     prog = compile_na_inline(
-        "match_seq",
-        "def classify(x: list[int]) -> int {\n"
-        "    match x {\n"
-        "        case [1, 2]: return 1;\n"
+        "match_map_rest",
+        "def classify(d: dict[str, int]) -> int {\n"
+        "    match d {\n"
+        "        case {\"k\": 1, **rest}: return 1;\n"
         "        case _: return 0;\n"
         "    }\n"
         "}\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for MatchSequence, got: {fmt_errors(
-        prog
-    )}";
-}
-
-# Non-capturing nested functions are supported (see test_native_gen_pass.jac).
-# A nested function that captures an enclosing-function local is still
-# rejected, since closure capture is not yet implemented.
-test "guardrail: nested function capturing an enclosing local is rejected" {
-    prog = compile_na_inline(
-        "nested_def_capture",
-        "def outer(y: int) -> int {\n"
-        "    def inner(x: int) -> int { return x * y; }\n"
-        "    return inner(5);\n"
-        "}\n"
-    );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for capturing nested Ability, got: {fmt_errors(
+    assert has_error_code(prog, "E5090") , f"Expected E5090 for MatchMapping **rest, got: {fmt_errors(
         prog
     )}";
 }
@@ -191,6 +176,37 @@ test "guardrail: call to an undefined function is rejected" {
         "def use() -> int { return mystery(3); }\n" "with entry { print(use()); }\n"
     );
     assert has_error_code(prog, "E5090") , f"Expected E5090 for call to undefined 'mystery', got: {fmt_errors(
+        prog
+    )}";
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# Impossible-in-native builtins (E5091) — these can NEVER lower (no
+# interpreter / no runtime object model), as opposed to the "not yet"
+# E5090 gaps. They must fail loud with E5091, never drop to a silent call.
+# ─────────────────────────────────────────────────────────────────────
+# eval/exec/compile/globals/locals are not even in the builtin registry, so
+# they reach the free-function fall-through; they must report E5091, not the
+# generic "does not yet support" E5090.
+test "guardrail: eval is rejected as impossible (E5091)" {
+    prog = compile_na_inline(
+        "impossible_eval", "def run(s: str) -> int { return eval(s); }\n"
+    );
+    assert has_error_code(prog, "E5091") , f"Expected E5091 for eval, got: {fmt_errors(
+        prog
+    )}";
+}
+
+# getattr/setattr/vars/dir ARE classified as builtins, so without an explicit
+# guard they would fall through with NO diagnostic (a silent dropped call).
+# They must report E5091.
+test "guardrail: getattr is rejected as impossible (E5091)" {
+    prog = compile_na_inline(
+        "impossible_getattr",
+        "obj P { has x: int; }\n"
+        "def grab(p: P) -> int { return getattr(p, \"x\"); }\n"
+    );
+    assert has_error_code(prog, "E5091") , f"Expected E5091 for getattr, got: {fmt_errors(
         prog
     )}";
 }

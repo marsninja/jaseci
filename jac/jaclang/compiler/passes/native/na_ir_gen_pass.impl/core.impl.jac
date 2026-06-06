@@ -83,6 +83,11 @@ impl NaIRGenPass.postinit -> None {
         "JacComplex"
     );
     self.complex_struct_type.set_body(ir.DoubleType(), ir.DoubleType());
+    # A `complex` annotation lowers to a JacComplex* (boxed {f64 real, f64 imag}).
+    # Without this, `complex` falls through to the i64 default, so a
+    # `c: complex` slot would ptrtoint the boxed pointer and `.real`/`.imag`
+    # and arithmetic would read garbage.
+    self.type_map["complex"] = self.complex_struct_type.as_pointer();
 
     self.range_struct_type = self.llvm_module.context.get_identified_type("JacRange");
     self.range_struct_type.set_body(ir.IntType(64), ir.IntType(64), ir.IntType(64));

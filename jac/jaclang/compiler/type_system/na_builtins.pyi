@@ -13,7 +13,7 @@ type-checks accurately instead of degrading to UnknownType.
 
 from __future__ import annotations
 
-__all__ = ["File", "open"]
+__all__ = ["File", "open", "type"]
 
 class File:
     # Fields backing the emitted struct (handle is opaque and intentionally
@@ -33,3 +33,10 @@ class File:
     ) -> bool: ...
 
 def open(path: str, mode: str = "r") -> File: ...
+
+# Native has no runtime type objects, so `type(x)` returns the value's type
+# name as a string (the archetype name for objects, or the primitive kind
+# such as "int"/"float"/"str"/"list"). Use `isinstance` for inheritance-aware
+# runtime checks. This intentionally shadows the builtin `type` in native
+# context only (it never leaks into regular Jac).
+def type(obj: object) -> str: ...

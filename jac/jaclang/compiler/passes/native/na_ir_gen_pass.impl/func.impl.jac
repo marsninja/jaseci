@@ -347,8 +347,12 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         # rest of the body but dropped afterwards — a nested name must not
         # leak into sibling functions or shadow a module-level function.
         _symtab_before_body = dict(self.func_symtab);
+        _captures_before_body = dict(self.lambda_captures);
         self._codegen_body(body);
         self.func_symtab = _symtab_before_body;
+        # Drop closure captures registered by nested defs/lambdas in this body
+        # so an identically-named nested function elsewhere can't reuse them.
+        self.lambda_captures = _captures_before_body;
     }
     # Ensure function has a terminator
     if not self.builder.block.is_terminated {
@@ -391,9 +395,13 @@ body — including the inner function itself, for recursion — can call it.
 _codegen_ability snapshots/restores func_symtab around each body, so the
 name does not leak to sibling functions.
 
-Capture of enclosing-function locals is not yet supported: if the inner
-body references an enclosing local, we emit E5090 rather than silently
-miscompile. References to module globals and other functions are fine.
+Capture of enclosing-function locals is supported: any free variable bound
+in the enclosing scope is lifted to a hidden trailing parameter (captured
+by value) and injected at each call site via the lambda_captures side
+table. The injection reloads the capture by name from the current scope, so
+a capturing nested function can also recurse (inside its own body the
+capture is a parameter). References to module globals and other functions
+need no capture.
 """
 impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     name = nd.name_ref.sym_name if nd.name_ref else "unnamed";
@@ -415,31 +423,50 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
         ret_type = self._resolve_jac_type(sig.return_type);
     }
     body = ModuleCodegenPass.unwrap_body(nd);
-    # Reject closures over enclosing locals (see docstring): _find_free_vars
-    # only reports names bound in the current (enclosing) local scope.
+    # Lift enclosing-scope free variables to hidden trailing parameters,
+    # captured by value. Snapshot their type info from the enclosing scope so
+    # the inner body can use captured lists/dicts/sets/structs correctly.
     free_vars = self._find_free_vars(body, param_names);
-    if free_vars {
-        self.emit(
-            E5090,
-            node_override=nd,
-            kind="statement",
-            name="Ability (nested function capturing enclosing locals)"
-        );
-        return;
+    cap_names: list = [];
+    cap_types: list = [];
+    cap_allocas: list = [];
+    cap_meta: dict = {};
+    for fv in free_vars {
+        if fv not in self.local_vars {
+            continue;
+        }
+        fv_alloca = self.local_vars[fv];
+        cap_names.append(fv);
+        cap_types.append(fv_alloca.type.pointee);
+        cap_allocas.append((fv, fv_alloca));
+        cap_meta[fv] = {
+            "type_node": self.var_type_node.get(fv),
+            "list_elem": self.var_list_elem_type.get(fv),
+            "dict_type": self.var_dict_type.get(fv),
+            "set_elem": self.var_set_elem_type.get(fv),
+            "enum": self.var_enum_type.get(fv),
+            "struct": self.type_var_map.get(fv)
+        };
     }
+    all_param_names = list(param_names) + cap_names;
+    all_param_types = list(param_types) + cap_types;
     # Lift to a uniquely-named private function; expose under the simple name.
     self._str_count += 1;
     mangled = f"__jac_nested_{name}_{self._str_count}";
-    fn_type = ir.FunctionType(ret_type, param_types);
+    fn_type = ir.FunctionType(ret_type, all_param_types);
     fn = ir.Function(self.llvm_module, fn_type, name=mangled);
     fn.linkage = "private";
     for (i, arg) in enumerate(fn.args) {
-        if i < len(param_names) {
-            arg.name = param_names[i];
+        if i < len(all_param_names) {
+            arg.name = all_param_names[i];
         }
     }
-    # Register before compiling the body so the function can recurse.
+    # Register before compiling the body so the function can recurse, and
+    # record the captures so call sites inject them (see _codegen_call).
     self.func_symtab[name] = fn;
+    if cap_allocas {
+        self.lambda_captures[name] = cap_allocas;
+    }
     # Save and reset the per-scope codegen context, then switch into the
     # inner function with a fresh local scope.
     saved_builder = self.builder;
@@ -461,16 +488,41 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self.var_set_elem_type = {};
     self.var_enum_type = {};
     for (i, arg) in enumerate(fn.args) {
-        alloca = self._entry_alloca(arg.type, param_names[i]);
+        pname = all_param_names[i];
+        alloca = self._entry_alloca(arg.type, pname);
         self.builder.store(arg, alloca);
-        self.local_vars[param_names[i]] = alloca;
-        self.param_vars.add(param_names[i]);
-        sigp = sig_params[i];
-        if sigp?.type_tag and sigp.type_tag and sigp.type_tag?.tag {
-            self.var_type_node[param_names[i]] = sigp.type_tag.tag;
-            tag_name = self._get_name(sigp.type_tag.tag);
-            if tag_name is not None and tag_name in self.struct_types {
-                self.type_var_map[param_names[i]] = tag_name;
+        self.local_vars[pname] = alloca;
+        self.param_vars.add(pname);
+        if i < len(sig_params) {
+            sigp = sig_params[i];
+            if sigp?.type_tag and sigp.type_tag and sigp.type_tag?.tag {
+                self.var_type_node[pname] = sigp.type_tag.tag;
+                tag_name = self._get_name(sigp.type_tag.tag);
+                if tag_name is not None and tag_name in self.struct_types {
+                    self.type_var_map[pname] = tag_name;
+                }
+            }
+        } else {
+            # Captured parameter: restore its enclosing-scope type info so the
+            # inner body resolves container/struct/enum operations on it.
+            meta = cap_meta.get(pname, {});
+            if meta.get("type_node") is not None {
+                self.var_type_node[pname] = meta["type_node"];
+            }
+            if meta.get("list_elem") is not None {
+                self.var_list_elem_type[pname] = meta["list_elem"];
+            }
+            if meta.get("dict_type") is not None {
+                self.var_dict_type[pname] = meta["dict_type"];
+            }
+            if meta.get("set_elem") is not None {
+                self.var_set_elem_type[pname] = meta["set_elem"];
+            }
+            if meta.get("enum") is not None {
+                self.var_enum_type[pname] = meta["enum"];
+            }
+            if meta.get("struct") is not None {
+                self.type_var_map[pname] = meta["struct"];
             }
         }
     }

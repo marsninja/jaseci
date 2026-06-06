@@ -3685,6 +3685,149 @@ test "match dispatches on string patterns" {
     assert f(b"nope") == 0;
 }
 
+# ─── Structural match patterns (sequence / star / class / mapping) ────────
+test "match: fixed-length sequence pattern" {
+    (eng, _) = compile_native("match_structural.na.jac");
+    f = get_func(eng, "drive_seq_fixed", ctypes.c_int64);
+    # seq_fixed([1,2,3])=1, ([10,20])=2, ([1,2])=0 → 1*100 + 2*10 + 0
+    assert f() == 120;
+}
+
+test "match: sequence element capture" {
+    (eng, _) = compile_native("match_structural.na.jac");
+    f = get_func(eng, "drive_seq_capture", ctypes.c_int64);
+    # seq_capture([3,4])=34, ([9])=-1 → 34*10 + (-1+1)
+    assert f() == 340;
+}
+
+test "match: trailing star captures the rest" {
+    (eng, _) = compile_native("match_structural.na.jac");
+    f = get_func(eng, "drive_seq_trailing_star", ctypes.c_int64);
+    # rest lens: [0,7,8,9]→3, [0]→0, [1,2]→-1 → 3*100 + 0*10 + (-1+1)
+    assert f() == 300;
+}
+
+test "match: mid-list star binds the middle" {
+    (eng, _) = compile_native("match_structural.na.jac");
+    f = get_func(eng, "drive_seq_mid_star", ctypes.c_int64);
+    # [5,6,7,8,9]→5*1000+3*10+9=5039 ; [1,2]→1000+0+2=1002 ; sum=6041
+    assert f() == 6041;
+}
+
+test "match: class/archetype pattern" {
+    (eng, _) = compile_native("match_structural.na.jac");
+    f = get_func(eng, "drive_cls", ctypes.c_int64);
+    # Point(0,0)→1, Point(2,3)→203 → 1*1000 + 203
+    assert f() == 1203;
+}
+
+test "match: mapping pattern" {
+    (eng, _) = compile_native("match_structural.na.jac");
+    f = get_func(eng, "drive_map", ctypes.c_int64);
+    # {"kind":1}→10, {"kind":42}→42 → 10*100 + 42
+    assert f() == 1042;
+}
+
+# ─── Nested functions capturing enclosing locals (closures) ──────────────
+test "closure: nested function captures a scalar local" {
+    (eng, _) = compile_native("nested_closure.na.jac");
+    f = get_func(eng, "adder", ctypes.c_int64, ctypes.c_int64);
+    assert f(3) == 8;
+    assert f(10) == 15;
+}
+
+test "closure: nested function captures multiple locals" {
+    (eng, _) = compile_native("nested_closure.na.jac");
+    f = get_func(eng, "multi_capture", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert f(2, 7) == 27;
+}
+
+test "closure: capturing nested function recurses correctly" {
+    (eng, _) = compile_native("nested_closure.na.jac");
+    f = get_func(eng, "nested_recursion", ctypes.c_int64, ctypes.c_int64);
+    assert f(3) == 103;
+    assert f(0) == 100;
+}
+
+test "closure: nested function captures a list" {
+    (eng, _) = compile_native("nested_closure.na.jac");
+    f = get_func(eng, "capture_list", ctypes.c_int64, ctypes.c_int64);
+    # (1+2+3) * 10 = 60
+    assert f(10) == 60;
+}
+
+# ─── Container / string / numeric method surface (§6) ────────────────────
+test "methods: dict get/pop/update/clear" {
+    (eng, _) = compile_native("container_methods.na.jac");
+    f = get_func(eng, "dict_ops", ctypes.c_int64);
+    # get("a")=1 ; pop("b")=2 → +20 ; after update len 3 → +300 ; after clear +0
+    assert f() == 321;
+}
+
+test "methods: set remove/discard/union/intersection" {
+    (eng, _) = compile_native("container_methods.na.jac");
+    f = get_func(eng, "set_ops", ctypes.c_int64);
+    # union len 4 → 40 ; intersection len 2 → +2
+    assert f() == 42;
+}
+
+test "methods: str upper/lower/startswith/endswith/find/replace" {
+    (eng, _) = compile_native("container_methods.na.jac");
+    f = get_func(eng, "str_ops", ctypes.c_int64);
+    assert f() == 63;
+}
+
+test "methods: str join" {
+    (eng, _) = compile_native("container_methods.na.jac");
+    f = get_func(eng, "str_join_ret", ctypes.c_char_p);
+    assert f() == b"a-b-c";
+}
+
+test "methods: frozenset union/intersection" {
+    (eng, _) = compile_native("container_methods.na.jac");
+    f = get_func(eng, "frozenset_ops", ctypes.c_int64);
+    assert f() == 42;
+}
+
+test "methods: complex construction, .real/.imag, arithmetic" {
+    (eng, _) = compile_native("container_methods.na.jac");
+    f = get_func(eng, "complex_ops", ctypes.c_double);
+    # (1+2j)+(3+4j) = (4+6j) → 4*100 + 6
+    assert f() == 406.0;
+}
+
+test "methods: custom exception class raise/catch" {
+    (eng, _) = compile_native("container_methods.na.jac");
+    f = get_func(eng, "custom_exc", ctypes.c_int64, ctypes.c_int64);
+    assert f(-1) == -1;
+    assert f(7) == 7;
+}
+
+# ─── isinstance() and type() ─────────────────────────────────────────────
+test "isinstance: inheritance-aware runtime check" {
+    (eng, _) = compile_native("introspect.na.jac");
+    f = get_func(eng, "drive_isinstance", ctypes.c_int64);
+    assert f() == 21;
+}
+
+test "isinstance: primitive int and str" {
+    (eng, _) = compile_native("introspect.na.jac");
+    is_int = get_func(eng, "is_int_val", ctypes.c_bool, ctypes.c_int64);
+    is_str = get_func(eng, "is_str_val", ctypes.c_bool, ctypes.c_char_p);
+    not_str = get_func(eng, "is_int_a_str", ctypes.c_bool, ctypes.c_int64);
+    assert is_int(5) == True;
+    assert is_str(b"hi") == True;
+    assert not_str(5) == False;
+}
+
+test "type: returns type name string" {
+    (eng, _) = compile_native("introspect.na.jac");
+    ti = get_func(eng, "type_name_of_int", ctypes.c_char_p);
+    to = get_func(eng, "type_name_of_obj", ctypes.c_char_p);
+    assert ti() == b"int";
+    assert to() == b"Animal";
+}
+
 # ─── Pipe-forward operator `|>` ──────────────────────────────────────────
 test "pipe-forward feeds lhs as the sole argument" {
     (eng, _) = compile_native("pipe_fwd.na.jac");

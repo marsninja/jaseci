@@ -12,7 +12,7 @@ import from llvmlite { ir }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5026, E5060, E5090 }
+import from jaclang.jac0core.diagnostics { E5026, E5060, E5090, E5091 }
 
 # ── Python stdlib modules the native backend can lower ────────────────────
 # Allowlist of bare `import X;` modules whose member accesses (`X.attr`,
@@ -66,6 +66,26 @@ glob NATIVE_RANDOM_FUNCS: set[str] = {
          "randint",
          "randrange",
          "uniform",
+
+     };
+
+# ── Builtins that can NEVER lower to a native binary (no interpreter / no
+# runtime object model). Distinct from the "not yet" E5090 gaps: these are
+# emitted as E5091 with a concrete reason so the failure is honest and loud
+# rather than a silently-dropped call. Maps name -> reason fragment.
+glob NATIVE_IMPOSSIBLE_BUILTINS: dict[str, str] = {
+         "eval": "evaluating source text at runtime requires an interpreter",
+         "exec": "executing source text at runtime requires an interpreter",
+         "compile": "compiling source text at runtime requires an interpreter",
+         "globals": "there is no module __dict__ to expose at runtime",
+         "locals": "local frames are not reified at runtime",
+         "vars": "there is no __dict__ to expose at runtime",
+         "dir": "attribute names are not reflectable at runtime",
+         "getattr": "dynamic attribute access needs runtime reflection — use a direct field access `obj.field`",
+         "setattr": "dynamic attribute assignment needs runtime reflection — use a direct field assignment `obj.field = ...`",
+         "hasattr": "dynamic attribute probing needs runtime reflection",
+         "delattr": "dynamic attribute deletion needs runtime reflection",
+         "__import__": "a native binary has no runtime import system",
 
      };
 
@@ -362,6 +382,32 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _match_value_eq(subj: ir.Value, value_node: uni.UniNode) -> (ir.Value | None);
     def _bind_match_pattern(pat: uni.MatchPattern, subj: ir.Value) -> None;
+    def _emit_match_test(
+        pat: uni.MatchPattern, subj: ir.Value, fail_bb: object
+    ) -> bool;
+
+    def _bind_match_capture(name_node: (uni.UniNode | None), subj: ir.Value) -> None;
+    def _emit_match_sequence(
+        pat: uni.MatchSequence, subj: ir.Value, fail_bb: object
+    ) -> bool;
+
+    def _emit_match_mapping(
+        pat: uni.MatchMapping, subj: ir.Value, fail_bb: object
+    ) -> bool;
+
+    def _emit_match_arch(pat: uni.MatchArch, subj: ir.Value, fail_bb: object) -> bool;
+    def _emit_build_sublist(
+        elem_name: str, helpers: dict, subj: ir.Value, start: ir.Value, end: ir.Value
+    ) -> ir.Value;
+
+    def _emit_isinstance_check(subj: ir.Value, class_name: str) -> (ir.Value | None);
+    def _read_type_tag(subj: ir.Value) -> ir.Value;
+    def _subclasses_of(class_name: str) -> list[str];
+    def _arch_field_order(class_name: str) -> list[str];
+    def _emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None);
+    def _emit_type_name(nd: uni.FuncCall) -> (ir.Value | None);
+    def _static_isinstance(subj: ir.Value, class_name: str) -> (int | None);
+    def _static_type_name(subj: ir.Value) -> (str | None);
     def _codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None);
     # Phase 2: Strings and F-Strings
     def _codegen_multistring(nd: uni.MultiString) -> (ir.Value | None);

@@ -49,6 +49,19 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     # FUNCTION and falls through to the free-function path below instead of
     # being hijacked by the builtin handling.
     if _call_kind == CallKind.BUILTIN {
+        # Builtins that can never exist in a native binary (eval/getattr/dir/…)
+        # fail loud with a concrete reason (E5091) instead of silently dropping
+        # the call — some of these (getattr/vars/dir) are classified BUILTIN and
+        # would otherwise fall through with no diagnostic at all.
+        if func_name in NATIVE_IMPOSSIBLE_BUILTINS {
+            self.emit(
+                E5091,
+                node_override=nd,
+                name=func_name,
+                reason=NATIVE_IMPOSSIBLE_BUILTINS[func_name]
+            );
+            return None;
+        }
         # Handle print() specially
         if func_name == "print" {
             return self._emit_print(nd);
@@ -588,6 +601,12 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         if func_name == "open" {
             return self._emit_open(nd);
         }
+        if func_name == "isinstance" {
+            return self._emit_isinstance(nd);
+        }
+        if func_name == "type" {
+            return self._emit_type_name(nd);
+        }
     }
     # Handle object instantiation: ClassName(args)
     if func_name in self.struct_types {
@@ -695,7 +714,17 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         # reaches this point and is materialized from the assignment's type
         # annotation; builtin calls that truly cannot be lowered are caught at
         # their dispatch site above (where the arguments are known).
-        if _call_kind != CallKind.BUILTIN {
+        if func_name in NATIVE_IMPOSSIBLE_BUILTINS {
+            # eval/exec/globals/locals/compile aren't in the builtin registry,
+            # so they reach here as unresolved free functions — surface the
+            # "never" reason (E5091) rather than the "not yet" gap (E5090).
+            self.emit(
+                E5091,
+                node_override=nd,
+                name=func_name,
+                reason=NATIVE_IMPOSSIBLE_BUILTINS[func_name]
+            );
+        } elif _call_kind != CallKind.BUILTIN {
             self.emit(E5090, node_override=nd, kind="function", name=func_name);
         }
         return None;
@@ -734,6 +763,16 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             } else {
                 args.append(ir.Constant(expected_type, 0));
             }
+        }
+    }
+    # Inject captured locals for a capturing nested function (closure). The
+    # capture is reloaded by name from the current scope so a recursive call
+    # uses the callee's own capture parameter; otherwise it falls back to the
+    # alloca recorded at definition time in the enclosing scope.
+    if func_name in self.lambda_captures {
+        for (_cname, _c_alloca) in self.lambda_captures[func_name] {
+            _use_alloca = self.local_vars.get(_cname, _c_alloca);
+            args.append(self.builder.load(_use_alloca, name=f"cap.{_cname}"));
         }
     }
     # Foreign (clib) calls: marshal per the recorded System V ABI plan. This is
