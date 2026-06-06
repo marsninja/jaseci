@@ -14,7 +14,7 @@ impl LayoutPass.transform(ir_in: uni.Module) -> uni.Module {
     # Step 1: Collect all archetypes
     arch_map = self._collect_archetypes(module);
     if not arch_map {
-        module.gen.layout_registry = self.registry;
+        module.gen.analysis.layout_registry = self.registry;
         return ir_in;
     }
     # Step 2: Build hierarchy (parents + MRO)
@@ -41,8 +41,7 @@ impl LayoutPass.transform(ir_in: uni.Module) -> uni.Module {
             self._validate_obj_fields(arch_map[name], arch_map);
         }
     }
-    # Store registry on module (using setattr to avoid modifying CodeGenTarget)
-    module.gen.layout_registry = self.registry;
+    module.gen.analysis.layout_registry = self.registry;
     return ir_in;
 }
 

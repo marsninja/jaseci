@@ -72,19 +72,9 @@ obj ArchetypeLayout {
         parent_field_start: dict[str, int] = {};
 }
 
-"""Get or compute the layout registry for a module.
-
-Backends call this lazily instead of LayoutPass being in the schedule.
-Avoids re-entrancy issues with the self-hosting compiler bootstrap.
-"""
+"""Return the layout registry produced by LayoutPass."""
 def get_layout_registry(module: uni.Module, prog: any = None) -> LayoutRegistry {
-    reg = module.gen.layout_registry;
-    if reg is not None {
-        return reg;
-    }
-    # Compute lazily
-    pass_inst = LayoutPass(ir_in=module, prog=prog);
-    return module.gen.layout_registry or LayoutRegistry();
+    return module.gen.analysis.layout_registry or LayoutRegistry();
 }
 
 """Module-level layout registry."""

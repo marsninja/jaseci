@@ -567,11 +567,13 @@ impl ModuleIntrospector._load_manifest -> None {
         if not mod {
             mod = Jac.program.compile(mod_path);
         }
-        if mod and mod.gen.client_manifest and not mod.gen.client_manifest.exports {
+        if mod
+        and mod.gen.analysis.client_manifest
+        and not mod.gen.analysis.client_manifest.exports {
             _ensure_js_generated(mod, Jac.program);
         }
-        if (mod and mod.gen.client_manifest) {
-            manifest = mod.gen.client_manifest;
+        if (mod and mod.gen.analysis.client_manifest) {
+            manifest = mod.gen.analysis.client_manifest;
             base = {
                 'exports': manifest.exports,
                 'globals': manifest.globals,
@@ -593,8 +595,8 @@ impl ModuleIntrospector._load_manifest -> None {
     # span `find_module` uses.
     for hub in Jac.program._search_hubs() {
         for hub_mod in hub.values() {
-            if hub_mod and hub_mod.gen.interop_manifest {
-                for (ekey, eeff) in hub_mod.gen.interop_manifest.endpoint_effects.items() {
+            if hub_mod and hub_mod.gen.analysis.interop_manifest {
+                for (ekey, eeff) in hub_mod.gen.analysis.interop_manifest.endpoint_effects.items() {
                     aggregated[ekey] = eeff;
                 }
             }
@@ -657,10 +659,10 @@ impl ModuleIntrospector._extract_access_levels -> None {
         }
     }
     for src_mod in sources {
-        if not (src_mod and src_mod.gen and src_mod.gen.interop_manifest) {
+        if not (src_mod and src_mod.gen and src_mod.gen.analysis.interop_manifest) {
             continue;
         }
-        man = src_mod.gen.interop_manifest;
+        man = src_mod.gen.analysis.interop_manifest;
         for (name, auth) in man.func_access.items() {
             if name not in self._function_access {
                 self._function_access[name] = auth;
@@ -728,7 +730,7 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
     # `find_module` already uses to resolve across the two programs.
     for hub in Jac.program._search_hubs() {
         for mod in hub.values() {
-            man = mod.gen.interop_manifest if (mod and mod.gen) else None;
+            man = mod.gen.analysis.interop_manifest if (mod and mod.gen) else None;
             if not man {
                 continue;
             }

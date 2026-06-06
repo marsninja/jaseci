@@ -152,7 +152,7 @@ ctypes.
           in the interop callback table.
         """
 impl PyastGenPass._gen_native_interop_stubs(nd: uni.NativeBlock) -> None {
-    manifest = self.ir_in.gen.interop_manifest;
+    manifest = self.ir_in.gen.analysis.interop_manifest;
     if (not manifest or not manifest.bindings) {
         return;
     }
@@ -180,7 +180,7 @@ impl PyastGenPass._gen_native_interop_stubs(nd: uni.NativeBlock) -> None {
 
 """Generate Python HTTP client stubs for sv-to-sv microservice imports."""
 impl PyastGenPass._generate_sv_to_sv_stubs(nd: uni.Import) -> bool {
-    manifest = self.ir_in.gen.interop_manifest;
+    manifest = self.ir_in.gen.analysis.interop_manifest;
     if (not manifest) {
         return False;
     }

@@ -1019,7 +1019,7 @@ impl EsastGenPass._resolve_call_ability(nd: uni.FuncCall) -> (uni.Ability | None
         # sv-imported name: read the source ability off the cross-boundary
         # binding that BoundaryAnalysisPass already resolved (no independent
         # import re-resolution here).
-        manifest = self.ir_in.gen.interop_manifest;
+        manifest = self.ir_in.gen.analysis.interop_manifest;
         binding = manifest.bindings.get(nd.target.sym_name) if manifest else None;
         if binding and isinstance(binding.ast_node, uni.Ability) {
             return binding.ast_node;
@@ -1576,10 +1576,10 @@ impl EsastGenPass._try_lower_server_rpc_call(
         ability_node
     );
     inline_ret_type: str = self._extract_return_type(
-        ability_node, func_name, self.ir_in.gen.interop_manifest
+        ability_node, func_name, self.ir_in.gen.analysis.interop_manifest
     );
-    inline_boundary = self.ir_in.gen.interop_manifest.boundary_types
-        if self.ir_in.gen.interop_manifest
+    inline_boundary = self.ir_in.gen.analysis.interop_manifest.boundary_types
+        if self.ir_in.gen.analysis.interop_manifest
         else {};
     (spread_arg, spread_read_source) = self._make_kwargs_spread_context(props, nd);
     use_kwargs_temp = spread_read_source is not None;
@@ -5192,12 +5192,12 @@ impl EsastGenPass._generate_sv_import_stubs(nd: uni.Import) -> None {
                 param_names = self._param_names_from_ability(ability_node);
                 param_type_map = self._param_type_map_from_ability(ability_node);
                 ret_type_name = self._extract_return_type(
-                    ability_node, func_name, nd.gen.interop_manifest
+                    ability_node, func_name, nd.gen.analysis.interop_manifest
                 );
                 # Carry the source module's precomputed effect (from
                 # BoundaryAnalysisPass) into this client bundle's manifest so the
                 # sv-imported endpoint self-registers with the right effects.
-                src_effect = source_mod.gen.interop_manifest.endpoint_effects.get(
+                src_effect = source_mod.gen.analysis.interop_manifest.endpoint_effects.get(
                     f"func:{func_name}"
                 );
                 if src_effect is not None {
@@ -5207,8 +5207,8 @@ impl EsastGenPass._generate_sv_import_stubs(nd: uni.Import) -> None {
                 }
             }
         }
-        boundary_types = nd.gen.interop_manifest.boundary_types
-            if nd.gen.interop_manifest
+        boundary_types = nd.gen.analysis.interop_manifest.boundary_types
+            if nd.gen.analysis.interop_manifest
             else {};
         # Build JS function parameters
         js_params: list[es.Pattern] = [];
@@ -5291,19 +5291,21 @@ impl EsastGenPass.exit_sub_tag(nd: uni.SubTag[uni.T]) -> None {
 
 """Recursively populate client manifest from module declarations."""
 impl EsastGenPass._populate_client_manifest(nd: uni.Module) -> None {
-    for item in nd.gen.client_manifest.exports {
+    for item in nd.gen.analysis.client_manifest.exports {
         self.client_manifest.exports.append(item);
     }
-    for item in nd.gen.client_manifest.globals {
+    for item in nd.gen.analysis.client_manifest.globals {
         self.client_manifest.globals.append(item);
     }
-    for (import_key, resolved_path) in nd.gen.client_manifest.imports.items() {
+    for (import_key, resolved_path) in nd.gen.analysis.client_manifest.imports.items() {
         self.client_manifest.imports[import_key] = resolved_path;
     }
-    for sub_mod in nd.gen.client_manifest.params {
-        self.client_manifest.params[sub_mod] = nd.gen.client_manifest.params[sub_mod];
+    for sub_mod in nd.gen.analysis.client_manifest.params {
+        self.client_manifest.params[sub_mod] = nd.gen.analysis.client_manifest.params[
+            sub_mod
+        ];
     }
-    for (ename, eeffect) in nd.gen.interop_manifest.endpoint_effects.items() {
+    for (ename, eeffect) in nd.gen.analysis.interop_manifest.endpoint_effects.items() {
         self.client_manifest.endpoint_effects[ename] = eeffect;
     }
 }
@@ -5318,7 +5320,7 @@ impl EsastGenPass.populate_client_manifest(nd: uni.Module) -> None {
 """Emit JS class stubs for types crossing the SV/CL boundary."""
 impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement] {
     import from jaclang.jac0core.codeinfo { BoundaryTypeInfo }
-    manifest = nd.gen.interop_manifest;
+    manifest = nd.gen.analysis.interop_manifest;
     if not manifest.boundary_types {
         return [];
     }
@@ -6168,7 +6170,7 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     program = self.sync_loc(es.Program(body=body, sourceType='module'), jac_node=nd);
     nd.gen.es_ast = program;
     nd.gen.js = es_to_js(nd.gen.es_ast);
-    nd.gen.client_manifest = self.client_manifest;
+    nd.gen.analysis.client_manifest = self.client_manifest;
 }
 
 """Construct a block statement from a Jac scope node."""
@@ -6343,8 +6345,8 @@ impl EsastGenPass._build_spawn_arg_object(
             }
         }
     }
-    boundary_types = self.ir_in.gen.interop_manifest.boundary_types
-        if self.ir_in.gen.interop_manifest
+    boundary_types = self.ir_in.gen.analysis.interop_manifest.boundary_types
+        if self.ir_in.gen.analysis.interop_manifest
         else {};
     properties: list[(es.Property | es.SpreadElement)] = [];
     positional_index = 0;
@@ -6732,11 +6734,11 @@ impl EsastGenPass.before_pass -> None {
     self.child_passes = self._init_child_passes(EsastGenPass);
     self.client_manifest = ClientManifest();
     # Endpoint effects are computed by BoundaryAnalysisPass (front-end) into
-    # mod.gen.interop_manifest. Seed the fresh accumulator from it so the
+    # mod.gen.analysis.interop_manifest. Seed the fresh accumulator from it so the
     # registration emit and cross-module merge carry them through; this pass
     # no longer classifies effects itself.
     self.client_manifest.endpoint_effects = dict(
-        self.ir_in.gen.interop_manifest.endpoint_effects
+        self.ir_in.gen.analysis.interop_manifest.endpoint_effects
     );
     # Module-level (shared) archetypes referenced by client code. They live in
     # SERVER context (their default) but client code uses them, so they must be

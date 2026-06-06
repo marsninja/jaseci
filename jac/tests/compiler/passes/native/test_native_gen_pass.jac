@@ -1472,10 +1472,10 @@ test "py interop native function has stub in python" {
 }
 
 test "py interop interop manifest built" {
-    # InteropAnalysisPass should detect cross-boundary calls.
+    # BoundaryAnalysisPass should detect cross-boundary calls.
     prog = JacProgram();
     ir = prog.compile(str(os.path.join(FIXTURES, "na_py_interop.jac")));
-    manifest = ir.gen.interop_manifest;
+    manifest = ir.gen.analysis.interop_manifest;
     assert manifest is not None;
     # py_double: defined in SERVER, called from NATIVE
     assert "py_double" in manifest.bindings;
@@ -1547,7 +1547,7 @@ test "multi module module level na import" {
     assert ir is not None;
     assert not prog.errors_had , f"Errors: {prog.errors_had}";
     # triple should be in manifest as a cross-module import
-    manifest = ir.gen.interop_manifest;
+    manifest = ir.gen.analysis.interop_manifest;
     assert "triple" in manifest.bindings;
     assert manifest.bindings["triple"].source_module == "na_math_utils.na";
 }
@@ -1558,7 +1558,7 @@ test "multi module na scoped import" {
     ir = prog.compile(str(os.path.join(FIXTURES, "na_py_interop_multi.jac")));
     assert not prog.errors_had , f"Errors: {prog.errors_had}";
     # The na-scoped import should be tracked in manifest
-    manifest = ir.gen.interop_manifest;
+    manifest = ir.gen.analysis.interop_manifest;
     # add_ten should be recognized as a NATIVE->NATIVE binding
     assert "add_ten" in manifest.bindings;
     assert manifest.bindings["add_ten"].source_module == "na_transformers.na";
@@ -2185,7 +2185,9 @@ def compile_auto_native(file_path: str) -> tuple[uni.Module, JacProgram] {
 test "auto promote chess.jac detects native compatible" {
     (ir, _) = compile_auto_native(CHESS_JAC);
     assert ir is not None;
-    assert ir.gen.native_compat , ("chess.jac should be auto-promoted to native");
+    assert ir.gen.analysis.native_compat , (
+        "chess.jac should be auto-promoted to native"
+    );
     assert ir.gen.native_engine is not None , (
         "Auto-promoted chess.jac should have a native engine"
     );
@@ -2727,7 +2729,7 @@ test "jir bitcode cache round-trip" {
 # --- CType struct contract: layout metadata and field types ---
 test "struct layout exports correct field types" {
     (eng, ir) = compile_native("func_ptr_fields.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None , "Native layout should be exported";
     assert "AllFields" in layout.structs , "AllFields struct should be in layout";
     af = layout.structs["AllFields"];
@@ -2741,7 +2743,7 @@ test "struct layout exports correct field types" {
 
 test "struct layout tracks field indices correctly" {
     (eng, ir) = compile_native("func_ptr_fields.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     af = layout.structs["AllFields"];
     indices = [f.index for f in af.fields];
@@ -2751,7 +2753,7 @@ test "struct layout tracks field indices correctly" {
 
 test "optional field compiles to pointer type" {
     (eng, ir) = compile_native("func_ptr_fields.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     assert "MaybePoint" in layout.structs;
     mp = layout.structs["MaybePoint"];
@@ -2806,7 +2808,7 @@ test "maybe_point struct round-trip" {
 
 test "NativeFieldInfo func_ptr defaults to False" {
     (eng, ir) = compile_native("func_ptr_fields.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     af = layout.structs["AllFields"];
     for f in af.fields {
@@ -2818,7 +2820,7 @@ test "NativeFieldInfo func_ptr defaults to False" {
 
 test "function layout exports param and return types" {
     (eng, ir) = compile_native("func_ptr_fields.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     assert "add" in layout.functions;
     add_layout = layout.functions["add"];
@@ -2828,7 +2830,7 @@ test "function layout exports param and return types" {
 
 test "layout exports all expected functions" {
     (eng, ir) = compile_native("func_ptr_fields.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     expected = {
         "add",

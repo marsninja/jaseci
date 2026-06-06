@@ -60,13 +60,13 @@ def accelerate_module(mod_name: str, na_file: str) -> int {
             return -1;
         }
         engine = ir.gen.native_engine;
-        layout = ir.gen.native_layout;
+        layout = ir.gen.analysis.native_layout;
         if engine is None or layout is None {
             return 0;
         }
         # Initialize the module's (and its native imports') globals before any
         # wrapper can be called — otherwise reads of native globals segfault.
-        init_native_globals(engine, ir.gen.interop_manifest);
+        init_native_globals(engine, ir.gen.analysis.interop_manifest);
         count = install_native_wrappers(module, engine, layout);
         if count > 0 {
             # Keep engine alive on the module to prevent GC

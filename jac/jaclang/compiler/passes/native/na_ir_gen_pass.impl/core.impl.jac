@@ -100,7 +100,7 @@ impl NaIRGenPass.postinit -> None {
 """Forward-declare, codegen native abilities/entries, and store the LLVM module."""
 impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
     # Auto-promote a compatible .jac module to native context when requested
-    if (self.prog._auto_promote_native and self.ir_in.gen.native_compat) {
+    if (self.prog._auto_promote_native and self.ir_in.gen.analysis.native_compat) {
         mod_path = self.ir_in.loc.mod_path if self.ir_in.loc else "";
         main_target = self.prog._auto_promote_target;
         if (
@@ -380,7 +380,7 @@ impl NaIRGenPass._export_native_layout -> None {
     for (ename, ltype) in self.list_types.items() {
         layout.list_elem_types[f"List.{ename}"] = ename;
     }
-    self.ir_in.gen.native_layout = layout;
+    self.ir_in.gen.analysis.native_layout = layout;
 }
 
 """Extract struct hints from a tuple return type AST node.
@@ -457,10 +457,10 @@ impl NaIRGenPass._register_imported_struct_types -> None {
     import from jaclang.jac0core.codeinfo { resolve_native_module }
     # ── DFS work queue: collect ALL transitive .na.jac imports ───────────────
     # Uses the shared resolve_native_module() from codeinfo to resolve paths,
-    # ensuring consistency with InteropAnalysisPass.
+    # ensuring consistency with BoundaryAnalysisPass.
     processed_modules: set[str] = set();
     imported_mods: list = [];  # list of (source_module_str, module_ast)
-    manifest = self.ir_in.gen.interop_manifest;
+    manifest = self.ir_in.gen.analysis.interop_manifest;
 
     # Seed work queue with entry module's import statements.
     entry_base = os.path.dirname(os.path.abspath(self.ir_in.loc.mod_path))

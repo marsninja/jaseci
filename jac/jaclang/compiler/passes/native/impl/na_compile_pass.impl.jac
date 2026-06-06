@@ -125,7 +125,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
 
         # Register Python function callbacks before creating engine
         # so MCJIT can resolve them during code generation (sv↔na interop)
-        manifest = module.gen.interop_manifest;
+        manifest = module.gen.analysis.interop_manifest;
         native_imports = manifest.native_imports;
         if native_imports {
             import from jaclang.jac0core.interop_bridge { register_py_callbacks }
@@ -359,7 +359,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
     # Names the main module imports from other native modules — used to tell
     # owned definitions apart from transitively-carried ones.
     _main_imported_names: set = set();
-    _main_manifest = module.gen.interop_manifest;
+    _main_manifest = module.gen.analysis.interop_manifest;
     if _main_manifest is not None {
         for _imp_b in _main_manifest.native_cross_module_imports {
             _main_imported_names.add(_imp_b.name);
@@ -553,7 +553,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             dep_clib_paths = imported_ir.gen._clib_paths or [];
             # Collect transitive dep paths for cache metadata
             dep_transitive_paths: list = [];
-            dep_manifest = imported_ir.gen.interop_manifest;
+            dep_manifest = imported_ir.gen.analysis.interop_manifest;
             if dep_manifest is not None {
                 dep_base = os.path.dirname(full_path);
                 for dep_binding in dep_manifest.native_cross_module_imports {
@@ -786,7 +786,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
 
             linked_modules[real_path] = mod_info;
-            module.gen.interop_manifest.native_module_imports[source_mod_path] = mod_info;
+            module.gen.analysis.interop_manifest.native_module_imports[
+                source_mod_path
+            ] = mod_info;
         } except Exception as e {
             self.emit(E5025, path=full_path, error=str(e));
         }

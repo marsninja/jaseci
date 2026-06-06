@@ -596,7 +596,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     func = self.func_symtab.get(func_name);
     if func is None {
         # Check interop manifest for cross-boundary functions callable from native
-        manifest = self.ir_in.gen.interop_manifest;
+        manifest = self.ir_in.gen.analysis.interop_manifest;
         binding = manifest.bindings.get(func_name);
         if binding is not None {
             if binding.source_context.value == "server" {

@@ -143,7 +143,7 @@ impl nacompile(filename: str, output: str = "", scrub: bool = False) -> int {
     }
 
     if ir_module is None or ir_module.gen.llvm_ir is None {
-        if auto_promote and not (ir_module and ir_module.gen.native_compat) {
+        if auto_promote and not (ir_module and ir_module.gen.analysis.native_compat) {
             console.error(
                 "This .jac file is not compatible with native compilation.\n"
                 "  It may use walkers, nodes, edges, async, lambdas, or other\n"
@@ -166,7 +166,7 @@ impl nacompile(filename: str, output: str = "", scrub: bool = False) -> int {
     }
 
     # Step 2: Check for Python/server interop (can't compile standalone)
-    manifest = ir_module.gen.interop_manifest;
+    manifest = ir_module.gen.analysis.interop_manifest;
     if manifest and manifest.native_imports {
         console.error(
             "Cannot compile to standalone binary: "

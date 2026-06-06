@@ -44,18 +44,18 @@ test "compilation skips python stubs" {
     assert "__jac_client__" not in mod.gen.py;
     assert "class ButtonProps" not in mod.gen.py;
 
-    # Manifest data should be in mod.gen.client_manifest
+    # Manifest data should be in mod.gen.analysis.client_manifest
     assert "__jac_client_manifest__" not in mod.gen.py;
-    manifest = mod.gen.client_manifest;
+    manifest = mod.gen.analysis.client_manifest;
     assert manifest , "Client manifest should be available in mod.gen";
     assert "component" in manifest.exports;
     assert "ButtonProps" in manifest.exports;
     assert "API_URL" in manifest.globals;
 
-    assert "component" in mod.gen.client_manifest.exports;
-    assert "ButtonProps" in mod.gen.client_manifest.exports;
-    assert "API_URL" in mod.gen.client_manifest.globals;
-    assert mod.gen.client_manifest.params.get("component", []) == [];
+    assert "component" in mod.gen.analysis.client_manifest.exports;
+    assert "ButtonProps" in mod.gen.analysis.client_manifest.exports;
+    assert "API_URL" in mod.gen.analysis.client_manifest.globals;
+    assert mod.gen.analysis.client_manifest.params.get("component", []) == [];
 }
 
 # Consolidated: typeof conversion + spawn operator (share one JacProgram)
@@ -114,7 +114,7 @@ test "def pub and endpoint effects" {
     # --- endpoint effects classifies walkers and functions ---
     effects_code = '"""Test auto endpoint effects."""\n\nnode Todo {\n    has title: str,\n        done: bool = False;\n}\n\nwalker get_todos {\n    can visit_root with Root entry {\n        report [-->];\n    }\n}\n\nwalker create_todo {\n    has title: str;\n    can do_create with Root entry {\n        here ++> Todo(title=self.title);\n    }\n}\n\ndef:pub get_stats() -> dict {\n    return {"count": 10};\n}\n\ndef:pub reset_data() -> dict {\n    items = [];\n    del items;\n    return {};\n}\n\ncl {\n    def:pub app() {\n        todos = root spawn get_todos();\n        root spawn create_todo(title="test");\n        stats = await get_stats();\n        result = await reset_data();\n    }\n}\n';
     mod2 = compile_inline(effects_code, prog);
-    effects = mod2.gen.client_manifest.endpoint_effects;
+    effects = mod2.gen.analysis.client_manifest.endpoint_effects;
     # Walker reader: no write operations in body
     assert "walker:get_todos" in effects , "get_todos should be in endpoint_effects";
     assert not effects["walker:get_todos"]["is_writer"] , "get_todos should be classified as reader";
@@ -143,7 +143,7 @@ test "endpoint effects follow helper calls" {
     # client cache is never invalidated after the mutation.
     code = '"""Interprocedural endpoint effect analysis."""\n\nnode Item {\n    has title: str,\n        tags: list = [];\n}\n\ndef _add_tag(it: Item, label: str) -> None {\n    it.tags = it.tags + [label];\n}\n\nwalker tag_item {\n    has label: str;\n    can do_tag with Root entry {\n        for it in [-->[?:Item]] {\n            _add_tag(it, self.label);\n        }\n    }\n}\n\ndef:pub mark_item(label: str) -> dict {\n    items = [];\n    for it in items {\n        _add_tag(it, label);\n    }\n    return {};\n}\n\ncl {\n    def:pub app() {\n        root spawn tag_item(label="x");\n        result = await mark_item("y");\n    }\n}\n';
     mod = compile_inline(code, prog);
-    effects = mod.gen.client_manifest.endpoint_effects;
+    effects = mod.gen.analysis.client_manifest.endpoint_effects;
 
     # The walker mutates Item.tags only inside the `_add_tag` helper.
     assert "walker:tag_item" in effects , "tag_item should be in endpoint_effects";

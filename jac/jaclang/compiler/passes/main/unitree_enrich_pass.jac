@@ -1,6 +1,6 @@
 """Pre-computes backend-neutral analysis on AST nodes so codegen passes
 are pure code generation. Populates Name.js_decl_kind and
-Module.gen.native_compat."""
+Module.gen.analysis.native_compat."""
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 

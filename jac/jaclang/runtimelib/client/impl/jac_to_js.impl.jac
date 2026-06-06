@@ -26,6 +26,6 @@ impl JacToJSCompiler.compile_module(
     module_path: Path
 ) -> tuple[str, (ModuleType | None), (ClientManifest | None)] {
     (module_js, mod) = self._compile_to_js(module_path);
-    manifest = mod.gen.client_manifest if mod else None;
+    manifest = mod.gen.analysis.client_manifest if mod else None;
     return (module_js, mod, manifest);
 }

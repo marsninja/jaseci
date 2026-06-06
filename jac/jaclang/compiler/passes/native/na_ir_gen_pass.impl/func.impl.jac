@@ -638,7 +638,7 @@ impl NaIRGenPass._codegen_entry(nd: uni.ModuleCode) -> None {
     # _register_imported_struct_types (DFS over all import trees) on the
     # shared InteropManifest, and contains the same source_module strings
     # that na_compile_pass uses when renaming __jac_glob_init.
-    _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
+    _manifest = self.ir_in.gen.analysis.interop_manifest if (self.ir_in?.gen) else None;
     _all_na_sources = _manifest.native_transitive_sources if _manifest else [];
     _seen_init_mods: set = set();
     for _source_mod in _all_na_sources {

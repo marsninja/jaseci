@@ -45,6 +45,10 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     # na-block archetypes plus shared module-level archetypes referenced by
     # native code; names are already de-duplicated by _native_archetypes.
     archetypes: list[uni.Archetype] = self._native_archetypes(module);
+    if not archetypes {
+        self._forward_declare_functions(module);
+        return;
+    }
     arch_map: dict[(str, uni.Archetype)] = {};
     for arch in archetypes {
         arch_map[arch.name.value if arch.name else "unknown"] = arch;
@@ -56,9 +60,17 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         self.struct_types[arch_name] = struct_type;
         self.has_native_code = True;
     }
-    # Pass 1.5 + 1.7: Read class hierarchy and MRO from centralized LayoutRegistry
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    layout_reg = get_layout_registry(self.ir_in, self.prog);
+    # Pass 1.5 + 1.7: Read class hierarchy and MRO from centralized LayoutRegistry.
+    layout_reg = self.ir_in.gen.analysis.layout_registry;
+    if layout_reg is None {
+        self.emit(
+            E5090,
+            node_override=module,
+            kind="native layout",
+            name="missing LayoutRegistry",
+        );
+        return;
+    }
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
         self.arch_ast_map[arch_name] = arch;

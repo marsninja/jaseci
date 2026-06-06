@@ -413,7 +413,7 @@ segfaults if the globals were never initialized. The codegen emits a
 `__jac_glob_init` for the module's own globals and a renamed
 `__jac_glob_init_<safe_name>` for each imported native module; imported
 modules must be initialized before the importer. `manifest` is the compiled
-module's InteropManifest (ir.gen.interop_manifest); its
+module's InteropManifest (ir.gen.analysis.interop_manifest); its
 `native_transitive_sources` lists the imported native modules in dependency
 order.
 """

@@ -15,6 +15,19 @@ A single `.jac` file can mix all three codespaces. The compiler routes each
 declaration to the correct backend, synthesises the interop bridges at the
 boundary, and emits the appropriate artefact per codespace.
 
+The architecture is governed by a simple ownership rule:
+
+| Layer | Owns | Must not own |
+|-------|------|--------------|
+| **Frontend analysis** | Jac language truth: parsed structure, symbols, scopes, semantic resolution, type facts, control-flow facts, meaning-typed IR, and portability diagnostics | Target syntax, runtime helper shape, or ABI-specific emission details |
+| **Boundary analysis** | Cross-codespace contracts: caller/callee context, route shape, parameter and return wire types, access requirements, endpoint effects, and provider metadata | Python/JavaScript/LLVM stub syntax |
+| **Target lowering** | Representation facts needed by exactly one backend, such as Python import requirements, JSX accumulator state, LLVM layout/ABI plans, and ownership lowering | Facts another backend would need to answer the same Jac semantic question |
+| **Emission** | Concrete Python AST, ESTree, LLVM IR, bytecode, JavaScript, native objects, and runtime stubs | Rediscovery of names, types, access, or cross-codespace contracts |
+
+As a review heuristic: if two backends need the same fact, that fact belongs
+in a shared analysis pass or manifest. If only one backend needs it because of
+the representation it emits, it can stay target-local.
+
 This document is the architectural map of how that pipeline is wired
 together. It is intended for compiler contributors. For language-level
 behaviour see [Primitives & Codespace Semantics](../reference/language/primitives.md);
@@ -112,7 +125,7 @@ graph TD
 
     FRONTEND --> FE1 --> FE2 --> FE3 --> FE4 --> FE5 --> FE6 --> FE7 --> FE8
     FE8 --> TYPECK["Type Check<br/>TypeCheckPass / StaticAnalysisPass / PortabilityCheckPass"]
-    TYPECK --> INTEROP["InteropAnalysisPass<br/>(boundary discovery)"]
+    TYPECK --> INTEROP["BoundaryAnalysisPass<br/>(boundary discovery)"]
     INTEROP --> SV[PyastGenPass + PyBytecodeGenPass]
     INTEROP --> CL[EsastGenPass]
     INTEROP --> NA[NaIRGenPass + NativeCompilePass]
@@ -203,9 +216,34 @@ instead of recursing forever.
 
 ---
 
-## Stage 4: Boundary Discovery -- `InteropAnalysisPass`
+## Shared Analysis Facts
 
-[`InteropAnalysisPass`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/passes/interop_analysis_pass.jac)
+All module-wide facts that survive across stages are anchored on
+[`CodeGenTarget.analysis`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/codeinfo.jac),
+a `ModuleAnalysis` object. This is the preferred home for facts that describe
+what a Jac module means independent of any one emitted artifact.
+
+`ModuleAnalysis` currently gathers the existing shared manifests:
+
+| Fact | Producer | Consumers |
+|------|----------|-----------|
+| `interop_manifest` | `BoundaryAnalysisPass` and native import registration | Python, client, native codegen, native cache loading, serve/runtime integration |
+| `client_manifest` | `EsastGenPass` | client bundling and runtime registration |
+| `native_layout` | `NaIRGenPass` today; intended to move toward a native layout analysis pass | native marshalling, native compile/cache paths, Python/native bridge code |
+| `native_compat` | `UniTreeEnrichPass` | auto-native promotion decisions |
+| `layout_registry` | `LayoutPass` | Shared archetype field layout, C3 MRO, vtable structure, and backend layout queries |
+
+Consumers read shared facts from `module.gen.analysis` directly, or through a
+small read-only helper such as `get_layout_registry(...)` when the fact has a
+domain-specific API. New shared facts should be added to `ModuleAnalysis`
+first; avoid adding compatibility accessors unless an external API genuinely
+depends on them.
+
+---
+
+## Stage 4: Boundary Discovery -- `BoundaryAnalysisPass`
+
+[`BoundaryAnalysisPass`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/jac0core/passes/boundary_analysis_pass.jac)
 runs once *before* code generation. It walks every call site and records:
 
 1. The `CodeContext` of the **caller** and **callee** (SERVER / CLIENT / NATIVE).
@@ -306,7 +344,7 @@ Linking is also self-contained -- no external linker is invoked:
 The native backend supplies its own memory management: a 32-byte
 allocation header with reference counts (see `HDR_*` globals in
 `na_ir_gen_pass.jac`). Cross-codespace calls between Python and native
-flow through the interop bridge generated from `InteropAnalysisPass`.
+flow through the interop bridge generated from `BoundaryAnalysisPass`.
 
 ---
 
@@ -367,7 +405,7 @@ user-facing reference, [Primitives & Codespace Semantics](../reference/language/
 
 ## Cross-Codespace Interop
 
-`InteropAnalysisPass` discovers boundaries; the backends close them.
+`BoundaryAnalysisPass` discovers boundaries; the backends close them.
 
 | Direction | Bridge | Generated by |
 |-----------|--------|--------------|
@@ -375,7 +413,7 @@ user-facing reference, [Primitives & Codespace Semantics](../reference/language/
 | `sv → cl` | None at runtime -- the client mounts its own DOM. The server only ships the bootstrap payload | `PyastGenPass` emits the static-file route for the bundle |
 | `sv → na` | ctypes call into the native shared object | `PyastGenPass` emits a `ctypes.CFUNCTYPE` stub; `NaIRGenPass` exposes the function with C ABI |
 | `na → sv` | C-callable thunk that re-enters CPython via the limited API | Generated alongside the `sv → na` stub |
-| `na → na` | Direct symbol reference resolved by the in-tree linker | `InteropAnalysisPass` records the import; `NativeCompilePass` emits the relocation |
+| `na → na` | Direct symbol reference resolved by the in-tree linker | `BoundaryAnalysisPass` records the import; `NativeCompilePass` emits the relocation |
 | `sv → sv` (microservice) | HTTP between processes when an `sv import` resolves to a different deployment | `PyastGenPass` emits an `httpx` call; the manifest is consumed by `jac-scale` |
 
 Boundary types are serialised through the schemas in

@@ -218,7 +218,7 @@ impl HotReloader._recompile_client_code(
         }
 
         # Recursively compile missing dependencies BEFORE writing this file's JS to ensure all dependencies are up to date
-        manifest = mod.gen.client_manifest if mod else None;
+        manifest = mod.gen.analysis.client_manifest if mod else None;
         if manifest and manifest.imports {
             for (import_key, import_path) in manifest.imports.items() {
                 if import_key.startswith('@jac/') {

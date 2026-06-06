@@ -297,7 +297,7 @@ impl JacCompiler._load_native_from_cache(
         if cached_interop {
             import from jaclang.jac0core.interop_bridge { register_py_callbacks }
             manifest = self._deserialize_interop_table(cached_interop);
-            gen.interop_manifest = manifest;
+            gen.analysis.interop_manifest = manifest;
             if manifest.native_imports {
                 register_py_callbacks(manifest, py_func_table, callbacks_list);
             }
@@ -378,7 +378,7 @@ impl JacCompiler._load_native_from_bitcode(
             );
             manifest.bindings[name] = binding;
         }
-        gen.interop_manifest = manifest;
+        gen.analysis.interop_manifest = manifest;
         if manifest.native_imports {
             register_py_callbacks(manifest, py_func_table, callbacks_list);
         }
@@ -515,7 +515,7 @@ impl JacCompiler._get_precompiled_jir_bytecode(full_target: str) -> (bytes | Non
 
 """Build a JSON-serializable interop dict from a compiled module."""
 impl JacCompiler._build_interop_dict(result: uni.Module) -> dict {
-    manifest = result.gen.interop_manifest;
+    manifest = result.gen.analysis.interop_manifest;
     if manifest is None {
         return {};
     }
@@ -723,7 +723,7 @@ impl JacCompiler.compile(
             not is_native_mod
             and actual_program._auto_promote_native
             and mod_targ?.gen
-            and mod_targ.gen.native_compat
+            and mod_targ.gen.analysis.native_compat
         ) {
             is_native_mod = True;
         }
@@ -852,8 +852,8 @@ impl JacCompiler.compile(
                 cb_has_facts = (
                     cb_mod is not None
                     and cb_mod.gen
-                    and cb_mod.gen.interop_manifest
-                    and bool(cb_mod.gen.interop_manifest.bindings)
+                    and cb_mod.gen.analysis.interop_manifest
+                    and bool(cb_mod.gen.analysis.interop_manifest.bindings)
                 );
                 if not cb_has_facts {
                     try {

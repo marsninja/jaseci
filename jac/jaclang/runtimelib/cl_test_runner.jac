@@ -6,7 +6,7 @@ runtime invoked those functions, so client tests were dead code.
 
 This module closes that gap. Given a `.cl.jac` file it:
 
-1. compiles it and reads the cl tests recorded in `mod.gen.client_manifest`,
+1. compiles it and reads the cl tests recorded in `mod.gen.analysis.client_manifest`,
 2. emits a single-file harness (the emitted module JS + a runner epilogue that
    calls each test, catching the thrown `Error` as a failure),
 3. resolves `@jac/runtime` and injects the API base URL / a `localStorage`

@@ -80,6 +80,7 @@ def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     _ir_sched_loading = True;
     try {
         import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
+        import from jaclang.compiler.passes.main.layout_pass { LayoutPass }
         import from jaclang.compiler.passes.main.mtir_gen_pass { MTIRGenPass }
         import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
         import from jaclang.compiler.passes.main.unitree_enrich_pass {
@@ -87,7 +88,6 @@ def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
         }
         # Pre-compile shared analysis modules so codegen passes can import them
         import jaclang.compiler.symbol_utils;
-        import jaclang.compiler.passes.main.layout_pass;
         # JSX `{...}` slot bodies are NOT desugared here: the surface AST is
         # kept faithful through analysis (ASTValidationPass enforces the slot
         # body rules) and the accumulator-IIFE lowering happens at cl codegen
@@ -101,7 +101,8 @@ def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
             SemDefMatchPass,
             CFGBuildPass,
             MTIRGenPass,
-            UniTreeEnrichPass
+            UniTreeEnrichPass,
+            LayoutPass
         ];
     } except ImportError {
         return [

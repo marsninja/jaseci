@@ -157,7 +157,9 @@ impl run(
                     na_program._auto_promote_target = full_path;
                     ir_mod = na_program.compile(file_path=full_path);
                     if (
-                        ir_mod and ir_mod.gen.native_compat and ir_mod.gen.native_engine
+                        ir_mod
+                        and ir_mod.gen.analysis.native_compat
+                        and ir_mod.gen.native_engine
                     ) {
                         # Auto-promoted native module: execute via JIT
                         import ctypes;

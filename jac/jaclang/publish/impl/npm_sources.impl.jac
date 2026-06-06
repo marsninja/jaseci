@@ -115,7 +115,7 @@ def _package_dirs(config: JacConfig, proj_root: Path) -> list[Path] {
 }
 
 def _crosses_server_boundary(mod: any) -> bool {
-    im = mod.gen.interop_manifest if mod and mod.gen else None;
+    im = mod.gen.analysis.interop_manifest if mod and mod.gen else None;
     if im is None {
         return False;
     }

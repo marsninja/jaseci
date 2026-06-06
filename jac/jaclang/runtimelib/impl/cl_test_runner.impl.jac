@@ -21,7 +21,7 @@ impl compile_cl_module(filepath: str) -> tuple[str, list, dict] {
         errs = "\n".join([str(e) for e in prog.errors_had]);
         raise RuntimeError(f"Failed to compile {filepath}:\n{errs}");
     }
-    manifest = mod.gen.client_manifest;
+    manifest = mod.gen.analysis.client_manifest;
     tests = list(getattr(manifest, "tests", []) or []);
     imports = dict(getattr(manifest, "imports", {}) or {});
     return (mod.gen.js, tests, imports);

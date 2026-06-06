@@ -110,7 +110,7 @@ test "inline cl block with defpub generates stubs" {
 test "endpoint effects classify readers and writers" {
     code = '"""Test."""\n\nnode Item { has name: str; }\n\nwalker read_items {\n    can visit_root with Root entry { report [-->]; }\n}\n\nwalker add_item {\n    has name: str;\n    can do_add with Root entry { here ++> Item(name=self.name); }\n}\n\ndef:pub get_count() -> int { return 0; }\n\ndef:pub delete_all() -> None { items = []; del items; }\n\ncl {\n    def:pub app() {\n        root spawn read_items();\n        root spawn add_item(name="x");\n        c = await get_count();\n        await delete_all();\n    }\n}\n';
     mod = compile_inline(code);
-    effects = mod.gen.client_manifest.endpoint_effects;
+    effects = mod.gen.analysis.client_manifest.endpoint_effects;
     assert "walker:read_items" in effects;
     assert not effects["walker:read_items"]["is_writer"];
     assert "walker:add_item" in effects;
@@ -124,7 +124,7 @@ test "endpoint effects classify readers and writers" {
 # Client manifest tracks exports from typed return fixture
 test "client manifest tracks exports" {
     mod = compile_fixture("typed_return_obj.jac");
-    manifest = mod.gen.client_manifest;
+    manifest = mod.gen.analysis.client_manifest;
     assert "app" in manifest.exports;
 }
 
@@ -227,7 +227,7 @@ test "serialization: bidirectional round trip" {
 # InteropManifest should collect boundary types with param + return types
 test "manifest: boundary types with params and returns" {
     mod = compile_fixture("typed_bidirectional.jac");
-    manifest = mod.gen.interop_manifest;
+    manifest = mod.gen.analysis.interop_manifest;
     exports = manifest.server_exports_to_client;
     func_names = [b.name for b in exports];
     assert "place_order" in func_names;
@@ -243,7 +243,7 @@ test "manifest: boundary types with params and returns" {
 # Nested types (Person -> Address) should be transitively collected
 test "manifest: nested types transitively collected" {
     mod = compile_fixture("typed_return_nested.jac");
-    manifest = mod.gen.interop_manifest;
+    manifest = mod.gen.analysis.interop_manifest;
     exports = manifest.server_exports_to_client;
     func_names = [b.name for b in exports];
     assert "get_person" in func_names;
@@ -325,7 +325,7 @@ test "gap: list return wraps call site with map and __from_wire" {
     mod = compile_fixture("typed_return_obj.jac");
     js = mod.gen.js;
     # The manifest knows the return type
-    exports = mod.gen.interop_manifest.server_exports_to_client;
+    exports = mod.gen.analysis.interop_manifest.server_exports_to_client;
     for b in exports {
         if b.name == "get_todos" {
             assert b.ret_type == "list[Todo]" , f"Manifest should have list[Todo] return type, got: {b.ret_type}";
@@ -368,7 +368,7 @@ test "gap: union return type wraps call site" {
 # get_metrics_map returns dict[str, Metric] — values should be hydrated
 test "gap: dict return type preserves generic in manifest" {
     mod = compile_fixture("typed_dict_return.jac");
-    exports = mod.gen.interop_manifest.server_exports_to_client;
+    exports = mod.gen.analysis.interop_manifest.server_exports_to_client;
     for b in exports {
         if b.name == "get_metrics_map" {
             assert "Metric" in b.ret_type , f"Manifest should preserve dict[str, Metric] return type, got: {b.ret_type}";
@@ -399,7 +399,7 @@ test "gap: dict return type wraps values with __from_wire" {
 # ---------------------------------------------------------------------------
 test "gap: nested_types field populated in manifest" {
     mod = compile_fixture("typed_return_nested.jac");
-    bt = mod.gen.interop_manifest.boundary_types;
+    bt = mod.gen.analysis.interop_manifest.boundary_types;
     assert "Person" in bt , "Person should be a boundary type";
     assert "Address" in bt , "Address should be a boundary type";
     # nested_types tracks transitive dependencies

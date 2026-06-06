@@ -126,7 +126,7 @@ impl BoundaryAnalysisPass.enter_import(
                 }
             }
             if (native_path and nd.items) {
-                manifest = self.ir_in.gen.interop_manifest;
+                manifest = self.ir_in.gen.analysis.interop_manifest;
                 for item in nd.items {
                     if isinstance(item, uni.ModuleItem) {
                         func_name = getattr(item.name, 'value', str(item.name));
@@ -225,7 +225,7 @@ impl BoundaryAnalysisPass._register_sv_import(
             self._collect_pub_walkers(source_mod, source_walkers);
         } except Exception { }
     }
-    manifest = self.ir_in.gen.interop_manifest;
+    manifest = self.ir_in.gen.analysis.interop_manifest;
     for item in nd.items {
         if not isinstance(item, uni.ModuleItem) {
             continue;
@@ -464,7 +464,7 @@ impl BoundaryAnalysisPass.enter_ability(
         and nd.access.tag.name == Tok.KW_PUB
         and isinstance(nd.name_ref, uni.Name)
     ) {
-        self.ir_in.gen.interop_manifest.endpoint_effects[
+        self.ir_in.gen.analysis.interop_manifest.endpoint_effects[
             f"func:{nd.name_ref.sym_name}"
         ] = self._classify(self._resolved_body(nd));
     }
@@ -484,7 +484,7 @@ impl BoundaryAnalysisPass.enter_func_call(
         return;
     }
     caller_ctx = self._get_context(nd);
-    manifest = self.ir_in.gen.interop_manifest;
+    manifest = self.ir_in.gen.analysis.interop_manifest;
     if (func_name in self._imported_native_funcs) {
         (source_module, import_ctx) = self._imported_native_funcs[func_name];
         if (caller_ctx == InteropContext.NATIVE) {
@@ -700,7 +700,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
     if type_name in prims {
         return;
     }
-    manifest = self.ir_in.gen.interop_manifest;
+    manifest = self.ir_in.gen.analysis.interop_manifest;
     if type_name in manifest.boundary_types {
         return;
     }
@@ -843,7 +843,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
 """After all nodes visited, collect boundary types from SV->CL bindings
 and server-side archetypes that may cross the boundary."""
 impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
-    manifest = self.ir_in.gen.interop_manifest;
+    manifest = self.ir_in.gen.analysis.interop_manifest;
     # Collect types from explicit SV->CL function bindings
     for binding in manifest.server_exports_to_client {
         if binding.ast_node and isinstance(binding.ast_node, uni.Ability) {
@@ -957,9 +957,9 @@ impl BoundaryAnalysisPass.enter_archetype(
     if not isinstance(nd.name, uni.Name) {
         return;
     }
-    self.ir_in.gen.interop_manifest.endpoint_effects[f"walker:{nd.name.sym_name}"] = (
-        self._classify(self._resolved_body(nd))
-    );
+    self.ir_in.gen.analysis.interop_manifest.endpoint_effects[
+        f"walker:{nd.name.sym_name}"
+    ] = self._classify(self._resolved_body(nd));
 }
 
 """Run the effect scan over a flat statement body, returning the manifest entry.

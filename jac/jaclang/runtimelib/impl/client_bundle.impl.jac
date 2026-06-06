@@ -51,7 +51,7 @@ impl ClientBundleBuilder.build(
     if not mod {
         (_, mod) = self._compile_to_js(source_path);
     }
-    manifest = mod.gen.client_manifest if mod else None;
+    manifest = mod.gen.analysis.client_manifest if mod else None;
     bundle_paths = [source_path];
     if (manifest and manifest.imports) {
         for import_path in manifest.imports.values() {

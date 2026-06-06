@@ -48,7 +48,7 @@ test "native lexer compiles" {
 test "native layout exported for lexer" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None , "No native_layout on CodeGenTarget";
     assert len(layout.structs) > 0 , "No structs in layout";
     assert len(layout.enums) > 0 , "No enums in layout";
@@ -58,7 +58,7 @@ test "native layout exported for lexer" {
 test "native layout struct fields correct" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     assert "SourceLoc" in layout.structs , "SourceLoc struct missing";
     loc = layout.structs["SourceLoc"];
@@ -70,7 +70,7 @@ test "native layout struct fields correct" {
 test "native layout enum members correct" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     assert len(layout.enums) > 0 , "No enums in layout";
     for (ename, elayout) in layout.enums.items() {
@@ -81,7 +81,7 @@ test "native layout enum members correct" {
 test "native layout functions have types" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     for (fname, flayout) in layout.functions.items() {
         assert flayout.ret_type , f"Function {fname} has no ret_type";
@@ -96,7 +96,7 @@ test "auto-marshal arithmetic add" {
         wrap_native_function
     }
     (eng, ir) = compile_fixture("arithmetic.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
@@ -116,7 +116,7 @@ test "auto-marshal arithmetic float_add" {
         wrap_native_function
     }
     (eng, ir) = compile_fixture("arithmetic.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
@@ -132,7 +132,7 @@ test "auto-marshal install_native_wrappers" {
     import types;
     import from jaclang.jac0core.native_marshal { install_native_wrappers }
     (eng, ir) = compile_fixture("arithmetic.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
 
     # Create a mock module with Python functions
@@ -156,7 +156,7 @@ test "auto-marshal install_native_wrappers" {
 # --- String enum auto-marshalling ---
 test "native layout for string enums" {
     (eng, ir) = compile_fixture("string_enums.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     assert "Color" in layout.enums , "Color enum not in layout";
     color_layout = layout.enums["Color"];
@@ -174,7 +174,7 @@ test "auto-marshal string enum functions" {
         wrap_native_function
     }
     (eng, ir) = compile_fixture("string_enums.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
@@ -193,7 +193,7 @@ test "auto-marshal string enum functions" {
 test "native layout tuple metadata for tokenize" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     assert len(layout.tuples) > 0 , "No tuples in layout";
     # tokenize function should have ret_tuple_layout
@@ -222,7 +222,7 @@ test "auto-marshal tuple with struct list" {
         wrap_native_function
     }
     (eng, ir) = compile_fixture("tuple_structs.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
@@ -263,7 +263,7 @@ test "auto-marshal struct with string field" {
         wrap_native_function
     }
     (eng, ir) = compile_fixture("tuple_structs.na.jac");
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert layout is not None;
     assert eng is not None;
     ct_classes = build_ctypes_classes(layout);
@@ -297,7 +297,7 @@ test "native tokenize returns correct tokens" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
     eng = ir.gen.native_engine;
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert eng is not None;
     assert layout is not None;
 
@@ -350,7 +350,7 @@ test "native tokenize matches python lexer" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
     eng = ir.gen.native_engine;
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert eng is not None;
     assert layout is not None;
     tokens_glob_addr = eng.get_function_address("__jac_glob_init_tokens_na");
@@ -404,7 +404,7 @@ test "native tokenize matches python lexer for fstrings" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
     eng = ir.gen.native_engine;
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert eng is not None;
     assert layout is not None;
     tokens_glob_addr = eng.get_function_address("__jac_glob_init_tokens_na");
@@ -459,7 +459,7 @@ test "native tokenize matches python lexer for unicode (byte offsets)" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
     eng = ir.gen.native_engine;
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert eng is not None and layout is not None;
     for g in ["__jac_glob_init_tokens_na", "__jac_glob_init"] {
         addr = eng.get_function_address(g);
@@ -530,7 +530,7 @@ test "native tokenize error count matches python for illegal chars" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
     eng = ir.gen.native_engine;
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert eng is not None and layout is not None;
     for g in ["__jac_glob_init_tokens_na", "__jac_glob_init"] {
         addr = eng.get_function_address(g);
@@ -570,7 +570,7 @@ test "native tokenize performance" {
     prog = JacProgram();
     ir = prog.compile(file_path=NA_LEXER_PATH);
     eng = ir.gen.native_engine;
-    layout = ir.gen.native_layout;
+    layout = ir.gen.analysis.native_layout;
     assert eng is not None;
     assert layout is not None;
     tokens_glob_addr = eng.get_function_address("__jac_glob_init_tokens_na");

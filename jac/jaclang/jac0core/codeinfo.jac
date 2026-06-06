@@ -218,6 +218,22 @@ obj InteropManifest {
     has server_exports_to_server: list[InteropBinding] { getter; }
 }
 
+"""Shared analysis facts for a compiled module.
+
+This object is the stable home for facts that describe what a Jac module
+means across codespaces. Backend emitters should consume these facts rather
+than rediscovering language-level contracts during target-specific lowering.
+
+New shared analysis data should be added here first.
+"""
+obj ModuleAnalysis {
+    has interop_manifest: InteropManifest = field(default_factory=InteropManifest),
+        client_manifest: ClientManifest = field(default_factory=ClientManifest),
+        native_layout: (NativeModuleLayout | None) = None,
+        native_compat: bool = False,
+        layout_registry: any = None;
+}
+
 """Code generation target."""
 obj CodeGenTarget {
     has py: str = '',
@@ -225,19 +241,15 @@ obj CodeGenTarget {
         _doc_ir: (Doc | None) = None,
         js: str = '',
         css: str = '',
-        client_manifest: ClientManifest = field(default_factory=ClientManifest),
+        analysis: ModuleAnalysis = field(default_factory=ModuleAnalysis),
         py_ast: list = field(default_factory=`list),
         py_bytecode: (bytes | None) = None,
         es_ast: EsNode | Sequence[EsNode] | SliceInfo | IndexInfo | None = None,
         llvm_ir: (ModuleRef | None) = None,
         native_engine: (ExecutionEngine | None) = None,
         native_bitcode: (bytes | None) = None,
-        interop_manifest: InteropManifest = field(default_factory=InteropManifest),
         interop_py_funcs: dict[(str, Any)] = field(default_factory=`dict),
         _interop_callbacks: list[any] = field(default_factory=`list),
-        native_layout: (NativeModuleLayout | None) = None,
-        native_compat: bool = False,
-        layout_registry: any = None,
         # Paths to C shared libraries discovered during native compilation.
         # Set by NaIRGenPass._process_clib_imports, consumed by NativeCompilePass
         # and nacompile CLI for transitive .so loading and AOT linking.
