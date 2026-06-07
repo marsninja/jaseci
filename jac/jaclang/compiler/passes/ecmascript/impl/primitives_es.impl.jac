@@ -1851,12 +1851,22 @@ impl ESBuiltinEmitter.emit_all(self, ctx: ESEmitCtx, args: list[str]) -> (str | 
 impl ESBuiltinEmitter.emit_isinstance(
     self, ctx: ESEmitCtx, args: list[str]
 ) -> (str | None) {
-    return args[0] + " instanceof " + args[1];
+    # Route through the runtime helper rather than a raw `instanceof`: builtin
+    # types (lowered to string tags), tuples of types, and user archetypes each
+    # need different checks, and `x instanceof String` is even false for JS
+    # primitive strings. The helper centralizes Python isinstance semantics.
+    if len(args) != 2 {
+        return None;
+    }
+    return _rt("builtin", "isinstance", args);
 }
 
 impl ESBuiltinEmitter.emit_issubclass(
     self, ctx: ESEmitCtx, args: list[str]
 ) -> (str | None) {
+    if len(args) != 2 {
+        return None;
+    }
     return _rt("builtin", "issubclass", args);
 }
 

@@ -1143,8 +1143,52 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     filter(fn, iterable) {
       return [...iterable].filter(fn || (x => x));
     },
+    isinstance(o, classinfo) {
+      // Tuple-of-types: isinstance(x, (A, B, ...)) lowers the tuple to a JS
+      // array; match if `o` is an instance of any member.
+      if (Array.isArray(classinfo)) {
+        for (const c of classinfo) {
+          if (_jac.builtin.isinstance(o, c)) return true;
+        }
+        return false;
+      }
+      // Builtin types are lowered to a string tag (their Python type name);
+      // compare against the runtime type, mirroring Python's semantics
+      // (e.g. bool is a subclass of int, everything is an object).
+      if (typeof classinfo === "string") {
+        const tn = _jac.poly._typename(o);
+        switch (classinfo) {
+          case "object": return true;
+          case "int": return tn === "int" || tn === "bool";
+          case "float": return tn === "float";
+          case "bool": return tn === "bool";
+          case "str": return tn === "str";
+          case "bytes": return tn === "bytes";
+          case "list":
+          case "tuple": return tn === "list";
+          case "dict": return tn === "dict";
+          case "set":
+          case "frozenset": return tn === "set";
+          case "complex": return tn === "complex";
+          default: return tn === classinfo;
+        }
+      }
+      // User archetype / JS constructor.
+      if (typeof classinfo === "function") return o instanceof classinfo;
+      return false;
+    },
     issubclass(cls, classinfo) {
+      if (Array.isArray(classinfo)) {
+        for (const c of classinfo) {
+          if (_jac.builtin.issubclass(cls, c)) return true;
+        }
+        return false;
+      }
       if (cls === classinfo) return true;
+      // Builtin-type tags are compared by name; `object` is the universal base.
+      if (typeof classinfo === "string" || typeof cls === "string") {
+        return classinfo === "object" || cls === classinfo;
+      }
       let proto = cls;
       while (proto) {
         if (proto === classinfo) return true;
