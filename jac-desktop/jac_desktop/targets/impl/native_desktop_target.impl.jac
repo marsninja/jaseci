@@ -2,6 +2,7 @@
 import os;
 import shutil;
 import json;
+import hashlib;
 import subprocess;
 import sysconfig;
 import from pathlib { Path }
@@ -66,11 +67,22 @@ and render it in the webview.
 
 The loopback server is the `oauth_broker` module staged beside the binary, not a
 bare SimpleHTTPRequestHandler: it serves the bundle AND exposes /__jac/* routes
-that broker SSO logins through the system browser and persist the session to
-disk (see oauth_broker.py). A document-start bootstrap script flags desktop mode
-and re-seeds `jac_token` from the persisted session so login survives the
-loopback port (and therefore origin) changing on every launch."""
-def _generate_host_source(libpy: str, title: str, width: int, height: int) -> str {
+that broker SSO logins through the system browser (see oauth_broker.py).
+
+The server binds a *stable* loopback port derived deterministically from the app
+name (with SO_REUSEADDR + a small fallback scan), so the webview origin -- and
+therefore its localStorage partition -- is the same on every launch. WebKitGTK
+persists localStorage per-origin to disk (`http_127.0.0.1_<port>.localstorage`),
+so a stable origin makes login (and all other client state) survive a restart
+without any token re-injection. A document-start bootstrap only flags desktop
+mode + the broker prefix for the SPA."""
+def _generate_host_source(
+    libpy: str, title: str, width: int, height: int, app_name: str
+) -> str {
+    # Deterministic per-app port in the dynamic/private range (49152-65215) so
+    # the same app reuses the same origin across launches; computed at build
+    # time so the host needs no hashing at runtime.
+    pref_port = 49152 + (int(hashlib.sha1(app_name.encode()).hexdigest(), 16) % 16000);
     serve_py = (
         "import os, socketserver, threading, importlib.util\n"
         "_exe = os.path.realpath('/proc/self/exe')\n"
@@ -86,22 +98,31 @@ def _generate_host_source(libpy: str, title: str, width: int, height: int) -> st
         "_store = _broker.SessionStore("
         "os.path.join(_data, '.jac', 'desktop', 'session.json'))\n"
         "_H = _broker.make_handler(_dir, _store)\n"
-        "_srv = socketserver.TCPServer(('127.0.0.1', 0), _H)\n"
-        "_port = _srv.server_address[1]\n"
+        # Stable origin: rebind the same deterministic port each launch
+        # (SO_REUSEADDR clears TIME_WAIT); fall back through a small scan, then
+        # to an ephemeral port only if the whole range is contended.
+        "socketserver.TCPServer.allow_reuse_address = True\n"
+        f"_pref = {pref_port}\n"
+        "_srv = None; _port = None\n"
+        "for _i in range(64):\n"
+        "    try:\n"
+        "        _srv = socketserver.TCPServer(('127.0.0.1', _pref + _i), _H)\n"
+        "        _port = _pref + _i; break\n"
+        "    except OSError:\n"
+        "        continue\n"
+        "if _srv is None:\n"
+        "    _srv = socketserver.TCPServer(('127.0.0.1', 0), _H)\n"
+        "    _port = _srv.server_address[1]\n"
         "threading.Thread(target=_srv.serve_forever, daemon=True).start()\n"
         "print('JAC_DESKTOP_SERVING http://127.0.0.1:' + str(_port) + '/', flush=True)\n"
     );
     # Runs at document-start (before the SPA's own scripts) on every full load.
-    # Flags desktop mode + broker prefix, then re-seeds the auth token from the
-    # persisted session via a synchronous same-origin request so it is present
-    # before the app reads localStorage. Guarded + best-effort (never throws).
+    # Just flags desktop mode + the broker prefix so the SPA can detect the shell
+    # and drive /__jac/oauth/*. Token persistence is handled by the stable origin
+    # (localStorage survives restarts), not by re-injection.
     bootstrap_js = (
         "(function(){try{"
         "window.__JAC_DESKTOP__=true;window.__JAC_BROKER__='/__jac';"
-        "if(!localStorage.getItem('jac_token')){"
-        "var x=new XMLHttpRequest();x.open('GET','/__jac/session',false);x.send(null);"
-        "if(x.status===200){var t=(JSON.parse(x.responseText)||{}).token;"
-        "if(t){localStorage.setItem('jac_token',t);}}}"
         "}catch(e){}})();"
     );
     return (
@@ -191,7 +212,7 @@ impl NativeDesktopTarget.build(
     # 5. Generate + compile the native host into the output dir.
     libpy = sysconfig.get_config_var("INSTSONAME") or "libpython3.12.so.1.0";
     host_src = _generate_host_source(
-        libpy, win.title or app_name, win.width, win.height
+        libpy, win.title or app_name, win.width, win.height, str(app_name)
     );
     (out_dir / "host.na.jac").write_text(host_src);
 
