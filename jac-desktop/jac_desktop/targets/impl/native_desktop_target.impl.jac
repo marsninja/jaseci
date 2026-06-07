@@ -61,16 +61,48 @@ def _ensure_libwebview(webview_dir: Path) -> Path {
 }
 
 """Generate the native host source: embed CPython, serve `dist/` (resolved next
-to the binary via /proc/self/exe) on loopback, render it in the webview."""
+to the binary via /proc/self/exe) on loopback through the OAuth/session broker,
+and render it in the webview.
+
+The loopback server is the `oauth_broker` module staged beside the binary, not a
+bare SimpleHTTPRequestHandler: it serves the bundle AND exposes /__jac/* routes
+that broker SSO logins through the system browser and persist the session to
+disk (see oauth_broker.py). A document-start bootstrap script flags desktop mode
+and re-seeds `jac_token` from the persisted session so login survives the
+loopback port (and therefore origin) changing on every launch."""
 def _generate_host_source(libpy: str, title: str, width: int, height: int) -> str {
     serve_py = (
-        "import os, http.server, socketserver, threading, functools\n"
+        "import os, socketserver, threading, importlib.util\n"
         "_exe = os.path.realpath('/proc/self/exe')\n"
-        "_dir = os.path.join(os.path.dirname(_exe), 'dist')\n"
-        "_H = functools.partial(http.server.SimpleHTTPRequestHandler, directory=_dir)\n"
+        "_root = os.path.dirname(_exe)\n"
+        "_dir = os.path.join(_root, 'dist')\n"
+        "_spec = importlib.util.spec_from_file_location("
+        "'oauth_broker', os.path.join(_root, 'oauth_broker.py'))\n"
+        "_broker = importlib.util.module_from_spec(_spec)\n"
+        "_spec.loader.exec_module(_broker)\n"
+        # Persist the session under the user data dir (JAC_DATA_PATH honored),
+        # never inside the web-served dist/ tree.
+        "_data = os.environ.get('JAC_DATA_PATH', _root)\n"
+        "_store = _broker.SessionStore("
+        "os.path.join(_data, '.jac', 'desktop', 'session.json'))\n"
+        "_H = _broker.make_handler(_dir, _store)\n"
         "_srv = socketserver.TCPServer(('127.0.0.1', 0), _H)\n"
         "_port = _srv.server_address[1]\n"
         "threading.Thread(target=_srv.serve_forever, daemon=True).start()\n"
+        "print('JAC_DESKTOP_SERVING http://127.0.0.1:' + str(_port) + '/', flush=True)\n"
+    );
+    # Runs at document-start (before the SPA's own scripts) on every full load.
+    # Flags desktop mode + broker prefix, then re-seeds the auth token from the
+    # persisted session via a synchronous same-origin request so it is present
+    # before the app reads localStorage. Guarded + best-effort (never throws).
+    bootstrap_js = (
+        "(function(){try{"
+        "window.__JAC_DESKTOP__=true;window.__JAC_BROKER__='/__jac';"
+        "if(!localStorage.getItem('jac_token')){"
+        "var x=new XMLHttpRequest();x.open('GET','/__jac/session',false);x.send(null);"
+        "if(x.status===200){var t=(JSON.parse(x.responseText)||{}).token;"
+        "if(t){localStorage.setItem('jac_token',t);}}}"
+        "}catch(e){}})();"
     );
     return (
         '"""Generated native desktop host - do not edit (jac-desktop)."""\n'
@@ -88,6 +120,7 @@ def _generate_host_source(libpy: str, title: str, width: int, height: int) -> st
         "}\n"
         "glob PY_EVAL: i32 = 258;\n"
         f"glob SERVE_PY: str = {json.dumps(serve_py, ensure_ascii=False)};\n"
+        f"glob BOOTSTRAP_JS: str = {json.dumps(bootstrap_js, ensure_ascii=False)};\n"
         "with entry {\n"
         "    Py_Initialize();\n"
         "    PyRun_SimpleString(SERVE_PY);\n"
@@ -98,6 +131,7 @@ def _generate_host_source(libpy: str, title: str, width: int, height: int) -> st
         "    wv = new_webview(False);\n"
         f"    wv.title({json.dumps(title, ensure_ascii=False)});\n"
         f"    wv.size({width}, {height}, HINT_NONE);\n"
+        "    wv.on_load(BOOTSTRAP_JS);\n"
         "    wv.navigate(url);\n"
         "    ts = PyEval_SaveThread();\n"
         "    wv.run();\n"
@@ -138,6 +172,21 @@ impl NativeDesktopTarget.build(
     lib = _ensure_libwebview(webview_dir);
     shutil.copy2(lib, out_dir / "libwebview.so");
     shutil.copy2(webview_dir / "webview.na.jac", out_dir / "webview.na.jac");
+    # The loopback OAuth/session broker is exec'd by the embedded CPython at
+    # runtime (see _generate_host_source). That interpreter has only the stdlib
+    # (no jaclang), so transpile the Jac source to dependency-free Python and
+    # ship the result beside the binary.
+    broker_src = webview_dir.parent / "oauth_broker.jac";
+    console.print(
+        "  Transpiling oauth_broker.jac -> oauth_broker.py...", style="muted"
+    );
+    broker_res = subprocess.run(
+        [_jac_bin(), "jac2py", str(broker_src)], capture_output=True, text=True
+    );
+    if broker_res.returncode != 0 {
+        raise RuntimeError("oauth_broker transpile failed:\n" + broker_res.stderr);
+    }
+    (out_dir / "oauth_broker.py").write_text(broker_res.stdout);
 
     # 5. Generate + compile the native host into the output dir.
     libpy = sysconfig.get_config_var("INSTSONAME") or "libpython3.12.so.1.0";
