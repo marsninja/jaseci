@@ -7285,7 +7285,7 @@ impl Parser.parse_sem_def -> SemDef {
         sem_dot_unis.append(self.make_uni_token(self.previous()));
         target_names.append(self.parse_impl_target_name());
     }
-    # Accept either '=' or 'is' per grammar: sem_def: KW_SEM dotted_name (EQ | KW_IS) STRING+ SEMI
+    # Accept either '=' or 'is' per grammar: sem_def: KW_SEM dotted_name (EQ | KW_IS) expression SEMI
     sep_uni: UniToken | None = None;
     if self.match_tok(TokenKind.EQ) {
         sep_uni = self.make_uni_token(self.previous());
@@ -7295,14 +7295,13 @@ impl Parser.parse_sem_def -> SemDef {
         self.expect(TokenKind.EQ);  # Will error with expected '='
         sep_uni = self.make_uni_token(self.previous());
     }
-    # The value is one or more adjacent string literals. Several are implicitly
-    # concatenated into a MultiString, so a long semstring can wrap across source
-    # lines (the formatter rebreaks it to fit the line width).
-    str_nodes: list = [self.make_string(self.expect(TokenKind.STRING))];
-    while self.check(TokenKind.STRING) {
-        str_nodes.append(self.make_string(self.advance()));
-    }
-    value = MultiString(strings=str_nodes, kid=str_nodes);
+    # The value is any expression that folds to a constant string: a string
+    # literal, several implicitly concatenated (`"a" "b"` -> MultiString), `+`
+    # concatenation, or a parenthesized group of those. SemDefMatchPass folds it
+    # to the semstring and errors (E2013) if it is not a constant string.
+    # Parsing a full expression (rather than STRING+) lets a long semstring wrap
+    # in parentheses across lines, the way Python's implicit concatenation does.
+    value = self.parse_expression();
     kid: list = [sem_kw_uni];
     for (i, n) in enumerate(target_names) {
         kid.append(n);

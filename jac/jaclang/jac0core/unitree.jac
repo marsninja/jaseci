@@ -591,7 +591,10 @@ obj ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSymb
 """SemDef node type for Jac Ast."""
 obj SemDef(ElementStmt, AstSymbolNode, UniScopeNode) {
     has target: Sequence[NameAtom],
-        value: MultiString;
+        # Any expression that folds to a constant string (string literals,
+        # implicit/`+` concatenation, parentheses); SemDefMatchPass folds it to
+        # the semstring and errors (E2013) on anything non-constant.
+        value: Expr;
 
     def postinit -> None;
     def create_sem_name_node -> Name;

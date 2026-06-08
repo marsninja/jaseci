@@ -710,6 +710,11 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E2011", Category.SEMANTIC, "Parameter count mismatch for ability {name}."
      ),
      E2012 = _err("E2012", Category.SEMANTIC, "From the declaration of {name}."),
+     E2013 = _err(
+         "E2013",
+         Category.SEMANTIC,
+         "A 'sem' value must be a constant string: a string literal, implicit or '+' concatenation, or a parenthesized group of those."
+     ),
      W2013 = _warn(
          "W2013",
          Category.SEMANTIC,
