@@ -76,6 +76,25 @@ test "broker builds sso login url with encoded callback" {
     assert raised , "unknown platform must raise ValueError";
 }
 
+"""operation selects the SSO path (login|register) and rejects anything else."""
+test "broker builds sso url for register and rejects bad operation" {
+    cb = "http://127.0.0.1:5123/__jac/oauth/callback";
+    url = build_sso_login_url("http://localhost:8000", "google", cb, "register");
+    assert url.startswith("http://localhost:8000/sso/google/register?client_callback=");
+
+    # Default stays login, so existing callers that omit operation are unchanged.
+    url2 = build_sso_login_url("http://localhost:8000", "google", cb);
+    assert "/sso/google/login?" in url2;
+
+    raised = False;
+    try {
+        build_sso_login_url("http://localhost:8000", "google", cb, "delete_account");
+    } except ValueError {
+        raised = True;
+    }
+    assert raised , "unknown operation must raise ValueError";
+}
+
 # ============================================================================
 # Session store lifecycle over HTTP (the restart-persistence mechanism)
 # ============================================================================
@@ -125,6 +144,31 @@ test "broker oauth start opens browser with loopback callback" {
         # The callback must point back at THIS server's loopback port + broker route.
         expected_cb = f"127.0.0.1%3A{port}%2F__jac%2Foauth%2Fcallback";
         assert expected_cb in url , f"callback not pointing at us: {url}";
+    } finally {
+        srv.shutdown();
+        srv.server_close();
+    }
+}
+
+"""/oauth/start?operation=register opens the register URL; a bad op -> 400."""
+test "broker oauth start honors operation register" {
+    (srv, port, _store, opened, _web) = _start_server();
+    try {
+        (s, _b) = _req(
+            port,
+            "/__jac/oauth/start?platform=github&api_base=http://localhost:8000&operation=register"
+        );
+        assert s == 200;
+        assert opened[0].startswith(
+            "http://localhost:8000/sso/github/register?client_callback="
+        );
+
+        (s2, _b2) = _req(
+            port,
+            "/__jac/oauth/start?platform=github&api_base=http://localhost:8000&operation=evil"
+        );
+        assert s2 == 400;
+        assert len(opened) == 1 , "a bad operation must not open a browser";
     } finally {
         srv.shutdown();
         srv.server_close();

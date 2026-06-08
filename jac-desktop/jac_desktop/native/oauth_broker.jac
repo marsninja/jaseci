@@ -40,6 +40,9 @@ glob DEFAULT_PREFIX: str = "/__jac",
      # jac_scale.enums.Platforms; an unknown value is rejected before we ever open a
      # browser so a crafted `platform` can't be reflected into the login URL.
      ALLOWED_PLATFORMS: tuple = ("google", "github", "apple"),
+     # SSO operations the server exposes at /sso/<platform>/<operation>. Validated
+     # before the URL is built so a crafted `operation` can't be reflected either.
+     ALLOWED_OPERATIONS: tuple = ("login", "register"),
      _CLOSE_PAGE: str = "<!doctype html><meta charset=utf-8><title>{heading}</title>" + "<body style='font-family:system-ui,sans-serif;text-align:center;margin-top:4rem'>" + "<h2>{heading}</h2><p>{body}</p>" + "<p style='color:#888'>You can close this window and return to the app.</p>";
 
 
@@ -86,16 +89,21 @@ class SessionStore {
 Raises `ValueError` on an unknown platform or empty `api_base` so the caller
 fails before opening a browser.
 """
-def build_sso_login_url(api_base: str, platform: str, client_callback: str) -> str {
+def build_sso_login_url(
+    api_base: str, platform: str, client_callback: str, operation: str = "login"
+) -> str {
     if platform not in ALLOWED_PLATFORMS {
         raise ValueError(f"unsupported platform: {platform}");
+    }
+    if operation not in ALLOWED_OPERATIONS {
+        raise ValueError(f"unsupported operation: {operation}");
     }
     base = (api_base or "").rstrip("/");
     if not base {
         raise ValueError("api_base is required");
     }
     cb = quote(client_callback, safe="");
-    return f"{base}/sso/{platform}/login?client_callback={cb}";
+    return f"{base}/sso/{platform}/{operation}?client_callback={cb}";
 }
 
 
@@ -210,8 +218,11 @@ def make_handler(
             q = parse_qs(urlparse(self.path).query);
             platform = (q.get("platform", [""])[0] or "").strip();
             api_base = (q.get("api_base", [""])[0] or "").strip();
+            operation = (q.get("operation", ["login"])[0] or "login").strip();
             try {
-                url = build_sso_login_url(api_base, platform, self._callback_url());
+                url = build_sso_login_url(
+                    api_base, platform, self._callback_url(), operation
+                );
             } except ValueError as e {
                 self._json({"ok": False, "error": str(e)}, status=400);
                 return;
