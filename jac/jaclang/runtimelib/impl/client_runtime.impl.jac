@@ -460,6 +460,22 @@ impl jacLogin(
 impl jacLogout -> None {
     __jacClearCache();
     __removeLocalStorage("jac_token");
+    broker = __jacDesktopBroker();
+    if broker {
+        # Desktop: also drop the broker's *persisted* (on-disk) session so a
+        # later login can't poll up this user's token. Best-effort and
+        # non-blocking -- logout must not hang on the loopback server, and the
+        # next login's `oauth/start` clears it again regardless.
+        try {
+            fetch(f"{broker}/session", {"method": "DELETE"}).catch(
+                lambda e: any { console.warn(
+                    "[jac-client] broker session clear failed:", e
+                ); }
+            );
+        } except e {
+            console.warn("[jac-client] broker session clear failed:", e);
+        }
+    }
 }
 
 impl jacIsLoggedIn -> bool {
