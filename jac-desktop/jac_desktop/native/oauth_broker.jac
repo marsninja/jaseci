@@ -177,7 +177,10 @@ class _PendingAuth {
         if matched is None {
             return False;
         }
-        deadline = self.states.pop(matched);
+        deadline = self.states.pop(matched, None);
+        if deadline is None {
+            return False;
+        }
         return time.monotonic() <= deadline;
     }
 }
