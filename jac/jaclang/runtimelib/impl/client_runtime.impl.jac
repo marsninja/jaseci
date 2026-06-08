@@ -561,7 +561,9 @@ impl jacSsoLogin(platform: str, api_base: str = "", operation: str = "login") ->
     }
     # Web: hand off to the server's SSO endpoint; it redirects back to the SPA's
     # configured callback route with `?token=...` (handled by the callback page).
-    window.location.href = f"{base}/sso/{encodeURIComponent(platform)}/{encodeURIComponent(operation)}";
+    window.location.href = f"{base}/sso/{encodeURIComponent(platform)}/{encodeURIComponent(
+        operation
+    )}";
     return True;
 }
 
