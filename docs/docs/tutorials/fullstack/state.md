@@ -291,8 +291,8 @@ The example above uses a ref *inside* a component. The other direction -- lettin
 
 ```jac
 cl {
-    def:pub FancyInput(props: dict[str, any], ref: Ref[HTMLInputElement]) -> JsxElement {
-        return <input ref={ref} class="fancy" {**props} />;
+    def:pub FancyInput(props: any, ref: Ref[HTMLInputElement]) -> JsxElement {
+        return <input ref={ref} className="fancy" {**props} />;
     }
 }
 ```
