@@ -4378,8 +4378,8 @@ impl EsastGenPass._osp_ability_info(nd: uni.Ability) -> (dict | None) {
     if not isinstance(owner, uni.Archetype) {
         return None;
     }
-    kind = owner.arch_type.value;
-    if kind not in ("walker", "node", "edge") {
+    kind = owner.arch_kind;
+    if kind is None {
         return None;
     }
     if (nd.name_ref is None) or (owner.name is None) {
@@ -4503,8 +4503,7 @@ impl EsastGenPass._osp_arch_kinds -> dict[str, str] {
     arches: list[uni.Archetype] = [];
     has_osp = False;
     for arch in scan_root.get_all_sub_nodes(uni.Archetype) {
-        if (arch.name is not None)
-        and (arch.arch_type.value in ("walker", "node", "edge")) {
+        if (arch.name is not None) and (arch.arch_kind is not None) {
             arches.append(arch);
             for ability in arch.get_all_sub_nodes(uni.Ability) {
                 if self._osp_ability_info(ability) is not None {
@@ -4515,7 +4514,7 @@ impl EsastGenPass._osp_arch_kinds -> dict[str, str] {
     }
     if has_osp {
         for arch in arches {
-            kinds[arch.name.sym_name] = arch.arch_type.value;
+            kinds[arch.name.sym_name] = arch.arch_kind;
         }
     }
     self._osp_prescan = kinds;
@@ -5081,7 +5080,7 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
     is_local_osp_arch = (
         (nd.name is not None)
         and (nd.name.sym_name in self._osp_arch_set())
-        and (nd.arch_type.value in ("walker", "node", "edge"))
+        and (nd.arch_kind is not None)
     );
     if (((nd.arch_type.name == Tok.KW_OBJECT) or is_local_osp_arch) and has_members) {
         constructor_stmts: list[es.Statement] = [];

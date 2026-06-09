@@ -1189,7 +1189,7 @@ impl TypeCheckPass._check_walker_reports_shape(
     if not isinstance(arch, uni.Archetype) {
         return;
     }
-    if arch.arch_type.value != "walker" {
+    if arch.arch_kind != "walker" {
         return;
     }
     # Don't pile errors on top of upstream type-resolution failures.
@@ -1223,7 +1223,7 @@ impl TypeCheckPass._enclosing_walker_report_elem_type(
             arch = impl_def.decl_link;
         }
     }
-    if not isinstance(arch, uni.Archetype) or arch.arch_type.value != "walker" {
+    if not isinstance(arch, uni.Archetype) or arch.arch_kind != "walker" {
         return None;
     }
     for has_var in arch.get_has_vars() {
