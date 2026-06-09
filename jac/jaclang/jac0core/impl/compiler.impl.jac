@@ -714,12 +714,44 @@ impl JacCompiler.compile(
         run_inference = is_native_mod;
     }
     if run_inference {
+        mod_targ._inference_started = True;
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
             passes=get_inference_sched(),
             cancel_token=options.cancel_token
         );
+        # JIR-loaded dependency modules arrive untyped (Expr.type is not
+        # serialized), while a freshly compiled dep is typed by its own
+        # nested compile. Native cross-module codegen lowers dep-module
+        # annotations through Expr.type, so the typed-tree contract must
+        # hold for every native module in the program regardless of how it
+        # was loaded. The _inference_started flag (set before each run)
+        # breaks the cycle where inferring a dep makes the evaluator
+        # compile a sibling, whose own dep sweep would re-infer modules
+        # already mid-inference.
+        for dep_mod in list(actual_program.mod.hub.values()) {
+            if (dep_mod is mod_targ) or dep_mod?._inference_started {
+                continue;
+            }
+            dep_path = dep_mod.loc.mod_path if dep_mod?.loc else '';
+            if dep_path.endswith('.na.jac') {
+                dep_mod._inference_started = True;
+                # Quiet run: populate types only. A JIR-loaded tree's
+                # cross-module link state is degraded versus a fresh
+                # front-end run, so full checking here would emit false
+                # positives; diagnostics belong to each module's own
+                # entry compile.
+                dep_mod._inference_quiet = True;
+                self.run_schedule(
+                    mod=dep_mod,
+                    target_program=actual_program,
+                    passes=get_inference_sched(),
+                    cancel_token=options.cancel_token
+                );
+                dep_mod._inference_quiet = False;
+            }
+        }
     }
     if options.type_check {
         # Explicit `jac check`: diagnostic-only extras (StaticAnalysis /

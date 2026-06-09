@@ -12,7 +12,7 @@ import from llvmlite { ir }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5026, E5060, E5090, E5091 }
+import from jaclang.jac0core.diagnostics { E5026, E5060, E5090, E5091, E9002 }
 
 # ── Python stdlib modules the native backend can lower ────────────────────
 # Allowlist of bare `import X;` modules whose member accesses (`X.attr`,

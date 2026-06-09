@@ -978,6 +978,14 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
         }
         emit_full = is_native_mod;
     }
+    # Re-typing sweeps over JIR-loaded dependency modules (see the dep loop
+    # in JacCompiler.compile) exist solely to repopulate Expr.type for
+    # codegen. Their cross-module link state is degraded relative to a fresh
+    # front-end run, so checking them in full mode produces false positives;
+    # the entry module's own run owns user-facing diagnostics.
+    if self.inference_only and self.ir_in?._inference_quiet {
+        emit_full = False;
+    }
     self._emit_diagnostics = emit_full;
     # A full-diagnostic run over a tree already typed by a suppressed
     # inference run would cache-hit Expr.type everywhere, never re-deriving
