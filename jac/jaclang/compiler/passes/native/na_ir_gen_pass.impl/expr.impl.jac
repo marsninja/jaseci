@@ -1162,41 +1162,18 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             if full_name in self.enum_values {
                 return self.enum_values[full_name];
             }
-            # Check enum .value / .name attribute: kind.value, kind.name
-            if (right_name == "value" or right_name == "name")
-            and target_name is not None
-            and target_name in self.var_enum_type {
-                enum_name = self.var_enum_type[target_name];
-                ordinal_val = self._codegen_expr(nd.target);
-                if ordinal_val is not None {
-                    use_name = right_name == "name";
-                    return self._codegen_enum_value_lookup(
-                        enum_name, ordinal_val, use_name=use_name
-                    );
-                }
-            }
-            # Check chained enum .value / .name: self.kind.value
-            if (right_name == "value" or right_name == "name")
-            and isinstance(nd.target, uni.AtomTrailer)
-            and nd.target.is_attr {
-                inner_target = self._get_name(nd.target.target);
-                inner_field = self._get_name(nd.target.right);
-                if inner_target is not None and inner_field is not None {
-                    inner_type = self.type_var_map.get(inner_target);
-                    if inner_type is not None
-                    and inner_type in self.struct_field_enum_type {
-                        enum_name = self.struct_field_enum_type[inner_type].get(
-                            inner_field
+            # Enum .value / .name attribute: kind.value, self.kind.name —
+            # enum-ness comes from the checked type of the target expression
+            # (covers bare vars, params, and chained field access alike).
+            if (right_name == "value" or right_name == "name") {
+                enum_name = self._enum_name_of(nd.target);
+                if enum_name is not None and enum_name in self.enum_types {
+                    ordinal_val = self._codegen_expr(nd.target);
+                    if ordinal_val is not None {
+                        use_name = right_name == "name";
+                        return self._codegen_enum_value_lookup(
+                            enum_name, ordinal_val, use_name=use_name
                         );
-                        if enum_name is not None {
-                            ordinal_val = self._codegen_expr(nd.target);
-                            if ordinal_val is not None {
-                                use_name = right_name == "name";
-                                return self._codegen_enum_value_lookup(
-                                    enum_name, ordinal_val, use_name=use_name
-                                );
-                            }
-                        }
                     }
                 }
             }

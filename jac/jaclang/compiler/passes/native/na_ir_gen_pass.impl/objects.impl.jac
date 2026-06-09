@@ -588,10 +588,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
             if tag_name is not None and tag_name in self.struct_types {
                 self.type_var_map[param_name] = tag_name;
             }
-            # Track enum type for enum-typed method parameters
-            if tag_name is not None and tag_name in self.enum_types {
-                self.var_enum_type[param_name] = tag_name;
-            }
         }
     }
     # Generate body (handle ImplDef wrapper from DeclImplMatchPass)

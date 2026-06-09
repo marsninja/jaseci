@@ -1762,10 +1762,6 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             if tag_name is not None and tag_name in self.struct_types {
                 self.type_var_map[var_name] = tag_name;
             }
-            # Track enum type for enum-typed variables
-            if tag_name is not None and tag_name in self.enum_types {
-                self.var_enum_type[var_name] = tag_name;
-            }
             # Store the full type AST node for nested type resolution
             self.var_type_node[var_name] = tag_node;
         }

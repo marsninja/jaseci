@@ -69,6 +69,31 @@ impl NaIRGenPass._type_key_of(expr: (uni.UniNode | None)) -> (str | None) {
     return expr.type.mangle();
 }
 
+"""Return the enum class name of an expression's checked type, or None when
+the expression is not enum-typed. Handles both an enum instance (ClassType
+with is_enum_class) and a specific member (EnumMemberType)."""
+impl NaIRGenPass._enum_name_of(expr: (uni.UniNode | None)) -> (str | None) {
+    if not isinstance(expr, uni.Expr) or expr.type is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _ClassType,
+            EnumMemberType as _EnumMemberType
+        }
+    } except ImportError {
+        return None;
+    }
+    t = expr.type;
+    if isinstance(t, _EnumMemberType) and t.enum_class is not None {
+        return t.enum_class.shared.class_name;
+    }
+    if isinstance(t, _ClassType) and t._shared is not None and t.shared.is_enum_class {
+        return t.shared.class_name;
+    }
+    return None;
+}
+
 """Lower a ClassType TypeBase to an LLVM type, or None if unresolved.
 
 Handles primitives (registry-backed), enums, user structs, and the builtin

@@ -340,10 +340,6 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
             if tag_name is not None and tag_name in self.struct_types {
                 self.type_var_map[param_name] = tag_name;
             }
-            # Track enum type for enum-typed parameters
-            if tag_name is not None and tag_name in self.enum_types {
-                self.var_enum_type[param_name] = tag_name;
-            }
         }
     }
     # Generate body via manual tree-walking (handle ImplDef wrapper from DeclImplMatchPass)
@@ -468,7 +464,6 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     saved_var_list_struct = self.var_list_elem_struct;
     saved_var_dict = self.var_dict_type;
     saved_var_set = self.var_set_elem_type;
-    saved_var_enum = self.var_enum_type;
     self._builder = ir.IRBuilder(fn.append_basic_block("entry"));
     self.local_vars = {};
     self.param_vars = set();
@@ -478,7 +473,6 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self.var_list_elem_struct = {};
     self.var_dict_type = {};
     self.var_set_elem_type = {};
-    self.var_enum_type = {};
     for (i, arg) in enumerate(fn.args) {
         alloca = self._entry_alloca(arg.type, param_names[i]);
         self.builder.store(arg, alloca);
@@ -519,7 +513,6 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self.var_list_elem_struct = saved_var_list_struct;
     self.var_dict_type = saved_var_dict;
     self.var_set_elem_type = saved_var_set;
-    self.var_enum_type = saved_var_enum;
     nd.gen.llvm_ir = fn;
 }
 
