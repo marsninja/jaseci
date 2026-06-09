@@ -27,6 +27,8 @@ obj AgentRequest {
         # Open the agent in a web UI (a bundled Jac fullstack app) instead of the
         # terminal REPL, with a live cytoscape visualizer of the phase walker.
         ui: bool = False,
+        # Open the agent in a terminal UI; mutually exclusive with `ui`.
+        tui: bool = False,
         cwd: str = "",
         code_intel: CodeIntelligence | None = None;
 }
@@ -43,7 +45,8 @@ def build_agent_request(
     n_ctx: int = 0,
     safe: bool = False,
     quiet: bool = False,
-    ui: bool = False
+    ui: bool = False,
+    tui: bool = False
 ) -> AgentRequest {
     cwd = os.getcwd();
     return AgentRequest(
@@ -53,6 +56,7 @@ def build_agent_request(
         safe=safe,
         quiet=quiet,
         ui=ui,
+        tui=tui,
         cwd=cwd,
         code_intel=CodeIntelligence(proj_dir=cwd, lazy=True)
         # Lazy: the agent's structural tools (`project_map`, walkers) load from

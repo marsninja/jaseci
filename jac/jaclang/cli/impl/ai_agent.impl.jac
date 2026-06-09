@@ -278,6 +278,25 @@ impl _project_root_of(start: str) -> str {
     }
 }
 
+glob _PROJECT_MAP_SKIP_AT_FILES = 250,
+     _PROJECT_MAP_CHAR_CAP = 12000,
+     _PROJECT_MAP_SAMPLE_ROWS = 80,
+     _PROJECT_MAP_BUCKET_ROWS = 8,
+     _PROJECT_MAP_SCAN_SKIP_DIRS: set[str] = {
+         ".git",
+         ".hg",
+         ".svn",
+         ".venv",
+         ".jac",
+         "node_modules",
+         "__pycache__",
+         ".mypy_cache",
+         ".pytest_cache",
+         ".ruff_cache",
+         "build",
+         "dist"
+     };
+
 """Clip oversized tool output so it does not blow the model's context."""
 impl truncate(text: str, limit: int = 12000) -> str {
     if len(text) > limit {
@@ -286,6 +305,7 @@ impl truncate(text: str, limit: int = 12000) -> str {
     }
     return text;
 }
+
 
 """Ask the user to approve a side-effecting action; honours `--yolo`."""
 impl confirm(action: str) -> bool {
@@ -311,6 +331,14 @@ impl _count_diags(diags: list) -> tuple[int, int] {
         ]
     );
     return (n_err, len(diags) - n_err);
+}
+
+"""True when the agent may print to the terminal (plain REPL, not TUI)."""
+impl _term_output_enabled -> bool {
+    if agent.cfg.tui_active {
+        return False;
+    }
+    return sys.stdout.isatty() and os.environ.get("TERM", "") not in {"", "dumb"};
 }
 
 """Rebuild the project model after a write and report the diagnostics it caused.
@@ -937,21 +965,117 @@ impl SemanticTools.find_uses(name: str) -> str {
     return "\n".join(lines);
 }
 
-sem SemanticTools.project_map = "Show every node, walker, edge, and object archetype in the project with its location -- a structural overview built from the compiler, not a directory listing. Use this first to understand an unfamiliar project.";
+sem SemanticTools.project_map = "Show every node, walker, edge, and object archetype in the project with its location -- a structural overview built from the compiler, not a directory listing. Useful for unfamiliar small/medium projects; on large monorepos, narrow scope first with list_dir/grep or run from a package subdirectory.";
 impl SemanticTools.project_map -> str {
     ci = self.ws.code_intel();
     if ci is None {
         return "ERROR: code intelligence is unavailable in this session.";
     }
-    archs = ci.archetypes();
+    base_dir = str(ci?.proj_dir or self.ws.cwd or os.getcwd());
+    if bool(ci?.lazy) and not bool(ci.is_loaded()) {
+        found: list[str] = [];
+        base = Path(os.path.normpath(base_dir));
+        if base.exists() {
+            for p in sorted(base.rglob("*.jac")) {
+                if any(
+                    [
+                        part in _PROJECT_MAP_SCAN_SKIP_DIRS or part.startswith(".")
+                        for part in p.parts
+                    ]
+                ) {
+                    continue;
+                }
+                name = p.name;
+                if name.endswith(".impl.jac") or name.endswith(".test.jac") {
+                    continue;
+                }
+                found.append(str(p));
+            }
+        }
+        if len(found) > _PROJECT_MAP_SKIP_AT_FILES {
+            buckets: dict[str, int] = {};
+            for f in found {
+                rel = os.path.relpath(f, base_dir);
+                parts = rel.split(os.sep);
+                bucket = str(parts[0] or ".") if parts else ".";
+                buckets[bucket] = int(buckets.get(bucket, 0) or 0) + 1;
+            }
+            lines = [
+                f"Project map skipped: this workspace has {len(
+                    found
+                )} Jac modules under {base_dir}.",
+                "Building the full structural map here would be slow and would flood the model context."
+            ];
+            if buckets {
+                lines.append("Top areas by module count:");
+                shown = 0;
+                for bucket in sorted(buckets) {
+                    lines.append(f"- {bucket}: {int(buckets.get(bucket, 0) or 0)}");
+                    shown += 1;
+                    if shown >= _PROJECT_MAP_BUCKET_ROWS {
+                        break;
+                    }
+                }
+            }
+            lines.append(
+                "Narrow scope first with list_dir/grep/find_symbol, or run `jac ai` from the package subdirectory you actually want to change."
+            );
+            return "\n".join(lines);
+        }
+    }
+    archs: list = list(ci.archetypes());
     if not archs {
         return "(no nodes, walkers, edges, or objects found in the project)";
     }
     rows: list[str] = [];
+    kind_counts: dict[str, int] = {};
+    bucket_counts: dict[str, int] = {};
+    files: set[str] = set();
     for a in archs {
-        rows.append(f"{a.kind:7} {a.name}    [{a.file}:{a.line}]");
+        kind = str(a.kind or "?");
+        file = str(a.file or "");
+        rows.append(f"{kind:7} {a.name}    [{file}:{a.line}]");
+        kind_counts[kind] = int(kind_counts.get(kind, 0) or 0) + 1;
+        if file {
+            files.add(file);
+            rel = os.path.relpath(file, base_dir);
+            parts = rel.split(os.sep);
+            bucket = str(parts[0] or ".") if parts else ".";
+            bucket_counts[bucket] = int(bucket_counts.get(bucket, 0) or 0) + 1;
+        }
     }
-    return "\n".join(sorted(rows));
+    full = "\n".join(sorted(rows));
+    if len(full) <= _PROJECT_MAP_CHAR_CAP {
+        return full;
+    }
+    lines = [
+        f"Project map summary: {len(rows)} archetypes across {len(files)} files.",
+        f"The full map is {len(full)} chars, so it is summarized here."
+    ];
+    if kind_counts {
+        lines.append(
+            "Kinds: " + ", ".join(
+                [
+                    f"{kind}={int(kind_counts.get(kind, 0) or 0)}"
+                    for kind in sorted(kind_counts)
+                ]
+            )
+        );
+    }
+    if bucket_counts {
+        lines.append("Top areas by archetype count:");
+        shown = 0;
+        for bucket in sorted(bucket_counts) {
+            lines.append(f"- {bucket}: {int(bucket_counts.get(bucket, 0) or 0)}");
+            shown += 1;
+            if shown >= _PROJECT_MAP_BUCKET_ROWS {
+                break;
+            }
+        }
+    }
+    lines.append("Sample rows:");
+    lines.extend(sorted(rows)[:_PROJECT_MAP_SAMPLE_ROWS]);
+    return truncate("\n".join(lines), _PROJECT_MAP_CHAR_CAP);
 }
 
 sem SemanticTools.find_walkers = "Find every walker entry point that traverses a given node type -- an Object-Spatial query the compiler answers from walker entry signatures. Use this to see how a node is visited.";
@@ -1546,6 +1670,9 @@ impl _progress_guard(ctx: any) -> str {
 }
 
 impl TurnRenderer.print_banner{
+    if not _term_output_enabled() {
+        return;
+    }
     console.print("");
     console.print("  Jac AI -- interactive coding agent", style="bold");
     console.print(
@@ -1566,6 +1693,9 @@ impl TurnRenderer.print_banner{
 }
 
 impl TurnRenderer.print_help{
+    if not _term_output_enabled() {
+        return;
+    }
     console.print("  /help     show this help", style="muted");
     console.print("  /clear    reset the conversation", style="muted");
     console.print("  /guides   list the bundled Jac reference guides", style="muted");
@@ -1670,6 +1800,9 @@ impl TurnRenderer.print_stats(
     files: set[str],
     usage: dict[str, object]
 ) {
+    if not _term_output_enabled() {
+        return;
+    }
     parts: list[str] = [f"{elapsed:.1f}s"];
     n_tools = n_read + n_write + n_run;
     if n_tools > 0 {
@@ -1789,6 +1922,9 @@ visible: which file, how many modules were recompiled out of the project, and
 how long it took.
 """
 impl TurnRenderer._ci_event(info: any) {
+    if not _term_output_enabled() {
+        return;
+    }
     op = str(info.get("op", "?"));
     recompiled = int(info.get("recompiled", 0));
     cached = int(info.get("cached", 0));
@@ -1853,7 +1989,8 @@ live, and returns this phase's tool-call tallies for the walker to accumulate.
 impl TurnRenderer.render_stream(event_stream: any) -> dict {
     out: any = sys.stdout;
     # `\r` animation only makes sense on a tty; piped output gets static lines.
-    is_tty = bool(out?.isatty) and bool(out.isatty());
+    show_term = _term_output_enabled();
+    is_tty = show_term and bool(out?.isatty) and bool(out.isatty());
     # A write tool anywhere in the turn arms the verify-and-continue guard.
     # Declared before the try so the `except` handlers can still return them.
     n_read = 0;
@@ -2129,7 +2266,7 @@ impl PhaseState.tools -> list {
     return [t.fn for t in [self->:Exposes:->]];
 }
 
-sem Plan = "the PLANNING state: understand the request and the existing project before writing anything. Use project_map for an unfamiliar project, find_symbol / find_uses / context_slice to navigate by meaning, read_file to read what you will change, and the guides for unfamiliar Jac (read at least the one for the kind of code you will write -- e.g. jac-cl-components for a UI). Do not write or edit files here. Finish by stating a short, concrete plan: whether to scaffold (and which template -- client for a browser-only UI, fullstack for server/data, default for a script), the files to create or change, and what each is for.";
+sem Plan = "the PLANNING state: understand the request and the existing project before writing anything. Use project_map for an unfamiliar small/medium project, but on a large monorepo narrow scope first with list_dir / grep and only map the relevant package. Use find_symbol / find_uses / context_slice to navigate by meaning, read_file to read what you will change, and the guides for unfamiliar Jac (read at least the one for the kind of code you will write -- e.g. jac-cl-components for a UI). Do not write or edit files here. Finish by stating a short, concrete plan: whether to scaffold (and which template -- client for a browser-only UI, fullstack for server/data, default for a script), the files to create or change, and what each is for.";
 
 sem Build = "the BUILDING state: carry out the plan. For a new app, scaffold it ONCE with `jac create --kind <kind> <name>` via run_command, then `cd <name>` so every later tool works inside the project (the cd persists). Pick the SIMPLEST kind that fits: `wasm` for a browser-only UI with no server or saved data (a calculator, a unit converter, a static page); `fullstack` only when you need server endpoints or persistent/multi-user data; `cli` for a non-web script. To create a NEW file, call write_file with its FULL contents -- never create files with shell redirection (`echo >`, `cat <<EOF`, `touch`) and never try to edit a file that does not exist yet. Use edit_file only to change a file that already exists, and read it first. Every write reports the compiler errors it introduced; fix them before moving on. Keep files focused; split large archetypes into impl files.";
 
@@ -2154,7 +2291,9 @@ result. No `visit` -- each concrete state's `run` ability owns routing.
 impl PhaseState.step(visitor: AgentSession) -> dict {
     agent.active_session = visitor;
     label = type(self).__name__;
-    console.print(f"\n  ● {label}", style="bold blue");
+    if _term_output_enabled() {
+        console.print(f"\n  ● {label}", style="bold blue");
+    }
     # Move the walker on the live graph: the UI animates the edge from the
     # previous phase to this one.
     agent.bus.enter(label);
@@ -2202,7 +2341,9 @@ impl PhaseState.halt(visitor: AgentSession) -> bool {
     # forever. The outer verify-and-continue still applies.
     visitor.steps += 1;
     if visitor.steps > visitor.max_steps {
-        console.print("\n  ● step cap reached -- stopping", style="yellow");
+        if _term_output_enabled() {
+            console.print("\n  ● step cap reached -- stopping", style="yellow");
+        }
         return True;
     }
     return False;
@@ -2263,17 +2404,21 @@ impl Plan.run with AgentSession entry {
             visitor.objective, visitor.ledger.render()
         );
     } except Exception as e {
-        console.print(
-            f"  ↳ classifier failed ({e}); defaulting to Build", style="yellow"
-        );
+        if _term_output_enabled() {
+            console.print(
+                f"  ↳ classifier failed ({e}); defaulting to Build", style="yellow"
+            );
+        }
     }
     if needs_code {
         visit [->:Flow:->][?:Build];
     } else {
-        console.print(
-            "  ↳ read-only request -- answered in Plan, skipping Build/QA",
-            style="green"
-        );
+        if _term_output_enabled() {
+            console.print(
+                "  ↳ read-only request -- answered in Plan, skipping Build/QA",
+                style="green"
+            );
+        }
         visit [->:Flow:->][?:Done];
     }
 }
@@ -2308,10 +2453,12 @@ impl Build.run with AgentSession entry {
                 )
             }
         );
-        console.print(
-            "  ↳ Build wrote no files -- re-entering Build to actually write code",
-            style="yellow"
-        );
+        if _term_output_enabled() {
+            console.print(
+                "  ↳ Build wrote no files -- re-entering Build to actually write code",
+                style="yellow"
+            );
+        }
         visit self;
     } else {
         visit [->:Flow:->];
@@ -2336,10 +2483,12 @@ impl QA.run with AgentSession entry {
     }
     if agent.ws.project_errors() {
         n = len(agent.ws.project_errors());
-        console.print(
-            f"  ↳ project has {n} compile error(s) -- returning to Build",
-            style="yellow"
-        );
+        if _term_output_enabled() {
+            console.print(
+                f"  ↳ project has {n} compile error(s) -- returning to Build",
+                style="yellow"
+            );
+        }
         visit [->:Flow:->][?:Build];
     } else {
         # byLLM builds the routing prompt internally, so seed the capture with a
@@ -2408,7 +2557,9 @@ impl TurnRenderer.route_stream_event(event: any) -> None {
 sem Done = "the DONE state: the session is complete. Reach it from QA once the objective is fully built AND verified (type-checked, and for an app, run and exercised), or directly from Plan when the request was a pure question or read-only inspection that needed no file changes and has been answered. Ends the session.";
 impl Done.finish{
     # No onward visit: the walker's queue empties here and the session ends.
-    console.print("\n  ● Done", style="bold green");
+    if _term_output_enabled() {
+        console.print("\n  ● Done", style="bold green");
+    }
     agent.bus.enter("Done");
 }
 
@@ -2561,12 +2712,14 @@ impl verify_and_continue(max_rounds: int = 3) {
                 if len(errs) > len(shown)
                 else ""
         );
-        console.print("");
-        console.print(
-            f"  build left {len(errs)} compile error(s); continuing to fix "
-            f"(round {rnd}/{max_rounds})",
-            style="yellow"
-        );
+        if _term_output_enabled() {
+            console.print("");
+            console.print(
+                f"  build left {len(errs)} compile error(s); continuing to fix "
+                f"(round {rnd}/{max_rounds})",
+                style="yellow"
+            );
+        }
         msg = (
             f"The project does not compile yet -- {len(errs)} error(s):\n" + "\n".join(
                 lines
@@ -2586,6 +2739,7 @@ failed turn reports its error but does not abort the session.
 
 When `req.ui` is set, hands off to `_run_ui_server`: launches the bundled Jac
 web app as a subprocess and opens it in the browser instead of the REPL.
+`--tui` is handled by jac-super when installed.
 """
 impl run_agent(req: object) -> int {
     global agent_model;
@@ -2595,11 +2749,25 @@ impl run_agent(req: object) -> int {
     # Seed the session working directory; every file tool and run_command
     # resolves against it, and a `cd` the model issues updates it.
     agent.ws.cwd = os.path.normpath(str(r?.cwd or os.getcwd()));
+    if bool(r?.ui) and bool(r?.tui) {
+        console.error("`jac ai`: `--ui` and `--tui` are mutually exclusive.");
+        return 1;
+    }
     # `--ui`: hand off to the bundled web app instead of the terminal REPL. The
     # child server re-imports this module and runs the agent itself, so nothing
     # else here (model build, banner, REPL) applies to the parent process.
     if bool(r?.ui) {
         return _run_ui_server(r);
+    }
+    if bool(r?.tui) {
+        try {
+            import from jac_super.ai_agent.run_tui_session { run_tui_session }
+            return run_tui_session(r);
+        } except ImportError {
+            console.warning(
+                "`--tui` requires jac-super. Falling back to plain session."
+            );
+        }
     }
     agent.cfg.yolo_mode = not r.safe;
     agent.cfg.verbose = not bool(r?.quiet);

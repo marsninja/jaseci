@@ -64,6 +64,13 @@ glob registry = get_registry();
             default=False,
             help="Open the agent in a web UI with a live phase-graph visualizer"
         ),
+        Arg.create(
+            "tui",
+            kind=ArgKind.FLAG,
+            typ=bool,
+            default=False,
+            help="Open the agent in a terminal UI (`--ui` and `--tui` are exclusive)"
+        ),
 
     ],
     examples=[
@@ -78,6 +85,7 @@ glob registry = get_registry();
             "Compact output -- just tool calls and the answer"
         ),
         ("jac ai --ui", "Open a web UI with a live agent phase-graph visualizer"),
+        ("jac ai --tui", "Open an in-terminal TUI session"),
 
     ],
     group="general"
@@ -88,5 +96,6 @@ def ai(
     n_ctx: int = 0,
     safe: bool = False,
     quiet: bool = False,
-    ui: bool = False
+    ui: bool = False,
+    tui: bool = False
 ) -> int;

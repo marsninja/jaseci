@@ -32,6 +32,10 @@ obj AgentConfig {
         show_stats: bool = True,
         # Rich live view; `--quiet` turns it off, `/verbose` toggles.
         verbose: bool = True,
+        # True while `jac ai --tui` is active (set by jac-super's TUI loop):
+        # suppress worker-side terminal rendering and rely on event-feed
+        # rendering in the TUI loop.  Core does not set this; jac-super does.
+        tui_active: bool = False,
         inline_feedback: bool = True,
         # Provider API key set live from the `--ui` settings panel; injected into
         # the byLLM model config on (re)build for cloud models. Empty falls back
@@ -410,6 +414,7 @@ glob agent_model = build_model();
 def truncate(text: str, limit: int = 12000) -> str;
 def confirm(action: str) -> bool;
 def _count_diags(diags: list) -> tuple[int, int];
+def _term_output_enabled -> bool;
 
 # Flatten one conversation message (litellm dict or object) to a small JSON-safe
 # record (role + truncated content + tool-call summaries) for the token-usage
