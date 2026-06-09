@@ -341,7 +341,38 @@ def _apply_ai_tui_runtime_patches(
     if not runtime_text.startswith(
         'import { __jacJsx, __jacSpawn } from "./runtime_shim.mjs";'
     ):
-        runtime_path.write_text(_RUNTIME_PRELUDE + runtime_text, encoding="utf-8")
+        runtime_text = _RUNTIME_PRELUDE + runtime_text
+
+    abort_helper = """function isAbortError(err) {
+  return !!(err && ((err.name === \"AbortError\") || String((err.message || err)).includes(\"aborted\")));
+}
+"""
+    if (
+        "function isAbortError(err) {" not in runtime_text
+        and "async function streamLoop(setters) {" in runtime_text
+    ):
+        runtime_text = runtime_text.replace(
+            "async function streamLoop(setters) {",
+            abort_helper + "async function streamLoop(setters) {",
+            1,
+        )
+
+    old_catch = """    } catch (__jac_e) {
+      if ((__jac_e instanceof _jac.exc.Exception)) {} else {
+        throw __jac_e;
+      }
+    }
+"""
+    new_catch = """    } catch (__jac_e) {
+      if ((__jac_e instanceof _jac.exc.Exception) || _unmounted || isAbortError(__jac_e)) {} else {
+        throw __jac_e;
+      }
+    }
+"""
+    if old_catch in runtime_text:
+        runtime_text = runtime_text.replace(old_catch, new_catch, 1)
+
+    runtime_path.write_text(runtime_text, encoding="utf-8")
 
     if module_path.is_file():
         module_text = module_path.read_text(encoding="utf-8")
