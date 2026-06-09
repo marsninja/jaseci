@@ -208,10 +208,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # Tuple support (Phase 9)
         tuple_types: dict[str, object] = {},
         var_tuple_type: dict[str, str] = {},
-        # Complex/Range/Slice var tracking
-        var_complex: set[str] = set(),
-        var_range: set[str] = set(),
-        var_slice: set[str] = set(),
         # Global variable support (Phase 11)
         global_vars: dict[str, ir.GlobalVariable] = {},
         global_var_types: dict[str, ir.Type] = {},
@@ -361,6 +357,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _lower_type(t: any) -> (ir.Type | None);
     def _lower_class_type(t: any) -> (ir.Type | None);
     def _lower_function_type(t: any) -> ir.Type;
+    # Canonical type key (TypeBase.mangle) of an expression's checked type.
+    def _type_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _resolve_type_str(type_name: str) -> ir.Type;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;

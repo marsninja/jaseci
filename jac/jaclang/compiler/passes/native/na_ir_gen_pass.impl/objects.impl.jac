@@ -1607,8 +1607,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     # Range methods (count, index)
     if method_name in ("count", "index") {
-        rng_target_name = self._get_name(trailer.target);
-        if rng_target_name is not None and rng_target_name in self.var_range {
+        if self._type_key_of(trailer.target) == "range" {
             rng_val = self._codegen_expr(trailer.target);
             if rng_val is not None {
                 params = nd.params or [];

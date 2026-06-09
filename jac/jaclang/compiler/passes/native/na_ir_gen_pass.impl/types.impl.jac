@@ -58,6 +58,17 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
     return lowered;
 }
 
+"""Return the canonical type key (TypeBase.mangle) of an expression's checked
+type, or None when the expression is untyped. This is the sanctioned way for
+native codegen to ask "what Jac type is this expression" — replacing the
+legacy variable-name-keyed shadow dicts/sets."""
+impl NaIRGenPass._type_key_of(expr: (uni.UniNode | None)) -> (str | None) {
+    if not isinstance(expr, uni.Expr) or expr.type is None {
+        return None;
+    }
+    return expr.type.mangle();
+}
+
 """Lower a ClassType TypeBase to an LLVM type, or None if unresolved.
 
 Handles primitives (registry-backed), enums, user structs, and the builtin

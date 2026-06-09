@@ -1236,7 +1236,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
     # Handle slice/range attribute access: sl.start, sl.stop, sl.step
     if nd.is_attr and target_name is not None and right_name is not None {
         _slice_field_map: dict[(str, int)] = {"start": 0, "stop": 1, "step": 2};
-        if (target_name in self.var_slice and right_name in _slice_field_map) {
+        if (
+            self._type_key_of(nd.target) == "slice" and right_name in _slice_field_map
+        ) {
             obj_val = self._codegen_expr(nd.target);
             if obj_val is not None {
                 i32 = ir.IntType(32);

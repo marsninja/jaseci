@@ -1812,18 +1812,6 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 }
             }
         }
-        # Track complex variables
-        if value.type == self.complex_struct_type.as_pointer() {
-            self.var_complex.add(var_name);
-        }
-        # Track range variables
-        if value.type == self.range_struct_type.as_pointer() {
-            self.var_range.add(var_name);
-        }
-        # Track slice variables
-        if value.type == self.slice_struct_type.as_pointer() {
-            self.var_slice.add(var_name);
-        }
     }
 }
 
