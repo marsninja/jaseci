@@ -506,12 +506,10 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     saved_builder = self._builder;
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
-    saved_type_node = dict(self.var_type_node);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.var_type_node = {};
     self.var_list_elem_struct = {};
     # Reset per-function borrowed-param promotion state.
     saved_param_store_instr = self._param_store_instr;
@@ -528,13 +526,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self_alloca = self.builder.alloca(func.args[0].type, name="self");
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
-    # Re-populate field list/type info from archetype has-declarations
-    if arch_name in self.field_type_node {
-        for (fname, ftn) in self.field_type_node[arch_name].items() {
-            qname = f"self.{fname}";
-            self.var_type_node[qname] = ftn;
-        }
-    }
     # Store other parameters
     sig = method.signature;
     for (i, p) in enumerate(sig.get_parameters()) {
@@ -545,10 +536,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
         self.local_vars[param_name] = alloca;
         self.param_vars.add(param_name);
         self._param_store_instr[param_name] = _store_instr;  # for entry-block retain on reassign
-        # Track Jac type annotation for parameters (enables nested list resolution)
-        if p.type_tag and p.type_tag.tag {
-            self.var_type_node[param_name] = p.type_tag.tag;
-        }
     }
     # Generate body (handle ImplDef wrapper from DeclImplMatchPass)
     body = ModuleCodegenPass.unwrap_body(method);
@@ -578,7 +565,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self._builder = saved_builder;
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
-    self.var_type_node = saved_type_node;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;
@@ -598,7 +584,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     saved_builder = self._builder;
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
-    saved_type_node = dict(self.var_type_node);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_param_store_instr = self._param_store_instr;
     saved_param_promoted = self._param_promoted;
@@ -607,7 +592,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.var_type_node = {};
     self.var_list_elem_struct = {};
     self._param_store_instr = {};
     self._param_promoted = set();
@@ -619,13 +603,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self_alloca = self.builder.alloca(func.args[0].type, name="self");
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
-    # Re-populate field list/type info from archetype has-declarations
-    if arch_name in self.field_type_node {
-        for (fname, ftn) in self.field_type_node[arch_name].items() {
-            qname = f"self.{fname}";
-            self.var_type_node[qname] = ftn;
-        }
-    }
     # Generate body (handle ImplDef wrapper from DeclImplMatchPass)
     body = ModuleCodegenPass.unwrap_body(method);
     if body is not None {
@@ -647,7 +624,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self._builder = saved_builder;
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
-    self.var_type_node = saved_type_node;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;
@@ -786,7 +762,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     saved_builder = self._builder;
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
-    saved_type_node = dict(self.var_type_node);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_param_store_instr = self._param_store_instr;
     saved_param_promoted = self._param_promoted;
@@ -795,7 +770,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
-    self.var_type_node = {};
     self.var_list_elem_struct = {};
     self._param_store_instr = {};
     self._param_promoted = set();
@@ -805,12 +779,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self_alloca = self.builder.alloca(func.args[0].type, name="self");
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
-    if arch_name in self.field_type_node {
-        for (fname, ftn) in self.field_type_node[arch_name].items() {
-            qname = f"self.{fname}";
-            self.var_type_node[qname] = ftn;
-        }
-    }
     # Bind the implicit location parameter (here / visitor).
     loc_name = "here" if sig.from_walker else "visitor";
     loc_arg = func.args[1];
@@ -819,28 +787,18 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self.local_vars[loc_name] = loc_alloca;
     self.param_vars.add(loc_name);
     if sig.arch_tag_info is not None {
-        self.var_type_node[loc_name] = sig.arch_tag_info;
-        # For a tuple/union trigger (`with (A, B) entry`), `here`/`visitor`
-        # binds to a representative member so `here.field` resolves against a
-        # real struct layout instead of silently dropping (issue #6470).
+        # For a tuple/union trigger (`with (A, B) entry`), members must agree
+        # on shared field offsets or `here.field` reads would be quietly wrong
+        # under the single-layout lowering (issue #6470).
         _members = self._trigger_member_structs(sig.arch_tag_info);
         _conflict = self._union_layout_conflict(_members);
         if _conflict is not None {
-            # Members disagree on a shared field's offset: the single-layout
-            # lowering would misread it, so surface a diagnostic rather than
-            # emit a quietly-wrong body.
             self.emit(
                 E5091,
                 node_override=sig.arch_tag_info,
                 members=", ".join(_members),
                 field=_conflict
             );
-        }
-        loc_tname = _members[0] if _members else None;
-        if loc_tname is not None and loc_tname in self.field_type_node {
-            for (fname, ftn) in self.field_type_node[loc_tname].items() {
-                self.var_type_node[f"{loc_name}.{fname}"] = ftn;
-            }
         }
     }
     body = ModuleCodegenPass.unwrap_body(method);
@@ -859,7 +817,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self._builder = saved_builder;
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
-    self.var_type_node = saved_type_node;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;

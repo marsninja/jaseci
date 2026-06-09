@@ -726,9 +726,6 @@ impl NaIRGenPass._register_imported_globals(
             var_type: ir.Type = ir.IntType(64);
             if assign.type_tag and assign.type_tag.tag {
                 var_type = self._resolve_jac_type(assign.type_tag.tag);
-                # Track type annotation node for chained subscript+field access
-                # e.g. ITEMS[i].field chains need the list[Outer] node to bitcast
-                self.var_type_node[var_name] = assign.type_tag.tag;
             }
             global_var = ir.GlobalVariable(self.llvm_module, var_type, name=var_name);
             global_var.linkage = "external";

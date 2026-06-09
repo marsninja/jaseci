@@ -705,31 +705,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             self._list_type_hint = hint;
         }
     }
-    # 2. From field target: self.field = [] where field has known list type
-    if self._list_type_hint is None {
-        check_targets = nd.target
-            if isinstance(nd.target, (list, tuple))
-            else [(nd.target)];
-        for ct in check_targets {
-            if isinstance(ct, uni.AtomTrailer) and ct.is_attr {
-                ct_field_name = self._get_name(ct.right);
-                if ct_field_name is not None {
-                    ct_type_name = self._struct_name_of(ct.target);
-                    if ct_type_name is not None
-                    and ct_type_name in self.field_type_node {
-                        ftn = self.field_type_node[ct_type_name].get(ct_field_name);
-                        if ftn is not None {
-                            hint = self._get_list_elem_from_type_node(ftn);
-                            if hint is not None {
-                                self._list_type_hint = hint;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    # 3. From the target's checked list type (for reassignment/globals)
+    # 2. From the target's checked list type (fields/reassignment/globals)
     if self._list_type_hint is None {
         check_targets = nd.target
             if isinstance(nd.target, (list, tuple))
@@ -789,34 +765,28 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             _edict_type_tag = nd.type_tag.tag
                 if nd.type_tag and nd.type_tag.tag
                 else None;
-            # Fallback: no explicit type annotation but target is obj.field = {} —
-            # infer the dict type from field_type_node so we emit __dict_new_*().
+            # Fallback: no explicit type annotation but the target (obj.field
+            # / reassigned local) carries a checked dict type — emit the
+            # matching __dict_new_*().
             if _edict_type_tag is None {
                 _check_targets = nd.target
                     if isinstance(nd.target, (list, tuple))
                     else [(nd.target)];
                 for _ct in _check_targets {
-                    if isinstance(_ct, uni.AtomTrailer) and _ct.is_attr {
-                        _ct_field_name = self._get_name(_ct.right);
-                        if _ct_field_name is not None {
-                            _ct_type_name = self._struct_name_of(_ct.target);
-                            if _ct_type_name is not None
-                            and _ct_type_name in self.field_type_node {
-                                _ftn = self.field_type_node[_ct_type_name].get(
-                                    _ct_field_name
-                                );
-                                if _ftn is not None {
-                                    _edict_type_tag = _ftn;
-                                }
-                            }
-                        }
+                    _dk = self._dict_key_of(_ct);
+                    if _dk is None {
+                        continue;
                     }
-                    if _edict_type_tag is not None {
-                        break;
+                    helpers = self.dict_helpers.get(_dk);
+                    if helpers is not None {
+                        value = self.builder.call(helpers["new"], [], name="dict.new");
+                        # RC: fresh allocation — caller owns it; skip RETAIN on assign.
+                        self._mark_owned(value);
                     }
+                    break;
                 }
             }
-            if _edict_type_tag is not None {
+            if value is None and _edict_type_tag is not None {
                 # Empty dict with type hint - create empty dict of correct type
                 dict_type = self._resolve_jac_type(_edict_type_tag);
                 if isinstance(dict_type, ir.PointerType) {
@@ -1725,10 +1695,6 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
         if self._pending_lambda_captures is not None {
             self.lambda_captures[var_name] = self._pending_lambda_captures;
             self._pending_lambda_captures = None;
-        }
-        # Store the full type AST node for nested type resolution
-        if nd.type_tag and nd.type_tag.tag {
-            self.var_type_node[var_name] = nd.type_tag.tag;
         }
         # Seed the boxed-tuple element-struct shape from the literal that
         # produced this value (if any), so `(a, b) = var.pop()` on a bare

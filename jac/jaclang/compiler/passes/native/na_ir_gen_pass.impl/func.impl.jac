@@ -303,10 +303,6 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         self.local_vars[param_name] = alloca;
         self.param_vars.add(param_name);
         self._param_store_instr[param_name] = _store_instr;  # for entry-block retain on reassign
-        # Track type annotations for parameters
-        if p.type_tag and p.type_tag.tag {
-            self.var_type_node[param_name] = p.type_tag.tag;
-        }
     }
     # Generate body via manual tree-walking (handle ImplDef wrapper from DeclImplMatchPass)
     body = ModuleCodegenPass.unwrap_body(nd);
@@ -424,22 +420,16 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     saved_builder = self._builder;
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
-    saved_var_type_node = self.var_type_node;
     saved_var_list_struct = self.var_list_elem_struct;
     self._builder = ir.IRBuilder(fn.append_basic_block("entry"));
     self.local_vars = {};
     self.param_vars = set();
-    self.var_type_node = {};
     self.var_list_elem_struct = {};
     for (i, arg) in enumerate(fn.args) {
         alloca = self._entry_alloca(arg.type, param_names[i]);
         self.builder.store(arg, alloca);
         self.local_vars[param_names[i]] = alloca;
         self.param_vars.add(param_names[i]);
-        sigp = sig_params[i];
-        if sigp?.type_tag and sigp.type_tag and sigp.type_tag?.tag {
-            self.var_type_node[param_names[i]] = sigp.type_tag.tag;
-        }
     }
     if body is not None {
         self._codegen_body(body);
@@ -461,7 +451,6 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self._builder = saved_builder;
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
-    self.var_type_node = saved_var_type_node;
     self.var_list_elem_struct = saved_var_list_struct;
     nd.gen.llvm_ir = fn;
 }

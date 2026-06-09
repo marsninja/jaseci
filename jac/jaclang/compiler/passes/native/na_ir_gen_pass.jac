@@ -160,7 +160,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # (flattened) layout, not the declaring parent the checker reports.
         _self_arch: (str | None) = None,
         field_type_node: dict[str, dict] = {},
-        var_type_node: dict[str, object] = {},
         _list_type_hint: (str | None) = None,
         # True while codegen'ing the TupleVal of a `return (...)`. In that
         # context borrowed (field-load / element-read) pointer elements must be
