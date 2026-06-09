@@ -395,7 +395,7 @@ glob _buttonVariants: any = cva(
     }
 );
 
-def:pub Button(props: any) -> JsxElement {
+def:pub Button(props: any, ref: Ref[HTMLButtonElement]) -> JsxElement {
     variant = props.variant or "default";
     size = props.size or "default";
     computedClass = cn(
@@ -403,11 +403,13 @@ def:pub Button(props: any) -> JsxElement {
         props.className
     );
 
-    return <button className={computedClass} {**props}>
+    return <button ref={ref} className={computedClass} {**props}>
         {props.children}
     </button>;
 }
 ```
+
+The trailing `ref: Ref[HTMLButtonElement]` parameter is what lets this `Button` be used as a radix `asChild` trigger (`DropdownMenuTrigger`, `Tooltip.Trigger`, ...). It forwards the anchor ref radix needs for positioning down to the real `<button>`; without it the trigger would silently never open. See [forwarding a ref into your component](state.md#forwarding-a-ref-into-your-component) for the details.
 
 Required dependencies:
 
