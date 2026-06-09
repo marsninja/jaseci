@@ -6,6 +6,10 @@ NaIRGenPass runs after TypeCheckPass, so annotation Expr nodes carry a fully
 resolved `.type`. This consumes that TypeBase directly instead of re-deriving
 type structure from raw annotation AST. Returns None when the type category
 is not (yet) handled, so callers can fall back to the legacy AST walk.
+
+Successful lowerings are memoized per LLVM module keyed by the canonical
+type key (TypeBase.mangle); a cache hit also implies the type's collection
+helpers were already emitted for this module.
 """
 impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
     if t is None {
@@ -22,31 +26,36 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
     } except ImportError {
         return None;
     }
+    key = t.mangle() if t?.mangle else None;
+    if key is not None and key in self._lowered_type_cache {
+        return self._lowered_type_cache[key];
+    }
+    lowered: (ir.Type | None) = None;
     if isinstance(t, _NeverType) {
-        return ir.VoidType();
-    }
-    if isinstance(t, _AnyType) {
-        return self.jacval_type;
-    }
-    if isinstance(t, _ClassType) {
-        return self._lower_class_type(t);
-    }
-    if isinstance(t, _UnionType) {
+        lowered = ir.VoidType();
+    } elif isinstance(t, _AnyType) {
+        lowered = self.jacval_type;
+    } elif isinstance(t, _ClassType) {
+        lowered = self._lower_class_type(t);
+    } elif isinstance(t, _UnionType) {
         # `T | None` (and general unions) lower to the first non-None member;
         # native pointers are nullable, so the optional wrapper is implicit.
+        lowered = ir.VoidType();
         for m in (t.types or []) {
             if isinstance(m, _ClassType)
             and m.shared.class_name in ("NoneType", "None") {
                 continue;
             }
-            return self._lower_type(m);
+            lowered = self._lower_type(m);
+            break;
         }
-        return ir.VoidType();
+    } elif isinstance(t, _FunctionType) {
+        lowered = self._lower_function_type(t);
     }
-    if isinstance(t, _FunctionType) {
-        return self._lower_function_type(t);
+    if key is not None and lowered is not None {
+        self._lowered_type_cache[key] = lowered;
     }
-    return None;
+    return lowered;
 }
 
 """Lower a ClassType TypeBase to an LLVM type, or None if unresolved.

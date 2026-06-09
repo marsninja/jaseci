@@ -289,6 +289,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # Both are reset at the start of each function/method.
         _param_store_instr: dict[str, object] = {},
         _param_promoted: set[str] = set(),
+        # TypeBase -> ir.Type lowering memo, keyed by the canonical type key
+        # (TypeBase.mangle). Per LLVM module; a hit implies any collection
+        # helpers for the type were already emitted.
+        _lowered_type_cache: dict[str, ir.Type] = {},
         # DWARF debug metadata (populated in postinit when JAC_NATIVE_DEBUG=1)
         di_file: object = None,
         di_cu: object = None,
