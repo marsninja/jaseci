@@ -730,15 +730,15 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             }
         }
     }
-    # 3. From existing variable's tracked list element type (for reassignment/globals)
+    # 3. From the target's checked list type (for reassignment/globals)
     if self._list_type_hint is None {
         check_targets = nd.target
             if isinstance(nd.target, (list, tuple))
             else [(nd.target)];
         for ct in check_targets {
-            ct_name = self._get_name(ct);
-            if ct_name is not None and ct_name in self.var_list_elem_type {
-                self._list_type_hint = self.var_list_elem_type[ct_name];
+            _ct_spec = self._list_spec_of(ct);
+            if _ct_spec is not None {
+                self._list_type_hint = _ct_spec;
                 break;
             }
         }
@@ -967,16 +967,9 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             }
                         } else {
                             # List assignment: list[idx] = value
-                            elem_type_name: (str | None) = None;
-                            if idx_target_name is not None
-                            and idx_target_name in self.var_list_elem_type {
-                                elem_type_name = self.var_list_elem_type[
-                                    idx_target_name
-                                ];
-                            }
-                            if elem_type_name is None {
-                                elem_type_name = self._infer_list_elem_type(target_val);
-                            }
+                            elem_type_name: (str | None) = (
+                                self._infer_list_elem_type(target_val)
+                            );
                             if elem_type_name is not None {
                                 self._codegen_index_set(
                                     target_val, idx_val, value, elem_type_name
@@ -1762,17 +1755,15 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             # Store the full type AST node for nested type resolution
             self.var_type_node[var_name] = tag_node;
         }
-        # Track list element type for list variables
-        for (ename, ltype) in self.list_types.items() {
-            if value.type == ltype.as_pointer() {
-                self.var_list_elem_type[var_name] = ename;
-                # Seed the boxed-tuple element-struct shape from the literal that
-                # produced this value (if any), so `(a, b) = var.pop()` on a bare
-                # `list` can recover the tuple type later. See #6435.
-                if self._pending_list_elem_struct is not None {
+        # Seed the boxed-tuple element-struct shape from the literal that
+        # produced this value (if any), so `(a, b) = var.pop()` on a bare
+        # `list` can recover the tuple type later. See #6435.
+        if self._pending_list_elem_struct is not None {
+            for (ename, ltype) in self.list_types.items() {
+                if value.type == ltype.as_pointer() {
                     self.var_list_elem_struct[var_name] = self._pending_list_elem_struct;
+                    break;
                 }
-                break;
             }
         }
     }
@@ -2100,10 +2091,7 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     # Must be checked before the list path: a raw `i8*` string would otherwise
     # be misclassified as a `list[ptr]` and hit a type-mismatch when calling
     # the List.ptr helpers.
-    coll_name_str = self._get_name(nd.collection);
-    is_list_coll = (
-        coll_name_str is not None and coll_name_str in self.var_list_elem_type
-    );
+    is_list_coll = self._list_spec_of(nd.collection) is not None;
     is_dict_coll = self._dict_key_of(nd.collection) is not None;
     if not is_list_coll and not is_dict_coll {
         str_coll_val = _coll_memo;
@@ -2180,13 +2168,8 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         }
         return;
     }
-    # Determine element type of the list
-    elem_type_name: (str | None) = None;
-    if coll_name is not None and coll_name in self.var_list_elem_type {
-        elem_type_name = self.var_list_elem_type[coll_name];
-    } else {
-        elem_type_name = self._infer_list_elem_type(collection_val);
-    }
+    # Determine element type of the list from the value's LLVM shape
+    elem_type_name: (str | None) = self._infer_list_elem_type(collection_val);
     # Fallback: use _last_type_node_hint from method call return type
     if elem_type_name is None and coll_type_hint is not None {
         hint_elem = self._get_list_elem_from_type_node(coll_type_hint);
@@ -2253,12 +2236,6 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
             for (sname, stype) in self.struct_types.items() {
                 if inner_type == stype.as_pointer() {
                     self.type_var_map[loop_var_name] = sname;
-                    break;
-                }
-            }
-            for (ename, ltype) in self.list_types.items() {
-                if inner_type == ltype.as_pointer() {
-                    self.var_list_elem_type[loop_var_name] = ename;
                     break;
                 }
             }

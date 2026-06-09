@@ -123,11 +123,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         if func_name == "len" {
             params_l = nd.params or [];
             if params_l {
-                arg_name = self._get_name(params_l[0]);
                 elem_type_name: (str | None) = None;
-                if arg_name is not None and arg_name in self.var_list_elem_type {
-                    elem_type_name = self.var_list_elem_type[arg_name];
-                }
                 arg_val = self._codegen_expr(params_l[0]);
                 if arg_val is not None {
                     _len_result: (ir.Value | None) = None;

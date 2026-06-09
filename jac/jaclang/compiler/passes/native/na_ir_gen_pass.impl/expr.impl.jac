@@ -1123,12 +1123,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 and "sys" in self._native_stdlib_modules
             ) {
                 if right_name == "argv" {
-                    result = self._emit_sys_argv();
-                    if result is not None {
-                        # Track as list[str] so indexing/iteration works
-                        self.var_list_elem_type["__sys_argv_tmp"] = "ptr";
-                    }
-                    return result;
+                    return self._emit_sys_argv();
                 }
                 if right_name == "platform" {
                     import platform as _plat;
@@ -1234,15 +1229,16 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
         slices = nd.right.slices or [];
         if slices {
             s = slices[0];
-            # List slicing
-            if target_name is not None and target_name in self.var_list_elem_type {
-                elem_type_name = self.var_list_elem_type[target_name];
+            # List slicing — list-ness comes from the checked type; the spec
+            # prefers the value's actual LLVM shape (bare `list` annotations).
+            _slice_list_spec = self._list_spec_of(nd.target);
+            if _slice_list_spec is not None {
                 target_val = self._codegen_expr(nd.target);
                 if target_val is not None {
+                    _shape = self._infer_list_elem_type(target_val);
+                    elem_type_name = _shape if _shape is not None else _slice_list_spec;
                     result = self._codegen_list_slice(target_val, s, elem_type_name);
                     if result is not None {
-                        # Track sliced list as same elem type
-                        self.var_list_elem_type[f"__slice_tmp_{id(nd)}"] = elem_type_name;
                         return result;
                     }
                 }
@@ -1266,7 +1262,6 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                                 target_val, s, elem_type_name
                             );
                             if result is not None {
-                                self.var_list_elem_type[f"__slice_tmp_{id(nd)}"] = elem_type_name;
                                 return result;
                             }
                         }
@@ -1278,11 +1273,15 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
     # Handle index access: items[i] or expr[i]
     if not nd.is_attr and nd.right?.slices {
         target_name = self._get_name(nd.target);
-        # Simple name: use tracked list type
-        if target_name is not None and target_name in self.var_list_elem_type {
-            elem_type_name = self.var_list_elem_type[target_name];
+        # Simple name with a checked list type
+        _idx_list_spec = self._list_spec_of(nd.target)
+            if target_name is not None
+            else None;
+        if _idx_list_spec is not None {
             target_val = self._codegen_expr(nd.target);
             if target_val is not None {
+                _shape = self._infer_list_elem_type(target_val);
+                elem_type_name = _shape if _shape is not None else _idx_list_spec;
                 slices = nd.right.slices or [];
                 if slices {
                     idx_node = slices[0];
@@ -1337,13 +1336,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             chain_type_hint
                         ) is not None
                     );
-                    inner_target_name = self._get_name(nd.target)
-                        if isinstance(nd.target, uni.Name)
-                        else None;
-                    is_known_list = (
-                        inner_target_name is not None
-                        and inner_target_name in self.var_list_elem_type
-                    );
+                    is_known_list = self._list_spec_of(nd.target) is not None;
                     if not is_known_list and not is_list_from_hint {
                         slices = nd.right.slices or [];
                         if slices {

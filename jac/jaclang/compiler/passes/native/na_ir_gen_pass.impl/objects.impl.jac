@@ -508,13 +508,11 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     saved_param_vars = self.param_vars;
     saved_type_map = dict(self.type_var_map);
     saved_type_node = dict(self.var_type_node);
-    saved_list_elem = dict(self.var_list_elem_type);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_type_node = {};
-    self.var_list_elem_type = {};
     self.var_list_elem_struct = {};
     # Reset per-function borrowed-param promotion state.
     saved_param_store_instr = self._param_store_instr;
@@ -535,10 +533,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
         for (fname, ftn) in self.field_type_node[arch_name].items() {
             qname = f"self.{fname}";
             self.var_type_node[qname] = ftn;
-            ename = self._get_list_elem_from_type_node(ftn);
-            if ename is not None {
-                self.var_list_elem_type[qname] = ename;
-            }
         }
     }
     # Store other parameters
@@ -563,13 +557,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
         # Track Jac type annotation for parameters (enables nested list resolution)
         if p.type_tag and p.type_tag.tag {
             self.var_type_node[param_name] = p.type_tag.tag;
-            # Also track list elem type from annotation
-            for (ename, ltype) in self.list_types.items() {
-                if arg_val.type == ltype.as_pointer() {
-                    self.var_list_elem_type[param_name] = ename;
-                    break;
-                }
-            }
             # Handle union types T | None for struct tracking
             tag_name = self._get_name(p.type_tag.tag);
             tag_node = p.type_tag.tag;
@@ -614,7 +601,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.param_vars = saved_param_vars;
     self.type_var_map = saved_type_map;
     self.var_type_node = saved_type_node;
-    self.var_list_elem_type = saved_list_elem;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;
@@ -635,7 +621,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     saved_param_vars = self.param_vars;
     saved_type_map = dict(self.type_var_map);
     saved_type_node = dict(self.var_type_node);
-    saved_list_elem = dict(self.var_list_elem_type);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_param_store_instr = self._param_store_instr;
     saved_param_promoted = self._param_promoted;
@@ -643,7 +628,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.local_vars = {};
     self.param_vars = set();
     self.var_type_node = {};
-    self.var_list_elem_type = {};
     self.var_list_elem_struct = {};
     self._param_store_instr = {};
     self._param_promoted = set();
@@ -661,10 +645,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
         for (fname, ftn) in self.field_type_node[arch_name].items() {
             qname = f"self.{fname}";
             self.var_type_node[qname] = ftn;
-            ename = self._get_list_elem_from_type_node(ftn);
-            if ename is not None {
-                self.var_list_elem_type[qname] = ename;
-            }
         }
     }
     # Generate body (handle ImplDef wrapper from DeclImplMatchPass)
@@ -690,7 +670,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.param_vars = saved_param_vars;
     self.type_var_map = saved_type_map;
     self.var_type_node = saved_type_node;
-    self.var_list_elem_type = saved_list_elem;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;
@@ -830,7 +809,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     saved_param_vars = self.param_vars;
     saved_type_map = dict(self.type_var_map);
     saved_type_node = dict(self.var_type_node);
-    saved_list_elem = dict(self.var_list_elem_type);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_param_store_instr = self._param_store_instr;
     saved_param_promoted = self._param_promoted;
@@ -838,7 +816,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self.local_vars = {};
     self.param_vars = set();
     self.var_type_node = {};
-    self.var_list_elem_type = {};
     self.var_list_elem_struct = {};
     self._param_store_instr = {};
     self._param_promoted = set();
@@ -853,10 +830,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
         for (fname, ftn) in self.field_type_node[arch_name].items() {
             qname = f"self.{fname}";
             self.var_type_node[qname] = ftn;
-            ename = self._get_list_elem_from_type_node(ftn);
-            if ename is not None {
-                self.var_list_elem_type[qname] = ename;
-            }
         }
     }
     # Bind the implicit location parameter (here / visitor).
@@ -912,7 +885,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self.param_vars = saved_param_vars;
     self.type_var_map = saved_type_map;
     self.var_type_node = saved_type_node;
-    self.var_list_elem_type = saved_list_elem;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;
@@ -1393,11 +1365,15 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     # --- Primitive emitter dispatch (list, set, str methods) ---
     # Evaluate target and args, dispatch through emitter layer.
-    # List methods (simple name target)
-    if target_name is not None and target_name in self.var_list_elem_type {
-        elem_type_name = self.var_list_elem_type[target_name];
+    # List methods — list-ness comes from the checked type of the target;
+    # the dispatch spec prefers the value's actual LLVM shape (a bare `list`
+    # annotation may hold ptr/f64 elements seeded at runtime).
+    list_spec = self._list_spec_of(trailer.target);
+    if list_spec is not None {
         list_val = self._codegen_expr(trailer.target);
         if list_val is not None {
+            _shape_spec = self._infer_list_elem_type(list_val);
+            elem_type_name = _shape_spec if _shape_spec is not None else list_spec;
             params = nd.params or [];
             arg_vals: list[ir.Value] = [];
             for param in params {

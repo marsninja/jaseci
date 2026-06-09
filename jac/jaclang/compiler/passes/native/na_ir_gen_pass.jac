@@ -147,7 +147,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # List support (Phase 4)
         list_types: dict[str, object] = {},
         list_helpers: dict[str, dict] = {},
-        var_list_elem_type: dict[str, str] = {},
         # For ptr-element lists holding boxed tuples, the pointer-to-struct
         # LLVM type of an element (e.g. `{i64, i64}*`). Lets `(a, b) = lst.pop()`
         # recover the tuple shape for a bare `list` whose annotation carries no
@@ -363,6 +362,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     # Native dict registry key ("k:v" spec) from a checked dict type.
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
+    # Native list spec key ("i64"/"f64"/"ptr"/...) from a checked list type.
+    def _list_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _resolve_type_str(type_name: str) -> ir.Type;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;

@@ -85,15 +85,6 @@ impl NaIRGenPass._codegen_global_vars(nd: uni.GlobalVars) -> None {
             self._global_origins[var_name] = self.ir_in.loc.mod_path
                 if self.ir_in?.loc
                 else "(current module)";
-            # Track list element types for global lists
-            if isinstance(var_type, ir.PointerType) {
-                for (ename, ltype) in self.list_types.items() {
-                    if var_type == ltype.as_pointer() {
-                        self.var_list_elem_type[var_name] = ename;
-                        break;
-                    }
-                }
-            }
             self.has_native_code = True;
             # Save assignment node for runtime initialization
             # (skip if already initialized with a compile-time constant)

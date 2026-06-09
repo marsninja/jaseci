@@ -306,12 +306,6 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         # Track type annotations for parameters
         if p.type_tag and p.type_tag.tag {
             self.var_type_node[param_name] = p.type_tag.tag;
-            for (ename, ltype) in self.list_types.items() {
-                if arg_val.type == ltype.as_pointer() {
-                    self.var_list_elem_type[param_name] = ename;
-                    break;
-                }
-            }
             # Track struct types (including union T | None)
             tag_name = self._get_name(p.type_tag.tag);
             tag_node = p.type_tag.tag;
@@ -444,14 +438,12 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     saved_param_vars = self.param_vars;
     saved_type_var_map = self.type_var_map;
     saved_var_type_node = self.var_type_node;
-    saved_var_list = self.var_list_elem_type;
     saved_var_list_struct = self.var_list_elem_struct;
     self._builder = ir.IRBuilder(fn.append_basic_block("entry"));
     self.local_vars = {};
     self.param_vars = set();
     self.type_var_map = {};
     self.var_type_node = {};
-    self.var_list_elem_type = {};
     self.var_list_elem_struct = {};
     for (i, arg) in enumerate(fn.args) {
         alloca = self._entry_alloca(arg.type, param_names[i]);
@@ -489,7 +481,6 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self.param_vars = saved_param_vars;
     self.type_var_map = saved_type_var_map;
     self.var_type_node = saved_var_type_node;
-    self.var_list_elem_type = saved_var_list;
     self.var_list_elem_struct = saved_var_list_struct;
     nd.gen.llvm_ir = fn;
 }

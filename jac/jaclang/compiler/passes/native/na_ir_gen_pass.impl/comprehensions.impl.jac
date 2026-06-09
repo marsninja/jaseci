@@ -358,7 +358,7 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
     } elif isinstance(val_expr, uni.Name) {
         # Check if it's a known pointer variable
         var_name = val_expr.value;
-        if var_name in self.type_var_map or var_name in self.var_list_elem_type {
+        if var_name in self.type_var_map or self._list_spec_of(val_expr) is not None {
             val_type_name = "ptr";
             val_type = ir.IntType(8).as_pointer();
         }

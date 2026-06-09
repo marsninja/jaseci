@@ -168,6 +168,30 @@ impl NaIRGenPass._dict_key_of(expr: (uni.UniNode | None)) -> (str | None) {
     return None;
 }
 
+"""Return the native list spec key for an expression's checked list type, or
+None when the expression is not list-typed. Lowering the type registers the
+list struct + helpers as a side effect, so the returned spec is always
+present in `list_types`/`list_helpers`."""
+impl NaIRGenPass._list_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
+    if not isinstance(expr, uni.Expr) or expr.type is None {
+        return None;
+    }
+    tk = expr.type.mangle();
+    if not (tk == "list" or tk.startswith("list[")) {
+        return None;
+    }
+    lowered = self._lower_type(expr.type);
+    if lowered is None {
+        return None;
+    }
+    for (spec, lt) in self.list_types.items() {
+        if lowered == lt.as_pointer() {
+            return spec;
+        }
+    }
+    return None;
+}
+
 """Lower a ClassType TypeBase to an LLVM type, or None if unresolved.
 
 Handles primitives (registry-backed), enums, user structs, and the builtin
@@ -1926,10 +1950,15 @@ impl NaIRGenPass._infer_compr_elem_struct(compr: object) -> (str | None) {
                     }
                 }
             }
-            # Check var_list_elem_type for computed element type name
-            elem_type = self.var_list_elem_type.get(coll_name);
-            if elem_type is not None and elem_type in self.struct_types {
-                return elem_type;
+            # Checked type list[Struct] → struct element name
+            _coll_tk = self._type_key_of(collection);
+            if _coll_tk is not None
+            and _coll_tk.startswith("list[")
+            and _coll_tk.endswith("]") {
+                _inner_tk = _coll_tk[5:-1];
+                if _inner_tk in self.struct_types {
+                    return _inner_tk;
+                }
             }
         }
         return None;

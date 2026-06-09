@@ -738,15 +738,6 @@ impl NaIRGenPass._register_imported_globals(
             if source_path {
                 self._global_origins[var_name] = source_path;
             }
-            # Track list element types for imported list globals
-            if isinstance(var_type, ir.PointerType) {
-                for (ename, ltype) in self.list_types.items() {
-                    if var_type == ltype.as_pointer() {
-                        self.var_list_elem_type[var_name] = ename;
-                        break;
-                    }
-                }
-            }
             self.has_native_code = True;
         }
     }
