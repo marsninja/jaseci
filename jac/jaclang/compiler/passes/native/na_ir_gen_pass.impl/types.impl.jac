@@ -116,6 +116,34 @@ impl NaIRGenPass._tuple_key_of(expr: (uni.UniNode | None)) -> (str | None) {
     return f"Tuple.{len(elems)}." + ".".join([str(x) for x in elems]);
 }
 
+"""Return the native set spec key for an expression's checked set/frozenset
+type, or None when the expression is not set-typed. Lowering the type
+registers the set struct + helpers as a side effect, so the returned spec is
+always present in `set_types`/`set_helpers`."""
+impl NaIRGenPass._set_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
+    if not isinstance(expr, uni.Expr) or expr.type is None {
+        return None;
+    }
+    tk = expr.type.mangle();
+    if not (
+        tk in ("set", "frozenset")
+        or tk.startswith("set[")
+        or tk.startswith("frozenset[")
+    ) {
+        return None;
+    }
+    lowered = self._lower_type(expr.type);
+    if lowered is None {
+        return None;
+    }
+    for (spec, st) in self.set_types.items() {
+        if lowered == st.as_pointer() {
+            return spec;
+        }
+    }
+    return None;
+}
+
 """Lower a ClassType TypeBase to an LLVM type, or None if unresolved.
 
 Handles primitives (registry-backed), enums, user structs, and the builtin

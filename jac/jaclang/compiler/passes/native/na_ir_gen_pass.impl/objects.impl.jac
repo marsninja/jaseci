@@ -511,7 +511,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     saved_list_elem = dict(self.var_list_elem_type);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_dict_type = dict(self.var_dict_type);
-    saved_set_elem = dict(self.var_set_elem_type);
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
@@ -519,7 +518,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.var_list_elem_type = {};
     self.var_list_elem_struct = {};
     self.var_dict_type = {};
-    self.var_set_elem_type = {};
     # Reset per-function borrowed-param promotion state.
     saved_param_store_instr = self._param_store_instr;
     saved_param_promoted = self._param_promoted;
@@ -621,7 +619,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.var_list_elem_type = saved_list_elem;
     self.var_list_elem_struct = saved_list_elem_struct;
     self.var_dict_type = saved_dict_type;
-    self.var_set_elem_type = saved_set_elem;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;
 }
@@ -644,7 +641,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     saved_list_elem = dict(self.var_list_elem_type);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_dict_type = dict(self.var_dict_type);
-    saved_set_elem = dict(self.var_set_elem_type);
     saved_param_store_instr = self._param_store_instr;
     saved_param_promoted = self._param_promoted;
     self._builder = ir.IRBuilder(block);
@@ -654,7 +650,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.var_list_elem_type = {};
     self.var_list_elem_struct = {};
     self.var_dict_type = {};
-    self.var_set_elem_type = {};
     self._param_store_instr = {};
     self._param_promoted = set();
     # DWARF debug info (JAC_NATIVE_DEBUG=1)
@@ -703,7 +698,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.var_list_elem_type = saved_list_elem;
     self.var_list_elem_struct = saved_list_elem_struct;
     self.var_dict_type = saved_dict_type;
-    self.var_set_elem_type = saved_set_elem;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;
 }
@@ -845,7 +839,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     saved_list_elem = dict(self.var_list_elem_type);
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_dict_type = dict(self.var_dict_type);
-    saved_set_elem = dict(self.var_set_elem_type);
     saved_param_store_instr = self._param_store_instr;
     saved_param_promoted = self._param_promoted;
     self._builder = ir.IRBuilder(block);
@@ -855,7 +848,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self.var_list_elem_type = {};
     self.var_list_elem_struct = {};
     self.var_dict_type = {};
-    self.var_set_elem_type = {};
     self._param_store_instr = {};
     self._param_promoted = set();
     self._attach_di_subprogram(
@@ -931,7 +923,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self.var_list_elem_type = saved_list_elem;
     self.var_list_elem_struct = saved_list_elem_struct;
     self.var_dict_type = saved_dict_type;
-    self.var_set_elem_type = saved_set_elem;
     self._param_store_instr = saved_param_store_instr;
     self._param_promoted = saved_param_promoted;
 }
@@ -1464,9 +1455,10 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
     }
-    # Set methods (simple name target)
-    if target_name is not None and target_name in self.var_set_elem_type {
-        elem_type_name = self.var_set_elem_type[target_name];
+    # Set methods — set-ness comes from the checked type of the target
+    set_spec = self._set_spec_of(trailer.target);
+    if set_spec is not None {
+        elem_type_name = set_spec;
         set_val = self._codegen_expr(trailer.target);
         if set_val is not None {
             params = nd.params or [];

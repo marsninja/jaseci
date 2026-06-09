@@ -154,18 +154,6 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                             }
                         }
                     }
-                    # Check for set type
-                    if _len_result is None
-                    and arg_name is not None
-                    and arg_name in self.var_set_elem_type {
-                        set_key = self.var_set_elem_type[arg_name];
-                        helpers = self.set_helpers.get(set_key);
-                        if helpers is not None {
-                            _len_result = self.builder.call(
-                                helpers["len"], [arg_val], name="set.len"
-                            );
-                        }
-                    }
                     # Check for set type by inferring from value
                     if _len_result is None {
                         for (set_key, helpers) in self.set_helpers.items() {

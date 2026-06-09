@@ -217,7 +217,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # Set support (Phase 13)
         set_types: dict[str, object] = {},
         set_helpers: dict[str, dict] = {},
-        var_set_elem_type: dict[str, str] = {},
         # Exception handling support (Phase 14)
         _exc_state_type: (object | None) = None,
         _exc_handler_global: (object | None) = None,
@@ -361,6 +360,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _enum_name_of(expr: (uni.UniNode | None)) -> (str | None);
     # Native tuple registry key derived from an expression's checked type.
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
+    # Native set spec key ("i64"/"f64"/"ptr"/...) from a checked set type.
+    def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _resolve_type_str(type_name: str) -> ir.Type;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;

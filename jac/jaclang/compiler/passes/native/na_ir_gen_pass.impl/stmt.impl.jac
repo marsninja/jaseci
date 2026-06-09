@@ -1785,13 +1785,6 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 break;
             }
         }
-        # Track set element type for set variables
-        for (ename, stype) in self.set_types.items() {
-            if value.type == stype.as_pointer() {
-                self.var_set_elem_type[var_name] = ename;
-                break;
-            }
-        }
     }
 }
 
