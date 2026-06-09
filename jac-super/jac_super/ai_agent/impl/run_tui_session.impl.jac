@@ -81,6 +81,7 @@ impl run_tui_session(req: object) -> int {
 
         env["JAC_SERVER_READY_FILE"] = ready_path;
         env["JAC_ALLOW_EPHEMERAL_PORT"] = "1";
+        env["JAC_AI_TUI"] = "1";
         server_cmd = (
             "import sys;"
             f" sys.argv = ['jac', 'start', '{server_entry}'"
@@ -138,7 +139,7 @@ impl run_tui_session(req: object) -> int {
                 }
             } except Exception { }
             if server_proc.poll() is None {
-                console.error("Agent server did not start within 30s");
+                console.error("Agent server did not start within 120s");
             } else {
                 console.error("Agent server exited during startup");
             }

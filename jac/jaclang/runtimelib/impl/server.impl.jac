@@ -1820,10 +1820,12 @@ impl JacAPIServer.postinit -> None {
         user_manager=self.user_manager
     );
     self.scheduler = Scheduler.instance();
-    # Only create real server if port > 0 (port=0 is test mode - no socket binding)
     if self.port > 0 {
         self.server = Jac.create_server(self, '0.0.0.0', self.port);
         # Note: Jac.create_server updates self.port if a different port was used
+    } elif self.port == 0 and os.environ.get("JAC_ALLOW_EPHEMERAL_PORT") == "1" {
+        self.server = Jac.create_server(self, '127.0.0.1', 0);
+        # OS-assigned port; self.port updated by create_server
     } else {
         self.server = None;
     }
@@ -2685,6 +2687,14 @@ impl JacAPIServer.start(
                 emoji=True
             );
             console.print(file=sys.stderr);
+        }
+        # Write the actual bound port to the ready-file so the parent process
+        # knows which ephemeral port the OS assigned (used by `jac ai --tui`).
+        _ready_file = os.environ.get("JAC_SERVER_READY_FILE", "");
+        if _ready_file {
+            try {
+                Path(_ready_file).write_text(str(self.port), encoding="utf-8");
+            } except OSError { }
         }
         # Call the ready callback with actual port (e.g., to print startup banner)
         # Try new signature (with port) first, fall back to old signature for cached code

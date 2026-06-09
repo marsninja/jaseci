@@ -2761,6 +2761,7 @@ impl run_agent(req: object) -> int {
     }
     if bool(r?.tui) {
         try {
+            agent.cfg.tui_active = True;
             import from jac_super.ai_agent.run_tui_session { run_tui_session }
             return run_tui_session(r);
         } except ImportError {
@@ -2892,6 +2893,11 @@ impl ui_configure -> None {
     agent.cfg.yolo_mode = True;
     agent.cfg.verbose = True;
     agent.cfg.show_stats = True;
+    # When launched by `jac ai --tui`, suppress server-side terminal rendering
+    # so only the TUI Ink client renders output.
+    if os.environ.get("JAC_AI_TUI") == "1" {
+        agent.cfg.tui_active = True;
+    }
     agent.bus.active_feed = True;
     model_flag = os.environ.get("JAC_AI_UI_MODEL") or "";
     n_ctx = 0;
