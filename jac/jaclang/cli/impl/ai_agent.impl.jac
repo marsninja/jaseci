@@ -3155,7 +3155,7 @@ impl ui_stream -> any {
             try {
                 # Timeout yields a heartbeat so a disconnected client is noticed
                 # (the generator reaches a yield and the server can close it).
-                yield q.get(timeout=10.0);
+                yield q.get(timeout=3.0);
             } except Empty {
                 yield {"heartbeat": True};
             }

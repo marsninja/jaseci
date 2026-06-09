@@ -41,44 +41,66 @@ glob TUI_CWD: str = str(environ.get("JAC_TUI_CWD") or ""),
      ];
 
 cl {
+    def fetchTimeoutMs -> int {
+        # One-shot RPC timeout (seconds). Override with JAC_TUI_FETCH_TIMEOUT.
+        timeout_s = 120.0;
+        raw = str(environ.get("JAC_TUI_FETCH_TIMEOUT") or "").strip();
+        if raw {
+            try {
+                timeout_s = float(raw);
+            } except Exception { }
+        }
+        if timeout_s < 1.0 {
+            timeout_s = 1.0;
+        }
+        return int(timeout_s * 1000.0);
+    }
+
     async def agent_fetch(endpoint: str, body: any = None) -> any {
         if body is None {
             body = {};
         }
-        response: any = await fetch(
-            BASE + "/function/" + endpoint,
-            {
-                "method": "POST",
-                "headers": {"Content-Type": "application/json"},
-                "body": JSON.stringify(body),
-                "signal": AbortSignal.timeout(30000)
+        try {
+            response: any = await fetch(
+                BASE + "/function/" + endpoint,
+                {
+                    "method": "POST",
+                    "headers": {"Content-Type": "application/json"},
+                    "body": JSON.stringify(body),
+                    "signal": AbortSignal.timeout(fetchTimeoutMs())
+                }
+            );
+            text: str = str(await response.text());
+            payload: any = JSON.parse(text);
+            # Jac function routes return a transport envelope like
+            # `{ok, type, data: {result, reports}, error, meta}`. Unwrap that
+            # here so the rest of the TUI can read the actual endpoint result
+            # directly.
+            data = payload.get("data", None) if payload else None;
+            if data is not None {
+                result = data.get("result", None);
+                if result is not None {
+                    return result;
+                }
             }
-        );
-        text: str = str(await response.text());
-        payload: any = JSON.parse(text);
-        # Jac function routes return a transport envelope like
-        # `{ok, type, data: {result, reports}, error, meta}`. Unwrap that here so
-        # the rest of the TUI can read the actual endpoint result directly.
-        data = payload.get("data", None) if payload else None;
-        if data is not None {
-            result = data.get("result", None);
-            if result is not None {
-                return result;
-            }
+            return payload;
+        } except Exception {
+            # compile.py patches this catch to also tolerate native fetch errors.
+            return {"ok": False, "error": "agent server unreachable"};
         }
-        return payload;
     }
 
     async def send(prompt: str) -> bool {
-        return bool(await agent_fetch("agent_send", {"prompt": prompt}));
+        # Use `is True` — error envelopes are truthy objects in JS.
+        return (await agent_fetch("agent_send", {"prompt": prompt})) is True;
     }
 
     async def reset -> bool {
-        return bool(await agent_fetch("agent_reset"));
+        return (await agent_fetch("agent_reset")) is True;
     }
 
     async def stop -> bool {
-        return bool(await agent_fetch("agent_stop"));
+        return (await agent_fetch("agent_stop")) is True;
     }
 
     async def settings -> any {
@@ -587,7 +609,9 @@ cl {
                         }
                     }
                 }
-            } except Exception { }
+            } except Exception {
+            # compile.py patches this catch to also tolerate SSE disconnects.
+            }
             if _unmounted {
                 break;
             }
@@ -609,9 +633,13 @@ cl {
     }
 
     async def refreshSettings(actions: any) -> any {
-        current = await settings();
-        actions["setSettings"](current or {});
-        return current or {};
+        try {
+            current = await settings();
+            actions["setSettings"](current or {});
+            return current or {};
+        } except Exception {
+            return {};
+        }
     }
 
     async def handleSubmit(line: str, actions: any) -> None {
@@ -863,9 +891,7 @@ cl {
                 };
                 streamLoop(stream_setters);
                 async def boot {
-                    try {
-                        await refreshSettings(actions);
-                    } except Exception { }
+                    await refreshSettings(actions);
                     initial_prompt = str(
                         environ.get("JAC_TUI_INITIAL_PROMPT") or ""
                     ).strip();

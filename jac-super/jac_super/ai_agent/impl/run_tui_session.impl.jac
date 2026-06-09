@@ -71,6 +71,7 @@ impl run_tui_session(req: object) -> int {
 
     server_proc: any = None;
     tui_proc: any = None;
+    server_log_path = "";
     actual_server_port = 0;
     api_url = "";
     try {
@@ -90,15 +91,29 @@ impl run_tui_session(req: object) -> int {
             " from jaclang.jac0core.cli_boot import start_cli;"
             " sys.exit(start_cli())"
         );
+        # Write server output to a log file, not an unread PIPE — a full pipe
+        # blocks console.print in the child and stalls SSE heartbeats.
+        server_log_fd = -1;
+        try {
+            (server_log_fd, server_log_path) = tempfile.mkstemp(
+                prefix="jac-ai-tui-server-", suffix=".log", text=True
+            );
+        } except Exception as e {
+            console.error(f"Failed to create server log file: {e}");
+            return 1;
+        }
+        server_log_f = open(server_log_path, "w", encoding="utf-8");
+        os.close(server_log_fd);
         server_proc = subprocess.Popen(
             [sys.executable, "-c", server_cmd],
             cwd=str(server_dir),
-            stdout=subprocess.PIPE,
+            stdout=server_log_f,
             stderr=subprocess.STDOUT,
             text=True,
             env=env,
             start_new_session=True
         );
+        server_log_f.close();
 
         deadline = time.time() + 120.0;
         ready = False;
@@ -134,8 +149,10 @@ impl run_tui_session(req: object) -> int {
         if not ready {
             err_tail = "";
             try {
-                if server_proc.stdout {
-                    err_tail = str(server_proc.stdout.read() or "").strip();
+                if server_log_path {
+                    err_tail = "\n".join(
+                        Path(server_log_path).read_text(encoding="utf-8").splitlines()[-25:]
+                    ).strip();
                 }
             } except Exception { }
             if server_proc.poll() is None {
@@ -215,6 +232,9 @@ impl run_tui_session(req: object) -> int {
             tui_env["JAC_TUI_INITIAL_PROMPT"] = initial;
         }
 
+        if server_log_path {
+            console.print(f"  server logs: {server_log_path}", style="muted");
+        }
         console.print("  launching TUI…", style="muted");
         tui_proc = subprocess.Popen(
             ["node", "runner.mjs"], cwd=str(ink_out), env=tui_env

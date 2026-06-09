@@ -160,7 +160,8 @@ def compile_ink_app(
         runtime_path = out_dir / "jac_builtin_runtime.mjs"
         runtime_path.write_text(jac_runtime, encoding="utf-8")
         if ai_tui_patches:
-            _apply_ai_tui_runtime_patches(runtime_path, out_dir / "module.mjs")
+            _apply_ai_tui_runtime_prelude(runtime_path)
+            _apply_ai_tui_module_patches(out_dir / "module.mjs")
 
     _emit_runner(out_dir, entry_name, exports)
     _emit_package_json(out_dir, module_code, entry_file.parent)
@@ -200,6 +201,7 @@ def _prepare_tui_module(
         jac_runtime = fix_double_escaped_unicode(jac_runtime)
     code = _inject_runtime_imports(code, jac_runtime is not None)
     code = _strip_shimmed_react_imports(code)
+    code = _replace_python_os_import(code)
     code = consolidate_bundle_imports(code)
     return _finalize_esm_exports(code, exports), jac_runtime
 
@@ -324,6 +326,28 @@ def _strip_shimmed_react_imports(code: str) -> str:
     return "\n".join(out)
 
 
+def _replace_python_os_import(code: str) -> str:
+    """Replace ``import { environ } from "os"`` with a Node-compatible shim.
+
+    The Jac compiler emits Python-style ``from os import environ`` as
+    ``import { environ } from "os"`` in JS.  Node's ``os`` module has no
+    ``environ`` export, so we strip the import and inject a ``const environ
+    = { ...process.env };`` declaration instead.
+    """
+    os_import_re = re.compile(r'^import\s+\{\s*environ\s*\}\s+from\s+["\']os["\'];\s*$')
+    lines = code.split("\n")
+    out: list[str] = []
+    shimmed = False
+    for line in lines:
+        if os_import_re.match(line.strip()):
+            if not shimmed:
+                out.append("const environ = { ...process.env };")
+                shimmed = True
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
 def _finalize_esm_exports(code: str, exports: list[str]) -> str:
     if re.search(r"^\s*export\s*\{", code, flags=re.MULTILINE):
         return code
@@ -333,54 +357,69 @@ def _finalize_esm_exports(code: str, exports: list[str]) -> str:
     return code.rstrip() + "\nexport { " + names + " };\n"
 
 
-def _apply_ai_tui_runtime_patches(
-    runtime_path: Path,
-    module_path: Path,
-) -> None:
+def _apply_ai_tui_runtime_prelude(runtime_path: Path) -> None:
     runtime_text = runtime_path.read_text(encoding="utf-8")
     if not runtime_text.startswith(
         'import { __jacJsx, __jacSpawn } from "./runtime_shim.mjs";'
     ):
-        runtime_text = _RUNTIME_PRELUDE + runtime_text
+        runtime_path.write_text(_RUNTIME_PRELUDE + runtime_text, encoding="utf-8")
 
-    abort_helper = """function isAbortError(err) {
-  return !!(err && ((err.name === \"AbortError\") || String((err.message || err)).includes(\"aborted\")));
+
+_FETCH_TRANSPORT_HELPER = """function isFetchTransportError(err) {
+  if (!err) return false;
+  const name = String(err.name || "");
+  const msg = String(err.message || err).toLowerCase();
+  if (name === "AbortError" || name === "TimeoutError" || name === "TypeError") return true;
+  if (msg.includes("aborted") || msg.includes("fetch failed") || msg.includes("econnreset") || msg.includes("network")) return true;
+  return false;
 }
-"""
-    if (
-        "function isAbortError(err) {" not in runtime_text
-        and "async function streamLoop(setters) {" in runtime_text
-    ):
-        runtime_text = runtime_text.replace(
-            "async function streamLoop(setters) {",
-            abort_helper + "async function streamLoop(setters) {",
-            1,
-        )
 
-    old_catch = """    } catch (__jac_e) {
-      if ((__jac_e instanceof _jac.exc.Exception)) {} else {
+"""
+
+
+def _apply_ai_tui_module_patches(module_path: Path) -> None:
+    """Harden the compiled Ink module against native fetch/SSE errors.
+
+    Jac's `except Exception` lowers to `instanceof _jac.exc.Exception` only,
+    so DOMException / network errors from fetch would crash Node.  Patch the
+    generated ``module.mjs`` (where streamLoop and agent_fetch live).
+    """
+    if not module_path.is_file():
+        return
+
+    text = module_path.read_text(encoding="utf-8")
+
+    if "function isFetchTransportError" not in text:
+        marker = "let TUI_COMMANDS = "
+        idx = text.find(marker)
+        if idx != -1:
+            text = text[:idx] + _FETCH_TRANSPORT_HELPER + text[idx:]
+
+    narrow_catch = """      if ((__jac_e instanceof _jac.exc.Exception)) {} else {
+        throw __jac_e;
+      }"""
+    tolerant_catch = """      if ((__jac_e instanceof _jac.exc.Exception) || isFetchTransportError(__jac_e)) {} else {
+        throw __jac_e;
+      }"""
+    if narrow_catch in text:
+        text = text.replace(narrow_catch, tolerant_catch)
+
+    stream_narrow = """    } catch (__jac_e) {
+      if ((__jac_e instanceof _jac.exc.Exception) || isFetchTransportError(__jac_e)) {} else {
         throw __jac_e;
       }
     }
-"""
-    new_catch = """    } catch (__jac_e) {
-      if ((__jac_e instanceof _jac.exc.Exception) || _unmounted || isAbortError(__jac_e)) {} else {
+    if (_unmounted) {"""
+    stream_tolerant = """    } catch (__jac_e) {
+      if ((__jac_e instanceof _jac.exc.Exception) || _unmounted || isFetchTransportError(__jac_e)) {} else {
         throw __jac_e;
       }
     }
-"""
-    if old_catch in runtime_text:
-        runtime_text = runtime_text.replace(old_catch, new_catch, 1)
+    if (_unmounted) {"""
+    if stream_narrow in text:
+        text = text.replace(stream_narrow, stream_tolerant, 1)
 
-    runtime_path.write_text(runtime_text, encoding="utf-8")
-
-    if module_path.is_file():
-        module_text = module_path.read_text(encoding="utf-8")
-        if "export { app };" in module_text:
-            module_path.write_text(
-                'export { app, _jac } from "./jac_builtin_runtime.mjs";\n',
-                encoding="utf-8",
-            )
+    module_path.write_text(text, encoding="utf-8")
 
 
 def _emit_runner(out_dir: Path, entry_name: str, exports: list[str]) -> None:
