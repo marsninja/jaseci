@@ -332,7 +332,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
     # with a variable name during assignment. Set by _codegen_lambda, consumed
     # and cleared by _codegen_assignment.
     def _codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None);
-    def _find_free_vars(body: object, param_names: list[str]) -> list[str];
     # External function support (Phase 0)
     def _get_or_declare_extern(
         name: str, ret_type: ir.Type, arg_types: list[ir.Type], var_arg: bool = False

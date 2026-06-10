@@ -144,6 +144,10 @@ obj UniScopeNode(UniNode) {
     ) -> (UniNode | None);
 
     def find_scope(name: str) -> (UniScopeNode | None);
+    # Symbols defined in strictly-enclosing function-like scopes
+    # (Ability/ImplDef/LambdaExpr/Test) that are referenced inside this
+    # scope, i.e. its free variables, deduped in source order.
+    def get_enclosing_captures -> list[Symbol];
     def link_kid_scope(key_node: UniScopeNode) -> UniScopeNode;
     def def_insert(
         nd: AstSymbolNode,
@@ -969,6 +973,10 @@ obj LambdaExpr(Expr, UniScopeNode) {
         signature: (FuncSignature | None) = None;
 
     def postinit -> None;
+
+    # Free variables captured from enclosing function scopes, derived
+    # from symbol tables (see UniScopeNode.get_enclosing_captures).
+    has captures: list[Symbol] { getter; }
 }
 
 """UnaryExpr node type for Jac Ast."""

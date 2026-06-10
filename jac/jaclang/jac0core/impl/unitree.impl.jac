@@ -539,6 +539,39 @@ impl UniScopeNode.find_scope(name: str) -> (UniScopeNode | None) {
     return None;
 }
 
+"""Collect free variables of this scope from the symbol tables.
+
+A symbol is a capture when its defining scope is a function-like scope
+(Ability/ImplDef/LambdaExpr/Test) that strictly encloses this scope.
+Module/Archetype/Enum-level symbols (globals, members) are not captures.
+"""
+impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
+    out: list[Symbol] = [];
+    func_scopes = (Ability, ImplDef, LambdaExpr, Test);
+    for name in self.get_all_sub_nodes(Name) {
+        sym = name.sym;
+        if (sym is None) {
+            continue;
+        }
+        tab = sym.parent_tab;
+        if ((tab is None) or (tab is self) or not isinstance(tab, func_scopes)) {
+            continue;
+        }
+        # The defining scope must strictly enclose this scope.
+        scope = self.parent_scope;
+        while (scope is not None) {
+            if (scope is tab) {
+                if sym not in out {
+                    out.append(sym);
+                }
+                break;
+            }
+            scope = scope.parent_scope;
+        }
+    }
+    return out;
+}
+
 """Push a new scope onto the symbol table."""
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {
     key_node.parent_scope = self;
@@ -1891,6 +1924,10 @@ impl LambdaExpr.postinit -> None {
     UniNode.postinit(self);
     Expr.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
+}
+
+impl LambdaExpr.captures.getter -> list[Symbol] {
+    return self.get_enclosing_captures();
 }
 
 

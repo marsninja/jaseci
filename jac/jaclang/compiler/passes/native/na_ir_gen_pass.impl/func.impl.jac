@@ -390,9 +390,15 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
         ret_type = self._resolve_jac_type(sig.return_type);
     }
     body = ModuleCodegenPass.unwrap_body(nd);
-    # Reject closures over enclosing locals (see docstring): _find_free_vars
-    # only reports names bound in the current (enclosing) local scope.
-    free_vars = self._find_free_vars(body, param_names);
+    # Reject closures over enclosing locals (see docstring). Free variables
+    # come from the symbol-table-derived capture fact; the `local_vars`
+    # filter keeps only names bound to live allocas in the enclosing
+    # function (excluding e.g. sibling nested functions in func_symtab).
+    free_vars = [
+        s.sym_name
+        for s in nd.get_enclosing_captures()
+        if s.sym_name in self.local_vars
+    ];
     if free_vars {
         self.emit(
             E5090,

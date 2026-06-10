@@ -163,36 +163,6 @@ impl NaIRGenPass._codegen_required(nd: (uni.UniNode | None)) -> (ir.Value | None
     return val;
 }
 
-"""Collect free variable names referenced in a lambda body that are not
-in the lambda's own parameter list. Walks the AST looking for Name nodes.
-"""
-impl NaIRGenPass._find_free_vars(body: object, param_names: list[str]) -> list[str] {
-    free: list[str] = [];
-    seen: set[str] = set(param_names);
-    stack: list = [body] if not isinstance(body, list) else list(body);
-    while stack {
-        cur = stack.pop();
-        if cur is None {
-            continue;
-        }
-        if isinstance(cur, uni.Name) {
-            vname = cur.value;
-            if vname not in seen and vname in self.local_vars {
-                seen.add(vname);
-                free.append(vname);
-            }
-            continue;
-        }
-        # Walk children via kid list
-        if cur?.kid and cur.kid {
-            for child in cur.kid {
-                stack.append(child);
-            }
-        }
-    }
-    return free;
-}
-
 """Generate IR for a lambda expression.
 
 Emits an anonymous LLVM function from the lambda body and returns a
@@ -224,8 +194,17 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
         ret_type = self._resolve_jac_type(sig.return_type);
     }
     # --- Detect captured (free) variables from the enclosing scope ---
+    # Free variables come from the symbol-table-derived `captures` fact on
+    # the lambda; the `local_vars` filter below keeps only names with live
+    # allocas in the function currently being generated (e.g. it excludes
+    # sibling nested functions, which live in func_symtab instead).
     captures: list[tuple] = [];  # list of (name, ir.Value, ir.Type)
-    free_var_names = self._find_free_vars(nd.body, param_names);
+    free_var_names: list[str] = [];
+    for cap_sym in nd.captures {
+        if cap_sym.sym_name not in free_var_names {
+            free_var_names.append(cap_sym.sym_name);
+        }
+    }
     for fv_name in free_var_names {
         if fv_name in self.local_vars {
             alloca = self.local_vars[fv_name];
