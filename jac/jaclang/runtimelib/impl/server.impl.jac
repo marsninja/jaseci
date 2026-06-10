@@ -2688,14 +2688,7 @@ impl JacAPIServer.start(
             );
             console.print(file=sys.stderr);
         }
-        # Write the actual bound port to the ready-file so the parent process
-        # knows which ephemeral port the OS assigned (used by `jac ai --tui`).
-        _ready_file = os.environ.get("JAC_SERVER_READY_FILE", "");
-        if _ready_file {
-            try {
-                Path(_ready_file).write_text(str(self.port), encoding="utf-8");
-            } except OSError { }
-        }
+        write_server_ready_file(self.port);
         # Call the ready callback with actual port (e.g., to print startup banner)
         # Try new signature (with port) first, fall back to old signature for cached code
         if on_ready {
@@ -2712,6 +2705,17 @@ impl JacAPIServer.start(
         } finally {
             self.scheduler.stop();
         }
+    }
+}
+
+"""Write the bound port to JAC_SERVER_READY_FILE when set (e.g. `jac ai --tui`)."""
+impl write_server_ready_file(port: int) -> None {
+    import from pathlib { Path }
+    ready_file = os.environ.get("JAC_SERVER_READY_FILE", "");
+    if ready_file {
+        try {
+            Path(ready_file).write_text(str(port), encoding="utf-8");
+        } except OSError { }
     }
 }
 

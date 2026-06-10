@@ -306,5 +306,8 @@ obj JacAPIServer {
     ) -> None;
 }
 
+"""Write the bound port to JAC_SERVER_READY_FILE when set (e.g. `jac ai --tui`)."""
+def write_server_ready_file(port: int) -> None;
+
 """Print comprehensive documentation for all endpoints that would be generated."""
 def print_endpoint_docs(server: JacAPIServer) -> None;

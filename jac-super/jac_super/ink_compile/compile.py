@@ -21,13 +21,10 @@ from jac_super.ink_compile.bundle_patch import (
 from jaclang import JacRuntime as Jac
 from jaclang.runtimelib.client_bundle import ClientBundleBuilder, ClientBundleError
 
-_RUNTIME_PRELUDE = (
+_RUNTIME_SHIM_IMPORT_HEADER = (
     'import { __jacJsx, __jacSpawn } from "./runtime_shim.mjs";\n'
     "import { Fragment, createContext, useCallback, useContext, useEffect, "
     'useMemo, useRef, useState } from "./jac_runtime_shim.mjs";\n'
-    'import { Box, Text, useApp, useInput } from "ink";\n'
-    'import TextInput from "ink-text-input";\n'
-    "const environ = { ...process.env } ;\n"
 )
 
 _RUNTIME_SHIM = """import React from "react";
@@ -155,7 +152,6 @@ def compile_ink_app(
         runtime_path = out_dir / "jac_builtin_runtime.mjs"
         runtime_path.write_text(jac_runtime, encoding="utf-8")
         if ai_tui_patches:
-            _apply_ai_tui_runtime_prelude(runtime_path)
             _apply_ai_tui_module_patches(out_dir / "module.mjs")
 
     _emit_runner(out_dir, entry_name, exports)
@@ -237,11 +233,7 @@ def _remove_register_client_module(code: str) -> str:
 
 def _inject_runtime_imports(js_code: str, with_jac_builtin: bool = False) -> str:
     code = js_code.replace('from "@jac/runtime"', 'from "./jac_runtime_shim.mjs"')
-    header = (
-        'import {__jacJsx, __jacSpawn} from "./runtime_shim.mjs";\n'
-        "import {useState, useEffect, useMemo, useCallback, useRef, useContext, "
-        'createContext, Fragment} from "./jac_runtime_shim.mjs";\n'
-    )
+    header = _RUNTIME_SHIM_IMPORT_HEADER
     if with_jac_builtin:
         header += 'import { _jac } from "./jac_builtin_runtime.mjs";\n'
     if 'from "./runtime_shim.mjs"' in code:
@@ -350,14 +342,6 @@ def _finalize_esm_exports(code: str, exports: list[str]) -> str:
         return code
     names = ", ".join(exports)
     return code.rstrip() + "\nexport { " + names + " };\n"
-
-
-def _apply_ai_tui_runtime_prelude(runtime_path: Path) -> None:
-    runtime_text = runtime_path.read_text(encoding="utf-8")
-    if not runtime_text.startswith(
-        'import { __jacJsx, __jacSpawn } from "./runtime_shim.mjs";'
-    ):
-        runtime_path.write_text(_RUNTIME_PRELUDE + runtime_text, encoding="utf-8")
 
 
 _FETCH_TRANSPORT_HELPER = """function isFetchTransportError(err) {

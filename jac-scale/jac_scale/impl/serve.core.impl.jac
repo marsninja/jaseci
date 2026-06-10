@@ -6,13 +6,10 @@ import socket;
 Returns the first available port, or raises OSError if none found within max_retries.
 """
 impl _find_available_port(start_port: int, max_retries: int = PORT_RETRY_LIMIT) -> int {
-    # port 0 means "OS picks a free port" — resolve it via getsockname
     if start_port == 0 {
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
-            s.bind(('0.0.0.0', 0));
-            return s.getsockname()[1];
-        }
+        raise ValueError(
+            "port 0 must be reserved in JacAPIServerCore.start via _prebound_listen_socket"
+        );
     }
     current_port = start_port;
     for _ in range(max_retries) {
@@ -232,8 +229,7 @@ impl JacAPIServerCore.start(
     no_client: bool = False,
     on_ready: Callable[..., None] | None = None
 ) -> None {
-    import os;
-    import from pathlib { Path }
+    import from jaclang.runtimelib.server { write_server_ready_file }
     self.introspector.load();
     self._ensure_sv_siblings();
     # Eagerly build client bundle if there are client exports (skip in dev, no_client, or PWA mode)
@@ -322,25 +318,29 @@ impl JacAPIServerCore.start(
     # Find an available port (may differ from requested if port is in use).
     # Skip when sidecar already bound the listen socket.
     if self.server?._prebound_listen_socket is None {
-        original_port = self.port;
-        self.port = _find_available_port(self.port);
-        if self.port != original_port {
-            console.print(
-                f"  Port {original_port} is in use, using port {self.port} instead",
-                style="warning"
-            );
+        if self.port == 0 {
+            # Hold the listen socket until uvicorn adopts it — avoids a TOCTOU
+            # race between probing port 0 and the real bind in run_server.
+            _ephemeral = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
+            _ephemeral.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+            _ephemeral.bind(('0.0.0.0', 0));
+            _ephemeral.listen();
+            self.port = _ephemeral.getsockname()[1];
+            self.server._prebound_listen_socket = _ephemeral;
+        } else {
+            original_port = self.port;
+            self.port = _find_available_port(self.port);
+            if self.port != original_port {
+                console.print(
+                    f"  Port {original_port} is in use, using port {self.port} instead",
+                    style="warning"
+                );
+            }
         }
     }
     # Print startup banner with correct port
     self._print_startup_banner(dev, no_client);
-    # Write the actual bound port to the ready-file so the parent process
-    # knows which ephemeral port the OS assigned (used by `jac ai --tui`).
-    _ready_file = os.environ.get("JAC_SERVER_READY_FILE", "");
-    if _ready_file {
-        try {
-            Path(_ready_file).write_text(str(self.port), encoding="utf-8");
-        } except OSError { }
-    }
+    write_server_ready_file(self.port);
     # Call the ready callback with the actual port (e.g., to print startup banner)
     if on_ready {
         on_ready(self.port);

@@ -415,6 +415,7 @@ def truncate(text: str, limit: int = 12000) -> str;
 def confirm(action: str) -> bool;
 def _count_diags(diags: list) -> tuple[int, int];
 def _term_output_enabled -> bool;
+def _term_print(*args: any, **kwargs: any) -> None;
 
 # Flatten one conversation message (litellm dict or object) to a small JSON-safe
 # record (role + truncated content + tool-call summaries) for the token-usage

@@ -341,6 +341,14 @@ impl _term_output_enabled -> bool {
     return sys.stdout.isatty() and os.environ.get("TERM", "") not in {"", "dumb"};
 }
 
+"""Print to the terminal only when `_term_output_enabled()` is true."""
+impl _term_print(*args: any, **kwargs: any) -> None {
+    if not _term_output_enabled() {
+        return;
+    }
+    console.print(*args, **kwargs);
+}
+
 """Rebuild the project model after a write and report the diagnostics it caused.
 
 Returns, as a text block appended to the write tool's result, every compiler
@@ -1670,43 +1678,37 @@ impl _progress_guard(ctx: any) -> str {
 }
 
 impl TurnRenderer.print_banner{
-    if not _term_output_enabled() {
-        return;
-    }
-    console.print("");
-    console.print("  Jac AI -- interactive coding agent", style="bold");
-    console.print(
+    _term_print("");
+    _term_print("  Jac AI -- interactive coding agent", style="bold");
+    _term_print(
         f"  model: {agent_model.model_name}  (from {agent.cfg.model_source})",
         style="muted"
     );
     if agent.cfg.threads > 0 {
-        console.print(f"  inference threads: {agent.cfg.threads}", style="muted");
+        _term_print(f"  inference threads: {agent.cfg.threads}", style="muted");
     }
     if agent.cfg.yolo_mode {
-        console.print(
+        _term_print(
             "  file writes and commands run without confirmation (use --safe to confirm each)",
             style="yellow"
         );
     }
-    console.print("  type a request, /help for commands, /exit to quit", style="muted");
-    console.print("");
+    _term_print("  type a request, /help for commands, /exit to quit", style="muted");
+    _term_print("");
 }
 
 impl TurnRenderer.print_help{
-    if not _term_output_enabled() {
-        return;
-    }
-    console.print("  /help     show this help", style="muted");
-    console.print("  /clear    reset the conversation", style="muted");
-    console.print("  /guides   list the bundled Jac reference guides", style="muted");
-    console.print("  /stats    toggle the per-turn stat line", style="muted");
-    console.print(
+    _term_print("  /help     show this help", style="muted");
+    _term_print("  /clear    reset the conversation", style="muted");
+    _term_print("  /guides   list the bundled Jac reference guides", style="muted");
+    _term_print("  /stats    toggle the per-turn stat line", style="muted");
+    _term_print(
         "  /verbose  toggle live reasoning, timings, and step detail", style="muted"
     );
-    console.print(
+    _term_print(
         "  /feedback toggle inline compiler feedback after each write", style="muted"
     );
-    console.print("  /exit     quit the session", style="muted");
+    _term_print("  /exit     quit the session", style="muted");
 }
 
 """Format a tool call as `name(key=value, ...)`, clipping long values."""
@@ -1800,9 +1802,6 @@ impl TurnRenderer.print_stats(
     files: set[str],
     usage: dict[str, object]
 ) {
-    if not _term_output_enabled() {
-        return;
-    }
     parts: list[str] = [f"{elapsed:.1f}s"];
     n_tools = n_read + n_write + n_run;
     if n_tools > 0 {
@@ -1835,7 +1834,7 @@ impl TurnRenderer.print_stats(
     if health {
         parts.append(health);
     }
-    console.print("  " + "  ·  ".join(parts), style="muted");
+    _term_print("  " + "  ·  ".join(parts), style="muted");
 }
 
 """Strip a model's stray control tokens from streamed reasoning prose.
@@ -1922,9 +1921,6 @@ visible: which file, how many modules were recompiled out of the project, and
 how long it took.
 """
 impl TurnRenderer._ci_event(info: any) {
-    if not _term_output_enabled() {
-        return;
-    }
     op = str(info.get("op", "?"));
     recompiled = int(info.get("recompiled", 0));
     cached = int(info.get("cached", 0));
@@ -1945,9 +1941,7 @@ impl TurnRenderer._ci_event(info: any) {
         # refresh reads as cheaper than a full build.
         what = f"{op} {name} · recompiled {recompiled}/{total}";
     }
-    console.print(
-        f"      ⚙ code intel · {what} · {agent.view._fmt_ms(ms)}", style="dim"
-    );
+    _term_print(f"      ⚙ code intel · {what} · {agent.view._fmt_ms(ms)}", style="dim");
 }
 
 """Emit one per-model-call usage record to the UI bus from a byLLM `llm_timing`
@@ -2035,9 +2029,9 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
         tail = f"   {agent.view._fmt_ms(ms)}"
             if (agent.cfg.verbose and ms is not None)
             else "";
-        console.print(f"      ↳ {lines[0]}{tail}", style="dim");
+        _term_print(f"      ↳ {lines[0]}{tail}", style="dim");
         for ln in lines[1:] {
-            console.print(f"        {ln}", style="dim");
+            _term_print(f"        {ln}", style="dim");
         }
     }
     try {
@@ -2120,7 +2114,7 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                 gen = agent.view._fmt_gen(last_llm_ms, last_llm_tokens)
                     if agent.cfg.verbose
                     else "";
-                console.print(
+                _term_print(
                     f"  ⏺ {agent.view.fmt_tool_call(tool, args)}{gen}", style="cyan"
                 );
                 agent.bus.emit(
@@ -2151,16 +2145,16 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                 clear_think();
                 end_line();
                 flush_result();
-                console.print("");
+                _term_print("");
             }
         }
         clear_think();
         end_line();
         flush_result();
     } except KeyboardInterrupt {
-        console.print("\n  [interrupted]", style="yellow");
+        _term_print("\n  [interrupted]", style="yellow");
     } except Exception as e {
-        console.print("");
+        _term_print("");
         console.error(f"agent error: {e}");
         if os.environ.get("JAC_AI_DEBUG") {
             import traceback;
@@ -2291,9 +2285,7 @@ result. No `visit` -- each concrete state's `run` ability owns routing.
 impl PhaseState.step(visitor: AgentSession) -> dict {
     agent.active_session = visitor;
     label = type(self).__name__;
-    if _term_output_enabled() {
-        console.print(f"\n  ● {label}", style="bold blue");
-    }
+    _term_print(f"\n  ● {label}", style="bold blue");
     # Move the walker on the live graph: the UI animates the edge from the
     # previous phase to this one.
     agent.bus.enter(label);
@@ -2341,9 +2333,7 @@ impl PhaseState.halt(visitor: AgentSession) -> bool {
     # forever. The outer verify-and-continue still applies.
     visitor.steps += 1;
     if visitor.steps > visitor.max_steps {
-        if _term_output_enabled() {
-            console.print("\n  ● step cap reached -- stopping", style="yellow");
-        }
+        _term_print("\n  ● step cap reached -- stopping", style="yellow");
         return True;
     }
     return False;
@@ -2404,21 +2394,17 @@ impl Plan.run with AgentSession entry {
             visitor.objective, visitor.ledger.render()
         );
     } except Exception as e {
-        if _term_output_enabled() {
-            console.print(
-                f"  ↳ classifier failed ({e}); defaulting to Build", style="yellow"
-            );
-        }
+        _term_print(
+            f"  ↳ classifier failed ({e}); defaulting to Build", style="yellow"
+        );
     }
     if needs_code {
         visit [->:Flow:->][?:Build];
     } else {
-        if _term_output_enabled() {
-            console.print(
-                "  ↳ read-only request -- answered in Plan, skipping Build/QA",
-                style="green"
-            );
-        }
+        _term_print(
+            "  ↳ read-only request -- answered in Plan, skipping Build/QA",
+            style="green"
+        );
         visit [->:Flow:->][?:Done];
     }
 }
@@ -2453,12 +2439,10 @@ impl Build.run with AgentSession entry {
                 )
             }
         );
-        if _term_output_enabled() {
-            console.print(
-                "  ↳ Build wrote no files -- re-entering Build to actually write code",
-                style="yellow"
-            );
-        }
+        _term_print(
+            "  ↳ Build wrote no files -- re-entering Build to actually write code",
+            style="yellow"
+        );
         visit self;
     } else {
         visit [->:Flow:->];
@@ -2483,12 +2467,10 @@ impl QA.run with AgentSession entry {
     }
     if agent.ws.project_errors() {
         n = len(agent.ws.project_errors());
-        if _term_output_enabled() {
-            console.print(
-                f"  ↳ project has {n} compile error(s) -- returning to Build",
-                style="yellow"
-            );
-        }
+        _term_print(
+            f"  ↳ project has {n} compile error(s) -- returning to Build",
+            style="yellow"
+        );
         visit [->:Flow:->][?:Build];
     } else {
         # byLLM builds the routing prompt internally, so seed the capture with a
@@ -2557,9 +2539,7 @@ impl TurnRenderer.route_stream_event(event: any) -> None {
 sem Done = "the DONE state: the session is complete. Reach it from QA once the objective is fully built AND verified (type-checked, and for an app, run and exercised), or directly from Plan when the request was a pure question or read-only inspection that needed no file changes and has been answered. Ends the session.";
 impl Done.finish{
     # No onward visit: the walker's queue empties here and the session ends.
-    if _term_output_enabled() {
-        console.print("\n  ● Done", style="bold green");
-    }
+    _term_print("\n  ● Done", style="bold green");
     agent.bus.enter("Done");
 }
 
@@ -2712,14 +2692,12 @@ impl verify_and_continue(max_rounds: int = 3) {
                 if len(errs) > len(shown)
                 else ""
         );
-        if _term_output_enabled() {
-            console.print("");
-            console.print(
-                f"  build left {len(errs)} compile error(s); continuing to fix "
-                f"(round {rnd}/{max_rounds})",
-                style="yellow"
-            );
-        }
+        _term_print("");
+        _term_print(
+            f"  build left {len(errs)} compile error(s); continuing to fix "
+            f"(round {rnd}/{max_rounds})",
+            style="yellow"
+        );
         msg = (
             f"The project does not compile yet -- {len(errs)} error(s):\n" + "\n".join(
                 lines
