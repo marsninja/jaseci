@@ -185,6 +185,23 @@ def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
         # window, correctly skipping inference for only those bootstrap
         # modules.
         import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
+        # The evaluator hard-requires the vendored typeshed stubs
+        # (builtins.pyi et al. — see TypeEvaluator._load_stub_module).
+        # Environments without the typeshed submodule (bare clones,
+        # slim docker images, pre-commit.ci) must keep compiling like
+        # pre-typed-tree jaclang: skip inference instead of failing
+        # every compile with FileNotFoundError.
+        stub_path = os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            'vendor',
+            'typeshed',
+            'stdlib',
+            'builtins.pyi'
+        );
+        if not os.path.exists(stub_path) {
+            return [];
+        }
         return [TypeInferencePass];
     } except ImportError {
         return [];

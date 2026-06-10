@@ -964,8 +964,14 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
     # preserving native type discipline (#6049) without leaking checker
     # false positives into plain sv/cl builds (#6262). Direct TypeCheckPass
     # invocations (tests, tooling) always emit in full.
-    emit_full = (not self.inference_only)
-    or bool(self.prog?._compile_options and self.prog._compile_options.type_check);
+    #
+    # The check intent is read from the module (stamped by JacCompiler.compile
+    # right before scheduling inference), NOT from prog._compile_options:
+    # get_type_evaluator() above triggers nested compiles (stub prefetch,
+    # builtin imports) that each overwrite the program's ambient options
+    # before this gate runs, which silently downgraded `jac check` runs to
+    # suppressed mode (diagnostics stashed, never replayed).
+    emit_full = (not self.inference_only) or bool(self.ir_in?._type_check_requested);
     if not emit_full {
         mod = self.ir_in;
         mp = mod.loc.mod_path if mod?.loc else '';

@@ -726,6 +726,13 @@ impl JacCompiler.compile(
     }
     if run_inference {
         mod_targ._inference_started = True;
+        # Diagnostic-mode intent must ride on the module, not on the
+        # program's ambient _compile_options: creating the TypeEvaluator
+        # inside TypeCheckPass.before_pass triggers nested compiles (stub
+        # prefetch, builtin imports) that each overwrite
+        # prog._compile_options with their own (non-check) options before
+        # the pass reads its diagnostic gate. See before_pass.
+        mod_targ._type_check_requested = bool(options.type_check);
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
