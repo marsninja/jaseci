@@ -1976,87 +1976,23 @@ impl NaIRGenPass._get_list_elem_from_type_node(
 }
 
 """Infer the struct type name of a comprehension loop variable from its collection.
-For `for m in piece.raw_moves(self)`, returns 'Move' by looking up the method's
-return type in method_ast_sigs and peeling the list type."""
+For `for m in piece.raw_moves(self)`, returns 'Move' from the checked type of the
+collection expression (`list[Move]`, or `list[Move | None]` via the struct member).
+The checker owns this fact (Phase 0/1); the former AST call dissection +
+method_ast_sigs MRO walk re-derived it and is gone."""
 impl NaIRGenPass._infer_compr_elem_struct(compr: object) -> (str | None) {
-    collection = compr.collection;
-    # Determine target and method name from the collection expression.
-    # Two AST shapes for method calls:
-    #   1. FuncCall(target=AtomTrailer(target=obj, right=method, is_attr=True), params=[...])
-    #   2. AtomTrailer(target=obj, right=FuncCall(target=method, ...), is_attr=False)
-    target_name: (str | None) = None;
-    method_name: (str | None) = None;
-    recv_expr: (uni.UniNode | None) = None;
-    if isinstance(collection, uni.FuncCall) {
-        if isinstance(collection.target, uni.AtomTrailer)
-        and collection.target.is_attr {
-            target_name = self._get_name(collection.target.target);
-            method_name = self._get_name(collection.target.right);
-            recv_expr = collection.target.target;
+    _coll_tk = self._type_key_of(compr.collection);
+    if _coll_tk is not None
+    and _coll_tk.startswith("list[")
+    and _coll_tk.endswith("]") {
+        _inner_tk = _coll_tk[5:-1];
+        if _inner_tk in self.struct_types {
+            return _inner_tk;
         }
-    } elif isinstance(collection, uni.AtomTrailer) and not collection.is_attr {
-        target_name = self._get_name(collection.target);
-        recv_expr = collection.target;
-        if isinstance(collection.right, uni.FuncCall) {
-            method_name = self._get_name(collection.right.target);
-        } else {
-            method_name = self._get_name(collection.right);
-        }
-    }
-    if target_name is None or method_name is None {
-        # Fallback: checked type list[Struct] → struct element name
-        # (handles `list[T | None]` by resolving to the struct member).
-        _coll_tk = self._type_key_of(collection);
-        if _coll_tk is not None
-        and _coll_tk.startswith("list[")
-        and _coll_tk.endswith("]") {
-            _inner_tk = _coll_tk[5:-1];
-            if _inner_tk in self.struct_types {
-                return _inner_tk;
+        for part in _inner_tk.split("|") {
+            if part in self.struct_types {
+                return part;
             }
-            for part in _inner_tk.split("|") {
-                if part in self.struct_types {
-                    return part;
-                }
-            }
-        }
-        return None;
-    }
-    # Look up the struct type of the receiver from its checked type
-    type_name = self._struct_name_of(recv_expr);
-    if type_name is None {
-        if target_name in self.local_vars {
-            lv = self.local_vars[target_name];
-            if isinstance(lv.type, ir.PointerType) {
-                pointee = lv.type.pointee;
-                for (sname, stype) in self.struct_types.items() {
-                    if pointee == stype.as_pointer() {
-                        type_name = sname;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    if type_name is None {
-        return None;
-    }
-    # Walk MRO to find method signature and extract return element type
-    for check in self.mro_order.get(type_name, [type_name]) {
-        full = f"{check}.{method_name}";
-        if full in self.method_ast_sigs {
-            sig = self.method_ast_sigs[full];
-            ret_type = sig?.return_type;
-            if ret_type is not None {
-                (inner, _, _) = self._peel_list_type(ret_type);
-                if inner is not None {
-                    inner_name = self._get_name(inner);
-                    if inner_name is not None and inner_name in self.struct_types {
-                        return inner_name;
-                    }
-                }
-            }
-            break;
         }
     }
     return None;
