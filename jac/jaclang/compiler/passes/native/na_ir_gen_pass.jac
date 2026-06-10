@@ -370,6 +370,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _resolve_type_str(type_name: str) -> ir.Type;
     # Resolved callee signature for a call site (checker-stamped fact).
     def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
+    # Fill omitted trailing params from the resolved callee's defaults.
+    def _fill_default_args(
+        nd: uni.FuncCall, func: ir.Function, args: list, skip_self: bool = False
+    ) -> None;
+
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;
     def _entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
@@ -577,12 +582,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     # Phase 6: Complex Chains and Type Inference
     def _infer_type_name(val: ir.Value) -> (str | None);
     def _infer_list_elem_type(val: ir.Value) -> (str | None);
-    def _peel_list_type(type_node: (object | None)) -> tuple;
     def _infer_compr_elem_struct(compr: object) -> (str | None);
-    def _resolve_for_loop_elem_type(
-        coll_name: (str | None), coll_node: (object | None)
-    ) -> (ir.Type | None);
-
     def _infer_unpack_struct_ptr(nd: object) -> (ir.Type | None);
     # Phase 7: String Methods and Builtins
     def _codegen_string_index(

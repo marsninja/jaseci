@@ -1640,29 +1640,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     # Fill in missing optional parameters with the resolved callee's
     # default-value exprs (checker-stamped fact, not a name-keyed cache)
-    callee_sig = self._callee_sig_of(nd);
-    if callee_sig is not None and len(args) < len(func.args) {
-        sig_params = callee_sig.get_parameters();
-        provided_count = len(args) - 1;  # exclude self
-        for pix in range(provided_count, len(sig_params)) {
-            p = sig_params[pix];
-            if pix < len(sig_params) {
-                expected_type = func.args[len(args)].type
-                    if len(args) < len(func.args)
-                    else ir.IntType(64);
-                if p.value is not None {
-                    dval = self._codegen_expr(p.value);
-                    if dval is not None {
-                        args.append(self._coerce_type(dval, expected_type));
-                    } else {
-                        args.append(ir.Constant(expected_type, 0));
-                    }
-                } else {
-                    args.append(ir.Constant(expected_type, 0));
-                }
-            }
-        }
-    }
+    self._fill_default_args(nd, func, args, skip_self=True);
     # Virtual dispatch if type has vtable
     if self._arch_has_vtable(type_name) {
         result = self._codegen_virtual_call(obj_val, method_name, args, type_name);
