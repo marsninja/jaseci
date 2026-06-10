@@ -333,10 +333,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_or_declare_extern(
         name: str, ret_type: ir.Type, arg_types: list[ir.Type], var_arg: bool = False
     ) -> ir.Function;
-
-    def _call_extern(
-        b: ir.IRBuilder, func: ir.Function, args: list[ir.Value], name: str = ""
-    ) -> ir.Value;
     # Print support
     def _get_printf -> ir.Function;
     def _emit_print(nd: uni.FuncCall) -> (ir.Value | None);
@@ -423,7 +419,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _native_archetypes(module: uni.Module) -> list[uni.Archetype];
     def _register_imported_struct_types -> None;
     def _extract_import_module_name(imp: uni.Import) -> (str | None);
-    def _walk_imported_module(imported_mod: uni.Module) -> None;
     def _walk_imported_module_types(imported_mod: uni.Module) -> None;
     def _walk_imported_module_type_names(imported_mod: uni.Module) -> None;
     def _walk_imported_module_abilities(imported_mod: uni.Module) -> None;
@@ -701,15 +696,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
         elem_type_name: str, elem_type: ir.Type, elem_size: int = 0
     ) -> None;
 
-    def _codegen_set_val(nd: uni.SetVal) -> (ir.Value | None);
-    def _codegen_set_contains(
-        set_val: ir.Value, elem_val: ir.Value, elem_type_name: str
-    ) -> (ir.Value | None);
+    def _codegen_set_val(
+        nd: uni.SetVal
+    ) -> (ir.Value | None);  # Phase 14: Exception Handling
 
-    def _codegen_set_add(
-        set_val: ir.Value, elem_val: ir.Value, elem_type_name: str
-    ) -> None;
-    # Phase 14: Exception Handling
+
     def _get_exception_state_type -> ir.Type;
     def _declare_exception_runtime -> None;
     def _emit_exc_push_helper -> None;
@@ -811,10 +802,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
     # Reference counting (Phase RC)
     def _emit_rc_helpers -> None;
     def _rc_alloc(size: ir.Value, name: str = "rc.alloc") -> ir.Value;
-    def _rc_alloc_typed(
-        size: ir.Value, target_type: ir.Type, name: str = "rc.ptr"
-    ) -> ir.Value;
-
     def _emit_rc_retain(ptr: ir.Value, op: str = "", loc: str = "") -> None;
     def _emit_rc_release_simple(ptr: ir.Value, op: str = "", loc: str = "") -> None;
     def _emit_rc_release_typed(val: ir.Value, op: str = "", loc: str = "") -> None;

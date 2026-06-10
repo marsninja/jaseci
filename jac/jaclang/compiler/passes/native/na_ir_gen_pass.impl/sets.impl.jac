@@ -198,31 +198,3 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
     # Fresh allocation: ownership applied at the _codegen_expr seam.
     return set_val;
 }
-
-"""Check if element is in set."""
-impl NaIRGenPass._codegen_set_contains(
-    set_val: ir.Value, elem_val: ir.Value, elem_type_name: str
-) -> (ir.Value | None) {
-    helpers = self.set_helpers.get(elem_type_name);
-    if helpers is None {
-        return None;
-    }
-    elem_type = helpers["elem_type"];
-    elem_val = self._coerce_type(elem_val, elem_type);
-    return self.builder.call(
-        helpers["contains"], [set_val, elem_val], name="set.contains"
-    );
-}
-
-"""Add element to set."""
-impl NaIRGenPass._codegen_set_add(
-    set_val: ir.Value, elem_val: ir.Value, elem_type_name: str
-) -> None {
-    helpers = self.set_helpers.get(elem_type_name);
-    if helpers is None {
-        return;
-    }
-    elem_type = helpers["elem_type"];
-    elem_val = self._coerce_type(elem_val, elem_type);
-    self.builder.call(helpers["add"], [set_val, elem_val]);
-}
