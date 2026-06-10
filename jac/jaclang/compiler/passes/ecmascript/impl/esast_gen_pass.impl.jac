@@ -1733,15 +1733,9 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         and isinstance(nd.target, uni.AtomTrailer)
     ) {
         import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
-        _obj_type = None;
-        try {
-            _te = self.prog.get_type_evaluator();
-            if _te {
-                _obj_type = _te.get_type_of_expression(nd.target.target);
-            }
-        } except Exception {
-            _obj_type = None;
-        }
+        # Typed-tree contract: the checker already stored the receiver's
+        # type on the expression; no mid-codegen evaluator runs.
+        _obj_type = nd.target.target.type;
         _type_name = self._resolve_primitive_type_name(_obj_type);
         _method_name = callee.property.name;
         if _type_name {
@@ -2287,15 +2281,8 @@ impl EsastGenPass._try_primitive_op(
     jac_node: uni.UniNode
 ) -> (es.Expression | None) {
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
-    _obj_type = None;
-    try {
-        _te = self.prog.get_type_evaluator();
-        if _te {
-            _obj_type = _te.get_type_of_expression(expr_node);
-        }
-    } except Exception {
-        _obj_type = None;
-    }
+    # Typed-tree contract: read the operand's checked type off the tree.
+    _obj_type = expr_node.type if isinstance(expr_node, uni.Expr) else None;
     _type_name = self._resolve_primitive_type_name(_obj_type);
     if not _type_name {
         return None;
@@ -2324,15 +2311,8 @@ impl EsastGenPass._try_primitive_op(
 
 """Resolve the primitive type name of an expression, or "" if unknown."""
 impl EsastGenPass._expr_type_name(expr_node: uni.UniNode) -> str {
-    _obj_type = None;
-    try {
-        _te = self.prog.get_type_evaluator();
-        if _te {
-            _obj_type = _te.get_type_of_expression(expr_node);
-        }
-    } except Exception {
-        _obj_type = None;
-    }
+    # Typed-tree contract: read the checked type stored on the expression.
+    _obj_type = expr_node.type if isinstance(expr_node, uni.Expr) else None;
     return self._resolve_primitive_type_name(_obj_type);
 }
 

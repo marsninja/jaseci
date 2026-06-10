@@ -31,7 +31,7 @@ glob FORBIDDEN: dict[str, str] = {
      # (relative-path, pattern-name) -> max allowed matching lines.
      # These are existing violations awaiting migration; do not add entries.
      ALLOWLIST: dict[tuple, int] = {
-         ("ecmascript/impl/esast_gen_pass.impl.jac", "type_evaluator"): 4,
+         ("ecmascript/impl/esast_gen_pass.impl.jac", "type_evaluator"): 1,
          ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): 3,
          ("ecmascript/impl/esast_gen_pass.impl.jac", "type_tag.tag"): 7,
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): 3,
