@@ -751,7 +751,11 @@ impl NaIRGenPass._codegen_edge_ref_trailer(
     nd: uni.EdgeRefTrailer
 ) -> (ir.Value | None) {
     osp_refs_fn = self.func_symtab.get("osp_refs");
-    if (osp_refs_fn is None) or (not nd.chain) {
+    # Only the single-step form (`[-->]` / `[->:Edge:->]`, one EdgeOpRef) is
+    # lowered -- the same shape the cl backend handles. A multi-element chain
+    # (multi-hop / trailing filter comprehension) must fail loudly rather than
+    # silently traversing on just the first step.
+    if (osp_refs_fn is None) or (len(nd.chain) != 1) {
         self.emit(E5090, node_override=nd, kind="expression", name="EdgeRefTrailer");
         return None;
     }
@@ -805,7 +809,9 @@ impl NaIRGenPass._osp_visit_targets(target: uni.UniNode) -> (ir.Value | None) {
 
 """Lower `visit <targets> [else ...]` to `osp_visit(targets, insert_loc)`.
 The kernel enqueues the (ignore-filtered) targets into the current walk scope's
-`next` queue at `insert_loc` (default -1 = append)."""
+`next` queue at `insert_loc` (default -1 = append) and returns whether anything
+was enqueued; a `visit ... else { ... }` runs the else body when nothing was
+(mirroring the py lowering `if not visit(...): else_body`)."""
 impl NaIRGenPass._codegen_visit(nd: uni.VisitStmt) -> None {
     osp_visit_fn = self.func_symtab.get("osp_visit");
     if osp_visit_fn is None {
@@ -825,17 +831,39 @@ impl NaIRGenPass._codegen_visit(nd: uni.VisitStmt) -> None {
         }
     }
     _argtys = osp_visit_fn.function_type.args;
-    self.builder.call(
+    _did = self.builder.call(
         osp_visit_fn,
         [
             self._coerce_type(_targets, _argtys[0]),
             self._coerce_type(_insert, _argtys[1])
-        ]
+        ],
+        name="visit.did"
     );
+    if nd.else_body is None {
+        return;
+    }
+    func = self.builder.function;
+    else_bb = func.append_basic_block(name="visit.else");
+    merge_bb = func.append_basic_block(name="visit.end");
+    self.builder.cbranch(self._to_bool(_did), merge_bb, else_bb);
+    self.builder.position_at_end(else_bb);
+    if isinstance(nd.else_body, uni.ElseIf) {
+        self._codegen_if(nd.else_body);
+    } elif isinstance(nd.else_body, uni.ElseStmt) {
+        if isinstance(nd.else_body.body, (list, tuple)) {
+            self._codegen_body(nd.else_body.body);
+        }
+    }
+    if not self.builder.block.is_terminated {
+        self.builder.branch(merge_bb);
+    }
+    self.builder.position_at_end(merge_bb);
 }
 
 """Lower `disengage` to `osp_disengage()` -- flags the current walk scope so the
-kernel halts the walk after the in-flight ability returns."""
+kernel halts the walk, then returns from the ability. The py lowering emits a
+bare `return` after the call (statements after `disengage` never run), so native
+must terminate too or side effects after `disengage` would diverge silently."""
 impl NaIRGenPass._codegen_disengage(nd: uni.DisengageStmt) -> None {
     osp_disengage_fn = self.func_symtab.get("osp_disengage");
     if osp_disengage_fn is None {
@@ -843,6 +871,11 @@ impl NaIRGenPass._codegen_disengage(nd: uni.DisengageStmt) -> None {
         return;
     }
     self.builder.call(osp_disengage_fn, []);
+    # disengage is walker-ability-only (event abilities return void); subsequent
+    # statements in the block are skipped by the is_terminated check.
+    if isinstance(self.builder.function.function_type.return_type, ir.VoidType) {
+        self.builder.ret_void();
+    }
 }
 
 """Lower `report <expr>` to `osp_report(box(expr))` -- appends the boxed value

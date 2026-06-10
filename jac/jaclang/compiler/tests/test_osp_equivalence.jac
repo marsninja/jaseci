@@ -123,6 +123,22 @@ test "osp disengage: early-exit captures the partial visit set" {
     );
 }
 
+test "osp visit-else + disengage-return: else fires at dead ends; post-disengage code never runs" {
+    assert run_py_fixture("osp_visit_else", "visit_else_py") == {
+        "seen": [1, 2, 3],
+        "ends": 1,
+        "hseen": [1, 2],
+        "tail": 0
+    };
+    run_with_both(
+        "osp_visit_else.jac",
+        "visit_else_py",
+        "visit_else_cl",
+        "visit_else_na",
+        require=["na"]
+    );
+}
+
 test "osp report: per-walker reports survive the spawn boundary" {
     assert run_py_fixture("osp_report", "report_py") == {"reports": [10, 20, 30]};
     run_with_both(

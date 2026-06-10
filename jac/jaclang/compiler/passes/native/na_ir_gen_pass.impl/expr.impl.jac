@@ -960,6 +960,13 @@ impl NaIRGenPass._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
             zero = ir.Constant(operand.type, 0);
             return self.builder.icmp_signed("==", operand, zero, name="not");
         }
+        # Everything else (containers, floats, pointers): negate the value's
+        # truthiness so `not x` agrees with `if x` -- _to_bool implements
+        # Python semantics (an EMPTY list/dict/set is falsy, not a null one).
+        # Without this, `not <list>` fell through unhandled and the enclosing
+        # statement was dropped, silently inverting kernel guards like
+        # `if not filtered { return False; }` in osp_visit (visit-else).
+        return self.builder.not_(self._to_bool(operand), name="not");
     } elif op == Tok.BW_NOT {
         # Bitwise NOT: ~x = x XOR -1 (all 1s)
         if isinstance(operand.type, ir.IntType) {
