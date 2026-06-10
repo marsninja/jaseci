@@ -56,8 +56,26 @@ slice against the full native suite, 398 passed / 1 skipped):
   collection, with trigger-AST fallback when unresolved. Follow-up: ES
   `_osp_trigger_names` should consume `event_triggers` too (needs care:
   checker names like `Root` vs AST head names like `root`).
+- **Phase 6 (construct semantics) - captures slice done.** New
+  `UniScopeNode.get_enclosing_captures` + derived `LambdaExpr.captures`
+  getter compute free variables centrally from symbol tables (a symbol is
+  captured when its defining scope is a function-like scope strictly
+  enclosing the scope at hand). Native lambda capture lowering and
+  nested-ability closure rejection (E5090) consume it; the AST-walking
+  `_find_free_vars` is deleted. Native keeps its `local_vars` filter
+  (restricts captures to live allocas; excludes sibling nested functions).
+  Remaining: `IterationInfo`, with-items, match patterns, f-string parts.
+- **Phase 10 (enforcement) - ratchet test landed early.**
+  `tests/compiler/test_backend_purity.jac` statically scans
+  `passes/ecmascript` + `passes/native` for analysis APIs
+  (`type_evaluator`, `symbol_utils`, `type_tag.tag` reads, scope
+  `.lookup(` calls) against a pinned allowlist of current violations that
+  may only shrink (a staleness check forces ratcheting entries down as
+  migrations land). The plan's "empty allowlist" end state is reached by
+  draining it.
 
-Remaining phases (0, 4, 6-10) are untouched.
+Remaining phases (0, 4, 7-9) are untouched; Phase 6 continues with
+`IterationInfo`.
 
 ## Architectural principles (the contract every phase enforces)
 
