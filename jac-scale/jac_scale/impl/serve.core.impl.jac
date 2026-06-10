@@ -6,6 +6,14 @@ import socket;
 Returns the first available port, or raises OSError if none found within max_retries.
 """
 impl _find_available_port(start_port: int, max_retries: int = PORT_RETRY_LIMIT) -> int {
+    # port 0 means "OS picks a free port" — resolve it via getsockname
+    if start_port == 0 {
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+            s.bind(('0.0.0.0', 0));
+            return s.getsockname()[1];
+        }
+    }
     current_port = start_port;
     for _ in range(max_retries) {
         try {
@@ -224,6 +232,8 @@ impl JacAPIServerCore.start(
     no_client: bool = False,
     on_ready: Callable[..., None] | None = None
 ) -> None {
+    import os;
+    import from pathlib { Path }
     self.introspector.load();
     self._ensure_sv_siblings();
     # Eagerly build client bundle if there are client exports (skip in dev, no_client, or PWA mode)
@@ -323,6 +333,14 @@ impl JacAPIServerCore.start(
     }
     # Print startup banner with correct port
     self._print_startup_banner(dev, no_client);
+    # Write the actual bound port to the ready-file so the parent process
+    # knows which ephemeral port the OS assigned (used by `jac ai --tui`).
+    _ready_file = os.environ.get("JAC_SERVER_READY_FILE", "");
+    if _ready_file {
+        try {
+            Path(_ready_file).write_text(str(self.port), encoding="utf-8");
+        } except OSError { }
+    }
     # Call the ready callback with the actual port (e.g., to print startup banner)
     if on_ready {
         on_ready(self.port);
