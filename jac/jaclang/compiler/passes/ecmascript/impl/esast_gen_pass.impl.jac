@@ -1830,9 +1830,14 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
     }
     # --- Primitive emitter dispatch for builtin function calls ---
     self._ensure_emitters();
-    import from jaclang.compiler.symbol_utils { classify_call, CallKind }
-    _call_kind = classify_call(nd);
-    if _call_kind == CallKind.BUILTIN and isinstance(nd.target, uni.Name) {
+    # Dispatch on the checker-stamped call classification; only call nodes
+    # synthesized after type checking lack the stamp and are classified here.
+    _call_kind = nd.call_kind;
+    if _call_kind is None {
+        import from jaclang.compiler.symbol_utils { classify_call }
+        _call_kind = classify_call(nd).value;
+    }
+    if _call_kind == "builtin" and isinstance(nd.target, uni.Name) {
         import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
         _builtin_name = nd.target.sym_name;
         _emit_fn_name = "emit_" + _builtin_name;
@@ -1897,7 +1902,7 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
             call_args = [args_obj];
         }
     }
-    if _call_kind == CallKind.INSTANTIATION and isinstance(callee, es.Expression) {
+    if _call_kind == "instantiation" and isinstance(callee, es.Expression) {
         result_expr: es.Expression = self.sync_loc(
             es.NewExpression(callee=callee_expr, arguments=call_args), jac_node=nd
         );
