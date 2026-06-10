@@ -132,9 +132,7 @@ def compile_ink_app(
         exports = sorted(manifest.exports or [])
     if not exports:
         # Fallback: parse def:pub names from the source
-        import re as _re
-
-        exports = _re.findall(r"def:pub\s+(\w+)\s*\(", source_path.read_text())
+        exports = re.findall(r"def:pub\s+(\w+)\s*\(", source_path.read_text())
     if not exports:
         raise CompileError(
             "No public client functions found. "

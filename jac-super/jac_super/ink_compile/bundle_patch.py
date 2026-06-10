@@ -12,7 +12,6 @@ from pathlib import Path
 _JAC_RUNTIME_START = re.compile(r"^\s*const _jac = \{\s*$", re.MULTILINE)
 
 _IMPORT_LINE_RE = re.compile(r'^import\s+\{([^}]+)\}\s+from\s+(["\'])([^"\']+)\2;\s*$')
-_MODULE_MARKER_RE = re.compile(r"^//\s*(?:Imported \.jac module:|Client module:)\s*")
 _THEME_IMPORT_RE = re.compile(r"^\./(?:.*/)?theme\.js$")
 
 _IMPORT_ORDER = (
@@ -156,7 +155,7 @@ def consolidate_bundle_imports(code: str) -> str:
             block: list[str] = []
             while i < len(lines):
                 tl = lines[i]
-                if _MODULE_MARKER_RE.match(tl):
+                if _MODULE_MARKER.match(tl):
                     i -= 1
                     break
                 if tl.strip() == "" and block:
