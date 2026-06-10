@@ -12,6 +12,9 @@ impl NaIRGenPass._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
     # Evaluate all elements
     elem_vals: list[ir.Value] = [];
     elem_types: list[ir.Type] = [];
+    # Return-position fact read off the tree (replaces the old
+    # _return_tuple_ctx emission flag threaded through _codegen_return).
+    _in_return = nd.find_parent_of_type(uni.ReturnStmt) is not None;
     for val in nd.values {
         v = self._codegen_expr(val);
         if v is None {
@@ -25,9 +28,7 @@ impl NaIRGenPass._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
         # their single ref into the tuple, and owned temporaries already hold a
         # ref that scope cleanup leaves alone.
         if (
-            self._return_tuple_ctx
-            and isinstance(v.type, ir.PointerType)
-            and not self._is_owned(v)
+            _in_return and isinstance(v.type, ir.PointerType) and not self._is_owned(v)
         ) {
             is_named_local = isinstance(val, uni.Name)
             and val.sym_name in self.local_vars

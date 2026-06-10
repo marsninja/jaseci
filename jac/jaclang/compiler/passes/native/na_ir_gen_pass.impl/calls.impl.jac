@@ -785,12 +785,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
     }
-    # every pointer returned by a user function is owned (either via RETAIN
-    # inside the callee for borrowed refs, or via skip_var donation for named locals).
-    # Mark the call result owned so the caller's assign handler skips an extra RETAIN.
-    if isinstance(result.type, ir.PointerType) {
-        self._mark_owned(result);
-    }
+    # Every pointer returned by a user function carries a +1 (RETAIN inside
+    # the callee for borrowed refs, or skip-var donation for named locals);
+    # ownership is applied at the _codegen_expr seam from the central
+    # invariant (compiler/ownership.jac).
     return result;
 }
 # ─── External Function Support ───────────────────────────────

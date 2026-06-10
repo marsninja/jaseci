@@ -1676,10 +1676,8 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             if isinstance(func.return_value.type, ir.VoidType) {
                 return ir.Constant(ir.IntType(64), 0);
             }
-            # every pointer returned by a virtual method is owned.
-            if isinstance(result.type, ir.PointerType) {
-                self._mark_owned(result);
-            }
+            # Pointer results carry +1; ownership applied at the
+            # _codegen_expr seam (compiler/ownership.jac).
             return result;
         }
     }
@@ -1697,10 +1695,8 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if isinstance(func.return_value.type, ir.VoidType) {
         return ir.Constant(ir.IntType(64), 0);
     }
-    # every pointer returned by a method is owned. Skip RETAIN on assign.
-    if isinstance(result.type, ir.PointerType) {
-        self._mark_owned(result);
-    }
+    # Pointer results carry +1; ownership applied at the _codegen_expr
+    # seam (compiler/ownership.jac).
     return result;
 }
 

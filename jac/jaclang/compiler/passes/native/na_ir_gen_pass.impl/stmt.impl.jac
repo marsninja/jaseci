@@ -199,12 +199,10 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         # An empty collection literal in return position types itself: the
         # checker stamps it with the declared return type (bidirectional
         # inference), so no emission-context hints are threaded here.
-        # Flag return-tuple context so borrowed pointer elements are retained
-        # as they are packed (the tuple box does not own its elements, and the
-        # owning local is torn down at scope exit below).
-        self._return_tuple_ctx = isinstance(nd.expr, uni.TupleVal);
+        # Return-position tuple packing (borrowed elements retained so they
+        # outlive scope-exit teardown) is detected by _codegen_tuple_val from
+        # the tree, not via an emission flag.
         val = self._codegen_required(nd.expr);
-        self._return_tuple_ctx = False;
         if val is not None {
             # _coerce_type propagates is_owned across any bitcast/inttoptr it
             # emits, so checking val after coerce is safe — no need to capture

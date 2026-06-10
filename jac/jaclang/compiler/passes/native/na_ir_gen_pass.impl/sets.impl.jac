@@ -139,10 +139,8 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         _sk = self._set_spec_of(nd);
         _helpers = self.set_helpers.get(_sk) if _sk is not None else None;
         if _helpers is not None {
-            _empty_s = self.builder.call(_helpers["new"], [], name="set.empty");
-            # RC: fresh allocation - caller owns it; skip RETAIN on assign.
-            self._mark_owned(_empty_s);
-            return _empty_s;
+            # Fresh allocation: ownership applied at the _codegen_expr seam.
+            return self.builder.call(_helpers["new"], [], name="set.empty");
         }
         return None;
     }
@@ -197,8 +195,7 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
             }
         }
     }
-    # Set literal is a fresh allocation — mark as owned.
-    self._mark_owned(set_val);
+    # Fresh allocation: ownership applied at the _codegen_expr seam.
     return set_val;
 }
 

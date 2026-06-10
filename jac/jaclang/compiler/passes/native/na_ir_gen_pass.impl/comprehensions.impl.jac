@@ -86,8 +86,7 @@ impl NaIRGenPass._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None) {
     );
     # Generate nested loops for each InnerCompr
     self._codegen_compr_loops(nd.compr, 0, list_val, nd.out_expr, elem_type_name);
-    # Mark as owned so callers can correctly emit releases.
-    self._mark_owned(list_val);
+    # Fresh allocation: ownership applied at the _codegen_expr seam.
     return list_val;
 }
 
@@ -364,8 +363,7 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
     );
     # Generate nested loops for each InnerCompr
     self._codegen_dict_compr_loops(nd.compr, 0, dict_val, key_expr, val_expr, dict_key);
-    # Mark as owned so callers can correctly emit releases.
-    self._mark_owned(dict_val);
+    # Fresh allocation: ownership applied at the _codegen_expr seam.
     return dict_val;
 }
 
@@ -692,8 +690,7 @@ impl NaIRGenPass._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | None) {
     );
     # Generate nested loops
     self._codegen_set_compr_loops(nd.compr, 0, set_val, out_expr, elem_type_name);
-    # Mark as owned so callers can correctly emit releases.
-    self._mark_owned(set_val);
+    # Fresh allocation: ownership applied at the _codegen_expr seam.
     return set_val;
 }
 

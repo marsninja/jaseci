@@ -166,11 +166,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # (flattened) layout, not the declaring parent the checker reports.
         _self_arch: (str | None) = None,
         field_type_node: dict[str, dict] = {},
-        # True while codegen'ing the TupleVal of a `return (...)`. In that
-        # context borrowed (field-load / element-read) pointer elements must be
-        # retained so they outlive the owning local's scope-exit teardown — the
-        # returned tuple box does not own its elements (see _codegen_tuple_val).
-        _return_tuple_ctx: bool = False,
         # Inheritance / vtable support (Phase 5)
         class_hierarchy: dict[str, str] = {},
         class_parents: dict[str, list[str]] = {},
