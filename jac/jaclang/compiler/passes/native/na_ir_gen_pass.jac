@@ -166,13 +166,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # (flattened) layout, not the declaring parent the checker reports.
         _self_arch: (str | None) = None,
         field_type_node: dict[str, dict] = {},
-        # Inheritance / vtable support (Phase 5)
-        class_hierarchy: dict[str, str] = {},
-        class_parents: dict[str, list[str]] = {},
-        mro_order: dict[str, list[str]] = {},
+        # Inheritance / vtable support (Phase 5). Hierarchy, MRO, and
+        # vtable-need are NOT copied here: they are queried from the central
+        # LayoutRegistry via _mro_of / _arch_has_vtable.
         parent_field_start: dict[str, dict[str, int]] = {},
         arch_ast_map: dict[str, object] = {},
-        has_vtable: dict[str, bool] = {},
         vtable_layouts: dict[str, list[str]] = {},
         vtable_method_indices: dict[str, dict] = {},
         vtable_globals: dict[str, ir.GlobalVariable] = {},
@@ -568,6 +566,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     # Phase 5: Inheritance, Vtables, and C3 MRO
     def _build_vtable(arch_name: str) -> None;
     def _emit_vtable_global(arch_name: str) -> None;
+    # Central class-model queries (LayoutRegistry is the owner; no copies).
+    def _mro_of(arch_name: str) -> list[str];
+    def _arch_has_vtable(arch_name: str) -> bool;
     def _codegen_virtual_call(
         obj_val: ir.Value, method_name: str, args: list[ir.Value], obj_type_name: str
     ) -> (ir.Value | None);

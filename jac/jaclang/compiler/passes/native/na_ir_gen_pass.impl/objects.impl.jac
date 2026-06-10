@@ -59,32 +59,14 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     # Pass 1.6: assign OSP type-tags (issue #6146) before struct bodies are
     # laid out, so OSP archetypes reserve their `__type_tag` field.
     self._register_osp_tags(archetypes);
-    # Pass 1.5 + 1.7: Read class hierarchy and MRO from centralized LayoutRegistry
+    # Pass 1.5: record the AST handle per native archetype. Hierarchy, MRO,
+    # and vtable-need are NOT copied: the central LayoutRegistry is queried
+    # directly (_mro_of / _arch_has_vtable) wherever they are needed.
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
     layout_reg = get_layout_registry(self.ir_in, self.prog);
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
         self.arch_ast_map[arch_name] = arch;
-        parents = layout_reg.class_parents.get(arch_name, []);
-        # Filter to only include native parents (those with struct types)
-        native_parents = [
-            p
-            for p in parents
-            if p in self.struct_types
-        ];
-        if native_parents {
-            self.class_parents[arch_name] = native_parents;
-            self.class_hierarchy[arch_name] = native_parents[0];
-        }
-        self.mro_order[arch_name] = layout_reg.get_mro(arch_name);
-    }
-    # Determine which classes need vtables from LayoutRegistry
-    for arch in archetypes {
-        arch_name = arch.name.value if arch.name else "unknown";
-        arch_layout = layout_reg.get_layout(arch_name);
-        if arch_layout is not None and arch_layout.has_vtable {
-            self.has_vtable[arch_name] = True;
-        }
     }
     # Pass 2: Define struct bodies in topological order from LayoutRegistry
     topo_order = layout_reg.get_topo_order();
@@ -150,7 +132,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     # Only for methods NOT already provided by own definition or primary ancestor chain
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
-        mro = self.mro_order.get(arch_name, [arch_name]);
+        mro = self._mro_of(arch_name);
         if len(mro) < 2 {
             continue;
         }
@@ -193,7 +175,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     }
     # Pass 3.5: Build vtable layouts (topological order via MRO)
     for topo_name in topo_order {
-        if topo_name in self.has_vtable {
+        if self._arch_has_vtable(topo_name) {
             self._build_vtable(topo_name);
         }
     }
@@ -205,7 +187,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         for method_name in layout {
             # Find the class that defines this method (walk MRO)
             defining_class: (str | None) = None;
-            base_mro = self.mro_order.get(base_name, [base_name]);
+            base_mro = self._mro_of(base_name);
             for check in base_mro {
                 if f"{check}.{method_name}" in self.method_funcs {
                     defining_class = check;
@@ -217,9 +199,9 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
             }
             # Check if any child class overrides this method
             overridden = False;
-            for (child_name, child_parents) in self.class_parents.items() {
+            for child_name in self.arch_ast_map {
                 # Is base_name an ancestor of child_name?
-                child_mro = self.mro_order.get(child_name, [child_name]);
+                child_mro = self._mro_of(child_name);
                 if base_name not in child_mro {
                     continue;
                 }
@@ -254,8 +236,11 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         }
     }
     # Pass 4: Emit vtable globals
-    for arch_name in self.has_vtable {
-        self._emit_vtable_global(arch_name);
+    for arch in archetypes {
+        arch_name = arch.name.value if arch.name else "unknown";
+        if self._arch_has_vtable(arch_name) {
+            self._emit_vtable_global(arch_name);
+        }
     }
     # Pass 4.5: Forward-declare free functions (must happen before method bodies)
     self._forward_declare_functions(module);
@@ -288,7 +273,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     # Only for methods that are NOT already provided by an earlier MRO class
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
-        mro = self.mro_order.get(arch_name, [arch_name]);
+        mro = self._mro_of(arch_name);
         if len(mro) < 2 {
             continue;
         }
@@ -342,7 +327,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     if struct_type is None {
         return;
     }
-    needs_vtable = arch_name in self.has_vtable;
+    needs_vtable = self._arch_has_vtable(arch_name);
     is_osp = arch_name in self.osp_arch_kind;
     # Collect fields
     field_types: list[ir.Type] = [];
@@ -361,7 +346,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         self.osp_type_tag_field[arch_name] = len(field_types) - 1;
     }
     # Flatten fields from all ancestors in MRO order (diamond dedup by name)
-    mro = self.mro_order.get(arch_name, [arch_name]);
+    mro = self._mro_of(arch_name);
     seen_fields: set[str] = set();
     # Built-in walker `reports` list at a uniform field index 2 (vtable@0,
     # __type_tag@1). The kernel's on_complete delivers `scope.reports` here at
@@ -699,6 +684,27 @@ impl NaIRGenPass._trigger_struct_names(method: uni.Ability) -> list[str] {
         for nm in names
         if nm in self.struct_types
     ];
+}
+
+"""MRO for an archetype, queried from the central LayoutRegistry (the
+single owner of hierarchy facts); [name] when the registry knows nothing
+about the name (primitives, foreign names)."""
+impl NaIRGenPass._mro_of(arch_name: str) -> list[str] {
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+    mro = get_layout_registry(self.ir_in, self.prog).get_mro(arch_name);
+    return mro or [arch_name];
+}
+
+"""Whether a NATIVE archetype needs a vtable, queried from the central
+LayoutRegistry. Restricted to archetypes this module lowered to structs so
+non-native archetypes the registry knows about never gain emission here."""
+impl NaIRGenPass._arch_has_vtable(arch_name: str) -> bool {
+    if arch_name not in self.struct_types {
+        return False;
+    }
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+    lay = get_layout_registry(self.ir_in, self.prog).get_layout(arch_name);
+    return lay is not None and lay.has_vtable;
 }
 
 """Find a field whose layout diverges across union trigger members.
@@ -1596,7 +1602,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     # Find method: walk MRO
     func = None;
     full_name = "";
-    for check_name in self.mro_order.get(type_name, [type_name]) {
+    for check_name in self._mro_of(type_name) {
         full_name = f"{check_name}.{method_name}";
         if full_name in self.method_funcs {
             func = self.method_funcs[full_name];
@@ -1658,7 +1664,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
     }
     # Virtual dispatch if type has vtable
-    if type_name in self.has_vtable {
+    if self._arch_has_vtable(type_name) {
         result = self._codegen_virtual_call(obj_val, method_name, args, type_name);
         if result is not None {
             if isinstance(func.return_value.type, ir.VoidType) {

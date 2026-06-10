@@ -263,9 +263,7 @@ impl NaIRGenPass._export_native_layout -> None {
             );
         }
         layout.structs[arch_name] = NativeStructLayout(
-            name=arch_name,
-            fields=fields,
-            has_vtable=self.has_vtable.get(arch_name, False)
+            name=arch_name, fields=fields, has_vtable=self._arch_has_vtable(arch_name)
         );
     }
     # Enums
