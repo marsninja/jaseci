@@ -527,12 +527,8 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.param_vars = set();
     self.var_list_elem_struct = {};
     # Reset per-function borrowed-param promotion state.
-    saved_param_store_instr = self._param_store_instr;
-    saved_param_promoted = self._param_promoted;
     saved_self_arch = self._self_arch;
     self._self_arch = arch_name;
-    self._param_store_instr = {};
-    self._param_promoted = set();
     # DWARF debug info (JAC_NATIVE_DEBUG=1)
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
@@ -543,14 +539,20 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.local_vars["self"] = self_alloca;
     # Store other parameters
     sig = method.signature;
+    import from jaclang.compiler.ownership { param_plainly_rebound }
     for (i, p) in enumerate(sig.get_parameters()) {
         param_name = p.name.value if p.name else f"arg{i}";
         arg_val = func.args[i + 1];
         alloca = self.builder.alloca(arg_val.type, name=param_name);
-        _store_instr = self.builder.store(arg_val, alloca);
+        self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
-        self.param_vars.add(param_name);
-        self._param_store_instr[param_name] = _store_instr;  # for entry-block retain on reassign
+        # Rebound borrowed param: owned from birth (see _codegen_ability).
+        if isinstance(arg_val.type, ir.PointerType)
+        and param_plainly_rebound(p.name.sym if p.name else None) {
+            self._emit_rc_retain(arg_val, op="param_promote", loc=full_name);
+        } else {
+            self.param_vars.add(param_name);
+        }
     }
     # Generate body (handle ImplDef wrapper from DeclImplMatchPass)
     body = ModuleCodegenPass.unwrap_body(method);
@@ -581,8 +583,6 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
-    self._param_store_instr = saved_param_store_instr;
-    self._param_promoted = saved_param_promoted;
     self._self_arch = saved_self_arch;
 }
 
@@ -600,16 +600,12 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
     saved_list_elem_struct = dict(self.var_list_elem_struct);
-    saved_param_store_instr = self._param_store_instr;
-    saved_param_promoted = self._param_promoted;
     saved_self_arch = self._self_arch;
     self._self_arch = arch_name;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_list_elem_struct = {};
-    self._param_store_instr = {};
-    self._param_promoted = set();
     # DWARF debug info (JAC_NATIVE_DEBUG=1)
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
@@ -640,8 +636,6 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
-    self._param_store_instr = saved_param_store_instr;
-    self._param_promoted = saved_param_promoted;
     self._self_arch = saved_self_arch;
 }
 
@@ -799,16 +793,12 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
     saved_list_elem_struct = dict(self.var_list_elem_struct);
-    saved_param_store_instr = self._param_store_instr;
-    saved_param_promoted = self._param_promoted;
     saved_self_arch = self._self_arch;
     self._self_arch = arch_name;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_list_elem_struct = {};
-    self._param_store_instr = {};
-    self._param_promoted = set();
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
     );
@@ -854,8 +844,6 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
-    self._param_store_instr = saved_param_store_instr;
-    self._param_promoted = saved_param_promoted;
     self._self_arch = saved_self_arch;
 }
 

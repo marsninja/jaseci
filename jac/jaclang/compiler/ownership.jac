@@ -42,6 +42,42 @@ enum Ownership {
     UNKNOWN = "unknown"
 }
 
+"""True when a parameter symbol is rebound by a plain assignment in its
+function body.
+
+A parameter arrives BORROWED (the caller owns the value). When the body
+rebinds it with a plain `param = expr` assignment, the slot must own its
+contents so each overwrite can release the previous occupant without
+double-freeing the caller's reference - which requires taking one +1 on
+the incoming value at function entry. This predicate is that analysis
+fact. Aug-assignments (in-place mutations), walrus bindings, loop
+targets, and unpacking bindings keep the borrow, exactly matching the
+plain-assignment-only promotion the backend previously decided lazily.
+"""
+def param_plainly_rebound(sym: (uni.Symbol | None)) -> bool {
+    if sym is None {
+        return False;
+    }
+    # A rebinding of an existing symbol registers on `uses` (the symbol
+    # table reserves `defn` for declarations), so scan both lists; being a
+    # direct member of an Assignment's target list is what distinguishes a
+    # plain rebinding from a read (and from unpacking, whose names sit
+    # inside a Tuple/List target rather than the target list itself).
+    for d in (list(sym.defn) + list(sym.uses)) {
+        asg = d.find_parent_of_type(uni.Assignment);
+        if asg is None or asg.aug_op is not None {
+            continue;
+        }
+        targets = asg.target
+            if isinstance(asg.target, (list, tuple))
+            else [(asg.target)];
+        if d in targets {
+            return True;
+        }
+    }
+    return False;
+}
+
 """Classify an expression's result ownership (see module docstring).
 
 Pure function of expression shape: SetCompr/GenCompr are covered by the

@@ -280,11 +280,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # this to emit the correct two-level-namespace dylib ordinal per symbol.
         _clib_symbol_lib: dict[str, str] = {},
         _native_emit_ctx_class: (type | None) = None,
-        # Per-function tracking for borrowed-param promotion: entry-block store instruction
-        # per param (for position_after retain insertion) and set of already-promoted params.
-        # Both are reset at the start of each function/method.
-        _param_store_instr: dict[str, object] = {},
-        _param_promoted: set[str] = set(),
         # TypeBase -> ir.Type lowering memo, keyed by the canonical type key
         # (TypeBase.mangle). Per LLVM module; a hit implies any collection
         # helpers for the type were already emitted.
