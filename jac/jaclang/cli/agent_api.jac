@@ -12,6 +12,7 @@ can be added without breaking existing agent plugins.
 """
 
 import os;
+import from jaclang.cli.console { console }
 import from jaclang.compiler.code_intel { CodeIntelligence }
 
 
@@ -64,4 +65,17 @@ def build_agent_request(
         # type-checked pipeline until the first symbol/diagnostic query actually
         # needs it -- so startup and project-map calls don't pay semantic cost.
     );
+}
+
+
+"""Validate CLI flag combinations on an AgentRequest.
+
+Returns 0 when valid, 1 after printing an error for incompatible flags.
+"""
+def validate_agent_request(req: AgentRequest) -> int {
+    if req.ui and req.tui {
+        console.error("`jac ai`: `--ui` and `--tui` are mutually exclusive.");
+        return 1;
+    }
+    return 0;
 }

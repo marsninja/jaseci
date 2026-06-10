@@ -37,4 +37,5 @@ rich = ">=13.0.0"
 
 [entrypoints.jac]
 console = "jac_super.plugin.console:JacSuperPlugin"
+ai = "jac_super.ai_agent.plugin:JacSuperAiPlugin"
 shadcn = "jac_super.shadcn.plugin:JacShadcnPlugin"

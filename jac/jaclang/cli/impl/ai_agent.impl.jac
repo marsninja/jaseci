@@ -2739,7 +2739,7 @@ failed turn reports its error but does not abort the session.
 
 When `req.ui` is set, hands off to `_run_ui_server`: launches the bundled Jac
 web app as a subprocess and opens it in the browser instead of the REPL.
-`--tui` is handled by jac-super when installed.
+`--tui` is handled by jac-super's `run_ai_agent` hook when installed.
 """
 impl run_agent(req: object) -> int {
     global agent_model;
@@ -2749,10 +2749,6 @@ impl run_agent(req: object) -> int {
     # Seed the session working directory; every file tool and run_command
     # resolves against it, and a `cd` the model issues updates it.
     agent.ws.cwd = os.path.normpath(str(r?.cwd or os.getcwd()));
-    if bool(r?.ui) and bool(r?.tui) {
-        console.error("`jac ai`: `--ui` and `--tui` are mutually exclusive.");
-        return 1;
-    }
     # `--ui`: hand off to the bundled web app instead of the terminal REPL. The
     # child server re-imports this module and runs the agent itself, so nothing
     # else here (model build, banner, REPL) applies to the parent process.
@@ -2760,15 +2756,7 @@ impl run_agent(req: object) -> int {
         return _run_ui_server(r);
     }
     if bool(r?.tui) {
-        try {
-            agent.cfg.tui_active = True;
-            import from jac_super.ai_agent.run_tui_session { run_tui_session }
-            return run_tui_session(r);
-        } except ImportError {
-            console.warning(
-                "`--tui` requires jac-super. Falling back to plain session."
-            );
-        }
+        console.warning("`--tui` requires jac-super. Falling back to plain session.");
     }
     agent.cfg.yolo_mode = not r.safe;
     agent.cfg.verbose = not bool(r?.quiet);
