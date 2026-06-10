@@ -156,3 +156,19 @@ test "osp edge typed: `[->:Road:->]` follows only the typed edge" {
         require=["na", "cl"]
     );
 }
+
+test "ospchess e2e: 64-square board, typed move networks, census/reach/hunt walkers" {
+    assert run_py_fixture("osp_chess", "ospchess_py") == {
+        "deg_a1": 2,
+        "deg_b1": 3,
+        "deg_d4": 8,
+        "reach": 64,
+        "first": [0, 10, 17, 20, 27, 25, 16, 4],
+        "found": 1,
+        "hunt_len": 57,
+        "hunt_last": 63
+    };
+    run_with_both(
+        "osp_chess.jac", "ospchess_py", "ospchess_cl", "ospchess_na", require=["na"]
+    );
+}
