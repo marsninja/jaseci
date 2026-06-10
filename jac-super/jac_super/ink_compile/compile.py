@@ -156,7 +156,6 @@ def compile_ink_app(
         runtime_path.write_text(jac_runtime, encoding="utf-8")
         if ai_tui_patches:
             _apply_ai_tui_runtime_prelude(runtime_path)
-            _apply_ai_tui_runtime_poly_str_join(runtime_path)
             _apply_ai_tui_module_patches(out_dir / "module.mjs")
 
     _emit_runner(out_dir, entry_name, exports)
@@ -359,34 +358,6 @@ def _apply_ai_tui_runtime_prelude(runtime_path: Path) -> None:
         'import { __jacJsx, __jacSpawn } from "./runtime_shim.mjs";'
     ):
         runtime_path.write_text(_RUNTIME_PRELUDE + runtime_text, encoding="utf-8")
-
-
-_STR_POLY_JOIN_MARKER = (
-    "      join: (s, parts) => Array.from(parts, x => String(x)).join(s)"
-)
-_STR_POLY_JOIN_PATCH = (
-    "      },\n"
-    '      // Python `sep.join(iterable)` — polymorphic `_jac.poly.call(sep, "join", ...)`.\n'
-    + _STR_POLY_JOIN_MARKER
-)
-
-
-def _apply_ai_tui_runtime_poly_str_join(runtime_path: Path) -> None:
-    """Ensure `_jac.poly._str.join` exists for untyped `sep.join(iterable)` calls."""
-    text = runtime_path.read_text(encoding="utf-8")
-    if _STR_POLY_JOIN_MARKER in text:
-        return
-    needle = "        return s.slice(0, j);\n      }\n    },\n    _list:"
-    if needle not in text:
-        return
-    text = text.replace(
-        needle,
-        "        return s.slice(0, j);\n"
-        + _STR_POLY_JOIN_PATCH
-        + "\n    },\n    _list:",
-        1,
-    )
-    runtime_path.write_text(text, encoding="utf-8")
 
 
 _FETCH_TRANSPORT_HELPER = """function isFetchTransportError(err) {
