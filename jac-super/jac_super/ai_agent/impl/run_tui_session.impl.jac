@@ -12,6 +12,7 @@ import time;
 import jac_super;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
+import from jac_super.ink_compile.compile { compile_ink_app, CompileError }
 
 impl run_tui_session(req: object) -> int {
     r: any = req;
@@ -166,10 +167,10 @@ impl run_tui_session(req: object) -> int {
             return 1;
         }
 
-        ink_compile = super_pkg / "ink_compile";
-        compile_py = ink_compile / "compile.py";
-        bundle_patch_py = ink_compile / "bundle_patch.py";
-        sources = [ink_source, compile_py, bundle_patch_py];
+        ink_compile_dir = super_pkg / "ink_compile";
+        compile_jac = ink_compile_dir / "compile.jac";
+        bundle_patch_jac = ink_compile_dir / "bundle_patch.jac";
+        sources = [ink_source, compile_jac, bundle_patch_jac];
         need_compile = not runner_mjs.is_file();
         if not need_compile {
             runner_mtime = runner_mjs.stat().st_mtime;
@@ -182,18 +183,13 @@ impl run_tui_session(req: object) -> int {
         }
         if need_compile {
             console.print("  compiling Ink TUI…", style="muted");
-            compile_ret = subprocess.call(
-                [
-                    sys.executable,
-                    "-m",
-                    "jac_super.ink_compile",
-                    str(ink_source),
-                    "--out",
-                    str(ink_out)
-                ]
-            );
-            if compile_ret != 0 {
-                console.error("Ink TUI compilation failed");
+            try {
+                compile_ink_app(ink_source, ink_out);
+            } except CompileError as e {
+                console.error(f"Ink TUI compilation failed: {e}");
+                return 1;
+            } except Exception as e {
+                console.error(f"Ink TUI compilation failed: {e}");
                 return 1;
             }
         }
