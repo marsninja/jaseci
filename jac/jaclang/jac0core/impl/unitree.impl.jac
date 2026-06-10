@@ -2077,6 +2077,7 @@ impl YieldExpr.postinit -> None {
 
 impl FuncCall.postinit -> None {
     self.params = `list(self.params) if self.params else [];
+    self.callee_decl = None;
     UniNode.postinit(self);
     Expr.postinit(self);
 }

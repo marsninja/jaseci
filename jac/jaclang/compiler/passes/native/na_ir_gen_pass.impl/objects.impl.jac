@@ -506,8 +506,6 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     }
     self.method_funcs[full_name] = func;
     self.func_symtab[full_name] = func;
-    # Store AST signature for return type propagation in method calls
-    self.method_ast_sigs[full_name] = sig;
 }
 
 """Generate LLVM IR for a method body."""
@@ -1700,9 +1698,11 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             args.append(val);
         }
     }
-    # Fill in missing optional parameters with their AST default values
-    if full_name in self.method_ast_sigs and len(args) < len(func.args) {
-        sig_params = self.method_ast_sigs[full_name].get_parameters();
+    # Fill in missing optional parameters with the resolved callee's
+    # default-value exprs (checker-stamped fact, not a name-keyed cache)
+    callee_sig = self._callee_sig_of(nd);
+    if callee_sig is not None and len(args) < len(func.args) {
+        sig_params = callee_sig.get_parameters();
         provided_count = len(args) - 1;  # exclude self
         for pix in range(provided_count, len(sig_params)) {
             p = sig_params[pix];
