@@ -111,6 +111,11 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
         # independent tasks; no actual parallelism.
     } elif isinstance(nd, uni.ConcurrentExpr) {
         _result = self._codegen_expr(nd.target);
+    } elif isinstance(nd, uni.EdgeRefTrailer) {
+        # `[-->]` / `[->:Edge:->]`: query the native edge adjacency from `here`,
+        # yielding a `list` of neighbor handles (the kernel's `visit` target
+        # shape). issue #6146.
+        _result = self._codegen_edge_ref_trailer(nd);
     } elif (
         isinstance(nd, uni.Slice)
         or isinstance(nd, uni.IndexSlice)
@@ -408,6 +413,11 @@ impl NaIRGenPass._codegen_walrus(nd: uni.BinaryExpr) -> (ir.Value | None) {
 
 """Generate binary expression."""
 impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
+    # Edge connect (`a ++> b`, `a +>: Edge() :+> b`): the operator node is a
+    # ConnectOp, not a Token. Lower to the native edge adjacency (issue #6146).
+    if isinstance(nd.op, uni.ConnectOp) {
+        return self._codegen_connect(nd);
+    }
     op = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);
     # Inspect the op before recursing into operands. Some operators
     # (walrus `:=`, pipe-forward `|>`) have non-standard evaluation

@@ -836,12 +836,23 @@ def _compile_osp_kernel_ir -> (str | None) {
     import tempfile;
     import jaclang;
     import from jaclang.jac0core.program { JacProgram }
-    src = os.path.join(os.path.dirname(jaclang.__file__), "jac0core", "osp_kernel.jac");
+    # The native OSP source is the portable kernel + the native-only edge
+    # adjacency, compiled as one module (matches the NaIRGenPass-side load in
+    # osp.impl.jac so decls and definitions agree). osp_kernel.jac stays pristine.
+    _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
     tmp_dir = tempfile.mkdtemp();
     na_copy = os.path.join(tmp_dir, "osp_kernel.na.jac");
     ir_str = None;
     try {
-        shutil.copyfile(src, na_copy);
+        with open(os.path.join(_core, "osp_kernel.jac"), "r") as _kf {
+            _ktext = _kf.read();
+        }
+        with open(os.path.join(_core, "osp_graph.jac"), "r") as _gf {
+            _gtext = _gf.read();
+        }
+        with open(na_copy, "w") as _out {
+            _out.write(_ktext + "\n\n" + _gtext);
+        }
         prog = JacProgram();
         m = prog.compile(na_copy);
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
