@@ -44,9 +44,9 @@ impl run_tui_session(req: object) -> int {
     env["JAC_AI_UI_NCTX"] = str(int(r?.n_ctx or 0));
     repo_root = super_pkg.parent.parent;
     py_paths = [
-        str(repo_root / "jac"),
-        str(repo_root / "jac-scale"),
-        str(repo_root / "jac-super")
+        str(repo_root / name)
+        for name in ["jac", "jac-scale", "jac-super"]
+        if (repo_root / name).is_dir()
     ];
     existing_py_path = str(env.get("PYTHONPATH", "")).strip();
     if existing_py_path {
@@ -60,8 +60,7 @@ impl run_tui_session(req: object) -> int {
         ]
     );
 
-    def make_temp(prefix: str, suffix: str = "") -> tuple[int, str] {
-        fd = -1;
+    def make_temp(prefix: str, suffix: str = "") -> str {
         path = "";
         try {
             (fd, path) = tempfile.mkstemp(prefix=prefix, suffix=suffix, text=True);
@@ -69,10 +68,10 @@ impl run_tui_session(req: object) -> int {
         } except Exception as e {
             console.error(f"Failed to create temp file ({prefix}): {e}");
         }
-        return (fd, path);
+        return path;
     }
 
-    (ready_fd, ready_path) = make_temp("jac-ai-tui-port-");
+    ready_path = make_temp("jac-ai-tui-port-");
     if not ready_path {
         return 1;
     }
@@ -100,7 +99,7 @@ impl run_tui_session(req: object) -> int {
         );
         # Write server output to a log file, not an unread PIPE — a full pipe
         # blocks console.print in the child and stalls SSE heartbeats.
-        (server_log_fd, server_log_path) = make_temp("jac-ai-tui-server-", ".log");
+        server_log_path = make_temp("jac-ai-tui-server-", ".log");
         if not server_log_path {
             return 1;
         }
@@ -116,9 +115,10 @@ impl run_tui_session(req: object) -> int {
         );
         server_log_f.close();
 
-        deadline = time.time() + 120.0;
+        start = time.time();
+        deadline = start + 120.0;
         ready = False;
-        last_log = time.time();
+        last_log = start;
         while time.time() < deadline {
             if server_proc.poll() is not None {
                 break;
@@ -138,7 +138,7 @@ impl run_tui_session(req: object) -> int {
             } except Exception { }
             now = time.time();
             if now - last_log >= 5.0 {
-                elapsed = int(now - deadline + 120.0);
+                elapsed = int(now - start);
                 console.print(
                     f"  still compiling modules ({elapsed}s)…", style="muted"
                 );
