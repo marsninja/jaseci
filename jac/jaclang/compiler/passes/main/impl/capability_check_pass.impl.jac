@@ -137,11 +137,11 @@ impl PortabilityWarnPass.postinit -> None {
 
 """Run all portability checks via bulk sub-node queries (no tree traversal)."""
 impl PortabilityWarnPass.transform(ir_in: uni.Module) -> uni.Module {
-    self._check_js_globals(self.ir_in);
-    self._check_js_methods(self.ir_in);
-    self._check_js_keywords(self.ir_in);
-    self._check_js_properties(self.ir_in);
-    for annex_mod in self.ir_in.impl_mod + self.ir_in.test_mod + self.ir_in.variant_mod {
+    self._check_js_globals(ir_in);
+    self._check_js_methods(ir_in);
+    self._check_js_keywords(ir_in);
+    self._check_js_properties(ir_in);
+    for annex_mod in ir_in.impl_mod + ir_in.test_mod + ir_in.variant_mod {
         self._check_js_globals(annex_mod);
         self._check_js_methods(annex_mod);
         self._check_js_keywords(annex_mod);
