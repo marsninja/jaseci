@@ -439,7 +439,7 @@
         let physicsEnabled = true;
         // ?public=1 pins the visualizer to the public (super root) graph,
         // ignoring any stored session token - useful for embeds.
-        const forcePublic = new URLSearchParams(window.location.search).has("public");
+        const forcePublic = new URLSearchParams(window.location.search).get("public") === "1";
         let authToken = forcePublic
             ? null
             : localStorage.getItem("jac_token") || null;
