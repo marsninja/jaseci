@@ -163,9 +163,7 @@ impl NaIRGenPass._clib_alloc_vtable(name: str) -> ir.Value {
         null_ptr, [ir.Constant(ir.IntType(32), 1)], name="clib.vt.sizeof.gep"
     );
     size = self.builder.ptrtoint(size_gep, i64, name="clib.vt.sizeof");
-    raw = self.builder.call(
-        calloc_fn, [ir.Constant(i64, 1), size], name="clib.vt.raw"
-    );
+    raw = self.builder.call(calloc_fn, [ir.Constant(i64, 1), size], name="clib.vt.raw");
     return self.builder.bitcast(
         raw, self.struct_types[name].as_pointer(), name="clib.vt.ptr"
     );

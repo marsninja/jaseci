@@ -3051,10 +3051,8 @@ test "clib vtable structs allocate flat without RC header (issue #6571)" {
     # C reads the vtable starting at field 0 (CEF validates struct->size
     # there) and owns its lifetime, so the instance must be plain zeroed C
     # memory — no RC header, no destructor, no type tag.
-    assert "clib.vt.raw" in llvm_ir_str ,
-        "vtable must allocate through the flat calloc path";
-    assert "__rc_release_event_handler_vt" not in llvm_ir_str ,
-        "C-owned vtable struct must not get an RC destructor";
+    assert "clib.vt.raw" in llvm_ir_str , "vtable must allocate through the flat calloc path";
+    assert "__rc_release_event_handler_vt" not in llvm_ir_str , "C-owned vtable struct must not get an RC destructor";
 }
 
 test "clib vtable: C invokes Jac callback through trampoline (issue #6570)" {
@@ -3121,6 +3119,7 @@ test "clib vtable: C invokes Jac callback through trampoline (issue #6570)" {
         "    p = make_handler_ptr();",
         "    return invoke_event(p, a, b);",
         "}",
+
     ];
     jac_src_path = os.path.join(td, "cb_fixture.na.jac");
     with open(jac_src_path, "w") as f {
