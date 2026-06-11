@@ -116,9 +116,10 @@ impl run_tui_session(req: object) -> int {
         server_log_f.close();
 
         start = time.time();
-        deadline = start + 120.0;
+        deadline = start + 300.0;
         ready = False;
         last_log = start;
+        first_use_detected = False;
         while time.time() < deadline {
             if server_proc.poll() is not None {
                 break;
@@ -136,6 +137,20 @@ impl run_tui_session(req: object) -> int {
                     }
                 }
             } except Exception { }
+            # Detect first-use Jac compilation and extend deadline to 10 min.
+            if not first_use_detected and server_log_path {
+                try {
+                    log_text = Path(server_log_path).read_text(encoding="utf-8");
+                    if "Setting up Jac for first use" in log_text {
+                        first_use_detected = True;
+                        deadline = start + 600.0;
+                        console.print(
+                            "  caching Jac compiler for first use (may take a few minutes)…",
+                            style="muted"
+                        );
+                    }
+                } except Exception { }
+            }
             now = time.time();
             if now - last_log >= 5.0 {
                 elapsed = int(now - start);
@@ -157,7 +172,8 @@ impl run_tui_session(req: object) -> int {
                 }
             } except Exception { }
             if server_proc.poll() is None {
-                console.error("Agent server did not start within 120s");
+                elapsed_s = int(time.time() - start);
+                console.error(f"Agent server did not start within {elapsed_s}s");
             } else {
                 console.error("Agent server exited during startup");
             }
