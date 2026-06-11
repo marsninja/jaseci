@@ -446,11 +446,9 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     # Build parameter types: self pointer + declared params
     param_types: list[ir.Type] = [struct_type.as_pointer()];
     for p in sig.get_parameters() {
-        if p.type_tag and p.type_tag.tag {
-            param_types.append(self._resolve_jac_type(p.type_tag.tag));
-        } else {
-            param_types.append(ir.IntType(64));
-        }
+        param_types.append(
+            self._resolve_jac_type(p) if p.type_tag is not None else ir.IntType(64)
+        );
     }
     # Return type
     ret_type = self._resolve_jac_type(sig.return_type);
