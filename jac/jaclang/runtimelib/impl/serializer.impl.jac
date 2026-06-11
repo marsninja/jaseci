@@ -728,13 +728,15 @@ impl Serializer._deserialize_archetype(
         field_types = get_field_types(cls);
         known = set(field_types.keys());
         attic: dict = {};
-        if mode != 'off' {
-            # Round-trip a previously written attic so a re-save can't
-            # destroy preserved values.
-            stored_attic = data.get(ATTIC_KEY);
-            if isinstance(stored_attic, dict) {
-                attic.update(stored_attic);
-            }
+        # Round-trip a previously written attic so a re-save can't destroy
+        # preserved values. Unconditional on purpose: this is preservation,
+        # not repair behavior — JAC_SCHEMA_REPAIR=off is the emergency
+        # rollback path, and a rollback must never erase attic data that an
+        # earlier repair-mode deploy accumulated. Databases that never ran
+        # repair have no attic key, so legacy behavior is unchanged.
+        stored_attic = data.get(ATTIC_KEY);
+        if isinstance(stored_attic, dict) {
+            attic.update(stored_attic);
         }
         dropped: list[str] = [];
         assigned: set[str] = set();

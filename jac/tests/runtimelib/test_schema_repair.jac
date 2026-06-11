@@ -356,6 +356,33 @@ test "JAC_SCHEMA_REPAIR=off restores legacy behavior" {
 }
 
 
+test "stored attic round-trips even when JAC_SCHEMA_REPAIR=off" {
+    # The kill switch is the emergency rollback path; rolling back must
+    # never destroy attic data a repair-mode deploy already preserved.
+    os.environ['JAC_SCHEMA_REPAIR'] = 'off';
+    try {
+        raw = {
+            '__type__': '_NoRules',
+            '__module__': getattr(_NoRules, '__module__'),
+            'name': 'ok',
+            '__jac_attic__': {'old_thing': {'value': 42, 'reason': 'dropped'}}
+        };
+        anchor = NodeAnchor.__new__(NodeAnchor);
+        arch = Serializer._deserialize_archetype(raw, anchor);
+        assert arch is not None;
+        attic = arch?.__jac_attic__;
+        assert isinstance(attic, dict) and 'old_thing' in attic , (
+            "attic must survive loads under off mode or the next save " "destroys it"
+        );
+        out = Serializer.serialize(arch, include_type=True);
+        assert isinstance(out, dict)
+        and 'old_thing' in (out.get('__jac_attic__') or {}) , "attic must survive a re-save under off mode";
+    } finally {
+        os.environ.pop('JAC_SCHEMA_REPAIR', None);
+    }
+}
+
+
 test "JAC_SCHEMA_REPAIR=detect logs but does not mutate" {
     os.environ['JAC_SCHEMA_REPAIR'] = 'detect';
     try {
@@ -406,6 +433,23 @@ test "validate_rules rejects alias whose stored name is still declared" {
         raised = True;
     }
     assert raised , "stored (old) name colliding with a live field must be rejected";
+}
+
+
+test "validate_rules rejects two aliases targeting the same new field" {
+    rules = SchemaRules(owner="x.Y");
+    rules.add_alias("name", "username");
+    rules.add_alias("name", "display_name");
+    raised = False;
+    try {
+        validate_rules(rules, _NoRules);
+    } except ValueError {
+        raised = True;
+    }
+    assert raised , (
+        "two aliases for one field must fail at registration, not produce "
+        "fake shadow-conflicts at load time"
+    );
 }
 
 

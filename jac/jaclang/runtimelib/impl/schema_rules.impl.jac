@@ -129,6 +129,7 @@ impl validate_rules(rules: SchemaRules, cls: type) -> None {
             else set(getattr(cls, '__annotations__', {}).keys())
     );
     seen_stored: set[str] = set();
+    seen_new: set[str] = set();
     for a in rules.aliases {
         if a.new_name not in declared {
             raise ValueError(
@@ -151,7 +152,15 @@ impl validate_rules(rules: SchemaRules, cls: type) -> None {
                 f"stored field '{a.stored_name}'"
             );
         }
+        if a.new_name in seen_new {
+            raise ValueError(
+                f"{rules.owner}.__jac_schema__: multiple schema_alias rules "
+                f"target field '{a.new_name}'; a field can have only one "
+                "stored alias"
+            );
+        }
         seen_stored.add(a.stored_name);
+        seen_new.add(a.new_name);
     }
     for d in rules.drops {
         if d.field_name in declared {
@@ -215,7 +224,9 @@ impl apply_rules(data: dict, rules: SchemaRules) -> tuple {
     for u in rules.upgrades {
         fn_name = getattr(u.fn, '__name__', '<fn>');
         try {
-            if u.when is not None and not u.when(out) {
+            # Predicates get a copy too (like the callback below): rules
+            # must never observe or mutate the engine's in-flight dict.
+            if u.when is not None and not u.when(dict(out)) {
                 continue;
             }
             # The callback gets a copy and must return the replacement dict;
