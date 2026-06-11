@@ -28,7 +28,7 @@ impl NaIRGenPass._clib_struct_has_fn_ptr(name: str) -> bool {
 Runs per import block, after pass 1.5 has laid out the struct bodies,
 so every field's LLVM type is final.
 """
-impl NaIRGenPass._clib_detect_vtable_structs() -> None {
+impl NaIRGenPass._clib_detect_vtable_structs -> None {
     for name in self.clib_struct_names {
         if name not in self.clib_vtable_structs
         and self._clib_struct_has_fn_ptr(name) {
@@ -63,7 +63,9 @@ C slot type and the Jac parameter type must sign-extend / truncate —
 unlike `_coerce_type`, whose zext is tuned for bools. Everything
 non-integer delegates to the generic coercions.
 """
-impl NaIRGenPass._clib_cb_coerce_scalar(val: ir.Value, target_type: ir.Type) -> ir.Value {
+impl NaIRGenPass._clib_cb_coerce_scalar(
+    val: ir.Value, target_type: ir.Type
+) -> ir.Value {
     if val.type == target_type {
         return val;
     }

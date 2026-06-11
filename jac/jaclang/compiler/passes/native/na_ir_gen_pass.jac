@@ -757,16 +757,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
     # True when a registered clib struct has a function-pointer field.
     def _clib_struct_has_fn_ptr(name: str) -> bool;
     # Record clib structs with fn-ptr slots in clib_vtable_structs.
-    def _clib_detect_vtable_structs() -> None;
+    def _clib_detect_vtable_structs -> None;
     # Coerce a value stored into a vtable fn-ptr slot to the slot's C type
     # (Jac def → trampoline, int 0 → NULL fn ptr, passthrough otherwise).
     def _clib_coerce_callback(val: ir.Value, c_fn_ty: ir.Type) -> ir.Value;
     # Sign-correct scalar coercion at the C↔Jac trampoline boundary.
     def _clib_cb_coerce_scalar(val: ir.Value, target_type: ir.Type) -> ir.Value;
     # Emit (or fetch from cache) the C-ABI wrapper for a Jac def.
-    def _emit_clib_c_trampoline(
-        jac_fn: ir.Function, c_fn_ty: ir.Type
-    ) -> ir.Function;
+    def _emit_clib_c_trampoline(jac_fn: ir.Function, c_fn_ty: ir.Type) -> ir.Function;
     # ─── System V AMD64 ABI lowering for foreign structs (Phase 1) ───
     # Compute the C in-memory layout of a clib struct: (size, align, scalars)
     # where scalars is a list of (byte_offset, is_sse, bits). Nested clib

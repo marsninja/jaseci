@@ -3031,8 +3031,7 @@ test "clib vtable slot store emits C-ABI trampoline (issue #6570)" {
     # i32(i32, i32). Storing it must go through a __clibcb trampoline with
     # the C signature, not a raw bitcast of the Jac function.
     assert "__clibcb" in llvm_ir_str , "no trampoline emitted for vtable slot";
-    assert 'define internal i32 @"_on_event.__clibcb.0"(i32' in llvm_ir_str ,
-        "trampoline must carry the C function signature";
+    assert 'define internal i32 @"_on_event.__clibcb.0"(i32' in llvm_ir_str , "trampoline must carry the C function signature";
     # The trampoline calls back into the Jac function.
     assert '@"_on_event"' in llvm_ir_str;
 }
@@ -3064,6 +3063,7 @@ test "clib vtable: C invokes Jac callback through trampoline (issue #6570)" {
         "    if (h->on_event) { return (long)h->on_event(a, b); }",
         "    return -1;",
         "}",
+
     ];
     with open(c_src_path, "w") as f {
         f.write("\n".join(c_lines) + "\n");
@@ -3098,6 +3098,7 @@ test "clib vtable: C invokes Jac callback through trampoline (issue #6570)" {
         "    h = event_handler_vt(size=24);",
         "    return invoke_event(h, a, b);",
         "}",
+
     ];
     jac_src_path = os.path.join(td, "cb_fixture.na.jac");
     with open(jac_src_path, "w") as f {
