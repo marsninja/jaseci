@@ -6466,9 +6466,16 @@ impl EsastGenPass._resolve_spawn_walker(
     }
     # Checker-stamped symbol (Phase 2 contract); the name-based fallback
     # below already covers sv-imported walkers the checker could not bind.
-    target_symbol = stripped_node.target.sym
-        if isinstance(stripped_node.target, uni.AtomExpr)
-        else None;
+    # A dotted target (mod.Walker) is an AtomTrailer, which carries no .sym
+    # of its own - the stamped symbol lives on its member tail.
+    _spawn_target = stripped_node.target;
+    target_symbol = None;
+    if isinstance(_spawn_target, uni.AtomExpr) {
+        target_symbol = _spawn_target.sym;
+    } elif isinstance(_spawn_target, uni.AtomTrailer)
+    and isinstance(_spawn_target.right, uni.AtomExpr) {
+        target_symbol = _spawn_target.right.sym;
+    }
     # If symbol is found and is a walker, use it
     if target_symbol and (target_symbol.sym_type == SymbolType.WALKER_ARCH) {
         walker_name = target_symbol.sym_name;
