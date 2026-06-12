@@ -8,36 +8,52 @@ impl TypeCheckPass.exit_special_var_ref(
 
 """Handle name nodes to ensure symbol resolution for all variable references."""
 impl TypeCheckPass.exit_name(self: TypeCheckPass, nd: uni.Name) -> None {
-    # Skip if already resolved or if part of a construct that handles its own resolution
-    if nd.sym is None {
-        # Skip Name nodes that only make sense in the context of their parent
-        # node. Evaluating them as standalone names returns Unknown and emits
-        # spurious W1051 warnings. The parent's exit handler resolves them
-        # with proper context.
-        #
-        # - AtomTrailer.right: member access (e.g. `x.strip`) — resolved by
-        #   the AtomTrailer handler with the base type.
-        # - KWPair.key: keyword argument names (e.g. `name=` in `Thing(name="x")`)
-        #   — these are parameter labels, not variable references.
-        # - SubTag child: type annotation tags (e.g. `: int` in `has x: int`)
-        #   — resolved during type annotation processing, not expression eval.
-        # - JsxElementName part: JSX tag names (e.g. `div` in `<div>`, or
-        #   `UI`/`Button` in `<UI.Button>`) — lowercase intrinsics resolve
-        #   against the _JsxIntrinsicElements registry (not module scope) and
-        #   uppercase component parts are resolved with JSX context by the
-        #   JsxElement handler in the type evaluator.
-        if isinstance(nd.parent, uni.AtomTrailer) and nd.parent.right is nd {
-            return;
-        }
-        if isinstance(nd.parent, uni.KWPair) and nd.parent.key is nd {
-            return;
-        }
-        if isinstance(nd.parent, uni.SubTag) {
-            return;
-        }
-        if isinstance(nd.parent, uni.JsxElementName) {
-            return;
-        }
+    # Skip Name nodes that only make sense in the context of their parent
+    # node. Evaluating them as standalone names returns Unknown and emits
+    # spurious W1051 warnings. The parent's exit handler resolves them
+    # with proper context.
+    #
+    # - AtomTrailer.right: member access (e.g. `x.strip`) — resolved by
+    #   the AtomTrailer handler with the base type.
+    # - KWPair.key: keyword argument names (e.g. `name=` in `Thing(name="x")`)
+    #   — these are parameter labels, not variable references.
+    # - SubTag child: type annotation tags (e.g. `: int` in `has x: int`)
+    #   — resolved during type annotation processing, not expression eval.
+    # - JsxElementName part: JSX tag names (e.g. `div` in `<div>`, or
+    #   `UI`/`Button` in `<UI.Button>`) — lowercase intrinsics resolve
+    #   against the _JsxIntrinsicElements registry (not module scope) and
+    #   uppercase component parts are resolved with JSX context by the
+    #   JsxElement handler in the type evaluator.
+    if isinstance(nd.parent, uni.AtomTrailer) and nd.parent.right is nd {
+        return;
+    }
+    if isinstance(nd.parent, uni.KWPair) and nd.parent.key is nd {
+        return;
+    }
+    if isinstance(nd.parent, uni.SubTag) {
+        return;
+    }
+    if isinstance(nd.parent, uni.JsxElementName) {
+        return;
+    }
+    # Typed-tree contract (Phase 0): every expression carries Expr.type for
+    # backend consumption. A Name whose symbol resolved still needs its
+    # stamp — symbol resolution alone leaves nd.type None (e.g. a bare
+    # `if el {...}` condition no diagnostic rule ever queried), and
+    # get_type_of_expression caches its result on the node.
+    if nd.sym is None or nd.type is None {
+        self.evaluator.get_type_of_expression(nd);
+    }
+}
+
+"""Stamp the CFG-narrowing wrapper around BoolExpr operands and
+IfElseExpr branches. The enclosing expression's evaluation computes the
+operand types, but only caches them on the inner expressions - the
+wrapper itself stayed unstamped, breaking typed-tree consumers that
+dispatch on an operand's type (e.g. the ES backend's Python-truthiness
+lowering for collections)."""
+impl TypeCheckPass.exit_cfg_expr(self: TypeCheckPass, nd: uni.CfgExpr) -> None {
+    if nd.type is None {
         self.evaluator.get_type_of_expression(nd);
     }
 }
