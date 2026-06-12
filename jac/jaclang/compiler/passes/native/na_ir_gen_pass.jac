@@ -108,9 +108,13 @@ obj NaIRGenPass(ModuleCodegenPass) {
         clib_struct_names: set[str] = set(),
         clib_struct_abi_types: dict[str, ir.Type] = {},
         # Foreign declaration model (Phase 8): module universe for the
-        # central collector, and its memoized result.
+        # central collector, and its memoized result. The memo is keyed on
+        # the universe size (_foreign_model_nmods) because _foreign_modules
+        # is assembled mid-transform, after the entry module's clib imports
+        # are already processed.
         _foreign_modules: list = [],
         _foreign_structs: (dict | None) = None,
+        _foreign_model_nmods: int = -1,
         # Per-clib-function System V ABI plan (Phase 1 ABI lowering).
         # name -> {"params": [plan...], "ret": plan, "sret": bool}. This is the
         # single source of truth for how a foreign call is marshalled — it

@@ -17,24 +17,36 @@ AAPCS is Phase 2; off-x86_64 targets keep the legacy path in
 """
 
 """The memoized foreign declaration model (Phase 8): clib struct shapes
-collected centrally over this pass's module universe."""
+collected centrally over this pass's module universe. The memo is keyed
+on the universe size because the universe grows mid-transform: the entry
+module's clib imports are processed (Phase 0) before
+_register_imported_struct_types assembles _foreign_modules, so a model
+built early for an entry-declared function must be rebuilt once the
+transitively imported modules join the universe."""
 impl NaIRGenPass._foreign_model -> dict {
     import from jaclang.compiler.targets.foreign { collect_foreign_structs }
-    if self._foreign_structs is None {
-        self._foreign_structs = collect_foreign_structs(
-            [self.ir_in] + self._foreign_modules
-        );
+    universe = [self.ir_in] + self._foreign_modules;
+    if self._foreign_structs is None or self._foreign_model_nmods != len(universe) {
+        self._foreign_structs = collect_foreign_structs(universe);
+        self._foreign_model_nmods = len(universe);
     }
     return self._foreign_structs;
 }
 
 """Ordered (field_name, nested_struct_name | None) pairs for a clib
 struct, from the foreign declaration model - the single answer to
-'which fields are nested clib structs'."""
+'which fields are nested clib structs'. Position in this list IS the
+field's GEP index in both the Jac struct and the C-laid-out struct:
+the model's order and the backend's struct_field_indices both derive
+from the declaration's has-var order. The copiers address both
+representations by this position, so the invariant is asserted here
+(the shared chokepoint) rather than trusted silently."""
 impl NaIRGenPass._foreign_fields_of(name: str) -> list {
     model = self._foreign_model();
+    indices = self.struct_field_indices.get(name, {});
     out: list = [];
-    for (fn, tn) in model.get(name, []) {
+    for (i, (fn, tn)) in enumerate(model.get(name, [])) {
+        assert fn not in indices or indices[fn] == i , f"foreign field order mismatch for {name}.{fn}";
         out.append((fn, tn if (tn is not None and tn in model) else None));
     }
     return out;
