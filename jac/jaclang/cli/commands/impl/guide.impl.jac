@@ -88,7 +88,30 @@ impl guide(
         }
         return 0;
     }
-    # List guides, optionally filtered by --search.
+    # Grouped console listing (the default no-arg path) loads guides through
+    # grouped_guides() alone, so the skills directory is read once.
+    if not search and not as_json {
+        groups = grouped_guides();
+        if not groups {
+            console.error("No guides are bundled with this Jac installation.");
+            return 0;
+        }
+        console.print();
+        console.print("Jac reference guides", style="bold");
+        for (group, members) in groups {
+            console.print();
+            console.print(f"{group}:", style="bold");
+            for g in members {
+                console.print(f"  {g.name}", style="bold cyan");
+                console.print(f"      {g.description}", style="muted");
+            }
+        }
+        console.print();
+        console.print("Read one with:  jac guide <name>", style="muted");
+        console.print();
+        return 0;
+    }
+    # JSON listing and --search results.
     guides = search_guides(search) if search else list_guides();
     if as_json {
         payload = [
@@ -101,33 +124,18 @@ impl guide(
         _emit(json.dumps(payload, indent=2));
         return 0;
     }
+    # Only the console search path remains.
     if not guides {
-        if search {
-            console.warning(f"No guides match '{search}'.");
-        } else {
-            console.error("No guides are bundled with this Jac installation.");
-        }
+        console.warning(f"No guides match '{search}'.");
         return 0;
     }
-    header = f"Jac guides matching '{search}'" if search else "Jac reference guides";
     console.print();
-    console.print(header, style="bold");
-    if search {
-        # Search results are already a filtered subset -- keep them flat.
-        console.print();
-        for g in guides {
-            console.print(f"  {g.name}", style="bold cyan");
-            console.print(f"      {g.description}", style="muted");
-        }
-    } else {
-        for (group, members) in grouped_guides() {
-            console.print();
-            console.print(f"{group}:", style="bold");
-            for g in members {
-                console.print(f"  {g.name}", style="bold cyan");
-                console.print(f"      {g.description}", style="muted");
-            }
-        }
+    console.print(f"Jac guides matching '{search}'", style="bold");
+    # Search results are already a filtered subset -- keep them flat.
+    console.print();
+    for g in guides {
+        console.print(f"  {g.name}", style="bold cyan");
+        console.print(f"      {g.description}", style="muted");
     }
     console.print();
     console.print("Read one with:  jac guide <name>", style="muted");
