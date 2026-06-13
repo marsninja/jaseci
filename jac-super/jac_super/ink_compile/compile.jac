@@ -1,6 +1,6 @@
 """Compile Jac client (.cl.jac) sources to an Ink terminal bundle.
 
-Internal to jac-super -- powers ``jac ai --tui`` without a jac-ink dependency.
+Internal to jac-super -- powers ``jac ai --tui``.
 """
 
 import json;

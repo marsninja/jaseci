@@ -1,4 +1,4 @@
-"""Internal Ink bundle compiler for jac-super (vendored from jac-ink core)."""
+"""Internal Ink bundle compiler for jac-super."""
 
 import from .compile { CompileError, compile_ink_app }
 

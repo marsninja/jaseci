@@ -1,8 +1,4 @@
-"""Post-process Jac client bundles for Ink terminal output.
-
-Vendored from jac-ink (jac_ink.plugin.bundle_patch) for jac-super's internal
-compile path -- no jac-ink pip dependency required for ``jac ai --tui``.
-"""
+"""Post-process Jac client bundles for Ink terminal output."""
 
 import re;
 
