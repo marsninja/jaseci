@@ -1,5 +1,0 @@
-[project]
-name = "jac-ai-tui-server"
-version = "0.1.0"
-description = "Agent API server for the Ink TUI"
-entry-point = "main.jac"
