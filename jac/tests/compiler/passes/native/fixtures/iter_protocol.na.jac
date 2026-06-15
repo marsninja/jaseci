@@ -84,6 +84,27 @@ def map_over_stored() -> int {
     return total;
 }
 
+# `iter()` of a stored iterator is a no-op (Python's `iter(it) is it`). The loop
+# borrows the same JacIter the variable owns, so the source's single +1 must be
+# retained for the loop's owned reference — otherwise it is released twice (loop
+# end + scope exit), a use-after-free. 1+2+3+4 = 10. (#6403)
+def for_over_iter_of_stored() -> int {
+    it = iter([1, 2, 3, 4]);
+    total: int = 0;
+    for x in iter(it) { total = total + x; }
+    return total;
+}
+
+# Same alias as a stored binding: `it2 = iter(it)` makes it2 own its own +1
+# (a retain), so both it and it2 release once each at scope exit. 1+2+3+4 = 10.
+def assign_iter_of_stored() -> int {
+    it = iter([1, 2, 3, 4]);
+    it2 = iter(it);
+    total: int = 0;
+    for x in it2 { total = total + x; }
+    return total;
+}
+
 # next() exhaustion raises StopIteration (caught -> 99).
 def next_exhausted() -> int {
     it = iter([1]);

@@ -151,3 +151,30 @@ test "iter map over stored iterator" {
     f = get_func(eng, "map_over_stored", ctypes.c_int64);
     assert f() == 12;
 }
+
+# --- #6403: iter() of a stored iterator must retain (no double-release UAF) ---
+# `iter(it)` returns the same JacIter the variable owns; the loop's owned
+# reference must carry its own +1 so the source's single +1 is not released
+# twice (loop end + scope exit).
+test "iter for over iter of stored iterator" {
+    (eng, _) = compile_native("iter_protocol.na.jac");
+    f = get_func(eng, "for_over_iter_of_stored", ctypes.c_int64);
+    assert f() == 10;
+}
+
+test "iter assign iter of stored iterator" {
+    (eng, _) = compile_native("iter_protocol.na.jac");
+    f = get_func(eng, "assign_iter_of_stored", ctypes.c_int64);
+    assert f() == 10;
+}
+
+# --- #6403: iter()/next() are positional-only; the keyword form is rejected ---
+# The checker must not type a keyword call (`next(it=...)`) that the backend
+# cannot lower — it should fail at the type level like CPython does.
+test "iter next keyword arg rejected" {
+    prog = JacProgram();
+    prog.compile(file_path=str(os.path.join(FIXTURES, "iter_kwarg_rejected.na.jac")));
+    errs = [str(e) for e in prog.errors_had] if prog.errors_had else [];
+    assert errs , "expected a type error for next(it=...)";
+    assert any("does not match any parameter" in e for e in errs) , errs;
+}

@@ -588,9 +588,24 @@ impl NaIRGenPass._make_iter_from_value(
     }
     if self._jac_iter_type is not None
     and val.type == self._jac_iter_type.as_pointer() {
-        # Already an iterator value. Recover its element type from the checked
-        # `Iterator[T]` so adapters wrapping a stored iterator (e.g.
-        # `map(f, it)`) alloca the right upstream slot; i8* is the last resort.
+        # Already an iterator value (Python's `iter(it) is it`). Recover its
+        # element type from the checked `Iterator[T]` so adapters wrapping a
+        # stored iterator (e.g. `map(f, it)`) alloca the right upstream slot;
+        # i8* is the last resort.
+        #
+        # The result of this branch is treated as OWNED by every consumer: the
+        # central ownership invariant marks `iter(...)` call results +1, and an
+        # adapter takes ownership of its upstream (the i8p state field releases
+        # it via the generic dtor). But `val` is the *borrowed* pointer the
+        # source already owns — returning it as-is means the single +1 is
+        # released twice (loop/adapter end + the source variable's scope exit),
+        # a use-after-free. Retain it so it genuinely carries the +1 the
+        # consumer will release; an already-owned temporary (e.g. an iterator
+        # returned from a call) needs no extra retain. (#6403)
+        if not self._is_owned(val) {
+            self._emit_rc_retain(val, op="iter_alias");
+            self._mark_owned(val);
+        }
         et = self._iter_elem_llvm_of(expr);
         return (val, "iter", et if et is not None else i8p);
     }

@@ -203,7 +203,14 @@ impl TypeEvaluator._native_iter_next_result(expr: uni.FuncCall) -> TypeBase | No
         return None;
     }
     arg = expr.params[0];
-    arg_expr = arg.value if isinstance(arg, uni.KWPair) else arg;
+    # `iter`/`next` are positional-only (the `na_builtins.pyi` stubs name their
+    # params `__o`/`__i`), matching CPython where both reject keyword arguments.
+    # Don't claim a keyword call here: fall through so normal stub resolution
+    # rejects it, instead of typing a form the backend can't lower. (#6403)
+    if isinstance(arg, uni.KWPair) {
+        return None;
+    }
+    arg_expr = arg;
     arg_type = self.get_type_of_expression(arg_expr);
     if isinstance(arg_type, types.UnknownType) {
         return None;
