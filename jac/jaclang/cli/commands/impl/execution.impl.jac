@@ -147,8 +147,10 @@ def _execute_plan(
         }
         # api-service / microservices / fullstack / wasm are valid core `start`
         # invocations; the client plugin (when present) hooks in during start.
+        # The plan carries the project's [serve] port (from jac.toml) in flags.
         return start(
             filename=plan.entry_path,
+            port=plan.flags.get("port", 8000),
             no_client=plan.flags.get("no_client", False),
             dev=plan.flags.get("dev", False)
         );
@@ -193,6 +195,11 @@ def _run_project(
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
     import from jaclang.project.kinds { plan_project_run, is_valid_kind, VALID_KINDS }
+    # Preserve any active `--profile` overlay across the re-discovery below:
+    # force_discover allocates a fresh JacConfig that would otherwise drop the
+    # overlay the CLI framework applied before run() was called.
+    existing_config = get_config();
+    active_profile = existing_config.active_profile if existing_config else None;
     cfg = get_config(start_path=Path.cwd(), force_discover=True);
     if cfg is None {
         console.error(
@@ -200,6 +207,9 @@ def _run_project(
             "  Usage: jac run <file.jac>, or run inside a Jac project directory."
         );
         return 1;
+    }
+    if active_profile {
+        cfg.apply_profile_overlay(active_profile);
     }
     if cfg.project.kind and not is_valid_kind(cfg.project.kind) {
         console.error(

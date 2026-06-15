@@ -162,6 +162,18 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
     return "cli";
 }
 
+"""Serve flags for a plan, carrying the project's [serve] port when non-default.
+
+Keeps `jac run --show` clean for the common case (default 8000) while ensuring
+a custom `[serve] port` from jac.toml is forwarded to `start`.
+"""
+def _serve_flags(config: JacConfig, base: dict) -> dict {
+    if config.serve.port != 8000 {
+        base["port"] = config.serve.port;
+    }
+    return base;
+}
+
 """Build the RunPlan for a project, or None if no entry/kind can be resolved.
 
 The caller validates `config.project.kind` against `is_valid_kind` first so an
@@ -213,7 +225,7 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
             action="serve",
             verb="start",
             entry_path=entry_path,
-            flags={"no_client": True},
+            flags=_serve_flags(config, {"no_client": True}),
             summary="Serve headless API service"
         );
     }
@@ -223,7 +235,7 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
             action="serve",
             verb="start",
             entry_path=entry_path,
-            flags={},
+            flags=_serve_flags(config, {}),
             summary="Serve microservice consumer (auto-starts providers)"
         );
     }
@@ -233,7 +245,7 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
             action="serve",
             verb="start",
             entry_path=entry_path,
-            flags={"dev": True},
+            flags=_serve_flags(config, {"dev": True}),
             summary="Serve full-stack app with client (dev mode)",
             requires_plugin="jac-client"
         );
@@ -244,7 +256,7 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
             action="serve",
             verb="start",
             entry_path=entry_path,
-            flags={},
+            flags=_serve_flags(config, {}),
             summary="Serve wasm page (emits /static/main.wasm)",
             requires_plugin="jac-client"
         );

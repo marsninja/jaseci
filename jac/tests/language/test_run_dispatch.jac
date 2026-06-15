@@ -104,6 +104,17 @@ test "kind api-service -> serve headless" {
     assert p.verb == "start";
     assert p.flags.get("no_client") == True;
     assert "--no-client" in p.command_line();
+    # default port is not carried (keeps --show clean)
+    assert "port" not in p.flags;
+}
+
+test "serve plan forwards a custom [serve] port from jac.toml" {
+    p = _plan(
+        "kind = \"api-service\"\nentry-point = \"api.sv.jac\"\n\n[serve]\nport = 3000\n",
+        "api.sv.jac"
+    );
+    assert p.flags.get("port") == 3000;
+    assert "--port 3000" in p.command_line();
 }
 
 test "kind microservices -> serve consumer" {
