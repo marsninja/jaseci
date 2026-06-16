@@ -174,10 +174,14 @@ impl create(
     console.print("  📁 Setting up project structure", style="muted");
     # Guarantee `[project] kind` is stamped so the scaffolded project's bare
     # `jac run` dispatches deterministically. Core templates already carry it;
-    # this also covers custom templates that omit it.
-    _stamp_kind(tmpl.config, tmpl.kind);
+    # this also covers custom templates that omit it. Render from a deep copy so
+    # stamping a custom template without a kind never mutates the shared,
+    # in-registry `ProjectTemplate.config`.
+    import copy;
+    render_config = copy.deepcopy(tmpl.config);
+    _stamp_kind(render_config, tmpl.kind);
     # Generate jac.toml from config dict
-    toml_content = _render_config_to_toml(tmpl.config, project_name);
+    toml_content = _render_config_to_toml(render_config, project_name);
     with open(toml_path, "w", encoding="utf-8") as f {
         f.write(toml_content);
     }
@@ -249,6 +253,7 @@ Keeps the scaffolder's next-steps honest: the same kind that was stamped into
 jac.toml drives `jac run` dispatch, so we tell the user exactly what it does.
 """
 def _run_blurb(kind: str) -> str {
+    import from jaclang.project.kinds { VALID_KINDS }
     blurbs: dict[str, str] = {
         "cli": "Execute the project",
         "native-app": "Native-compile and run",
@@ -263,6 +268,10 @@ def _run_blurb(kind: str) -> str {
         "desktop": "Run the desktop app",
         "mobile": "Build the mobile app"
     };
+    # Guard against silent drift from KIND_SPECS: every kind must have a blurb.
+    assert set(blurbs.keys()) >= set(VALID_KINDS) , (
+        f"_run_blurb missing kinds: {set(VALID_KINDS) - set(blurbs.keys())}"
+    );
     return blurbs.get(kind, "Run the project");
 }
 

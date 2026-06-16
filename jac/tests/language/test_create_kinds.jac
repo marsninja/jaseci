@@ -87,12 +87,12 @@ test "create --kind microservices" {
 }
 
 test "create --kind pypi-package" {
-    _assert_kind("pypi-package", "", "build");
+    _assert_kind("pypi-package", "lib.jac", "build");
     _cleanup();
 }
 
 test "create --kind npm-package" {
-    _assert_kind("npm-package", "", "build");
+    _assert_kind("npm-package", "lib.jac", "build");
     _cleanup();
 }
 

@@ -196,8 +196,20 @@ def _load_desktop_template -> dict[str, object] | None {
     if not template_dir.exists() or not template_dir.is_dir() {
         return None;
     }
+    # The `desktop` kind reuses jac-client's client bootstrap, so jac-client must
+    # also be installed. Surface that explicitly -- otherwise a missing jac-client
+    # makes this return None and the user is wrongly told to install jac-desktop
+    # (which is already present, since this hook is running).
     try {
         import from jac_client.plugin.plugin_config { _post_create_client }
+    } except ImportError {
+        console.warning(
+            "The 'desktop' project kind also requires jac-client (its client "
+            "bootstrap). Install it with: pip install jac-client"
+        );
+        return None;
+    }
+    try {
         template = load_template_from_directory(
             template_dir, post_create_hook=_post_create_client
         );
