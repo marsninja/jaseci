@@ -7,8 +7,9 @@
 # for-loops, work with first-class iter()/next(), compose under the lazy
 # adapters, and cross function boundaries — exactly like a builtin iterator.
 # Returns ints so tests can assert via ctypes.
-
-def double(x: int) -> int { return x * 2; }
+def double(x: int) -> int {
+    return x * 2;
+}
 
 # A self-iterator: the object is its own iterator (Python's most common idiom,
 # `__iter__` returns self).
@@ -16,10 +17,13 @@ obj Counter {
     has cur: int;
     has stop: int;
 
-    def __iter__() -> Counter { return self; }
-
+    def __iter__() -> Counter {
+        return self;
+    }
     def __next__() -> int {
-        if self.cur >= self.stop { raise StopIteration("done"); }
+        if self.cur >= self.stop {
+            raise StopIteration("done");
+        }
         v = self.cur;
         self.cur = self.cur + 1;
         return v;
@@ -32,10 +36,13 @@ obj Cursor {
     has cur: int;
     has stop: int;
 
-    def __iter__() -> Cursor { return self; }
-
+    def __iter__() -> Cursor {
+        return self;
+    }
     def __next__() -> int {
-        if self.cur >= self.stop { raise StopIteration("stop"); }
+        if self.cur >= self.stop {
+            raise StopIteration("stop");
+        }
         v = self.cur;
         self.cur = self.cur + 1;
         return v;
@@ -45,7 +52,9 @@ obj Cursor {
 obj NumberRange {
     has n: int;
 
-    def __iter__() -> Cursor { return Cursor(cur=0, stop=self.n); }
+    def __iter__() -> Cursor {
+        return Cursor(cur=0, stop=self.n);
+    }
 }
 
 # --- for-loop over a self-iterator: 0+1+2+3+4 = 10 ---
@@ -98,7 +107,9 @@ def user_map_compose() -> int {
 def user_break() -> int {
     total: int = 0;
     for x in Counter(cur=0, stop=100) {
-        if x == 3 { break; }
+        if x == 3 {
+            break;
+        }
         total = total + x;
     }
     return total;
@@ -122,10 +133,13 @@ def user_cross_fn() -> int {
 obj Boom {
     has n: int;
 
-    def __iter__() -> Boom { return self; }
-
+    def __iter__() -> Boom {
+        return self;
+    }
     def __next__() -> int {
-        if self.n <= 0 { raise ValueError("boom"); }
+        if self.n <= 0 {
+            raise ValueError("boom");
+        }
         self.n = self.n - 1;
         return self.n;
     }
@@ -145,4 +159,4 @@ def user_next_propagates() -> int {
     }
 }
 
-with entry {}
+with entry { }

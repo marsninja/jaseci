@@ -897,7 +897,9 @@ impl NaIRGenPass._make_zip_iter(up_a: tuple, up_b: tuple) -> (tuple | None) {
 
 # ─── User-defined iterators (#6403 M2) ───────────────────────
 """Resolve a method function for an archetype, walking its MRO; None if absent."""
-impl NaIRGenPass._resolve_method(arch_name: str, method_name: str) -> (ir.Function | None) {
+impl NaIRGenPass._resolve_method(
+    arch_name: str, method_name: str
+) -> (ir.Function | None) {
     for check_name in self._mro_of(arch_name) {
         full_name = f"{check_name}.{method_name}";
         if full_name in self.method_funcs {
@@ -910,7 +912,7 @@ impl NaIRGenPass._resolve_method(arch_name: str, method_name: str) -> (ir.Functi
 """Whether an archetype implements the iterator protocol (__iter__/__next__)."""
 impl NaIRGenPass._arch_implements_iter(arch_name: str) -> bool {
     return self._resolve_method(arch_name, "__next__") is not None
-        or self._resolve_method(arch_name, "__iter__") is not None;
+    or self._resolve_method(arch_name, "__iter__") is not None;
 }
 
 """Monomorphic next-fn bridging a user iterator's `__next__` into the protocol.
@@ -937,9 +939,7 @@ impl NaIRGenPass._user_iter_next_fn(
     struct_ptr_type = self.struct_types[iter_struct].as_pointer();
     state_ptr_type = self.struct_types["UserIterState"].as_pointer();
     nfty = ir.FunctionType(i1, [i8p, i8p]);
-    fn = ir.Function(
-        self.llvm_module, nfty, name="__iter_next_user_" + iter_struct
-    );
+    fn = ir.Function(self.llvm_module, nfty, name="__iter_next_user_" + iter_struct);
     fn.linkage = "private";
     fn.attributes.add("optnone");
     fn.attributes.add("noinline");
