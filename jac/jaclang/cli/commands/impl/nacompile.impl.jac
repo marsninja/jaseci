@@ -165,6 +165,7 @@ impl nacompile(
     # env var, so set it before compiling. The metadata only appears on a fresh
     # compile, so imply --scrub: a cached non-debug build would otherwise be
     # reused and silently yield a binary GDB can't read.
+    _prev_native_debug = os.environ.get("JAC_NATIVE_DEBUG") if debug else None;
     if debug {
         os.environ["JAC_NATIVE_DEBUG"] = "1";
         scrub = True;
@@ -273,6 +274,19 @@ impl nacompile(
         import traceback;
         traceback.print_exc();
         return 1;
+    } finally {
+        # Contain the JAC_NATIVE_DEBUG side-effect: restore the prior value once the
+        # IR is generated (NaIRGenPass only reads the env var during compile; the
+        # ELF linker keys off the .debug_* sections already baked into the IR). This
+        # keeps a later same-process nacompile() call without -g byte-identical to a
+        # standalone non-debug build.
+        if debug {
+            if _prev_native_debug is None {
+                os.environ.pop("JAC_NATIVE_DEBUG", None);
+            } else {
+                os.environ["JAC_NATIVE_DEBUG"] = _prev_native_debug;
+            }
+        }
     }
 
     # Abort immediately if the pass infrastructure recorded any ERROR-level

@@ -7,6 +7,7 @@ Architecture is auto-detected from the object file.
 
 import struct;
 import os;
+import sys;
 import from jaclang.compiler.passes.native.linker_common {
     _align,
     _build_strtab,
@@ -1262,6 +1263,7 @@ impl ElfLinker.build_executable -> bytes {
         # resolution: a code reference resolves to its final VA; a reference to
         # an unplaced (debug) section resolves to 0, so the field holds just the
         # addend, i.e. the in-section offset DWARF consumers expect.
+        _unhandled_debug_relocs: set[tuple[int, str]] = set();
         for d_rela in self.relocations {
             if d_rela.target_sec not in debug_sec_blobs {
                 continue;
@@ -1276,12 +1278,27 @@ impl ElfLinker.build_executable -> bytes {
                     d_local[0], d_local[1], text_vaddr, rodata_vaddr, data_vaddr
                 );
             }
-            _apply_debug_reloc(
+            if not _apply_debug_reloc(
                 d_rela.rtype,
                 debug_sec_blobs[d_rela.target_sec],
                 d_rela.offset,
                 d_sym_addr + d_rela.addend
-            );
+            ) {
+                # An unhandled (non-absolute) reloc leaves the field at its
+                # placeholder, so that DWARF entry would point at a garbage
+                # offset. Surface it rather than silently shipping corrupt debug
+                # info — GDB would otherwise show "no source"/wrong locations
+                # with no explanation. Report each (type, section) pair once.
+                _unhandled_debug_relocs.add((d_rela.rtype, d_rela.target_sec));
+            }
+        }
+        if _unhandled_debug_relocs {
+            for (_ut, _usec) in sorted(_unhandled_debug_relocs) {
+                sys.stderr.write(
+                    f"  Warning: unhandled DWARF relocation type {_ut} in "
+                    f"{_usec}; some debug info may be incomplete.\n"
+                );
+            }
         }
 
         # Build the section header table. First mirror the loadable layout the
