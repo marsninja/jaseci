@@ -87,3 +87,6 @@ jac-super/jac_super/ai_tui_na/bin/
 jac-super/jac_super/ai_tui_na/proto/rawmode_proto
 jac-super/jac_super/ai_tui_na/proto/libtui_helpers.so
 jac-super/jac_super/ai_tui_na/*.so
+
+# Local reference clones for TUI design (not vendored)
+reference/
