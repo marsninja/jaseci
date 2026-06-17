@@ -87,8 +87,8 @@ impl run_tui_session(req: AgentRequest) -> int {
     os.environ["JAC_AI_UI_PROJECT"] = project;
     os.environ["JAC_AI_UI_MODEL"] = str(r?.model or "");
     os.environ["JAC_AI_UI_NCTX"] = str(int(r?.n_ctx or 0));
-    old_suppress = os.environ.get("JAC_AI_SUPPRESS_TERM_OUTPUT");
-    os.environ["JAC_AI_SUPPRESS_TERM_OUTPUT"] = "1";
+    old_active = os.environ.get("JAC_AI_UI_ACTIVE");
+    os.environ["JAC_AI_UI_ACTIVE"] = "1";
 
     ui_configure();
 
@@ -97,6 +97,14 @@ impl run_tui_session(req: AgentRequest) -> int {
         _debug_log(f"spawned pid={proc.pid} backend={backend} cmd={cmd_args}");
     } except Exception as e {
         _debug_log(f"launch failed: {e}");
+        try {
+            ui_stop();
+        } except Exception { }
+        if old_active is None {
+            os.environ.pop("JAC_AI_UI_ACTIVE", None);
+        } else {
+            os.environ["JAC_AI_UI_ACTIVE"] = old_active;
+        }
         console.error(f"Failed to launch jac ai TUI backend ({backend}): {e}");
         return 1;
     }
@@ -166,10 +174,10 @@ impl run_tui_session(req: AgentRequest) -> int {
         try {
             ui_stop();
         } except Exception { }
-        if old_suppress is None {
-            os.environ.pop("JAC_AI_SUPPRESS_TERM_OUTPUT", None);
+        if old_active is None {
+            os.environ.pop("JAC_AI_UI_ACTIVE", None);
         } else {
-            os.environ["JAC_AI_SUPPRESS_TERM_OUTPUT"] = old_suppress;
+            os.environ["JAC_AI_UI_ACTIVE"] = old_active;
         }
     }
 

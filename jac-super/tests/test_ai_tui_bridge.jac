@@ -167,7 +167,7 @@ test "run_tui_session suppresses terminal prints only for the session lifetime" 
     old_configure = getattr(ai_mod, "ui_configure");
     old_stream = getattr(ai_mod, "ui_stream");
     old_stop = getattr(ai_mod, "ui_stop");
-    prior = os.environ.get("JAC_AI_SUPPRESS_TERM_OUTPUT");
+    prior = os.environ.get("JAC_AI_UI_ACTIVE");
     seen: list[str] = [];
 
     def fake_resolve(_backend: str, _pkg_root: any, _initial: str) -> dict {
@@ -179,7 +179,7 @@ test "run_tui_session suppresses terminal prints only for the session lifetime" 
     }
 
     def fake_configure {
-        seen.append(os.environ.get("JAC_AI_SUPPRESS_TERM_OUTPUT", ""));
+        seen.append(os.environ.get("JAC_AI_UI_ACTIVE", ""));
     }
 
     def fake_stream -> any {
@@ -196,7 +196,7 @@ test "run_tui_session suppresses terminal prints only for the session lifetime" 
     setattr(ai_mod, "ui_stream", fake_stream);
     setattr(ai_mod, "ui_stop", fake_stop);
     try {
-        os.environ.pop("JAC_AI_SUPPRESS_TERM_OUTPUT", None);
+        os.environ.pop("JAC_AI_UI_ACTIVE", None);
         rc = runner(AgentRequest(tui=True, cwd=os.getcwd()));
     } finally {
         setattr(tui_mod, "_resolve_tui_command", old_resolve);
@@ -205,13 +205,43 @@ test "run_tui_session suppresses terminal prints only for the session lifetime" 
         setattr(ai_mod, "ui_stream", old_stream);
         setattr(ai_mod, "ui_stop", old_stop);
         if prior is None {
-            os.environ.pop("JAC_AI_SUPPRESS_TERM_OUTPUT", None);
+            os.environ.pop("JAC_AI_UI_ACTIVE", None);
         } else {
-            os.environ["JAC_AI_SUPPRESS_TERM_OUTPUT"] = prior;
+            os.environ["JAC_AI_UI_ACTIVE"] = prior;
         }
     }
 
     assert rc == 0 , rc;
     assert seen == ["1"] , seen;
-    assert os.environ.get("JAC_AI_SUPPRESS_TERM_OUTPUT") is None;
+    assert os.environ.get("JAC_AI_UI_ACTIVE") is None;
+}
+
+
+obj CaptureBus {
+    has events: list = [];
+
+    def emit(kind: str, fields: dict) {
+        ev = {"kind": kind};
+        ev.update(fields);
+        self.events.append(ev);
+    }
+}
+
+
+test "ui output capture dedups provider loguru errors after agent registration" {
+    import from jaclang.cli.ai_agent {
+        _install_ui_provider_capture,
+        register_ui_provider_error
+    }
+    import from loguru { logger }
+
+    bus = CaptureBus();
+    _install_ui_provider_capture(bus);
+    register_ui_provider_error(RuntimeError("LLM call failed with APIError: boom"));
+    logger.error("LLM call failed with APIError: boom");
+    assert len(bus.events) == 0 , bus.events;
+    logger.error("LLM AuthenticationError: bad key");
+    assert len(bus.events) == 1 , bus.events;
+    assert bus.events[0]["kind"] == "error" , bus.events[0];
+    assert "provider:" in str(bus.events[0].get("text", "")) , bus.events[0];
 }

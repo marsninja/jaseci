@@ -413,6 +413,8 @@ def confirm(action: str) -> bool;
 def _count_diags(diags: list) -> tuple[int, int];
 def _term_output_enabled -> bool;
 def _term_print(*args: any, **kwargs: any) -> None;
+def register_ui_provider_error(exc: any) -> None;
+def _install_ui_provider_capture(target_bus: any = None) -> None;
 def _tool_result_is_error(result: str, tool_name: str = "") -> bool;
 
 # Flatten one conversation message (litellm dict or object) to a small JSON-safe

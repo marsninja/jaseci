@@ -321,6 +321,100 @@ test "ui sessions suppress tool error results from the live transcript" {
 }
 
 
+test "ui mode keeps model stream on the bus and off stdout" {
+    import os;
+    ai.agent.cfg.verbose = True;
+    ai.agent.bus.events = [];
+    ai.agent.bus._next_id = 1;
+    ai.agent.bus.active_feed = True;
+    prior = os.environ.get("JAC_AI_UI_ACTIVE");
+    stream = [
+        StreamEv(event_type="thought", data={"content": "Planning the change. "}),
+        StreamEv(event_type="chunk", data={"content": "Done."}),
+        StreamEv(event_type="steps_done", data={})
+    ];
+    events_snapshot: list = [];
+    try {
+        os.environ["JAC_AI_UI_ACTIVE"] = "1";
+        out = capturing(lambda : ai.agent.view.render_stream(stream));
+        events_snapshot = list(ai.agent.bus.events);
+    } finally {
+        if prior is None {
+            os.environ.pop("JAC_AI_UI_ACTIVE", None);
+        } else {
+            os.environ["JAC_AI_UI_ACTIVE"] = prior;
+        }
+        ai.agent.bus.active_feed = False;
+        ai.agent.bus.events = [];
+        ai.agent.bus._next_id = 1;
+    }
+
+    assert out == "" , f"stdout should be empty in UI mode, got: {out!r}";
+    answer_text = "".join(
+        [
+            str(ev.get("text", ""))
+            for ev in events_snapshot
+            if ev.get("kind") == "answer"
+        ]
+    );
+    reasoning_text = "".join(
+        [
+            str(ev.get("text", ""))
+            for ev in events_snapshot
+            if ev.get("kind") == "reasoning"
+        ]
+    );
+    assert "Done." in answer_text , events_snapshot;
+    assert "Planning the change." in reasoning_text , events_snapshot;
+}
+
+
+test "ui mode routes tool invocations to call events for the transcript" {
+    import os;
+    ai.agent.cfg.verbose = True;
+    ai.agent.bus.events = [];
+    ai.agent.bus._next_id = 1;
+    ai.agent.bus.active_feed = True;
+    prior = os.environ.get("JAC_AI_UI_ACTIVE");
+    stream = [
+        StreamEv(
+            event_type="tool_call",
+            data={"tool": "read_file", "args": {"path": "main.jac"}}
+        ),
+        StreamEv(event_type="tool_result", data={"result": "ok"}),
+        StreamEv(event_type="tool_timing", data={"duration_ms": 1.0}),
+        StreamEv(event_type="chunk", data={"content": "ok"}),
+        StreamEv(event_type="steps_done", data={})
+    ];
+    events_snapshot: list = [];
+    try {
+        os.environ["JAC_AI_UI_ACTIVE"] = "1";
+        out = capturing(lambda : ai.agent.view.render_stream(stream));
+        events_snapshot = list(ai.agent.bus.events);
+    } finally {
+        if prior is None {
+            os.environ.pop("JAC_AI_UI_ACTIVE", None);
+        } else {
+            os.environ["JAC_AI_UI_ACTIVE"] = prior;
+        }
+        ai.agent.bus.active_feed = False;
+        ai.agent.bus.events = [];
+        ai.agent.bus._next_id = 1;
+    }
+
+    assert "read_file(path=main.jac" not in out , out;
+    tool_calls = [
+        ev
+        for ev in events_snapshot
+        if ev.get("kind") == "call" and str(ev.get("node", "")) == "read_file"
+    ];
+    assert len(tool_calls) == 1 , events_snapshot;
+    assert "read_file(path=main.jac" in str(tool_calls[0].get("text", "")) , tool_calls[
+        0
+    ];
+}
+
+
 test "a scripted MockLLM drives the AgentSession walker through its phases" {
     proj = make_project();
     events: list = [];
