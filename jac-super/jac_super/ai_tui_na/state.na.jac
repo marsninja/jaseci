@@ -85,9 +85,12 @@ obj TuiState {
         overlay_filter: str = "",
         overlay_full_redraw: bool = False,
         select_list: SelectList = SelectList(),
-        # Project file list, read once at startup (inline FFI in tui.na.jac's
-        # `with entry`); the file picker filters this cache.
-        files: list[str] = [];
+        # Project file list, read once at startup from JAC_AI_UI_FILES; the file
+        # picker filters this cache.
+        files: list[str] = [],
+        # Quick-pick model names from JAC_AI_UI_MODEL_PRESETS (control plane
+        # copies ai_agent._MODEL_PRESETS); the model picker filters this cache.
+        model_presets: list[str] = [];
 
     def reset_events {
         self.events = [];

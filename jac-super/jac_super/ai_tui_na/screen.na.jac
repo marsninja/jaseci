@@ -15,7 +15,7 @@ Layout (0-indexed rows):
 import from .state { TuiState, DisplayRow, EditorState }
 import from .feed { build_rows }
 import from .overlay { overlay_build_modal, overlay_composite }
-import from .terminal { ansi_sgr, ansi_reset }
+import from .terminal { ansi_sgr, ansi_reset, term_spaces, term_dashes }
 import from .width { visible_width, ansi_trunc, ansi_pad }
 
 # ── Palette (hardcoded SGR strings — avoids calling functions at glob-init) ───
@@ -42,27 +42,6 @@ glob BR_R: int = 70,
 glob ATTR_BOLD: int = 1,
      ATTR_DIM: int = 2,
      ATTR_ITALIC: int = 4;
-
-# ── String helpers ────────────────────────────────────────────────────────────
-def _spaces(n: int) -> str {
-    s: str = "";
-    i: int = 0;
-    while i < n {
-        s = s + " ";
-        i = i + 1;
-    }
-    return s;
-}
-
-def _dashes(n: int) -> str {
-    s: str = "";
-    i: int = 0;
-    while i < n {
-        s = s + "─";
-        i = i + 1;
-    }
-    return s;
-}
 
 def _cwd_short(cwd: str) -> str {
     slen = len(cwd);
@@ -151,7 +130,7 @@ def _header_row(cwd: str, model: str, cols: int) -> str {
     if cwd_len > 0 {
         row = row + _SC + cwd_disp;
     }
-    row = row + _SB + _dashes(total_dashes);
+    row = row + _SB + term_dashes(total_dashes);
     if model_len > 0 {
         row = row + _SM + model_s;
     }
@@ -208,7 +187,7 @@ def _status_row(state: TuiState, cols: int) -> str {
         row = row + " " + ansi_sgr(255, 210, 60, BG_R, BG_G, BG_B, 0) + act_disp;
     }
     if gap >= 1 and hints_len <= inner_w - left_len - 2 {
-        row = row + _spaces(gap);
+        row = row + term_spaces(gap);
         row = row + ansi_sgr(BR_R, BR_G, BR_B, BG_R, BG_G, BG_B, ATTR_DIM) + hints;
     }
     row = row + " " + _SB + "│" + _SR;
@@ -221,13 +200,13 @@ def _divider_row(left: str, right: str, cols: int) -> str {
     if fill < 0 {
         fill = 0;
     }
-    return _SB + left + _dashes(fill) + right + _SR;
+    return _SB + left + term_dashes(fill) + right + _SR;
 }
 
 def _transcript_row(dr: DisplayRow, cols: int) -> str {
     # Separator between events: render as an empty border row.
     if dr.kind == "sep" {
-        return _SB + "│" + _spaces(cols - 2) + "│" + _SR;
+        return _SB + "│" + term_spaces(cols - 2) + "│" + _SR;
     }
 
     inner_w = cols - 4;
@@ -253,7 +232,7 @@ def _transcript_row(dr: DisplayRow, cols: int) -> str {
 }
 
 def _empty_border_row(cols: int) -> str {
-    return _SB + "│" + _spaces(cols - 2) + "│" + _SR;
+    return _SB + "│" + term_spaces(cols - 2) + "│" + _SR;
 }
 
 def _warn_row(env: str, cols: int) -> str {
@@ -403,7 +382,7 @@ def _editor_rows(
         # Pad to text_w visible columns.
         dw = visible_width(display);
         if dw < text_w {
-            display = display + _spaces(text_w - dw);
+            display = display + term_spaces(text_w - dw);
         }
 
         # Build full row with box borders.

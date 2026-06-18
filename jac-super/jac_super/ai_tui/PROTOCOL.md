@@ -2,12 +2,12 @@
 
 This is the wire contract between the Jac/Python **control plane**
 (`jaclang.cli.ai_agent` + `jac_super.ai_agent.run_tui_session`) and a renderer
-**sidecar** (the `na` native renderer today, a `js` OpenTUI renderer later).
+**sidecar** (the `na` native renderer).
 
 It is derived from the live implementation in
-`jac_super/ai_agent/impl/run_tui_session.impl.jac`. Any backend - native or JS -
-that speaks this protocol is interchangeable. **Do not change it during the
-initial migration**; parity is defined against this document.
+`jac_super/ai_agent/impl/run_tui_session.impl.jac`. Any sidecar that speaks
+this protocol is interchangeable. **Do not change it casually**; behavior is
+defined against this document.
 
 ## Transport
 
@@ -25,11 +25,13 @@ initial migration**; parity is defined against this document.
   argument** (`argv[1]`). It is omitted when empty.
 - Configuration is passed via environment variables (set before spawn):
 
-  | Variable             | Meaning                                  |
-  | -------------------- | ---------------------------------------- |
-  | `JAC_AI_UI_PROJECT`  | Normalized working directory (cwd)       |
-  | `JAC_AI_UI_MODEL`    | Model name override (may be empty)       |
-  | `JAC_AI_UI_NCTX`     | Context-window override as int (`0`=unset)|
+  | Variable                   | Meaning                                  |
+  | -------------------------- | ---------------------------------------- |
+  | `JAC_AI_UI_PROJECT`        | Normalized working directory (cwd)       |
+  | `JAC_AI_UI_MODEL`          | Model name override (may be empty)       |
+  | `JAC_AI_UI_NCTX`           | Context-window override as int (`0`=unset)|
+  | `JAC_AI_UI_FILES`          | Newline-separated project file paths for the file picker |
+  | `JAC_AI_UI_MODEL_PRESETS`  | Newline-separated quick-pick model names (`ai_agent._MODEL_PRESETS`) |
 
 ## Frames (control plane → sidecar, via stdin)
 
@@ -121,4 +123,4 @@ model=<str>,n_ctx=<str>,api_key=<str>,base_url=<str>,temperature=<str>
 - `QUIT` is the only command that tears down the process; the control plane also
   terminates on its own `proc.wait()` returning or on `KeyboardInterrupt`.
 
-See `BACKENDS.md` for how a backend is selected and spawned.
+See `BACKENDS.md` for how the sidecar is spawned.

@@ -17,7 +17,7 @@ import sys;
 import from .libc_tty { tty_write }
 import from .state { TuiState }
 import from .select_list { SelectList, SelectItem }
-import from .commands { palette_commands, model_items, file_items, MODEL_PRESETS }
+import from .commands { palette_commands, model_items, file_items }
 
 def emit(line: str) {
     tty_write(1, line + "\n");
@@ -49,6 +49,13 @@ def run_tests -> int {
 
     state = TuiState();
     state.model_name = "openai/gpt-4o";
+    state.model_presets = [
+        "anthropic/claude-opus-4-7",
+        "anthropic/claude-sonnet-4-6",
+        "openai/gpt-4o",
+        "ollama/gemma4:31b",
+        "local:gemma-4-e4b"
+    ];
     state.files = ["src/app.jac", "src/util.jac", "README.md", "docs/guide.md"];
 
     # palette entries
@@ -65,7 +72,7 @@ def run_tests -> int {
     # model items mirror the presets and flag the current model
     models = model_items(state);
     fails += check(
-        "model_items count matches presets", len(models) == len(MODEL_PRESETS)
+        "model_items count matches presets", len(models) == len(state.model_presets)
     );
     cur_marked: bool = False;
     mi: int = 0;

@@ -36,6 +36,24 @@ def ansi_reset -> str {
     return "\033[0m";
 }
 
+def term_repeat(c: str, n: int) -> str {
+    s: str = "";
+    i: int = 0;
+    while i < n {
+        s = s + c;
+        i = i + 1;
+    }
+    return s;
+}
+
+def term_spaces(n: int) -> str {
+    return term_repeat(" ", n);
+}
+
+def term_dashes(n: int) -> str {
+    return term_repeat("─", n);
+}
+
 def ansi_sgr(
     fg_r: int, fg_g: int, fg_b: int, bg_r: int, bg_g: int, bg_b: int, attrs: int
 ) -> str {

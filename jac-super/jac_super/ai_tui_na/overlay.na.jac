@@ -16,7 +16,7 @@ import from .commands {
 import from .editor { editor_insert_text }
 import from .select_list { SelectItem }
 import from .width { visible_width, ansi_trunc, ansi_pad }
-import from .terminal { ansi_sgr, ansi_reset }
+import from .terminal { ansi_sgr, ansi_reset, term_spaces, term_dashes }
 import from .theme {
     TH_BG_R,
     TH_BG_G,
@@ -29,26 +29,6 @@ import from .theme {
     TH_TITLE_B,
     TH_BOLD,
     TH_DIM
-}
-
-def _ov_spaces(n: int) -> str {
-    s: str = "";
-    i: int = 0;
-    while i < n {
-        s = s + " ";
-        i = i + 1;
-    }
-    return s;
-}
-
-def _ov_dashes(n: int) -> str {
-    s: str = "";
-    i: int = 0;
-    while i < n {
-        s = s + "─";
-        i = i + 1;
-    }
-    return s;
 }
 
 def overlay_is_active(state: TuiState) -> bool {
@@ -216,7 +196,7 @@ def overlay_build_modal(state: TuiState, cols: int, rows: int) -> list[str] {
     modal: list[str] = [];
 
     top: str = border + "┌─ " + _title_sgr() + title_disp + border;
-    top = top + _ov_dashes(top_fill) + "┐" + reset;
+    top = top + term_dashes(top_fill) + "┐" + reset;
     modal.append(ansi_pad(top, modal_w));
 
     ci: int = 0;
@@ -229,7 +209,7 @@ def overlay_build_modal(state: TuiState, cols: int, rows: int) -> list[str] {
         ci = ci + 1;
     }
 
-    bottom: str = border + "└" + _ov_dashes(modal_w - 2) + "┘" + reset;
+    bottom: str = border + "└" + term_dashes(modal_w - 2) + "┘" + reset;
     modal.append(bottom);
 
     # Pad modal to center vertically: left/right margin on each row.
@@ -237,7 +217,7 @@ def overlay_build_modal(state: TuiState, cols: int, rows: int) -> list[str] {
     if margin < 0 {
         margin = 0;
     }
-    pad_left = _ov_spaces(margin);
+    pad_left = term_spaces(margin);
 
     padded: list[str] = [];
     mi: int = 0;

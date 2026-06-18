@@ -26,6 +26,40 @@ def _utf8_seq_len(lead: int) -> int {
     return 1;
 }
 
+def _skip_ansi_at(s: str, i: int) -> int {
+    # Given index i where s[i] is ESC, return index past the full sequence.
+    n = len(s);
+    if i + 1 >= n {
+        return i + 1;
+    }
+    nc = ord(s[i + 1]);
+    if nc == 91 {
+        # CSI (ESC [): scan until final byte in 0x40..0x7E
+        j = i + 2;
+        while j < n and not _is_csi_final(ord(s[j])) {
+            j = j + 1;
+        }
+        return j + 1;
+    }
+    if nc == 93 or nc == 95 {
+        # OSC (ESC ]) or APC (ESC _): scan until BEL or ESC-backslash
+        j = i + 2;
+        while j < n {
+            bc = ord(s[j]);
+            if bc == 7 {
+                return j + 1;
+            }
+            if bc == 27 and j + 1 < n and ord(s[j + 1]) == 92 {
+                return j + 2;
+            }
+            j = j + 1;
+        }
+        return j;
+    }
+    # Unknown ESC: skip ESC + one byte
+    return i + 2;
+}
+
 def visible_width(s: str) -> int {
     # Terminal columns occupied by s. ANSI escape sequences count zero.
     # UTF-8 multibyte sequences each count as 1 column.
@@ -38,40 +72,7 @@ def visible_width(s: str) -> int {
     while i < n {
         c = ord(s[i]);
         if c == 27 {
-            # ESC: skip the entire escape sequence
-            if i + 1 >= n {
-                i = i + 1;
-                continue;
-            }
-            nc = ord(s[i + 1]);
-            if nc == 91 {
-                # CSI (ESC [): scan until final byte in 0x40..0x7E
-                i = i + 2;
-                while i < n and not _is_csi_final(ord(s[i])) {
-                    i = i + 1;
-                }
-                i = i + 1;
-                continue;
-            }
-            if nc == 93 or nc == 95 {
-                # OSC (ESC ]) or APC (ESC _): scan until BEL or ESC-backslash
-                i = i + 2;
-                while i < n {
-                    bc = ord(s[i]);
-                    if bc == 7 {
-                        i = i + 1;
-                        break;
-                    }
-                    if bc == 27 and i + 1 < n and ord(s[i + 1]) == 92 {
-                        i = i + 2;
-                        break;
-                    }
-                    i = i + 1;
-                }
-                continue;
-            }
-            # Unknown ESC: skip ESC + one byte
-            i = i + 2;
+            i = _skip_ansi_at(s, i);
             continue;
         }
         if c >= 32 and c <= 126 {
@@ -112,44 +113,9 @@ def ansi_trunc(s: str, width: int) -> str {
     while i < n and vis < target {
         c = ord(s[i]);
         if c == 27 {
-            # Escape sequence: copy through without counting width
-            if i + 1 >= n {
-                i = i + 1;
-                continue;
-            }
-            nc = ord(s[i + 1]);
-            if nc == 91 {
-                # CSI
-                j = i + 2;
-                while j < n and not _is_csi_final(ord(s[j])) {
-                    j = j + 1;
-                }
-                j = j + 1;
-                result = result + s[i:j];
-                i = j;
-                continue;
-            }
-            if nc == 93 or nc == 95 {
-                # OSC / APC
-                j = i + 2;
-                while j < n {
-                    bc = ord(s[j]);
-                    if bc == 7 {
-                        j = j + 1;
-                        break;
-                    }
-                    if bc == 27 and j + 1 < n and ord(s[j + 1]) == 92 {
-                        j = j + 2;
-                        break;
-                    }
-                    j = j + 1;
-                }
-                result = result + s[i:j];
-                i = j;
-                continue;
-            }
-            result = result + s[i:i + 2];
-            i = i + 2;
+            j = _skip_ansi_at(s, i);
+            result = result + s[i:j];
+            i = j;
             continue;
         }
         if c >= 32 and c <= 126 {

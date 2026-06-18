@@ -53,15 +53,6 @@ def _sync_size(state: TuiState) {
 
 glob args = sys.argv;
 
-# Libc/tty handles are filled in `with entry`, never in glob init. Calling
-# tty_open() / tty_init_stdio_remap() from a `glob x = ...()` initializer runs
-# during the glob-init phase -- before the imported libc_tty module's `g_tty`
-# glob is constructed -- so a no-TTY run (piped/CI) NULL-derefs `g_tty.fd_saved`
-# inside tty_init_stdio_remap and segfaults before any output. Deferring the
-# setup also lets us exit(1) cleanly when there is no controlling terminal.
-glob raw_fd: int = -1,
-     ipc_fd: int = -1;
-
 # Pure object construction (no libc) is safe in glob init.
 glob state: TuiState = TuiState(),
      diff_engine: DiffEngine = DiffEngine();
@@ -75,13 +66,22 @@ glob proj = os.getenv("JAC_AI_UI_PROJECT");
 # double-free that bites any in-binary file read.
 glob files_env = os.getenv("JAC_AI_UI_FILES");
 
-with entry {
+# Quick-pick model names for the model picker. The control plane copies
+# ai_agent._MODEL_PRESETS into JAC_AI_UI_MODEL_PRESETS (newline-separated).
+glob presets_env = os.getenv("JAC_AI_UI_MODEL_PRESETS");
+
+# tty handles are created here (never in glob init): calling tty_open() /
+# tty_init_stdio_remap() during the glob-init phase runs before the imported
+# libc_tty module's `g_tty` glob is constructed, so a no-TTY run (piped/CI)
+# NULL-derefs `g_tty.fd_saved` and segfaults before any output. Keeping the whole
+# flow in a function (invoked from `with entry`) also keeps raw_fd / ipc_fd as
+# locals: as module globs they collide on the native linker (E5026), and the jac
+# formatter would otherwise hoist `with entry` locals into module globs.
+def _run {
     tty_write(2, "[tui] starting\r\n");
-}
 
-glob raw_fd = tty_open();
+    raw_fd: int = tty_open();
 
-with entry {
     if raw_fd < 0 {
         tty_write(2, "[tui] no controlling terminal; --tui needs a real tty\r\n");
         sys.exit(1);
@@ -93,11 +93,9 @@ with entry {
         tty_close();
         sys.exit(1);
     }
-}
 
-glob ipc_fd = tty_ipc_fd();
+    ipc_fd: int = tty_ipc_fd();
 
-with entry {
     state.cwd = os.getcwd();
     if proj is not None {
         if len(proj) > 0 {
@@ -110,6 +108,15 @@ with entry {
             p = raw_path.strip();
             if len(p) > 0 {
                 state.files.append(p);
+            }
+        }
+    }
+
+    if presets_env is not None {
+        for raw_name in presets_env.split("\n") {
+            name = raw_name.strip();
+            if len(name) > 0 {
+                state.model_presets.append(name);
             }
         }
     }
@@ -165,4 +172,8 @@ with entry {
     term_leave_alt_screen(1);
     tty_restore_stdio();
     tty_close();
+}
+
+with entry {
+    _run();
 }

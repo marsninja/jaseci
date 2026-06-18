@@ -330,15 +330,6 @@ Wrap diff-render bursts in `\x1b[?2026h` … `\x1b[?2026l` when supported.
 **Fallback:** plain ANSI diff without the wrapper - correctness does not depend
 on CSI 2026.
 
-## `ai_tui_js` backend - short and long term
-
-| Horizon | Policy |
-|---------|--------|
-| **Now** | **NA (`jac-na-tui`) is the primary TUI.** Pure libc, nacompile-only, phase 0a landed. |
-| **Short term** | JS OpenTUI sidecar (`ai_tui_js`) is legacy dev fallback only when explicitly built; default launcher may still try `js` then fall back to `na` until default flips. |
-| **Long term** | Retire JS OpenTUI render path; keep `ai_tui_js` protocol tests only. |
-| **Never** | Change `PROTOCOL.md` or `run_tui_session` framing for a backend swap. |
-
 ## Testing
 
 | Layer | What | Spec / location |
@@ -380,7 +371,6 @@ Delete FFI experiment files (`test_ffi.na.jac`, `test_ptr_*.na.jac`,
 | `state.na.jac`, `ipc.na.jac`, `feed.na.jac` | `render.na.jac` flat cell paint |
 | `input.na.jac` key → `SEND:` / `STOP` logic | evolves into `components/input` or `editor` |
 | `proto/libc_tty.na.jac` (until promoted) | `tui_helpers.c`, `libtui_helpers.so` |
-| `ai_tui_js` protocol/state tests | `ai_tui_js` OpenTUI render path |
 | FFI experiment tests | delete with OpenTUI |
 
 ## Phase 0 + 1 - recommended first move
@@ -438,7 +428,7 @@ TS files (they assume `AgentSession`, chalk themes, in-process mutation).
 |------|-------|-------|
 | 2026-06-16 | - | Prior work: protocol seam, `state`/`ipc`/`feed`/`input`, JS parity tests. OpenTUI still in NA/JS paths. |
 | 2026-06-16 | - | Plan rewritten: pi-inspired component architecture, zero render deps. |
-| 2026-06-16 | - | Plan clarified: fd remap, 0a/0b/1 sequencing, testing, CSI 2026, `ai_tui_js` policy. |
+| 2026-06-16 | - | Plan clarified: fd remap, 0a/0b/1 sequencing, testing, CSI 2026. |
 | 2026-06-17 | POC | **No custom C validated:** `proto/libc_tty.na.jac` + smoke tests. libc FFI patterns documented. `tui_helpers.c` slated for removal. `no_c_poc` compiles (libc-only); runtime init-order fix pending. |
 | 2026-06-17 | 0a | **Phase 0a complete:** `libc_tty.na.jac` promoted from proto; `terminal.na.jac` (ANSI helpers, f-string sequences); `render.na.jac` ported to ANSI (_dt helper, CSI 2026 sync, true-color SGR); `tui.na.jac` rewired to libc_tty (all libc in `with entry`, no glob-init abort); `ipc.na.jac` now imports `tty_read_line`/`tty_write` from libc_tty; `build.sh` nacompile-only. Binary links libc.so.6 + libm.so.6 only - zero OpenTUI, zero custom C. |
 | 2026-06-17 | 0b | **Phase 0b complete:** deleted `opentui_helpers.c`, `opentui_shim.c`, `tui_helpers.c`, `opentui_helpers.na.jac`, all `libopentui*`/`libtui_helpers.so`, FFI test files (`test_ffi.na.jac`, `test_noscalar_*`, `test_ptr_*`). Binary still compiles clean. |
@@ -448,3 +438,4 @@ TS files (they assume `AgentSession`, chalk themes, in-process mutation).
 | 2026-06-17 | 4  | **Phase 4 complete:** `markdown.na.jac` (`md_render` - block parser: headings h1/h2/h3, fenced code blocks, unordered/ordered lists, blockquotes, horizontal rules, paragraphs; inline spans: **bold**, *italic*, `code`, ~~strikethrough~~; ANSI-aware word-wrap via `visible_width`); `state.na.jac` adds `pre_styled: bool` to `DisplayRow`; `feed.na.jac` routes `answer`/`reasoning` events through `md_render` (pre-styled rows, no _kind_sgr override); `screen.na.jac` handles `pre_styled` rows with a direct ANSI embed path. NA syntax quirks: `skip` is a Jac keyword, `else if` unsupported (use `else { if ... }`). Binary: 267 KB, links libc.so.6 + libm.so.6 only. |
 | 2026-06-17 | 5  | **Phase 5 complete:** `tool_block.na.jac` (`tool_call_rows` / `tool_result_rows` - pi tool-execution.ts visual patterns: `⚙ bold-purple tool_name  dim-gray args-inline` for calls; `✓ bold-green first-line` / `✗ bold-red (empty)` with dim-gray continuation for results); `feed.na.jac` routes `call`/`tool_result` events through ToolBlock (pre-styled rows, replaces plain `#` / `  | ` prefix-wrap). NA gotcha: `node` is a keyword - use `tool_name` as parameter name. Binary: 279 KB, links libc.so.6 + libm.so.6 only. |
 | 2026-06-17 | 6  | **Phase 6 complete:** `overlay.na.jac` (center-anchored modal compositing) + `select_list.na.jac` (filtered picker: substring match, wrap nav, `handle_key` returns none/changed/select/cancel) + `commands.na.jac` (palette/model/file item builders + dispatch). **Model picker** (`/model`, palette, or model-select on a `/`-filtered entry) lists `MODEL_PRESETS` (mirrors `ai_agent._MODEL_PRESETS`, marks current) and emits `APPLY:model=<name>` (frozen protocol, no wire change). **File picker** (`/files`) inserts `@path` into the editor via `editor_insert_text`; the project file list is computed control-plane side (`run_tui_session.impl.jac` `_list_project_files`: `git ls-files`, else a bounded walk) and handed to the sidecar as the newline-separated `JAC_AI_UI_FILES` env var, read with `os.getenv`. This keeps all filesystem access out of the native binary, sidestepping the NA `str = calloc(...)` refcount double-free that crashes any in-binary file read (and the jac-format `combine-glob` rule that hoists such a read into the fatal split form). `screen.na.jac` composites the modal over the base when `overlay_active`. **Tests:** `test_pickers.na.jac` (24 headless logic checks, no TTY) wired into `build.sh`. Binary: 354 KB, links libc.so.6 + libm.so.6 only. |
+| 2026-06-18 | cleanup | **JS retirement + DRY pass:** deleted the `ai_tui_js` OpenTUI sidecar and the multi-backend selection seam - `na` is now the sole renderer (`run_tui_session._resolve_tui_command(pkg_root, initial)` lost its `backend` arg; `_resolve_tui_backend` removed; `PROTOCOL.md`/`BACKENDS.md`/`PLAN.md` drop the `js` policy). Removed dead `render.na.jac` (flat cell paint; unimported since the Phase 1 `screen_render` cutover). Deduped per-module `_spaces`/`_dashes`/`_md_*`/`_ov_*` string builders into `terminal.term_spaces`/`term_dashes`/`term_repeat`, and the duplicated ANSI-skip scanner in `width.na.jac` into `_skip_ansi_at`. Model presets moved control-plane: `MODEL_PRESETS` glob removed from `commands.na.jac`; control plane exports `ai_agent._MODEL_PRESETS` as newline-separated `JAC_AI_UI_MODEL_PRESETS`, read into `TuiState.model_presets` (same pattern as `JAC_AI_UI_FILES`). `tui.na.jac` collapsed its multi-`with entry` + glob-init libc calls into a single `_run()` invoked from one `with entry` (keeps `raw_fd`/`ipc_fd` function-local - avoids the E5026 glob collision and the formatter hoisting with-entry locals to globs). Fixed termios input-flag/`CSIZE`/`CS8` bitmask constants in `libc_tty.na.jac`. `test_ai_tui_bridge.jac` rewritten for the single-backend resolver. Binary builds clean; 24 picker tests + 6 bridge tests green. |

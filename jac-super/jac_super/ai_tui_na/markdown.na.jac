@@ -18,34 +18,13 @@ Supported inline spans:
   **bold**   *italic*   `code`   ~~strikethrough~~
 """
 
-import from .terminal { ansi_sgr }
+import from .terminal { ansi_sgr, term_spaces, term_dashes }
 import from .width { visible_width, ansi_pad }
 
 # Background matches the TUI chrome (screen.na.jac BG_R/G/B)
 glob _BG_R: int = 18,
      _BG_G: int = 18,
      _BG_B: int = 28;
-
-# ── String helpers ─────────────────────────────────────────────────────────────
-def _md_spaces(n: int) -> str {
-    s: str = "";
-    i: int = 0;
-    while i < n {
-        s = s + " ";
-        i = i + 1;
-    }
-    return s;
-}
-
-def _md_repeat(c: str, n: int) -> str {
-    s: str = "";
-    i: int = 0;
-    while i < n {
-        s = s + c;
-        i = i + 1;
-    }
-    return s;
-}
 
 # ── Block detectors ────────────────────────────────────────────────────────────
 def _md_is_blank(s: str) -> bool {
@@ -404,7 +383,7 @@ def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list
             if hr_w > 80 {
                 hr_w = 80;
             }
-            hr_content = hr_sgr + _md_repeat("─", hr_w);
+            hr_content = hr_sgr + term_dashes(hr_w);
             result.append(ansi_pad(hr_content, width) + "\033[0m");
             i = i + 1;
             continue;
@@ -443,7 +422,7 @@ def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list
             if avail < 1 {
                 avail = 1;
             }
-            cont_pad = _md_spaces(marker_w);
+            cont_pad = term_spaces(marker_w);
             wrapped = _md_wrap(styled, avail, base_sgr);
             nw = len(wrapped);
             j: int = 0;
