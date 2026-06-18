@@ -304,6 +304,31 @@ def _deserialize_wire_args(args: dict[(str, Any)]) {
     }
 }
 
+"""On-conflict (OCC) policy from [serve] in jac.toml, with safe defaults.
+
+Returns (mode, max_attempts, backoff_ms): mode is "retry" (abort + replay so
+the loser converges) or "fail" (no replay, immediate 409). `get_config()` is
+cached, so this is cheap per request; any failure falls back to retry/5/0
+(the prior hardcoded behavior)."""
+def _occ_policy -> tuple {
+    mode = "retry";
+    (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
+    max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
+    backoff_ms = 0;
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        if cfg is not None {
+            mode = cfg.serve.on_conflict;
+            max_attempts = cfg.serve.conflict_max_attempts;
+            backoff_ms = cfg.serve.conflict_backoff_ms;
+        }
+    } except Exception {
+        ;
+    }
+    return (mode, max_attempts, backoff_ms);
+}
+
 """Drain the reports queue and package the wire response for a completed call.
 
 Commit goes through the async Memory surface (`Jac.acommit`) so L3 writes
@@ -385,7 +410,8 @@ impl ExecutionManager.execute_function_sync(
     # OCC replay (parity with spawn_walker_*): a function that loses a
     # check-then-create race converges via abort + reload + replay instead of
     # surfacing the WriteConflict as a 500.
-    max_attempts = 5;
+    (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
+    max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
     try {
         attempt = 0;
         while attempt < max_attempts {
@@ -412,6 +438,9 @@ impl ExecutionManager.execute_function_sync(
                         'error_code': 'write_conflict',
                         'http_status': 409
                     };
+                }
+                if occ_backoff_ms > 0 {
+                    await asyncio.sleep(occ_backoff_ms * attempt / 1000.0);
                 }
                 await ctx.aset_user_root(root_id);
             } except Exception as e {
@@ -449,7 +478,8 @@ impl ExecutionManager.execute_function_async(
     _deserialize_wire_args(args);
     # OCC replay (parity with spawn_walker_*): converge a lost check-then-create
     # race instead of surfacing the WriteConflict as a 500.
-    max_attempts = 5;
+    (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
+    max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
     try {
         attempt = 0;
         while attempt < max_attempts {
@@ -469,6 +499,9 @@ impl ExecutionManager.execute_function_async(
                         'error_code': 'write_conflict',
                         'http_status': 409
                     };
+                }
+                if occ_backoff_ms > 0 {
+                    await asyncio.sleep(occ_backoff_ms * attempt / 1000.0);
                 }
                 await ctx.aset_user_root(root_id);
             } except Exception as e {
@@ -527,7 +560,8 @@ impl ExecutionManager.spawn_walker_sync(
     # race raises WriteConflict at commit. We discard the attempt's mutations
     # + deferred effects, reload the root so the replay sees the committed
     # winner, and re-run — so find-or-create converges instead of duplicating.
-    max_attempts = 5;
+    (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
+    max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
     try {
         attempt = 0;
         while attempt < max_attempts {
@@ -565,6 +599,9 @@ impl ExecutionManager.spawn_walker_sync(
                         'error_code': 'write_conflict',
                         'http_status': 409
                     };
+                }
+                if occ_backoff_ms > 0 {
+                    await asyncio.sleep(occ_backoff_ms * attempt / 1000.0);
                 }
                 await ctx.aset_user_root(root_id);
             } except Exception as e {
@@ -607,7 +644,8 @@ impl ExecutionManager.spawn_walker_async(
     # Optimistic-concurrency replay: see spawn_walker_sync. A WriteConflict at
     # commit means we lost a check-then-create race; discard + reload + replay
     # so find-or-create converges on the winner instead of duplicating.
-    max_attempts = 5;
+    (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
+    max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
     try {
         attempt = 0;
         while attempt < max_attempts {
@@ -641,6 +679,9 @@ impl ExecutionManager.spawn_walker_async(
                         'error_code': 'write_conflict',
                         'http_status': 409
                     };
+                }
+                if occ_backoff_ms > 0 {
+                    await asyncio.sleep(occ_backoff_ms * attempt / 1000.0);
                 }
                 await ctx.aset_user_root(root_id);
             } except Exception as e {

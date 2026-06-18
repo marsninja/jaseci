@@ -889,7 +889,10 @@ impl _parse_toml_data(
             session=serve_data.get("session", ""),
             main=serve_data.get("main", True),
             cl_route_prefix=serve_data.get("cl_route_prefix", "cl"),
-            base_route_app=serve_data.get("base_route_app", "")
+            base_route_app=serve_data.get("base_route_app", ""),
+            on_conflict=serve_data.get("on_conflict", "retry"),
+            conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
+            conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)
         );
     }
     if "format" in data {
