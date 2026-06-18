@@ -275,7 +275,7 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
             verb="start",
             entry_path=entry_path,
             flags=_serve_flags(config, {}),
-            summary="Serve wasm page (emits /static/main.wasm)",
+            summary="Serve client-only app as a static page (no backend)",
             requires_plugin=kind_required_plugin(kind)
         );
     }
