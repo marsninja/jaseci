@@ -26,6 +26,13 @@ text_escaped: \n -> \\n, \\ -> \\\\
 """
 
 import from jaclang.cli.agent_api { AgentRequest }
+import from jac_super.ai_agent.tui_shared {
+    _debug_log,
+    _dispatch_cmd,
+    _frame_blob,
+    _list_project_files,
+    _sidecar_tty_device
+}
 
 impl run_tui_session(req: AgentRequest) -> int {
     import os;
@@ -124,7 +131,7 @@ impl run_tui_session(req: AgentRequest) -> int {
                     continue;
                 }
                 _debug_log(f"cmd <- {line}");
-                _dispatch_cmd(line, proc, stop_evt);
+                _dispatch_cmd(line, stop_evt, proc);
             }
             _debug_log("cmd reader: stdout closed");
         } except Exception as e {
@@ -194,91 +201,6 @@ impl run_tui_session(req: AgentRequest) -> int {
     rc: any = proc.returncode;
     _debug_log(f"session exit rc={rc}");
     return int(rc if rc is not None else 0);
-}
-
-def _debug_log(msg: str) -> None {
-    import os;
-    import time;
-
-    path = os.environ.get("JAC_AI_TUI_DEBUG_LOG", "").strip();
-    if not path {
-        return;
-    }
-    try {
-        with open(path, "a", encoding="utf-8") as f {
-            stamp = time.strftime("%Y-%m-%d %H:%M:%S");
-            f.write(f"[{stamp}] {msg}\n");
-        }
-    } except Exception { }
-}
-
-def _list_project_files(project: str) -> str {
-    # Newline-separated relative file paths under `project` for the file picker.
-    # Tracked files first (git ls-files), else a bounded filesystem walk. Capped
-    # so the value stays well within env-var size limits.
-    import os;
-    import subprocess;
-
-    cap = 2000;
-    out_lines: list = [];
-    try {
-        res = subprocess.run(
-            ["git", "-C", project, "ls-files"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        );
-        if res.returncode == 0 {
-            for line in res.stdout.split("\n") {
-                s = line.strip();
-                if s {
-                    out_lines.append(s);
-                }
-                if len(out_lines) >= cap {
-                    break;
-                }
-            }
-        }
-    } except Exception { }
-
-    if not out_lines {
-        try {
-            for entry in os.walk(project) {
-                dirpath = entry[0];
-                if ".git" in dirpath.split(os.sep) {
-                    continue;
-                }
-                for fn in entry[2] {
-                    rel = os.path.relpath(os.path.join(dirpath, fn), project);
-                    out_lines.append(rel);
-                    if len(out_lines) >= cap {
-                        break;
-                    }
-                }
-                if len(out_lines) >= cap {
-                    break;
-                }
-            }
-        } except Exception { }
-    }
-
-    return "\n".join(out_lines);
-}
-
-def _sidecar_tty_device -> str {
-    # Resolve the interactive terminal the user is sitting at. The NA sidecar's
-    # stdin is a pipe, so it cannot use isatty(stdin); pass the real device path.
-    import os;
-    import sys;
-
-    for stream in (sys.stderr, sys.stdin, sys.stdout) {
-        try {
-            if stream.isatty() {
-                return os.ttyname(stream.fileno());
-            }
-        } except Exception { }
-    }
-    return "";
 }
 
 def _tui_binary_path(pkg_root: any) -> str {
@@ -427,110 +349,11 @@ def _spawn_tui_backend(cmd_args: list) -> any {
     );
 }
 
-def _esc_text(text: str) -> str {
-    return text.replace("\\", "\\\\").replace("\n", "\\n");
-}
-
-def _ev_line(ev: dict) -> str {
-    ev_id = str(ev.get("id", 0));
-    ev_kind = str(ev.get("kind", ""));
-    ev_node = str(ev.get("node", ""));
-    ev_text = _esc_text(str(ev.get("text", "")));
-    return f"EV:{ev_id}:{ev_kind}:{ev_node}:{ev_text}";
-}
-
 def _write_frame(pipe: any, frame: dict) {
-    parts = [];
-    if frame.get("full") {
-        parts.append("TYPE:full");
-    } else {
-        parts.append("TYPE:delta");
-    }
-    parts.append(f"STATUS:{frame.get('status', '')}");
-    parts.append(f"ACTIVE:{frame.get('active', '')}");
-    parts.append(f"MODEL:{frame.get('model_name', '')}");
-    parts.append(f"NEEDS_KEY:{'1' if frame.get('needs_key') else '0'}");
-    parts.append(f"KEY_ENV:{frame.get('key_env', '')}");
-
-    if frame.get("full") {
-        for ev in (frame.get("events") or []) {
-            parts.append(_ev_line(ev));
-        }
-    } elif frame.get("ev") {
-        parts.append(_ev_line(frame["ev"]));
-    }
-
-    parts.append("---");
+    # Same KEY:VALUE\n...\n--- text the in-process path builds (shared _frame_blob),
+    # just flushed to the sidecar's stdin instead of handed to ctypes.
     try {
-        pipe.write("\n".join(parts) + "\n");
+        pipe.write(_frame_blob(frame) + "\n");
         pipe.flush();
     } except Exception { }
-}
-
-def _dispatch_cmd(line: str, proc: any, stop_evt: any) {
-    # Resolve the UI bridge in this helper's own scope. `run_tui_session()`
-    # imports these names lazily for its nested closures, but this dispatcher is
-    # module-level and is also called from the cmd-reader thread.
-    import from jaclang.cli.ai_agent { ui_send, ui_stop, ui_reset, ui_apply_settings }
-
-    if line.startswith("SEND:") {
-        prompt = line[5:];
-        try {
-            ok = ui_send(prompt);
-            _debug_log(f"ui_send({prompt!r}) -> {ok}");
-        } except Exception as e {
-            _debug_log(f"ui_send({prompt!r}) error: {e}");
-        }
-    } elif line == "STOP" {
-        try {
-            ui_stop();
-            _debug_log("ui_stop()");
-        } except Exception as e {
-            _debug_log(f"ui_stop error: {e}");
-        }
-    } elif line == "RESET" {
-        try {
-            ui_reset();
-            _debug_log("ui_reset()");
-        } except Exception as e {
-            _debug_log(f"ui_reset error: {e}");
-        }
-    } elif line == "QUIT" {
-        stop_evt.set();
-        try {
-            ui_stop();
-            _debug_log("ui_stop() before quit");
-        } except Exception as e {
-            _debug_log(f"ui_stop before quit error: {e}");
-        }
-        try {
-            proc.terminate();
-            _debug_log("proc.terminate()");
-        } except Exception as e {
-            _debug_log(f"proc.terminate error: {e}");
-        }
-    } elif line.startswith("APPLY:") {
-        args_str = line[6:];
-        settings: dict = {};
-        for part in args_str.split(",") {
-            eq = part.find("=");
-            if eq > 0 {
-                k = part[:eq].strip();
-                v = part[eq + 1:].strip();
-                settings[k] = v;
-            }
-        }
-        try {
-            result = ui_apply_settings(
-                model=settings.get("model", ""),
-                n_ctx=settings.get("n_ctx", ""),
-                api_key=settings.get("api_key", ""),
-                base_url=settings.get("base_url", ""),
-                temperature=settings.get("temperature", ""),
-            );
-            _debug_log(f"ui_apply_settings({settings}) -> {result}");
-        } except Exception as e {
-            _debug_log(f"ui_apply_settings({settings}) error: {e}");
-        }
-    }
 }

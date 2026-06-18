@@ -29,11 +29,20 @@ fi
 
 mkdir -p bin
 
-# ── build main NA binary ────────────────────────────────────────────────────
+# ── build main NA binary (subprocess fallback renderer) ──────────────────────
 echo "==> Compiling jac-na-tui ..."
 "${JAC[@]}" nacompile tui.na.jac -o bin/jac-na-tui
 
 echo "==> Done. Binary: $SCRIPT_DIR/bin/jac-na-tui"
+
+# ── build in-process shared library (host.na.jac :pub surface, plan §5/§11.2) ─
+# Explicit -o keeps the exact path (no lib<stem>.so renaming); the sv host
+# ctypes.CDLL's this. Needs the PT_GNU_STACK compiler fix (§11.1, already landed)
+# so CPython's dlopen accepts the .so on a hardened kernel.
+echo "==> Compiling libtui.so (in-process host) ..."
+"${JAC[@]}" nacompile host.na.jac --shared -o bin/libtui.so
+
+echo "==> Done. Shared lib: $SCRIPT_DIR/bin/libtui.so"
 
 if [ "$QUICK" -eq 1 ]; then
     echo "==> Quick build complete (skipped tests)."
@@ -45,6 +54,16 @@ echo "==> Building + running picker logic tests ..."
 "${JAC[@]}" nacompile test_pickers.na.jac -o bin/test_pickers
 "$SCRIPT_DIR/bin/test_pickers"
 echo "==> Tests passed."
+
+# ── headless host gate: load libtui.so under CPython, parse+render (no TTY) ───
+echo "==> Running in-process host gate (ctypes) ..."
+if [ -x "$REPO_VENV/bin/python" ]; then
+    PYBIN="$REPO_VENV/bin/python"
+else
+    PYBIN="python3"
+fi
+"$PYBIN" "$SCRIPT_DIR/test_host.py"
+echo "==> Host gate passed."
 
 # ── quick smoke-test ─────────────────────────────────────────────────────────
 echo "==> Smoke-test (piped stdin, expect non-zero exit) ..."

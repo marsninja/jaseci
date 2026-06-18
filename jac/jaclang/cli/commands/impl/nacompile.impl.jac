@@ -80,6 +80,25 @@ def _inject_entry_pe(llvm_ir_str: str) -> str {
 }
 
 
+"""Return the actual `define`d name of an RC primitive in the linked IR.
+
+LLVM internalises and collision-suffixes duplicate definitions when several
+modules emit the same primitive (@__rc_retain -> @__rc_retain.298), so the bare
+`base` name often does not exist as a callable symbol. Match the first DEFINED
+copy (optionally quoted, optionally `.N`-suffixed); "" if none is defined.
+"""
+def _first_defined_rc_symbol(llvm_ir_str: str, base: str) -> str {
+    import re;
+    m = re.search(
+        r'define[^\n]*@"?(' + re.escape(base) + r'(?:\.\d+)?)"?\s*\(', llvm_ir_str
+    );
+    if m {
+        return m.group(1);
+    }
+    return "";
+}
+
+
 """Inject __jac_shared_init() and the public RC wrappers for a shared library.
 
 A .so/.dylib/.dll has no jac_entry; instead the platform loader runs
@@ -126,17 +145,25 @@ def _inject_shared_init(
     );
     extra_exports: list[str] = [];
     # Public retain/release over the private RC primitives, when RC is in use.
-    if "__rc_retain" in llvm_ir_str {
+    # After cross-module linking the RC primitives are internalised and, when more
+    # than one module emits them (any real multi-module .so), collision-renamed by
+    # LLVM (@__rc_retain -> @__rc_retain.298), so there is NO symbol literally
+    # named @__rc_retain to call. The wrapper must target the actual emitted name;
+    # any copy is a valid generic retain/release. (A single-module .so keeps the
+    # bare name, which _first_defined_rc_symbol also matches.)
+    _retain_sym = _first_defined_rc_symbol(llvm_ir_str, "__rc_retain");
+    if _retain_sym {
         parts.append(
             "define void @jac_retain(ptr %p) {\nentry:\n"
-            "  call void @__rc_retain(ptr %p)\n  ret void\n}"
+            "  call void @" + _retain_sym + "(ptr %p)\n  ret void\n}"
         );
         extra_exports.append("jac_retain");
     }
-    if "__rc_release_simple" in llvm_ir_str {
+    _release_sym = _first_defined_rc_symbol(llvm_ir_str, "__rc_release_simple");
+    if _release_sym {
         parts.append(
             "define void @jac_release(ptr %p) {\nentry:\n"
-            "  call void @__rc_release_simple(ptr %p)\n  ret void\n}"
+            "  call void @" + _release_sym + "(ptr %p)\n  ret void\n}"
         );
         extra_exports.append("jac_release");
     }

@@ -69,6 +69,10 @@ obj TuiState {
         term_rows: int = 24,
         term_cols: int = 80,
         quit_flag: bool = False,
+        # Command sink fd. >= 0: write commands to this pipe fd (subprocess
+        # transport). -1: enqueue into the in-process CmdQueue (ipc.na.jac),
+        # drained by the sv host. Set by tui_setup (tui_core.na.jac).
+        ipc_fd: int = -1,
         # Derived layout cache: display_rows is rebuilt from events+width by
         # build_rows() whenever layout_dirty is set or layout_cols drifts from
         # term_cols. follow_tail pins the viewport to the last row (streaming).

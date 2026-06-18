@@ -1,7 +1,27 @@
 # `jac ai --tui` Renderer Backend
 
-The TUI control plane spawns a single native renderer sidecar that speaks the
-wire protocol in `PROTOCOL.md`.
+See `ARCHITECTURE.md` for the process model, module stack, and data flow.
+
+The TUI control plane drives a single native renderer that speaks the wire
+protocol in `PROTOCOL.md`, over one of two transports.
+
+## Transport selection (`JAC_AI_TUI_BACKEND`)
+
+`jac_super/ai_agent/impl/plugin.impl.jac` routes `req.tui` to a backend based on
+the `JAC_AI_TUI_BACKEND` env var:
+
+| Value | Backend | Driver |
+| ----- | ------- | ------ |
+| unset / `inprocess` (`in-process`, `in_process`) (default) | `dlopen` `bin/libtui.so` via ctypes | `run_tui_in_process.impl.jac` |
+| `subprocess` | spawn `bin/jac-na-tui` over pipes | `run_tui_session.impl.jac` |
+
+The default is the in-process shared library; `JAC_AI_TUI_BACKEND=subprocess`
+opts into the crash-isolated sidecar fallback. Both share `_frame_blob` /
+`_dispatch_cmd` / `_list_project_files` /
+`_sidecar_tty_device` from `jac_super/ai_agent/tui_shared.jac`, so they can never
+drift on the protocol.
+
+## Backend: subprocess sidecar (fallback)
 
 Selection and spawning live in
 `jac_super/ai_agent/impl/run_tui_session.impl.jac`:
@@ -39,6 +59,23 @@ Set by the control plane before spawn (see `PROTOCOL.md` → Startup):
 
 Debugging: set `JAC_AI_TUI_DEBUG_LOG=<path>` to append a frame/command trace
 from the control plane.
+
+## Backend: in-process shared library (default)
+
+- Library: `jac_super/ai_tui_na/bin/libtui.so`
+- Built by the same `build.sh` (`jac nacompile host.na.jac --shared -o
+  bin/libtui.so`). If missing on a dev checkout, `run_tui_in_process` builds it
+  once via `build.sh --quick` (`_ensure_tui_lib`); `JAC_AI_TUI_REBUILD=1` forces
+  a recompile. Installed packages ship a prebuilt `.so` (no LLVM at runtime).
+- Bound by `jac_super/ai_agent/tui_host.jac` (`TuiHost`): `ctypes.CDLL` +
+  `restype`/`argtypes` for the eight seam exports (`tui_init`, `tui_apply_frame`,
+  `tui_wait_key`, `tui_handle_key`, `tui_next_command`, `tui_quit_requested`,
+  `tui_render`, `tui_shutdown`). The wrapper for `tui_init` is named `start`
+  because Jac reserves `def init` as the obj constructor.
+- Renders to the controlling tty the native side opens itself (`tui_init`'s
+  `tty_dev`); the driver redirects the agent's real stdout/stderr to `/dev/null`
+  for the session so stray output can't corrupt the alt-screen.
+- **Platform:** Linux (and WSL) only today, same as the sidecar.
 
 ## Adding a new backend
 

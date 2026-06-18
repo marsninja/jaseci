@@ -138,7 +138,25 @@ def _tty_device_path -> str {
 }
 
 def tty_open -> int {
-    fd: int = open(_tty_device_path(), O_RDWR, 0);
+    # Subprocess entry: device chosen by JAC_AI_TUI_TTY / /dev/tty fallback.
+    return tty_open_dev("");
+}
+
+def tty_fd -> int {
+    # The opened tty fd (>= 10 after relocation), or -1 if not open. Lets the
+    # in-process host (host.na.jac) render/poll against the tty it owns rather
+    # than fd 1, which in-process is the sv process's real stdout (see plan §2).
+    return g_tty.fd;
+}
+
+def tty_open_dev(dev: str) -> int {
+    # Open an explicit tty device, or "" to use _tty_device_path(). The
+    # in-process host passes its foreground tty here; the subprocess passes "".
+    path: str = dev;
+    if len(path) == 0 {
+        path = _tty_device_path();
+    }
+    fd: int = open(path, O_RDWR, 0);
     if fd < 0 {
         return -1;
     }

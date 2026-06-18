@@ -13,6 +13,16 @@ Build:
 import sys;
 import os;
 
+# The lifecycle logic now lives in tui_core; tui.na.jac only needs TuiState,
+# ipc_send_cmd, DiffEngine and the tui_core helpers. But the native cross-module
+# type resolver is ORDER-SENSITIVE: it resolves types in the DFS order the ENTRY
+# module imports them, and if a leaf type (e.g. select_list.SelectItem, reached
+# only via tui_core -> input -> overlay) is first seen too deep it resolves to
+# <Unknown> and the build dies with E5090/E2018. Importing the same flat module
+# set the pre-refactor entry imported (libc_tty, terminal, state, ipc, screen,
+# diff, input) PRIMES the resolver into the proven-good order. These imports are
+# otherwise unused here -- do not "clean them up" or the build regresses.
+# host.na.jac carries the same priming block for the --shared build.
 import from .libc_tty {
     tty_open,
     tty_close,
@@ -41,17 +51,7 @@ import from .ipc { ipc_read_frame_v2, ipc_send_cmd }
 import from .screen { screen_render }
 import from .diff { DiffEngine }
 import from .input { handle_key }
-
-def _sync_size(state: TuiState) {
-    tty_update_size();
-    new_rows: int = tty_rows();
-    new_cols: int = tty_cols();
-    state.term_rows = new_rows;
-    if new_cols != state.term_cols {
-        state.layout_dirty = True;
-    }
-    state.term_cols = new_cols;
-}
+import from .tui_core { tui_setup, tui_loop_once, tui_teardown }
 
 glob args = sys.argv;
 
@@ -72,114 +72,40 @@ glob files_env = os.getenv("JAC_AI_UI_FILES");
 # ai_agent._MODEL_PRESETS into JAC_AI_UI_MODEL_PRESETS (newline-separated).
 glob presets_env = os.getenv("JAC_AI_UI_MODEL_PRESETS");
 
-# tty handles are created here (never in glob init): calling tty_open() /
-# tty_init_stdio_remap() during the glob-init phase runs before the imported
-# libc_tty module's `g_tty` glob is constructed, so a no-TTY run (piped/CI)
-# NULL-derefs `g_tty.fd_saved` and segfaults before any output. Keeping the whole
-# flow in a function (invoked from `with entry`) also keeps raw_fd / ipc_fd as
-# locals: as module globs they collide on the native linker (E5026), and the jac
-# formatter would otherwise hoist `with entry` locals into module globs.
+# The lifecycle is kept inside a function (invoked from `with entry`), never in
+# glob init: tui_setup() calls tty_open() / tty_init_stdio_remap(), which run
+# before the imported libc_tty module's `g_tty` glob is constructed if placed in
+# glob init -- a no-TTY run (piped/CI) then NULL-derefs `g_tty.fd_saved` and
+# segfaults before any output. setup/loop/teardown live in tui_core.na.jac so the
+# Phase-1 in-process host shares the same renderer with no duplication.
 def _run {
-    tty_write(2, "[tui] starting\r\n");
-
-    raw_fd: int = tty_open();
-
-    if raw_fd < 0 {
-        tty_write(
-            2, "[tui] tty open failed (set JAC_AI_TUI_TTY or run from a terminal)\r\n"
-        );
-        sys.exit(1);
-    }
-    tty_write(2, "[tui] tty_open ok\r\n");
-
-    if tty_init_stdio_remap() < 0 {
-        tty_write(2, "[tui] stdio remap failed\r\n");
-        tty_close();
-        sys.exit(1);
-    }
-
-    ipc_fd: int = tty_ipc_fd();
-
-    state.cwd = os.getcwd();
+    proj_s: str = "";
     if proj is not None {
-        if len(proj) > 0 {
-            state.cwd = proj;
-        }
+        proj_s = proj;
     }
-
+    files_s: str = "";
     if files_env is not None {
-        for raw_path in files_env.split("\n") {
-            p = raw_path.strip();
-            if len(p) > 0 {
-                state.files.append(p);
-            }
-        }
+        files_s = files_env;
     }
-
+    presets_s: str = "";
     if presets_env is not None {
-        for raw_name in presets_env.split("\n") {
-            name = raw_name.strip();
-            if len(name) > 0 {
-                state.model_presets.append(name);
-            }
-        }
+        presets_s = presets_env;
     }
 
-    term_enter_alt_screen(1);
-    term_hide_cursor(1);
-    term_enable_mouse(1);
-
-    _sync_size(state);
-    state.dirty = True;
+    if tui_setup(state, proj_s, files_s, presets_s) < 0 {
+        sys.exit(1);
+    }
 
     if len(args) > 1 {
         initial = args[1].strip();
         if len(initial) > 0 {
-            ipc_send_cmd(ipc_fd, f"SEND:{initial}");
+            ipc_send_cmd(state.ipc_fd, f"SEND:{initial}");
         }
     }
 
-    while not state.quit_flag {
-        tty_poll(50);
+    while tui_loop_once(state, diff_engine) { }
 
-        # Handle keyboard before IPC frames so a steady ui_stream() delta feed
-        # cannot starve prompt editing.
-        if tty_key_ready() > 0 {
-            k = tty_read_key();
-            if len(k) > 0 {
-                should_quit = handle_key(k, state, ipc_fd);
-                if should_quit {
-                    state.quit_flag = True;
-                }
-            }
-        }
-
-        if tty_stdin_ready() > 0 {
-            ok = ipc_read_frame_v2(state);
-            if not ok {
-                state.quit_flag = True;
-                break;
-            }
-            _sync_size(state);
-            state.dirty = True;
-        }
-
-        if state.dirty {
-            if state.overlay_full_redraw {
-                diff_engine.invalidate();
-                state.overlay_full_redraw = False;
-            }
-            lines = screen_render(state, state.term_cols, state.term_rows);
-            diff_engine.paint(lines, state.term_cols, 1);
-            state.dirty = False;
-        }
-    }
-
-    term_disable_mouse(1);
-    term_show_cursor(1);
-    term_leave_alt_screen(1);
-    tty_restore_stdio();
-    tty_close();
+    tui_teardown(state);
 }
 
 with entry {

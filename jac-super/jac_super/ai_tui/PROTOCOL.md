@@ -11,6 +11,34 @@ defined against this document.
 
 ## Transport
 
+The **logical** protocol below (frame fields, command set, escaping, upsert-by-id
+invariants) is identical regardless of how bytes move. Two transports carry it;
+the renderer backend (`BACKENDS.md`) picks one.
+
+### In-process transport (default)
+
+The native renderer is loaded into the agent process as a shared library
+(`ai_tui_na/bin/libtui.so`) via `ctypes`, instead of being spawned. The wire
+**bytes** are the same; only the carrier changes:
+
+- **Frames** are passed as one UTF-8 `str` per `ui_stream()` emit to
+  `tui_apply_frame(blob)` - `blob` is the exact `KEY:VALUE\n…\n---` text below
+  (built by the shared `_frame_blob`, the same encoder the subprocess path writes
+  to stdin).
+- **Commands** are **pulled**, not pushed: a keystroke handled by
+  `tui_handle_key()` enqueues the same `SEND:`/`STOP:`/… line into a native queue,
+  and the host drains it with `tui_next_command()` (returns `""` when empty).
+  There is no native→host callback.
+- The native side opens the controlling tty directly (`tui_init`'s `tty_dev`
+  arg); the agent's own stdout/stderr fds are redirected away from that tty for
+  the session's lifetime so stray output can't corrupt the alt-screen.
+
+See `../../../PLAN-tui-in-process.md` for the full design and the `tui_init` /
+`tui_apply_frame` / `tui_wait_key` / `tui_handle_key` / `tui_next_command` /
+`tui_quit_requested` / `tui_render` / `tui_shutdown` C-ABI surface.
+
+### Subprocess transport (`JAC_AI_TUI_BACKEND=subprocess`)
+
 - The control plane spawns the sidecar as a subprocess with line-buffered text
   pipes (`subprocess.Popen(..., text=True, bufsize=1)`).
 - **Frames** flow control-plane → sidecar over the sidecar's **stdin**.
@@ -32,6 +60,11 @@ defined against this document.
   | `JAC_AI_UI_NCTX`           | Context-window override as int (`0`=unset)|
   | `JAC_AI_UI_FILES`          | Newline-separated project file paths for the file picker |
   | `JAC_AI_UI_MODEL_PRESETS`  | Newline-separated quick-pick model names (`ai_agent._MODEL_PRESETS`) |
+
+  The in-process transport sets the same `JAC_AI_UI_*` env vars (the agent reads
+  them on `ui_configure`), but passes `project` / `files_env` / `presets_env` /
+  `tty_dev` to the native side directly as `tui_init` arguments rather than via
+  `argv` + env to a child.
 
 ## Frames (control plane → sidecar, via stdin)
 
@@ -98,7 +131,7 @@ Each command is a single trimmed line. Empty lines are ignored.
 | `SEND:<prompt>`    | everything after `SEND:` is the prompt (verbatim, one line) | `ui_send(prompt)` - enqueue a turn (no-op if already running) |
 | `STOP`             | -                                                           | `ui_stop()` - request cancellation of the running turn       |
 | `RESET`            | -                                                           | `ui_reset()` - clear transcript/ledger (refused mid-turn)    |
-| `QUIT`             | -                                                           | stop streaming, `ui_stop()`, then terminate the subprocess   |
+| `QUIT`             | -                                                           | stop streaming, `ui_stop()`, then terminate the subprocess (subprocess transport) or set the stop event so the ticker tears down the in-process renderer (in-process transport) |
 | `APPLY:<k=v,...>`  | comma-separated `key=value` pairs (see below)               | `ui_apply_settings(...)` - rebuild model live                |
 
 ### `APPLY:` argument grammar
@@ -120,7 +153,10 @@ model=<str>,n_ctx=<str>,api_key=<str>,base_url=<str>,temperature=<str>
 - Event identity is the integer `id`; re-sending an id replaces in place.
 - The sidecar owns terminal I/O and input; the control plane owns agent state.
   Neither side blocks the other (both run on dedicated writer/reader threads).
-- `QUIT` is the only command that tears down the process; the control plane also
-  terminates on its own `proc.wait()` returning or on `KeyboardInterrupt`.
+- `QUIT` is the command that tears down the renderer; on the subprocess transport
+  the control plane also terminates on its own `proc.wait()` returning or on
+  `KeyboardInterrupt`. On the in-process transport, quit flows through the stop
+  event (also polled via `tui_quit_requested()`); in raw mode Ctrl-C is a
+  keystroke, not `SIGINT`.
 
 See `BACKENDS.md` for how the sidecar is spawned.

@@ -16,44 +16,88 @@ import from .terminal { term_sync_start, term_sync_end }
 glob _BG: str = "\033[48;2;18;18;28m",
      _RESET: str = "\033[0m";
 
+# Headless render sink (Decision C, plan §15-C): when paint() is called with
+# fd < 0 the byte stream is appended here instead of written to a tty, so the
+# in-process host can render into memory for tests (tui_render_buf) with no TTY.
+# Must be an `obj` glob with a string FIELD -- a bare scalar glob would not
+# persist writes across :pub calls in NA codegen.
+obj PaintBuf {
+    has text: str = "";
+
+    def append(s: str) {
+        self.text = self.text + s;
+    }
+
+    def take -> str {
+        t = self.text;
+        self.text = "";
+        return t;
+    }
+}
+
+glob _paint_buf: PaintBuf = PaintBuf();
+
+# Read and clear the headless paint buffer (the bytes produced by the last
+# paint(..., fd=-1)). Returns "" when nothing was buffered.
+def diff_take_buf -> str {
+    return _paint_buf.take();
+}
+
+# Single write sink: real tty fd, or the in-memory buffer when fd < 0.
+def _emit(fd: int, text: str) {
+    if fd < 0 {
+        _paint_buf.append(text);
+        return;
+    }
+    tty_write(fd, text);
+}
+
 def _abs_move(row: int) -> str {
     r: int = row + 1;
     return f"\033[{r};1H";
 }
 
 def _full_paint(lines: list[str], fd: int) {
-    term_sync_start(fd);
+    if fd >= 0 {
+        term_sync_start(fd);
+    }
     # Clear full screen with TUI background, then home cursor.
-    tty_write(fd, _BG + "\033[2J\033[H");
+    _emit(fd, _BG + "\033[2J\033[H");
     i: int = 0;
     n = len(lines);
     while i < n {
         if i > 0 {
-            tty_write(fd, "\r\n");
+            _emit(fd, "\r\n");
         }
-        tty_write(fd, lines[i]);
+        _emit(fd, lines[i]);
         i = i + 1;
     }
-    tty_write(fd, _RESET);
-    term_sync_end(fd);
+    _emit(fd, _RESET);
+    if fd >= 0 {
+        term_sync_end(fd);
+    }
 }
 
 def _diff_paint(lines: list[str], first: int, last: int, fd: int) {
-    term_sync_start(fd);
+    if fd >= 0 {
+        term_sync_start(fd);
+    }
     # Set background so \033[2K fills with TUI bg color.
-    tty_write(fd, _BG);
+    _emit(fd, _BG);
     i: int = first;
     nl = len(lines);
     while i <= last {
         # Move to absolute row, clear entire line, write new content.
-        tty_write(fd, _abs_move(i) + "\033[2K");
+        _emit(fd, _abs_move(i) + "\033[2K");
         if i < nl {
-            tty_write(fd, lines[i]);
+            _emit(fd, lines[i]);
         }
         i = i + 1;
     }
-    tty_write(fd, _RESET);
-    term_sync_end(fd);
+    _emit(fd, _RESET);
+    if fd >= 0 {
+        term_sync_end(fd);
+    }
 }
 
 obj DiffEngine {

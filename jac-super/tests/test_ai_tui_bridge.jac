@@ -70,7 +70,7 @@ test "SEND dispatch resolves the UI bridge in dispatcher scope" {
 
     setattr(ai_mod, "ui_send", fake_send);
     try {
-        dispatch("SEND:hi", DummyProc(), DummyStopEvt());
+        dispatch("SEND:hi", DummyStopEvt(), DummyProc());
     } finally {
         setattr(ai_mod, "ui_send", old_send);
     }
@@ -93,7 +93,9 @@ test "QUIT dispatch resolves ui_stop and tears down the sidecar" {
     try {
         proc = DummyProc();
         stop_evt = DummyStopEvt();
-        dispatch("QUIT", proc, stop_evt);
+        # Shared dispatcher signature is (line, stop_evt, proc); proc is optional
+        # (None for the in-process backend) and terminated only when present.
+        dispatch("QUIT", stop_evt, proc);
         assert stop_evt.is_set();
         assert proc.terminated;
     } finally {

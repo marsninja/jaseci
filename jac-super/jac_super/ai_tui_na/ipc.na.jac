@@ -81,17 +81,18 @@ def ipc_apply_line(state: TuiState, key: str, val: str) {
     }
 }
 
-def ipc_read_frame_v2(state: TuiState) -> bool {
+# Parse one already-assembled frame `blob` (KEY:VALUE lines joined by "\n", the
+# trailing "---" optional) into `state`. Transport-agnostic: the subprocess path
+# (ipc_read_frame_v2) builds the blob from the pipe; the in-process host passes
+# the exact same text from tui_apply_frame. Always returns True (an empty/hb
+# frame is a no-op); EOF detection stays in the pipe reader. Reuses _unescape /
+# _parse_ev_val / ipc_apply_line unchanged.
+def ipc_parse_frame(state: TuiState, blob: str) -> bool {
     lines: list[str] = [];
-
-    while True {
-        raw = tty_read_line();
-        if len(raw) == 0 {
-            return False;
-        }
+    for raw in blob.split("\n") {
         line = raw.strip();
         if line == "---" {
-            break;
+            continue;
         }
         if len(line) > 0 {
             lines.append(line);
@@ -134,6 +135,71 @@ def ipc_read_frame_v2(state: TuiState) -> bool {
     return True;
 }
 
+def ipc_read_frame_v2(state: TuiState) -> bool {
+    blob: str = "";
+
+    while True {
+        raw = tty_read_line();
+        if len(raw) == 0 {
+            return False;
+        }
+        line = raw.strip();
+        if line == "---" {
+            break;
+        }
+        if len(line) > 0 {
+            if len(blob) > 0 {
+                blob = blob + "\n";
+            }
+            blob = blob + line;
+        }
+    }
+
+    return ipc_parse_frame(state, blob);
+}
+
+# In-process command sink. Native enqueues command strings here when there is no
+# IPC pipe fd; the sv host drains them via tui_next_command() (Phase 1). Must be
+# an `obj` glob with list/cursor FIELDS -- bare scalar globs don't persist writes
+# across :pub calls in NA codegen.
+obj CmdQueue {
+    has items: list[str] = [],
+        cursor: int = 0;
+
+    def push(cmd: str) {
+        self.items.append(cmd);
+    }
+
+    # FIFO drain: next queued command, "" when empty. Compacts on drain so the
+    # backing list does not grow unbounded across the session.
+    def pop_next -> str {
+        if self.cursor >= len(self.items) {
+            self.items = [];
+            self.cursor = 0;
+            return "";
+        }
+        cmd = self.items[self.cursor];
+        self.cursor = self.cursor + 1;
+        return cmd;
+    }
+}
+
+# Pure object construction is safe in glob init (no libc).
+glob cmd_queue: CmdQueue = CmdQueue();
+
+# fd >= 0: write the command to the pipe (subprocess transport). fd < 0: enqueue
+# into cmd_queue for the in-process host to pull (same command grammar).
 def ipc_send_cmd(fd: int, cmd: str) {
+    if fd < 0 {
+        cmd_queue.push(cmd);
+        return;
+    }
     tty_write(fd, cmd + "\n");
+}
+
+# Pull the next queued in-process command (FIFO), "" when drained. The sv host
+# calls this in a loop after tui_handle_key (plan §5/§8) and feeds each line to
+# _dispatch_cmd -- the exact SEND:/STOP/RESET/QUIT/APPLY: grammar as the pipe.
+def ipc_next_command -> str {
+    return cmd_queue.pop_next();
 }
