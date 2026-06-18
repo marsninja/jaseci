@@ -732,25 +732,37 @@ impl MongoBackend.apply(changeset: ChangeSet) -> ApplyReport {
         # backstop for the narrow window where a winner commits *during* this
         # apply (after the precheck read); any orphan from that window is
         # collected by `jac db fsck` (half-linked-edge sweep).
-        precheck: list = [];
+        # Collect the read-gated intents (cas_version set) and read their stored
+        # versions in ONE $in query, so a walker that read several nodes still
+        # costs a single round-trip rather than one find per node.
+        read_gated: dict[str, int] = {};
         for stage in changeset.staged() {
             for intent in stage {
-                if intent.cas_version is None {
-                    continue;
+                if intent.cas_version is not None {
+                    read_gated[str(to_uuid(intent.anchor.id))] = intent.cas_version;
                 }
-                pdoc = self.collection.find_one(
-                    {'_id': str(to_uuid(intent.anchor.id))}, {'data.version': 1}
+            }
+        }
+        precheck: list = [];
+        if read_gated {
+            stored_versions: dict[str, int] = {};
+            for vdoc in self.collection.find(
+                {'_id': {'$in': list(read_gated.keys())}}, {'data.version': 1}
+            ) {
+                stored_versions[str(vdoc.get('_id'))] = int(
+                    vdoc.get('data', {}).get('version', 0)
                 );
-                if pdoc is None {
-                    continue;  # absent node -> the staged CAS path handles it
-                }
-                stored_v = pdoc.get('data', {}).get('version', 0);
-                if stored_v != intent.cas_version {
+            }
+            # Absent docs are omitted from stored_versions -> skipped here, so
+            # the staged CAS path (upsert=False -> no match -> conflict) is what
+            # handles a node that vanished since this request read it.
+            for (gid, expected) in read_gated.items() {
+                if gid in stored_versions and stored_versions[gid] != expected {
                     precheck.append(
                         WriteConflict(
-                            anchor_id=intent.anchor.id,
-                            expected_version=intent.cas_version,
-                            actual_version=stored_v
+                            anchor_id=to_uuid(gid),
+                            expected_version=expected,
+                            actual_version=stored_versions[gid]
                         )
                     );
                 }

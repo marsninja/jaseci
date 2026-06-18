@@ -318,7 +318,13 @@ def _occ_policy -> tuple {
         import from jaclang.project.config { get_config }
         cfg = get_config();
         if cfg is not None {
-            mode = cfg.serve.on_conflict;
+            # Normalize defensively: file-based config is already validated at
+            # parse, but a programmatically-set value may carry case/whitespace.
+            # Only "fail" disables replay; any other value is the safe "retry".
+            mode = str(cfg.serve.on_conflict).strip().lower();
+            if mode not in ("retry", "fail") {
+                mode = "retry";
+            }
             max_attempts = cfg.serve.conflict_max_attempts;
             backoff_ms = cfg.serve.conflict_backoff_ms;
         }
