@@ -58,7 +58,7 @@ impl MongoBackend.postinit -> None {
 
 """Create indexes that make type-based pushdown queries efficient.
 
-Idempotent — `create_index` is a no-op when an index of the same shape and
+Idempotent -- `create_index` is a no-op when an index of the same shape and
 name already exists, so this can be called on every connect without cost.
 
 The compound `(arch_type, type)` index is what makes `execute_plan`
@@ -97,7 +97,7 @@ def _anchor_has_structural_change(anchor: Anchor) -> bool {
     return anchor.hash == 0;
 }
 
-# Field-hash dirty detection lives in jaclang.runtimelib.changeset — one
+# Field-hash dirty detection lives in jaclang.runtimelib.changeset -- one
 # shared implementation for the runtime's collect pass and every backend.
 """Build a stored document for an anchor, including Layer 2 fingerprint
 and Layer 1 archetype identity fields. Parallels _anchor_to_row in
@@ -132,7 +132,7 @@ The Serializer records applied drift-rule steps on the archetype
 (`__jac_schema_repairs__`); when present, the upgraded form is written
 back with compare-and-set on the originally stored fingerprint, so a
 concurrent writer on an older code version cleanly wins and the doc
-simply repairs again on its next read. Never raises — a failed
+simply repairs again on its next read. Never raises -- a failed
 write-back just means the repair re-runs next load (idempotent).
 """
 def _mongo_persist_repairs(
@@ -311,7 +311,7 @@ impl MongoBackend.set_l1_id(l1_id: str) -> None {
 
 """Check if MongoDB is available and connected."""
 impl MongoBackend.is_available -> bool {
-    # Only cache a confirmed True — caching False would prevent later contexts
+    # Only cache a confirmed True -- caching False would prevent later contexts
     # (e.g. test files that configure MongoDB after others that don't) from ever
     # reaching MongoDB in the same process.
     if _process_cache.get('mongo_available') is True {
@@ -341,7 +341,7 @@ impl MongoBackend.is_available -> bool {
 
 On any deserialization failure or unresolvable archetype class, the row
 is moved to the `_quarantine` collection (never silently dropped) so an
-operator can inspect and recover with `jac db` — parallel to the
+operator can inspect and recover with `jac db` -- parallel to the
 SqliteMemory contract.
 """
 impl MongoBackend.get(id: UUID) -> (Anchor | None) {
@@ -447,7 +447,7 @@ impl MongoBackend.get(id: UUID) -> (Anchor | None) {
     return cast(Anchor, anchor);
 }
 
-"""Stage anchor for persistence — all writes are deferred to sync()."""
+"""Stage anchor for persistence -- all writes are deferred to sync()."""
 impl MongoBackend.put(anchor: Anchor) -> None { }
 
 """Full document upsert for an anchor. Used by sync() when no partial or
@@ -500,7 +500,7 @@ impl MongoBackend.put_partial(anchor: Anchor, field_names: set[str]) -> None {
 """Forget backend-local cache state for an anchor. MongoBackend keeps no
 local cache, so this is a no-op: the document is removed by apply()
 executing a delete intent, in dependency order with the edge-list repairs
-that must precede it — never inline (issue #6587)."""
+that must precede it -- never inline (issue #6587)."""
 impl MongoBackend.delete(id: UUID) -> None { }
 
 """Release local reference to the shared client. Flushing is the runtime's
@@ -546,7 +546,7 @@ impl MongoBackend.query(
 
 """Get all root anchors using an indexed type filter (no full collection scan).
 
-Uses the `(arch_type, type)` compound index — IXSCAN, not COLLSCAN. The
+Uses the `(arch_type, type)` compound index -- IXSCAN, not COLLSCAN. The
 Python-side `isinstance` check is kept as a defense-in-depth filter in case
 schema drift left a non-Root archetype with `arch_type='Root'`.
 """
@@ -575,7 +575,7 @@ declarative field predicates (`data.archetype.<f>` paths), `_id IN (...)`
 narrowing (primary index), and contiguous slicing (`skip`+`limit`).
 
 The planner combines these with the topology_index narrowing automatically
-— see `jaclang.runtimelib.planner` for the strategy chooser.
+-- see `jaclang.runtimelib.planner` for the strategy chooser.
 """
 impl MongoBackend.capabilities -> set[str] {
     return {'type_pushdown', 'field_pushdown', 'id_in', 'slice'};
@@ -586,7 +586,7 @@ impl MongoBackend.capabilities -> set[str] {
 
 Filter shape (only includes keys the plan actually populates):
   - `arch_type`: archetype class name (final hop's `node_type` or `node_type_final`)
-  - `type`: 'NodeAnchor' (we only push down node queries — edges are handled
+  - `type`: 'NodeAnchor' (we only push down node queries -- edges are handled
             via the source/target subdoc separately, not by execute_plan)
   - `_id`:  `{'$in': [...]}` when the planner narrowed via topology_index
   - `data.archetype.<f>`: each archetype-field predicate, value passed through
@@ -640,7 +640,7 @@ This is the backend's pushdown entry point. The planner only calls us when
     the candidate UUIDs) OR there is no chain (a pure type/field query)
   - `field_predicates` use cross-backend operators (`$eq`, `$lt`, `$in`...)
   - `slc` is either absent or contiguous-step (we early-rejected stepped
-    slices by leaving skip/limit as None — caller applies them)
+    slices by leaving skip/limit as None -- caller applies them)
 
 We never raise to the caller: any error logs at debug and returns an empty
 generator so the planner can fall back if it wants to.
@@ -703,7 +703,7 @@ impl MongoBackend.commit(anchor: (Anchor | None) = None) -> None {
 }
 
 # PersistentMemory-specific methods
-"""Flush a unit of work in dependency order — the changeset's stages.
+"""Flush a unit of work in dependency order -- the changeset's stages.
 
 MongoDB multi-document transactions require a replica set, which many
 deployments (and the standalone default) don't run, so crash-safety comes
@@ -711,7 +711,7 @@ from ORDER: truncating this sequence at any point can only leave an
 unreferenced document (orphan), never a dangling reference. A failed
 structural write poisons its dependents (e.g. a node delete after a failed
 edge delete is skipped) instead of corrupting the graph. Decision logic
-(what changed, access control) ran in the runtime's collect pass — this
+(what changed, access control) ran in the runtime's collect pass -- this
 method only executes intents."""
 impl MongoBackend.apply(changeset: ChangeSet) -> ApplyReport {
     apply_report = ApplyReport();
@@ -724,6 +724,51 @@ impl MongoBackend.apply(changeset: ChangeSet) -> ApplyReport {
     );
     try {
         poisoned: set[UUID] = set();
+        # OCC precheck: a read-gated intent (cas_version set) whose stored
+        # version already moved means this request lost the race. Detect it
+        # BEFORE staging any writes, so the loser's child/edge docs are never
+        # written -- MongoDB has no cross-document rollback here, so prevention
+        # beats compensation. The in-line CAS in _put_node_atomic stays as the
+        # backstop for the narrow window where a winner commits *during* this
+        # apply (after the precheck read); any orphan from that window is
+        # collected by `jac db fsck` (half-linked-edge sweep).
+        precheck: list = [];
+        for stage in changeset.staged() {
+            for intent in stage {
+                if intent.cas_version is None {
+                    continue;
+                }
+                pdoc = self.collection.find_one(
+                    {'_id': str(to_uuid(intent.anchor.id))}, {'data.version': 1}
+                );
+                if pdoc is None {
+                    continue;  # absent node -> the staged CAS path handles it
+                }
+                stored_v = pdoc.get('data', {}).get('version', 0);
+                if stored_v != intent.cas_version {
+                    precheck.append(
+                        WriteConflict(
+                            anchor_id=intent.anchor.id,
+                            expected_version=intent.cas_version,
+                            actual_version=stored_v
+                        )
+                    );
+                }
+            }
+        }
+        if precheck {
+            # Abort the whole unit of work: write nothing. The request
+            # boundary replays (retry) or fails (fail). A partial apply would
+            # orphan the loser's just-written child.
+            for wc in precheck {
+                apply_report.failed[wc.anchor_id] = wc.message();
+                apply_report.conflicts.append(wc);
+            }
+            if span {
+                span.set_attribute("mem.count", 0);
+            }
+            return apply_report;
+        }
         for stage in changeset.staged() {
             for intent in stage {
                 if (deps := intent.depends_on & poisoned) {
@@ -796,7 +841,7 @@ impl MongoBackend._apply_one(intent: WriteIntent) -> None {
 }
 
 """Atomically update a NodeAnchor, merging the intent's archetype fields and
-edge delta with DB state. `fields` comes from the runtime's collect pass —
+edge delta with DB state. `fields` comes from the runtime's collect pass --
 the single owner of dirty detection AND write-access decisions. Re-deriving
 dirtiness here would persist fields the collect pass never authorized."""
 impl MongoBackend._put_node_atomic(
@@ -1052,7 +1097,7 @@ impl MongoBackend._load_anchor(raw: dict[(str, Any)]) -> (Anchor | None) {
 
 
 # ----------------------------------------------------------------------
-# Layer 1+2+3 operator surface — parity with SqliteMemory.
+# Layer 1+2+3 operator surface -- parity with SqliteMemory.
 # ----------------------------------------------------------------------
 """Attempt to re-deserialize one quarantined Mongo doc, re-stamped with
 the live class's identity + fingerprint on success. Returns (ok, reason)."""
@@ -1373,6 +1418,11 @@ impl MongoBackend.fsck(repair: bool = False) -> dict {
         'dangling_edge_node': [],
         'orphan_edges': [],
         'orphan_nodes': [],
+        # Edges cited by exactly one of their two (existing) endpoints -- the
+        # optimistic-concurrency orphan signature (a loser's child + edge that
+        # the root's edge-list CAS refused after the docs were written, in the
+        # narrow window the apply() precheck can't cover). (edge, citing, rejecting).
+        'half_linked_edges': [],
         'repaired': repair,
         'repaired_counts': {'pruned': 0, 'quarantined': 0, 'collected': 0}
     };
@@ -1382,7 +1432,7 @@ impl MongoBackend.fsck(repair: bool = False) -> dict {
     node_ids: set[str] = set();
     edge_ids: set[str] = set();
     node_edges: dict[str, list[str]] = {};
-    edge_endpoints: dict[str, tuple] = {};
+    edge_endpoints: dict[str, tuple[(str | None), (str | None)]] = {};
     node_is_root: dict[str, bool] = {};
     try {
         for doc in self.collection.find(
@@ -1419,26 +1469,76 @@ impl MongoBackend.fsck(repair: bool = False) -> dict {
         }
     }
     referenced_nodes: set[str] = set();
+    broken_edge_ids: set[str] = set();  # cite a missing node (typed mirror)
     for (eid, endpoints) in edge_endpoints.items() {
         for endp in endpoints {
             if endp is not None {
                 referenced_nodes.add(endp);
                 if endp not in node_ids {
                     fsck_report['dangling_edge_node'].append((eid, endp));
+                    broken_edge_ids.add(eid);
                 }
             }
         }
     }
+    orphan_edge_ids: set[str] = set();  # cited by nobody (typed mirror)
     for eid in edge_ids {
         if eid not in cited_edges {
             fsck_report['orphan_edges'].append(eid);
+            orphan_edge_ids.add(eid);
+        }
+    }
+    # Half-linked edge (OCC orphan signature): both endpoints exist, but only
+    # one cites the edge. The non-citing endpoint authoritatively rejected the
+    # link (an optimistic-concurrency loser whose root edge-list CAS was
+    # refused after its child + edge docs were written). A symmetric edge is
+    # healthy; an edge cited by neither endpoint is already an orphan_edge.
+    half_linked_ids: set[str] = set();
+    for (eid, ep) in edge_endpoints.items() {
+        if (
+            ep[0] is None
+            or ep[1] is None
+            or ep[0] not in node_ids
+            or ep[1] not in node_ids
+        ) {
+            continue;  # missing endpoint -> dangling_edge_node, handled
+        }
+        src = cast(str, ep[0]);
+        tgt = cast(str, ep[1]);
+        src_cites = src in node_edges and eid in node_edges[src];
+        tgt_cites = tgt in node_edges and eid in node_edges[tgt];
+        if src_cites != tgt_cites {
+            (citing, rejecting) = (src, tgt) if src_cites else (tgt, src);
+            fsck_report['half_linked_edges'].append((eid, citing, rejecting));
+            half_linked_ids.add(eid);
+        }
+    }
+    # Edges collected on repair (orphan + half-linked + endpoint-missing): a
+    # node left edgeless once these go, and unreferenced by any SURVIVING edge,
+    # is itself an orphan to collect -- how an OCC loser's stranded child is
+    # reclaimed once its half-linked edge is removed.
+    collectible_edges: set[str] = orphan_edge_ids | half_linked_ids | broken_edge_ids;
+    surviving_referenced: set[str] = set();
+    for (eid, ep) in edge_endpoints.items() {
+        if eid not in collectible_edges {
+            if ep[0] is not None {
+                surviving_referenced.add(ep[0]);
+            }
+            if ep[1] is not None {
+                surviving_referenced.add(ep[1]);
+            }
         }
     }
     for nid in node_ids {
+        remaining = [
+            e
+            for e in node_edges.get(nid, [])
+            if e not in collectible_edges
+        ];
         if (
             not node_is_root.get(nid)
-            and not node_edges.get(nid)
-            and nid not in referenced_nodes
+            and not remaining
+            and nid not in surviving_referenced
         ) {
             fsck_report['orphan_nodes'].append(nid);
         }
@@ -1454,13 +1554,14 @@ impl MongoBackend.fsck(repair: bool = False) -> dict {
             self.quarantine_dangling(to_uuid(eid), to_uuid(nid), 'edge');
             counts['quarantined'] += 1;
         }
-        broken_edges: set[str] = set();
         for (eid, nid) in fsck_report['dangling_edge_node'] {
             self.quarantine_dangling(to_uuid(nid), to_uuid(eid), 'node');
             counts['quarantined'] += 1;
-            broken_edges.add(eid);
         }
-        collect_edges: set[str] = broken_edges | set(fsck_report['orphan_edges']);
+        # Broken (cites a missing node) + orphan + half-linked edges; pruning a
+        # half-linked edge from its citing endpoint strands the loser's child
+        # for the orphan-node collection below. (Typed mirrors built above.)
+        collect_edges: set[str] = broken_edge_ids | orphan_edge_ids | half_linked_ids;
         for (nid, eids) in node_edges.items() {
             also = set(eids) & collect_edges;
             if also {

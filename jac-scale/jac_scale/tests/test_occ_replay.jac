@@ -18,7 +18,8 @@ import from uuid { uuid4 }
 import from pymongo { MongoClient }
 import from testcontainers.mongodb { MongoDbContainer }
 
-import from jaclang.jac0core.archetype { GenericEdge, Root }
+import from jaclang.jac0core.archetype { EdgeAnchor, GenericEdge, Root }
+import from jaclang.runtimelib.changeset { ChangeSet }
 import from jaclang.runtimelib.serializer { Serializer }
 import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jac_scale.memory_hierarchy { MongoBackend }
@@ -215,4 +216,98 @@ test "OCC + replay converges concurrent find-or-create to one linked child" {
     assert len(root_edges) == 1 , f"expected 1 linked child, got {len(root_edges)}";
     linked = coll.count_documents({"arch_type": "OccProfile", "data._linked": True});
     assert linked == 1 , f"expected exactly 1 linked OccProfile, got {linked}";
+}
+
+
+test "OCC (Mongo): apply() precheck aborts a stale unit before writing the child" {
+    (client, uri) = _get_mongo();
+    client.drop_database(_DB);
+    backend: any = MongoBackend(mongo_url=uri, db_name=_DB);
+    coll: any = client[_DB]["_anchors"];
+    (ranch, rid) = _seed_root(backend);
+
+    # Winner bumps the root to v1 (read-gated).
+    backend._put_node_atomic(ranch, [str(uuid4())], [], set(), 0);
+    assert coll.find_one({"_id": rid})["data"]["version"] == 1;
+
+    # Loser builds a full find-or-create unit (child + edge + root edge-list
+    # delta) but read the root at v0. apply()'s precheck must detect the stale
+    # version and abort the WHOLE unit BEFORE the child/edge docs are written,
+    # so no orphan is left (MongoDB has no cross-document rollback).
+    rstale: any = Serializer.deserialize(coll.find_one({"_id": rid})["data"]);
+    rstale.version = 0;  # the version this request "read"
+    prof: any = OccProfile(uid="loser");
+    panch: any = prof.__jac__;
+    panch.persistent = True;
+    panch.root = rstale.id;
+    edge_arch: any = GenericEdge();
+    eanch: any = edge_arch.__jac__;
+    eanch.source = rstale;
+    eanch.target = panch;
+    eanch.persistent = True;
+    eanch.root = rstale.id;
+    rstale.edges.append(eanch);
+    panch.edges.append(eanch);
+    cs: any = ChangeSet();
+    cs.record_create(panch);
+    cs.record_create(eanch);
+    cs.record_edge_delta(rstale, [eanch.id], []);
+    cs.intents[rstale.id].cas_version = 0;
+    rep: any = backend.apply(cs);
+
+    assert len(rep.conflicts) == 1 , f"precheck must conflict, got {rep.conflicts}";
+    assert coll.count_documents({"_id": str(panch.id)}) == 0 , "loser's child must NOT be written (precheck aborts before staging)";
+    assert coll.count_documents({"_id": str(eanch.id)}) == 0 , "loser's edge must NOT be written (precheck aborts before staging)";
+    assert len(coll.find_one({"_id": rid})["data"]["edges"]) == 1 , "root keeps only the winner's edge";
+}
+
+
+test "fsck (Mongo): a half-linked edge + its stranded child are collected" {
+    (client, uri) = _get_mongo();
+    client.drop_database(_DB);
+    backend: any = MongoBackend(mongo_url=uri, db_name=_DB);
+    coll: any = client[_DB]["_anchors"];
+    (ranch, rid) = _seed_root(backend);
+
+    # Build root -> child with a real edge doc; both endpoints cite it.
+    prof: any = OccProfile(uid="kid");
+    panch: any = prof.__jac__;
+    panch.persistent = True;
+    panch.root = ranch.id;
+    # A real EdgeAnchor (not a bare GenericEdge().__jac__, which is a base
+    # Anchor) so it persists as a `type: EdgeAnchor` row that fsck recognizes.
+    edge_arch: any = GenericEdge();
+    eanch: any = EdgeAnchor(
+        archetype=edge_arch, source=ranch, target=panch, is_undirected=False
+    );
+    edge_arch.__jac__ = eanch;
+    eanch.persistent = True;
+    eanch.root = ranch.id;
+    panch.edges.append(eanch);
+    backend._write_to_db(panch);  # child cites edge
+    backend._write_to_db(eanch);  # edge doc
+    backend._put_node_atomic(
+        ranch, [str(eanch.id)], [], set()
+    );  # root cites edge (blind)
+    assert len(coll.find_one({"_id": rid})["data"]["edges"]) == 1;
+
+    # Surgically remove the edge from the ROOT's list -> half-linked (kid cites,
+    # root doesn't): the residual orphan an OCC reject leaves on a non-txn store.
+    coll.update_one({"_id": rid}, {"$pull": {"data.edges": str(eanch.id)}});
+    assert len(coll.find_one({"_id": rid})["data"]["edges"]) == 0;
+
+    rpt: any = backend.fsck(repair=False);
+    assert any(str(e[0]) == str(eanch.id) for e in rpt['half_linked_edges']) , f"edge must be flagged half-linked, got {rpt[
+        'half_linked_edges'
+    ]}";
+    assert str(panch.id) in [str(n) for n in rpt['orphan_nodes']] , f"stranded kid must be flagged orphan_node, got {rpt[
+        'orphan_nodes'
+    ]}";
+
+    rep: any = backend.fsck(repair=True);
+    assert rep['repaired_counts']['collected'] >= 2 , f"edge + kid collected, got {rep[
+        'repaired_counts'
+    ]}";
+    assert coll.count_documents({"_id": str(panch.id)}) == 0 , "stranded kid must be collected";
+    assert coll.count_documents({"_id": str(eanch.id)}) == 0 , "half-linked edge must be collected";
 }

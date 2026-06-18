@@ -128,7 +128,7 @@ impl UserManager.get_root_id(username: str) -> (str | None) {
     return row[0] if row else None;
 }
 
-"""Async mirror of get_root_id — offloads the SQLite read to a thread."""
+"""Async mirror of get_root_id -- offloads the SQLite read to a thread."""
 impl UserManager.aget_root_id(username: str) -> (str | None) {
     return await asyncio.to_thread(self.get_root_id, username);
 }
@@ -234,7 +234,7 @@ impl UserManager.close -> None {
 
 """Collect reports from a completed function/spawn invocation.
 
-The walker (sync or async) has already joined by the time we get here —
+The walker (sync or async) has already joined by the time we get here --
 `_finalize_call_response` calls us after awaiting the spawn. So the
 `queue.Queue` is fully populated and no concurrent producer is active.
 Drain synchronously via `get_nowait`; this keeps the report path off
@@ -331,11 +331,11 @@ def _occ_policy -> tuple {
 """Drain the reports queue and package the wire response for a completed call.
 
 Commit goes through the async Memory surface (`Jac.acommit`) so L3 writes
-do not block the event loop — this is what keeps post-walker persistence
+do not block the event loop -- this is what keeps post-walker persistence
 from serializing async walkers that would otherwise all pay the commit
 round-trip on the loop in series.
 
-Two streaming paths are honored — both are propagated to the caller as
+Two streaming paths are honored -- both are propagated to the caller as
 a raw (Async)Generator so jac-scale's serve.endpoints can wrap them in a
 StreamingResponse instead of materializing the events:
 
@@ -346,7 +346,7 @@ StreamingResponse instead of materializing the events:
      the older live-reports pattern; report_collector itself returns
      the generator straight from the queue (see line 250).
 
-If both paths fire on the same call, the explicit return wins — that's
+If both paths fire on the same call, the explicit return wins -- that's
 the authoritative result for the caller; reports are auxiliary. Anything
 else falls into the normal serialize-and-envelope path.
 """
@@ -432,6 +432,11 @@ impl ExecutionManager.execute_function_sync(
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
                 ctx.read_versions.clear();
+                # Drop diagnostics accrued by the aborted attempt (e.g. a
+                # PermissionDenied raised during the walker body or the collect
+                # pass) so a converged replay's 200 response doesn't surface
+                # stale warnings from a unit of work that never committed.
+                ctx.diagnostics.clear();
                 if attempt >= max_attempts {
                     return {
                         'error': wc.message(),
@@ -494,6 +499,11 @@ impl ExecutionManager.execute_function_async(
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
                 ctx.read_versions.clear();
+                # Drop diagnostics accrued by the aborted attempt (e.g. a
+                # PermissionDenied raised during the walker body or the collect
+                # pass) so a converged replay's 200 response doesn't surface
+                # stale warnings from a unit of work that never committed.
+                ctx.diagnostics.clear();
                 if attempt >= max_attempts {
                     return {
                         'error': wc.message(),
@@ -560,7 +570,7 @@ impl ExecutionManager.spawn_walker_sync(
     # Optimistic-concurrency replay: a walker that loses a check-then-create
     # race raises WriteConflict at commit. We discard the attempt's mutations
     # + deferred effects, reload the root so the replay sees the committed
-    # winner, and re-run — so find-or-create converges instead of duplicating.
+    # winner, and re-run -- so find-or-create converges instead of duplicating.
     try {
         (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
         max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
@@ -594,6 +604,11 @@ impl ExecutionManager.spawn_walker_sync(
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
                 ctx.read_versions.clear();
+                # Drop diagnostics accrued by the aborted attempt (e.g. a
+                # PermissionDenied raised during the walker body or the collect
+                # pass) so a converged replay's 200 response doesn't surface
+                # stale warnings from a unit of work that never committed.
+                ctx.diagnostics.clear();
                 if attempt >= max_attempts {
                     return {
                         'error': wc.message(),
@@ -674,6 +689,11 @@ impl ExecutionManager.spawn_walker_async(
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
                 ctx.read_versions.clear();
+                # Drop diagnostics accrued by the aborted attempt (e.g. a
+                # PermissionDenied raised during the walker body or the collect
+                # pass) so a converged replay's 200 response doesn't surface
+                # stale warnings from a unit of work that never committed.
+                ctx.diagnostics.clear();
                 if attempt >= max_attempts {
                     return {
                         'error': wc.message(),
@@ -791,8 +811,8 @@ impl ModuleIntrospector._load_manifest -> None {
 
 Access (auth-required, secure-by-default: True for anything not `pub`) is
 computed once at compile time by BoundaryAnalysisPass and stored on each
-module's `interop_manifest`. We union those maps across the program hub —
-an endpoint may be defined in any imported module — instead of re-walking
+module's `interop_manifest`. We union those maps across the program hub --
+an endpoint may be defined in any imported module -- instead of re-walking
 ASTs at request time. The main module is processed first so its definitions
 win on a name collision, matching the prior direct-defs-before-imports order.
 """
@@ -1993,7 +2013,7 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 return;
             }
             if (path == '/__build_status') {
-                # Dev-mode build health for external tooling — HTTP 200 alone
+                # Dev-mode build health for external tooling -- HTTP 200 alone
                 # can't tell a clean build from a broken one (compile errors
                 # still serve the error-overlay page).
                 import from jaclang.runtimelib.hmr { get_build_status }
