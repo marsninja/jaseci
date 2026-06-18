@@ -100,6 +100,7 @@ impl inline_dist_assets(dist_dir: Path) -> bool {
         css_file = _asset_in_dist(dist_dir, link_match.group(1));
         if css_file {
             css = css_file.read_text(encoding="utf-8");
+            css = _guard_closing_tag(css, "style");
             inline_style = f'<style>\n{css}\n</style>';
             html = html.replace(link_match.group(0), inline_style, 1);
             changed = True;
@@ -126,6 +127,16 @@ class _DistRequestHandler(SimpleHTTPRequestHandler) {
             path = path[len("/static"):];
         }
         return super.translate_path(path);
+    }
+
+    def guess_type(self: _DistRequestHandler, path: str) -> str {
+        # `WebAssembly.instantiateStreaming` requires `application/wasm`;
+        # mimetypes.guess_type() does not map `.wasm` on every platform, so
+        # pin it here rather than relying on the OS MIME database.
+        if str(path).endswith(".wasm") {
+            return "application/wasm";
+        }
+        return super.guess_type(path);
     }
 }
 

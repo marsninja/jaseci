@@ -356,7 +356,9 @@ When the caller did not request a specific target (still the `web` default),
 a project that declares `kind = "client"` (a browser-only app with no server)
 is routed to the `static` target so `jac build` / `jac start` produce a
 portable dist and a minimal static serve without the user passing
-`--client static`. An explicit non-web `--client` always wins.
+`--client static`. An explicit non-web `--client` (e.g. `--client pwa`) always
+wins; `--client web` is indistinguishable from the default, so it does not
+override the client-kind routing.
 """
 def _auto_client_target(config: JacConfig, requested: str, project_dir: Path) -> str {
     if requested != "web" {

@@ -1715,7 +1715,8 @@ kind = "client"
 
 With `kind = "client"` set, `jac build` and `jac start` auto-detect the
 client-only project and take the portable path -- no `--client static` flag
-required. An explicit `--client <target>` always overrides the auto-detection.
+required. An explicit non-web `--client <target>` (e.g. `--client pwa`)
+overrides the auto-detection.
 
 **`jac build` produces a portable dist.** After the normal Vite build, the
 generated `index.html` has its JS bundle and CSS **inlined**, making it fully

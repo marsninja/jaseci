@@ -22,8 +22,10 @@ def _make_fake_dist(dist_dir: Path) {
         encoding="utf-8"
     );
     (dist_dir / "client.DEADBEEF.js.map").write_text("{}", encoding="utf-8");
+    # Include a literal `</style>` in a value to exercise closing-tag guarding.
     (dist_dir / "styles.css").write_text(
-        ".jac-marker { color: red; }", encoding="utf-8"
+        '.jac-marker { color: red; } .x::before { content: "</style>"; }',
+        encoding="utf-8"
     );
     index_html = '''<!DOCTYPE html>
 <html lang="en">
@@ -58,6 +60,9 @@ test "static inline produces self-contained index html" {
         assert 'rel="stylesheet"' not in html , "external stylesheet link must be inlined away";
         assert "<style>" in html , "inlined style tag expected";
         assert ".jac-marker" in html , "CSS must be inlined into the HTML";
+        # The CSS's literal `</style>` must be escaped so it can't close the tag
+        # early -- exactly one real closing `</style>` should remain.
+        assert html.count("</style>") == 1 , "CSS closing-tag sequence must be guarded";
         # No sourceMappingURL comment over file:// (avoids a console 404).
         assert "sourceMappingURL" not in html , "sourcemap comment must be stripped from inline JS";
         # The jac init payload script must be preserved untouched.
@@ -144,10 +149,11 @@ test "static server maps static prefix to dist root" {
         thread = threading.Thread(target=httpd.serve_forever, daemon=True);
         thread.start();
         try {
-            served = urlopen(
-                f"http://127.0.0.1:{port}/static/main.wasm", timeout=10
-            ).read();
+            resp = urlopen(f"http://127.0.0.1:{port}/static/main.wasm", timeout=10);
+            served = resp.read();
             assert served == b"WASM_BYTES" , "/static/<x> must resolve to dist/<x>";
+            # WebAssembly.instantiateStreaming requires application/wasm.
+            assert resp.headers.get("Content-Type") == "application/wasm" , "wasm must be served as application/wasm";
             index_body = urlopen(
                 f"http://127.0.0.1:{port}/index.html", timeout=10
             ).read();
