@@ -46,6 +46,15 @@ impl run_tui_session(req: AgentRequest) -> int {
     r: any = typed_req;
     initial = str(r?.prompt or "").strip();
 
+    ensured = _ensure_tui_binary(pkg_root);
+    if not ensured.get("ok") {
+        console.error(str(ensured.get("error", "failed to build TUI backend")));
+        hint = str(ensured.get("hint", ""));
+        if hint {
+            console.error(hint);
+        }
+        return 1;
+    }
     resolved = _resolve_tui_command(pkg_root, initial);
 
     if not resolved.get("ok") {
@@ -272,13 +281,94 @@ def _sidecar_tty_device -> str {
     return "";
 }
 
+def _tui_binary_path(pkg_root: any) -> str {
+    return str(pkg_root / "ai_tui_na" / "bin" / "jac-na-tui");
+}
+
+def _ensure_tui_binary(pkg_root: any) -> dict {
+    # Compile jac-na-tui on first launch when NA sources are present (dev tree).
+    # Installed packages without sources still need a prebuilt binary or manual build.
+    import os;
+    import subprocess;
+    import from jaclang.cli.console { console }
+
+    binary = _tui_binary_path(pkg_root);
+    if os.path.exists(binary) {
+        return {"ok": True, "error": "", "hint": ""};
+    }
+    na_dir = str(pkg_root / "ai_tui_na");
+    tui_src = str(pkg_root / "ai_tui_na" / "tui.na.jac");
+    build_sh = str(pkg_root / "ai_tui_na" / "build.sh");
+    if not os.path.isfile(tui_src) {
+        return {
+            "ok": False,
+            "cmd_args": [],
+            "error": f"jac-na-tui not found at {binary}",
+            "hint": "Build it with: jac-super/jac_super/ai_tui_na/build.sh",
+
+        };
+    }
+    if not os.path.isfile(build_sh) {
+        return {
+            "ok": False,
+            "cmd_args": [],
+            "error": f"jac-na-tui not found at {binary}",
+            "hint": (
+                "Build it with: cd jac-super/jac_super/ai_tui_na && " + "jac nacompile tui.na.jac -o bin/jac-na-tui"
+            ),
+
+        };
+    }
+    console.print("[tui] jac-na-tui missing; compiling (first run) ...", style="dim");
+    try {
+        res = subprocess.run(
+            ["bash", build_sh, "--quick"],
+            cwd=na_dir,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        );
+        if res.returncode != 0 {
+            detail = (res.stderr or res.stdout or "").strip();
+            if detail {
+                console.error(detail);
+            }
+            return {
+                "ok": False,
+                "cmd_args": [],
+                "error": "jac-na-tui compile failed",
+                "hint": f"Run manually: {build_sh}",
+
+            };
+        }
+    } except Exception as e {
+        return {
+            "ok": False,
+            "cmd_args": [],
+            "error": f"jac-na-tui compile failed: {e}",
+            "hint": f"Run manually: {build_sh}",
+
+        };
+    }
+    if not os.path.exists(binary) {
+        return {
+            "ok": False,
+            "cmd_args": [],
+            "error": f"jac-na-tui not found at {binary} after compile",
+            "hint": f"Run manually: {build_sh}",
+
+        };
+    }
+    return {"ok": True, "cmd_args": [], "error": "", "hint": ""};
+}
+
 def _resolve_tui_command(pkg_root: any, initial: str) -> dict {
     # Map the NA sidecar to a spawn command, validating its presence.
     # Returns {ok, cmd_args, error, hint}.  `initial`, when non-empty, is passed
     # to the sidecar as its first positional arg (the seed prompt).
     import os;
 
-    binary = str(pkg_root / "ai_tui_na" / "bin" / "jac-na-tui");
+    binary = _tui_binary_path(pkg_root);
     if not os.path.exists(binary) {
         return {
             "ok": False,

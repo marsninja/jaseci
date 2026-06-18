@@ -4,6 +4,13 @@
 
 set -euo pipefail
 
+QUICK=0
+for arg in "$@"; do
+    case "$arg" in
+        --quick) QUICK=1 ;;
+    esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -27,6 +34,11 @@ echo "==> Compiling jac-na-tui ..."
 "${JAC[@]}" nacompile tui.na.jac -o bin/jac-na-tui
 
 echo "==> Done. Binary: $SCRIPT_DIR/bin/jac-na-tui"
+
+if [ "$QUICK" -eq 1 ]; then
+    echo "==> Quick build complete (skipped tests)."
+    exit 0
+fi
 
 # ── headless logic tests (no TTY needed) ─────────────────────────────────────
 echo "==> Building + running picker logic tests ..."
