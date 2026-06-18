@@ -1,4 +1,4 @@
-"""Implementation of WasmTarget (client-only) methods."""
+"""Implementation of StaticTarget (client-only) methods."""
 import re;
 import os;
 import functools;
@@ -152,10 +152,10 @@ impl serve_static_dir(dist_dir: Path, host: str, port: int) -> None {
 }
 
 """Build the client bundle, then inline assets into a portable index.html."""
-impl WasmTarget.build(
+impl StaticTarget.build(
     entry_file: Path, project_dir: Path, platform: Optional[str] = None
 ) -> Path {
-    console.print("\n🌐 Building client-only (wasm) target", style="bold");
+    console.print("\n🌐 Building client-only (static) target", style="bold");
     # Reuse the full WebTarget Vite pipeline for the bundle + base index.html.
     bundle_path = super.build(entry_file, project_dir, platform);
     bundler = ViteBundler(project_dir=project_dir);
@@ -172,7 +172,7 @@ impl WasmTarget.build(
 }
 
 """Build the portable dist and serve it with a minimal static server."""
-impl WasmTarget.start(
+impl StaticTarget.start(
     entry_file: Path, project_dir: Path, api_port: int = 8000
 ) -> None {
     self.build(entry_file, project_dir, None);

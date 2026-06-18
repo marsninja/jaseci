@@ -1,7 +1,7 @@
-"""Tests for the client-only (wasm) build target.
+"""Tests for the client-only (static) build target.
 
-A `wasm`-kind Jac project runs entirely in the browser with no server. The
-wasm target must therefore produce a *portable* dist whose `index.html` is
+A `client`-kind Jac project runs entirely in the browser with no server. The
+static target must therefore produce a *portable* dist whose `index.html` is
 fully self-contained (JS + CSS inlined) so it renders when opened directly
 from disk via `file://` -- ES module `<script src=...>` tags are CORS-blocked
 over `file://`, so inlining is what makes disk-open work.
@@ -18,7 +18,7 @@ import from subprocess { run }
 def _make_fake_dist(dist_dir: Path) {
     dist_dir.mkdir(parents=True, exist_ok=True);
     (dist_dir / "client.DEADBEEF.js").write_text(
-        'console.log("JAC_WASM_MARKER");\n//# sourceMappingURL=client.DEADBEEF.js.map',
+        'console.log("JAC_BUNDLE_MARKER");\n//# sourceMappingURL=client.DEADBEEF.js.map',
         encoding="utf-8"
     );
     (dist_dir / "client.DEADBEEF.js.map").write_text("{}", encoding="utf-8");
@@ -41,8 +41,8 @@ def _make_fake_dist(dist_dir: Path) {
 }
 
 """inline_dist_assets must fold the JS bundle and CSS into index.html."""
-test "wasm inline produces self-contained index html" {
-    import from jac_client.plugin.src.targets.wasm_target { inline_dist_assets }
+test "static inline produces self-contained index html" {
+    import from jac_client.plugin.src.targets.static_target { inline_dist_assets }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         dist_dir = Path(temp_dir) / "dist";
@@ -53,7 +53,7 @@ test "wasm inline produces self-contained index html" {
         # The external module script is gone; the bundle is inlined instead.
         assert 'src="./client.DEADBEEF.js"' not in html , "external module src must be inlined away";
         assert '<script type="module">' in html , "inlined module script tag expected";
-        assert "JAC_WASM_MARKER" in html , "bundle JS must be inlined into the HTML";
+        assert "JAC_BUNDLE_MARKER" in html , "bundle JS must be inlined into the HTML";
         # CSS is inlined; the external stylesheet link is gone.
         assert 'rel="stylesheet"' not in html , "external stylesheet link must be inlined away";
         assert "<style>" in html , "inlined style tag expected";
@@ -66,8 +66,8 @@ test "wasm inline produces self-contained index html" {
 }
 
 """inline_dist_assets is a no-op (returns False) when there is no index.html."""
-test "wasm inline is a no-op without index html" {
-    import from jac_client.plugin.src.targets.wasm_target { inline_dist_assets }
+test "static inline is a no-op without index html" {
+    import from jac_client.plugin.src.targets.static_target { inline_dist_assets }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         dist_dir = Path(temp_dir) / "dist";
@@ -76,8 +76,8 @@ test "wasm inline is a no-op without index html" {
     }
 }
 
-"""The wasm target registers and resolves through the factory."""
-test "wasm target is registered and resolvable" {
+"""The static target registers and resolves through the factory."""
+test "static target is registered and resolvable" {
     import from jac_client.plugin.src.targets.register { register_targets }
     import from jac_client.plugin.src.targets.registry { get_target_factory }
 
@@ -85,20 +85,20 @@ test "wasm target is registered and resolvable" {
     factory = get_target_factory();
 
     names = factory.get_available_target_names();
-    assert "wasm" in names , f"wasm target should be registered; got {names}";
+    assert "static" in names , f"static target should be registered; got {names}";
 
     with tempfile.TemporaryDirectory() as temp_dir {
-        target = factory.create("wasm", Path(temp_dir));
-        assert target.name == "wasm" , "factory.create('wasm') should yield the wasm target";
+        target = factory.create("static", Path(temp_dir));
+        assert target.name == "static" , "factory.create('static') should yield the static target";
     }
 }
 
-"""An explicit `kind = \"wasm\"` resolves to the wasm project kind.
+"""An explicit `kind = \"client\"` resolves to the client project kind.
 
 This is the signal `jac build` / `jac start` key off to auto-route a
 client-only project to the portable/static path without any --client flag.
 """
-test "wasm kind is detected from jac toml" {
+test "client kind is detected from jac toml" {
     import from jaclang.project.config { JacConfig }
     import from jaclang.project.kinds { resolve_project_kind }
 
@@ -107,7 +107,7 @@ test "wasm kind is detected from jac toml" {
 name = "browser-app"
 version = "1.0.0"
 entry-point = "main.jac"
-kind = "wasm"
+kind = "client"
 
 [plugins.client]
 ''';
@@ -117,7 +117,7 @@ kind = "wasm"
         }
         config = JacConfig.load(Path(toml_path));
         kind = resolve_project_kind(config, os.path.join(temp_dir, "main.jac"));
-        assert kind == "wasm" , f"expected wasm kind, got {kind}";
+        assert kind == "client" , f"expected client kind, got {kind}";
     }
 }
 
@@ -127,12 +127,12 @@ A client-only app may still fetch an na->wasm module at `/static/<stem>.wasm`
 (emitted into the dist root). The minimal server must resolve that prefix so it
 stays behavior-compatible with the full server for the in-browser-native case.
 """
-test "wasm static server maps static prefix to dist root" {
+test "static server maps static prefix to dist root" {
     import threading;
     import functools;
     import from http.server { ThreadingHTTPServer }
     import from urllib.request { urlopen }
-    import from jac_client.plugin.src.targets.wasm_target { _DistRequestHandler }
+    import from jac_client.plugin.src.targets.static_target { _DistRequestHandler }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         dist = Path(temp_dir);
@@ -159,13 +159,13 @@ test "wasm static server maps static prefix to dist root" {
     }
 }
 
-"""End-to-end: a kind=wasm project builds a dist that renders from file://.
+"""End-to-end: a kind=client project builds a dist that renders from file://.
 
 This is the user-facing contract -- `jac build` with no `--client` flag must
 auto-detect the client-only project and emit a portable page that opens
 straight off disk. Skips when the browser/build toolchain is unavailable.
 """
-test "wasm build renders from file protocol" {
+test "client build renders from file protocol" {
     try {
         import from playwright.sync_api { sync_playwright }
     } except ImportError {
@@ -188,7 +188,7 @@ test "wasm build renders from file protocol" {
             toml_text = f.read();
         }
         toml_text = toml_text.replace(
-            'entry-point = "main.jac"', 'entry-point = "main.jac"\nkind = "wasm"'
+            'entry-point = "main.jac"', 'entry-point = "main.jac"\nkind = "client"'
         );
         with open(toml_path, "w") as f {
             f.write(toml_text);
@@ -202,7 +202,9 @@ test "wasm build renders from file protocol" {
             timeout=600,
         );
         if build.returncode != 0 {
-            pytest.skip(f"wasm build unavailable in this environment:\n{build.stderr}");
+            pytest.skip(
+                f"client build unavailable in this environment:\n{build.stderr}"
+            );
         }
         index_html = Path(project_dir) / ".jac" / "client" / "dist" / "index.html";
         assert index_html.exists() , "portable index.html should be produced";

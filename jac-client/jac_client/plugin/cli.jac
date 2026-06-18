@@ -131,7 +131,7 @@ class JacCmd {
                     "skip",
                     typ=bool,
                     default=False,
-                    help="Skip npm package installation (when creating client kinds: fullstack/wasm/mobile)"
+                    help="Skip npm package installation (when creating client kinds: fullstack/client/mobile)"
                 ),
 
             ],
@@ -350,13 +350,13 @@ def _handle_npm_add(ctx: HookContext) -> None {
     }
 }
 
-"""Pick the client target, auto-routing a client-only project to `wasm`.
+"""Pick the client target, auto-routing a client-only project to `static`.
 
 When the caller did not request a specific target (still the `web` default),
-a project that declares `kind = "wasm"` (a browser-only app with no server) is
-routed to the `wasm` target so `jac build` / `jac start` produce a portable
-dist and a minimal static serve without the user passing `--client wasm`. An
-explicit non-web `--client` always wins.
+a project that declares `kind = "client"` (a browser-only app with no server)
+is routed to the `static` target so `jac build` / `jac start` produce a
+portable dist and a minimal static serve without the user passing
+`--client static`. An explicit non-web `--client` always wins.
 """
 def _auto_client_target(config: JacConfig, requested: str, project_dir: Path) -> str {
     if requested != "web" {
@@ -365,8 +365,8 @@ def _auto_client_target(config: JacConfig, requested: str, project_dir: Path) ->
     import from jaclang.project.kinds { resolve_entry, resolve_project_kind }
     try {
         entry = resolve_entry(config, str(project_dir));
-        if resolve_project_kind(config, entry) == "wasm" {
-            return "wasm";
+        if resolve_project_kind(config, entry) == "client" {
+            return "static";
         }
     } except Exception {
         # Kind resolution is best-effort; fall back to the requested target.
@@ -417,7 +417,7 @@ def _handle_build_target(ctx: HookContext) -> None {
 
     project_dir = config.project_root or Path.cwd();
 
-    # Auto-route a client-only (kind = "wasm") project to the wasm target.
+    # Auto-route a client-only (kind = "client") project to the static target.
     target_name = _auto_client_target(config, target_name, project_dir);
 
     # Use factory to create target (lazy loading for non-web targets)
@@ -535,7 +535,7 @@ def _handle_start_target(ctx: HookContext) -> None {
     }
     (config, entry_path, project_dir) = start_ctx;
 
-    # Auto-route a client-only (kind = "wasm") project to the wasm target.
+    # Auto-route a client-only (kind = "client") project to the static target.
     target_name = _auto_client_target(config, target_name, project_dir);
 
     # Warn about debug mode in production

@@ -1,6 +1,6 @@
-"""Client-only (wasm) build target.
+"""Static (client-only) build target.
 
-A `wasm`-kind Jac project is a pure client app: it runs entirely in the
+A `client`-kind Jac project is a pure client app: it runs entirely in the
 browser with no server surface. This target extends `WebTarget` but diverges
 in two ways that matter for that use case:
 
@@ -32,9 +32,9 @@ a client-only app. Blocks until interrupted (Ctrl+C).
 """
 def serve_static_dir(dist_dir: Path, host: str, port: int) -> None;
 
-"""Client-only build target - portable dist + minimal static serve."""
-obj WasmTarget(WebTarget) {
-    has name: str = "wasm",
+"""Static (client-only) build target - portable dist + minimal static serve."""
+obj StaticTarget(WebTarget) {
+    has name: str = "static",
         default: bool = False,
         requires_setup: bool = False,
         config_section: str = "plugin.client",

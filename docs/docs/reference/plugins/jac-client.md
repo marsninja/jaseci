@@ -1634,8 +1634,8 @@ Defaults to `"/"`. Can also be set to `"./"` for relative path resolution if nee
 | `jac build --client desktop` | Build desktop app (requires [jac-desktop](jac-desktop.md)) |
 | `jac build --client mobile` | Build mobile app (Android/iOS) |
 | `jac build --client pwa` | Build PWA with offline support |
-| `jac build --client wasm` | Build client-only app as a portable, self-contained page (opens from `file://`) |
-| `jac start --client wasm` | Serve a client-only app with a minimal static server |
+| `jac build --client static` | Build client-only app as a portable, self-contained page (opens from `file://`) |
+| `jac start --client static` | Serve a client-only app with a minimal static server |
 | `jac setup pwa` | One-time PWA setup (icons directory) |
 | `jac add --npm <pkg>` | Add npm package |
 | `jac add --npm --dev <pkg>` | Add npm dev dependency |
@@ -1665,11 +1665,11 @@ jac build [filename] [--client TARGET] [-p PLATFORM]
 | Option | Description | Default |
 |--------|-------------|---------|
 | `filename` | Path to .jac file | `main.jac` |
-| `--client` | Build target (`web`, `pwa`, `wasm`, `desktop`, `mobile`) | `web` |
+| `--client` | Build target (`web`, `pwa`, `static`, `desktop`, `mobile`) | `web` |
 | `-p, --platform` | Platform for **mobile** (`android`, `ios`) or **desktop sidecar naming** (`windows` selects `.exe`; no cross-compilation yet) | Current platform |
 
-A project whose `jac.toml` declares `kind = "wasm"` is built as `wasm`
-automatically -- no `--client` flag needed (see [Client-only (wasm) builds](#client-only-wasm-builds)).
+A project whose `jac.toml` declares `kind = "client"` is built with the
+`static` target automatically -- no `--client` flag needed (see [Client-only apps](#client-only-apps)).
 
 For desktop builds, see the [jac-desktop Reference](jac-desktop.md): the desktop target compiles your `cl` UI into a single native binary that embeds the OS webview. In all desktop builds the build environment sets `JAC_BUILD=1` so import-time server starts stay inert.
 
@@ -1698,7 +1698,7 @@ jac build --client mobile --platform android
 jac build --client mobile --platform ios
 ```
 
-### Client-only (wasm) builds
+### Client-only apps
 
 A **client-only** app runs entirely in the browser with no backend -- all of
 its code lives in `cl { }` blocks (optionally with an `na { }` block compiled
@@ -1708,13 +1708,13 @@ to in-browser WebAssembly). Declare it once in `jac.toml`:
 [project]
 name = "browser-app"
 entry-point = "main.jac"
-kind = "wasm"
+kind = "client"
 
 [plugins.client]
 ```
 
-With `kind = "wasm"` set, `jac build` and `jac start` auto-detect the
-client-only project and take the portable path -- no `--client wasm` flag
+With `kind = "client"` set, `jac build` and `jac start` auto-detect the
+client-only project and take the portable path -- no `--client static` flag
 required. An explicit `--client <target>` always overrides the auto-detection.
 
 **`jac build` produces a portable dist.** After the normal Vite build, the
@@ -1722,7 +1722,7 @@ generated `index.html` has its JS bundle and CSS **inlined**, making it fully
 self-contained:
 
 ```bash
-jac build                      # auto-detected from kind = "wasm"
+jac build                      # auto-detected from kind = "client"
 # -> .jac/client/dist/index.html  (open directly from disk)
 ```
 
@@ -1734,8 +1734,8 @@ the document itself, so it runs straight off disk -- e.g. attach it to an email
 or drop it on a USB stick.
 
 **`jac start` serves it with a minimal static server.** Because there is no
-backend, the wasm target skips the full API server (no walkers, auth, database,
-or scheduler) and serves the dist with a tiny stdlib HTTP server:
+backend, the `static` target skips the full API server (no walkers, auth,
+database, or scheduler) and serves the dist with a tiny stdlib HTTP server:
 
 ```bash
 jac start                      # builds, then serves on http://localhost:8000/
