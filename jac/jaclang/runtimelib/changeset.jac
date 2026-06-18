@@ -55,7 +55,12 @@ obj WriteIntent {
         fields: set[str] by postinit,
         edges_added: list[UUID] by postinit,
         edges_removed: list[UUID] by postinit,
-        depends_on: set[UUID] by postinit;
+        depends_on: set[UUID] by postinit,
+        # Read-set OCC: the node version this request observed when it read a
+        # traversal from this anchor, or None if the request never read it.
+        # The backend CASes on it only when set, so a blind append (no read)
+        # merges lock-free while a check-then-create conflicts and replays.
+        cas_version: (int | None) = None;
 
     def postinit {
         self.fields = set();

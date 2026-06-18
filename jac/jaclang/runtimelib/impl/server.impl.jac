@@ -503,6 +503,7 @@ impl ExecutionManager.spawn_walker_sync(
                 # root from L3 so the replay re-reads the winner, then retry.
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
+                ctx.read_versions.clear();
                 if attempt >= max_attempts {
                     return {
                         'error': wc.message(),
@@ -578,6 +579,7 @@ impl ExecutionManager.spawn_walker_async(
             } except WriteConflict as wc {
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
+                ctx.read_versions.clear();
                 if attempt >= max_attempts {
                     return {
                         'error': wc.message(),

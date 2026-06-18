@@ -52,6 +52,12 @@ obj ExecutionContext {
         # (so never fired) when a request aborts before committing. Always
         # per-instance, never shared with a `_parent` fork.
         pending_effects: list[Callable] = [],
+        # Read-set OCC: node id -> the version observed the first time this
+        # request read an out-traversal from that node. The collect pass copies
+        # it onto edge-list write intents so the backend CASes only on nodes the
+        # request actually read (a blind append takes no dependency). Per-instance,
+        # cleared on replay; never shared with a `_parent` fork.
+        read_versions: dict[UUID, int] = {},
         custom: any = MISSING,
         system_root: NodeAnchor by postinit,
         user_root: NodeAnchor by postinit,

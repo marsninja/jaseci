@@ -329,9 +329,14 @@ impl JacNode.edges_to_nodes(
     origin: list[NodeArchetype], destination: ObjectSpatialDestination
 ) -> list[NodeArchetype] {
     _prefetch_edges(origin);
+    # Read-set OCC: snapshot the version of every node this request reads an
+    # out-traversal from. The collect pass turns it into a commit-time CAS, so
+    # a check-then-create conflicts (and replays) while a blind append does not.
+    _occ_ctx = JacRuntimeInterface.get_context();
     nodes: OrderedDict[(NodeAnchor, NodeArchetype)] = OrderedDict();
     for nd in origin {
         nanch = nd.__jac__;
+        _occ_ctx.read_versions.setdefault(nanch.id, nanch.version);
         for stub in `list(nanch.edges) {
             `edge = resolve_ref(stub, nanch);
             if `edge is None {

@@ -782,7 +782,8 @@ impl MongoBackend._apply_one(intent: WriteIntent) -> None {
             cast(NodeAnchor, anchor),
             [str(eid) for eid in intent.edges_added],
             [str(eid) for eid in intent.edges_removed],
-            intent.fields
+            intent.fields,
+            intent.cas_version
         );
         return;
     }
@@ -802,15 +803,13 @@ impl MongoBackend._put_node_atomic(
     anchor: NodeAnchor,
     edges_added: list[str],
     edges_removed: list[str],
-    fields: set[str]
+    fields: set[str],
+    cas_version: (int | None) = None
 ) -> None {
     if self.client is None {
         return;
     }
     _id = str(to_uuid(anchor.id));
-    # Optimistic-concurrency guard: the version this request last saw. A
-    # concurrent committer that bumped it makes our CAS miss -> WriteConflict.
-    captured_version = anchor.version;
     try {
         # Serialize the intent's dirty archetype fields (`fields` = collect pass's dirty set, the sole owner of dirty detection).
         partial_data: dict[str, object] = Serializer.serialize_fields(anchor, fields)
@@ -847,24 +846,32 @@ impl MongoBackend._put_node_atomic(
         set_doc['data.version'] = {'$add': [{'$ifNull': ['$data.version', 0]}, 1]};
 
         import from pymongo { ReturnDocument }
-        # CAS: only update if the doc's version still matches what we read.
-        # upsert=False so a version miss does NOT mint a spurious duplicate.
+        # Read-set OCC: CAS on the version only when this request READ a
+        # traversal from this node (cas_version set). A blind append takes no
+        # dependency -> plain upsert + $setUnion merges lock-free (#5644).
+        cas_filter: dict = {'_id': _id};
+        if cas_version is not None {
+            cas_filter = {'_id': _id, 'data.version': cas_version};
+        }
         merged_doc = self.collection.find_one_and_update(
-            {'_id': _id, 'data.version': captured_version},
+            cas_filter,
             [{'$set': set_doc}],
             projection={'data.edges': 1, 'data.version': 1},
-            upsert=False,
+            upsert=(cas_version is None),
             return_document=ReturnDocument.AFTER
+            # upsert is safe only when not version-gating: a version miss must
+            # NOT mint a spurious duplicate doc.
         );
         if merged_doc is None {
-            # No doc matched (_id, version). Either the version moved under us
-            # (a concurrent committer) or the doc doesn't exist yet.
+            # Only reachable on the version-gated path (upsert=False). Either
+            # the version moved under us (a concurrent committer) or the doc
+            # does not exist yet.
             existing = self.collection.find_one({'_id': _id}, {'data.version': 1});
             if existing is not None {
                 actual = existing.get('data', {}).get('version', -1);
                 raise WriteConflict(
                     anchor_id=anchor.id,
-                    expected_version=captured_version,
+                    expected_version=cas_version,
                     actual_version=actual
                 );
             }
@@ -910,7 +917,7 @@ impl MongoBackend._put_node_atomic(
                 # Re-baseline the local OCC version to the just-committed one,
                 # so a subsequent commit this request CASes on the right value.
                 anchor.version = merged_doc.get('data', {}).get(
-                    'version', captured_version + 1
+                    'version', anchor.version + 1
                 );
             }
         } except Exception as rb_err {

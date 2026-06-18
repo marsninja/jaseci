@@ -1181,17 +1181,16 @@ impl SqliteMemory._merge_write(conn: sqlite3.Connection, intent: WriteIntent) ->
             if delta is not None {
                 edges_added = set(delta[0]);
                 edges_removed = set(delta[1]);
-                # Optimistic-concurrency guard (parity with MongoBackend's
-                # version-CAS): a real topology change to a node whose stored
-                # version moved since this request read it means a concurrent
-                # committer won the race. Raise so apply() records it and the
-                # request boundary converges (abort + reload + replay) instead
-                # of merging a duplicate child onto the same root.
+                # Read-set OCC (parity with MongoBackend): conflict only if this
+                # request READ a traversal from this node (cas_version set) and
+                # its stored version moved since. A blind append (cas_version
+                # None) takes no dependency and merges lock-free (#5644).
                 if (edges_added or edges_removed)
-                and stored_anchor.version != anchor.version {
+                and intent.cas_version is not None
+                and stored_anchor.version != intent.cas_version {
                     raise WriteConflict(
                         anchor_id=anchor.id,
-                        expected_version=anchor.version,
+                        expected_version=intent.cas_version,
                         actual_version=stored_anchor.version
                     );
                 }
@@ -1205,10 +1204,10 @@ impl SqliteMemory._merge_write(conn: sqlite3.Connection, intent: WriteIntent) ->
                     if eid in edge_by_id
                 ];
                 if edges_added or edges_removed {
-                    # Advance the version with the edge-list change; re-baseline
-                    # the in-memory anchor so a later commit this request CASes
-                    # on the right value.
-                    new_version = anchor.version + 1;
+                    # Advance from the STORED version (monotonic regardless of
+                    # who wrote, so a lock-free blind append still invalidates a
+                    # concurrent reader's CAS); re-baseline the in-memory anchor.
+                    new_version = stored_anchor.version + 1;
                     stored_anchor.version = new_version;
                     anchor.version = new_version;
                 }
@@ -2096,6 +2095,16 @@ impl TieredMemory._collect_into(changes: ChangeSet) -> None {
                 if (added or removed) and Jac.check_connect_access(anchor) {
                     changes.record_edge_delta(anchor, added, removed);
                     recorded = True;
+                    # Read-set OCC: if this request read an out-traversal from
+                    # this node, the backend CASes on the version it observed;
+                    # if it never read it (a blind append), cas_version stays
+                    # None and the edge merges lock-free (#5644).
+                    edge_intent = changes.intents.get(id);
+                    if edge_intent is not None {
+                        edge_intent.cas_version = Jac.get_context().read_versions.get(
+                            id
+                        );
+                    }
                 }
             }
         }
