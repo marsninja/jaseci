@@ -381,27 +381,55 @@ impl ExecutionManager.execute_function_sync(
         return {'error': 'User not found'};
     }
     (ctx, req_token) = await _begin_request_context(root_id);
-    call_token = ctx.call_state.set(CallState());
-    call_state = ctx.call_state.get();
+    _deserialize_wire_args(args);
+    # OCC replay (parity with spawn_walker_*): a function that loses a
+    # check-then-create race converges via abort + reload + replay instead of
+    # surfacing the WriteConflict as a 500.
+    max_attempts = 5;
     try {
-        _deserialize_wire_args(args);
-        result = await asyncio.to_thread(func, **args);
-        # Preserve legacy behavior: a plain-sync wrapper may return a
-        # coroutine (e.g. `def wrap(): return some_async()`). Unwrap it
-        # back on the event loop so callers see the awaited value, not
-        # the coroutine object.
-        if iscoroutine(result) {
-            result = await result;
+        attempt = 0;
+        while attempt < max_attempts {
+            attempt += 1;
+            call_token = ctx.call_state.set(CallState());
+            call_state = ctx.call_state.get();
+            try {
+                result = await asyncio.to_thread(func, **args);
+                # Preserve legacy behavior: a plain-sync wrapper may return a
+                # coroutine (e.g. `def wrap(): return some_async()`). Unwrap it
+                # back on the event loop so callers see the awaited value, not
+                # the coroutine object.
+                if iscoroutine(result) {
+                    result = await result;
+                }
+                return await self._finalize_call_response(call_state, result);
+            } except WriteConflict as wc {
+                ctx.mem.abort();
+                ctx.pending_effects.clear();
+                ctx.read_versions.clear();
+                if attempt >= max_attempts {
+                    return {
+                        'error': wc.message(),
+                        'error_code': 'write_conflict',
+                        'http_status': 409
+                    };
+                }
+                await ctx.aset_user_root(root_id);
+            } except Exception as e {
+                # Abort-on-error: a failed call must not half-mutate the graph.
+                # Discard its uncommitted unit of work instead of leaving it in
+                # the shared working set for the next commit to flush (#6619).
+                ctx.mem.abort();
+                return {'error': str(e)};
+            } finally {
+                ctx.call_state.reset(call_token);
+            }
         }
-        return await self._finalize_call_response(call_state, result);
-    } except Exception as e {
-        # Abort-on-error: a failed call must not half-mutate the graph.
-        # Discard its uncommitted unit of work instead of leaving it in
-        # the shared working set for the next commit to flush (#6619).
-        ctx.mem.abort();
-        return {'error': str(e)};
+        return {
+            'error': 'write_conflict: retries exhausted',
+            'error_code': 'write_conflict',
+            'http_status': 409
+        };
     } finally {
-        ctx.call_state.reset(call_token);
         Jac.reset_request_context(req_token);
     }
 }
@@ -418,20 +446,47 @@ impl ExecutionManager.execute_function_async(
         return {'error': 'User not found'};
     }
     (ctx, req_token) = await _begin_request_context(root_id);
-    call_token = ctx.call_state.set(CallState());
-    call_state = ctx.call_state.get();
+    _deserialize_wire_args(args);
+    # OCC replay (parity with spawn_walker_*): converge a lost check-then-create
+    # race instead of surfacing the WriteConflict as a 500.
+    max_attempts = 5;
     try {
-        _deserialize_wire_args(args);
-        result = await func(**args);
-        return await self._finalize_call_response(call_state, result);
-    } except Exception as e {
-        # Abort-on-error: a failed call must not half-mutate the graph.
-        # Discard its uncommitted unit of work instead of leaving it in
-        # the shared working set for the next commit to flush (#6619).
-        ctx.mem.abort();
-        return {'error': str(e)};
+        attempt = 0;
+        while attempt < max_attempts {
+            attempt += 1;
+            call_token = ctx.call_state.set(CallState());
+            call_state = ctx.call_state.get();
+            try {
+                result = await func(**args);
+                return await self._finalize_call_response(call_state, result);
+            } except WriteConflict as wc {
+                ctx.mem.abort();
+                ctx.pending_effects.clear();
+                ctx.read_versions.clear();
+                if attempt >= max_attempts {
+                    return {
+                        'error': wc.message(),
+                        'error_code': 'write_conflict',
+                        'http_status': 409
+                    };
+                }
+                await ctx.aset_user_root(root_id);
+            } except Exception as e {
+                # Abort-on-error: a failed call must not half-mutate the graph.
+                # Discard its uncommitted unit of work instead of leaving it in
+                # the shared working set for the next commit to flush (#6619).
+                ctx.mem.abort();
+                return {'error': str(e)};
+            } finally {
+                ctx.call_state.reset(call_token);
+            }
+        }
+        return {
+            'error': 'write_conflict: retries exhausted',
+            'error_code': 'write_conflict',
+            'http_status': 409
+        };
     } finally {
-        ctx.call_state.reset(call_token);
         Jac.reset_request_context(req_token);
     }
 }
