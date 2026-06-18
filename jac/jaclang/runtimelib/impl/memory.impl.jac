@@ -21,6 +21,7 @@ import from jaclang.runtimelib.changeset {
     derive_dirty_fields,
     snapshot_field_hashes
 }
+import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jaclang.runtimelib.serializer { Serializer }
 import from jaclang.runtimelib.query_plan { QueryPlan }
 import from jaclang.runtimelib.typecache { get_field_types }
@@ -1062,6 +1063,18 @@ impl SqliteMemory.apply(changeset: ChangeSet) -> ApplyReport {
                     try {
                         self._apply_one(conn, intent);
                         apply_report.applied.append(intent.anchor.id);
+                    } except WriteConflict as wc {
+                        # Optimistic-concurrency miss: poison like any failed
+                        # write (skips dependents), but carry the typed conflict
+                        # so commit() can raise it and the boundary can replay.
+                        # DEBUG, not ERROR: a losing racer is expected.
+                        poisoned.add(intent.anchor.id);
+                        apply_report.failed[intent.anchor.id] = wc.message();
+                        apply_report.conflicts.append(wc);
+                        logger.debug(
+                            f"SqliteMemory.apply: write conflict on "
+                            f"{intent.anchor.id}: {wc.message()}"
+                        );
                     } except (AttributeError, ModuleNotFoundError) as se {
                         # Anchors that can't be serialized (e.g. transient
                         # test classes) are skipped, not fatal.
@@ -1168,6 +1181,20 @@ impl SqliteMemory._merge_write(conn: sqlite3.Connection, intent: WriteIntent) ->
             if delta is not None {
                 edges_added = set(delta[0]);
                 edges_removed = set(delta[1]);
+                # Optimistic-concurrency guard (parity with MongoBackend's
+                # version-CAS): a real topology change to a node whose stored
+                # version moved since this request read it means a concurrent
+                # committer won the race. Raise so apply() records it and the
+                # request boundary converges (abort + reload + replay) instead
+                # of merging a duplicate child onto the same root.
+                if (edges_added or edges_removed)
+                and stored_anchor.version != anchor.version {
+                    raise WriteConflict(
+                        anchor_id=anchor.id,
+                        expected_version=anchor.version,
+                        actual_version=stored_anchor.version
+                    );
+                }
                 stored_set = set(e.id for e in stored_anchor.edges);
                 merged_ids = (stored_set | edges_added) - edges_removed;
                 edge_by_id = {e.id: e for e in stored_anchor.edges};
@@ -1177,6 +1204,14 @@ impl SqliteMemory._merge_write(conn: sqlite3.Connection, intent: WriteIntent) ->
                     for eid in merged_ids
                     if eid in edge_by_id
                 ];
+                if edges_added or edges_removed {
+                    # Advance the version with the edge-list change; re-baseline
+                    # the in-memory anchor so a later commit this request CASes
+                    # on the right value.
+                    new_version = anchor.version + 1;
+                    stored_anchor.version = new_version;
+                    anchor.version = new_version;
+                }
             } else {
                 stored_anchor.edges = anchor.edges;
             }
