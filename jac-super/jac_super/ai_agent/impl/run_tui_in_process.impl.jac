@@ -13,7 +13,6 @@ import from jaclang.cli.agent_api { AgentRequest }
 
 impl run_tui_in_process(req: AgentRequest) -> int {
     import os;
-    import sys;
     import threading;
     import from pathlib { Path }
     import from jaclang.cli.ai_agent { ui_configure, ui_stop, ui_stream }

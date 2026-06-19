@@ -38,7 +38,6 @@ import from jac_super.ai_agent.tui_shared {
 
 impl run_tui_session(req: AgentRequest) -> int {
     import os;
-    import sys;
     import threading;
     import from pathlib { Path }
     import from jaclang.cli.ai_agent { ui_configure, ui_stop, ui_stream }
