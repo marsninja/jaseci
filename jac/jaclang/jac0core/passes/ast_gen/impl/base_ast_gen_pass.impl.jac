@@ -1,48 +1,28 @@
 """Implementation for base_ast_gen_pass constructs."""
 
-"""Concatenate impl/test/variant bodies with the main module body."""
+"""Return the module's standalone statement stream for codegen.
+
+    Annex/test/variant bodies are already merged into nd.body by JacAnnexPass.
+    Matched ImplDefs are emitted via their declarations, so they are dropped
+    from this standalone stream.
+"""
 impl BaseAstGenPass._merge_module_bodies(nd: uni.Module) -> list {
-    clean_body = [
+    return [
         item
         for item in nd.body
         if not isinstance(item, uni.ImplDef)
     ];
-    merged: list = [];
-    for mod in nd.impl_mod {
-        merged.extend(mod.body);
-    }
-    merged.extend(clean_body);
-    for variant in nd.variant_mod {
-        for vimpl in variant.impl_mod {
-            merged.extend(vimpl.body);
-        }
-        merged.extend(
-            [
-                item
-                for item in variant.body
-                if not isinstance(item, uni.ImplDef)
-            ]
-        );
-    }
-    for mod in nd.test_mod {
-        merged.extend(mod.body);
-    }
-    return merged;
 }
 
-"""Instantiate child passes for impl, test, and variant modules."""
+"""Instantiate child passes for sub-modules.
+
+    Annex/test/variant bodies are merged into the head module, so there are no
+    separate sub-modules to codegen.
+"""
 impl BaseAstGenPass._init_child_passes(
     pass_class: type[ChildPassT]
 ) -> list[ChildPassT] {
-    sub_modules: list[uni.Module] = [];
-    sub_modules.extend(self.ir_in.impl_mod);
-    sub_modules.extend(self.ir_in.test_mod);
-    for variant in self.ir_in.variant_mod {
-        sub_modules.append(variant);
-        sub_modules.extend(variant.impl_mod);
-        sub_modules.extend(variant.test_mod);
-    }
-    return [pass_class(ir_in=sub_module, prog=self.prog) for sub_module in sub_modules];
+    return [];
 }
 
 """Flatten nested AST lists while skipping ``None`` entries."""
