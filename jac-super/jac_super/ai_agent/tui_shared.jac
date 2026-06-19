@@ -185,7 +185,7 @@ def _probe_tty -> dict {
 }
 
 
-def _require_tty -> str {
+def _require_tty -> str | None {
     # Full TTY guard shared by both backends: probe + emit the user-facing error +
     # return None on failure. Returns the tty device path on success ('' on Windows).
     import from jaclang.cli.console { console }
