@@ -41,6 +41,12 @@ glob _SB: str = "\033[0;38;2;70;70;100;48;2;18;18;28m",
      # Reasoning: italic+dim gray (theme DIM_ITALIC=6 → ;2;3 in SGR)
      _REASON_MSG: str = "\033[0;2;3;38;2;160;160;160;48;2;18;18;28m";
 
+# Autocomplete dropdown: selected item white-bold on blue-tinted bg; normal dim-gray.
+glob _AC_SEL: str = "\033[0;1;38;2;255;255;255;48;2;36;36;60m",
+     _AC_SEL_DESC: str = "\033[0;38;2;180;180;220;48;2;36;36;60m",
+     _AC_NORM: str = "\033[0;38;2;140;140;140;48;2;18;18;28m",
+     _AC_NORM_DESC: str = "\033[0;2;38;2;100;100;100;48;2;18;18;28m";
+
 def _cwd_short(cwd: str) -> str {
     slen = len(cwd);
     last: int = -1;
@@ -245,6 +251,55 @@ def _warn_row(env: str, cols: int) -> str {
     return _SB + "│ " + ansi_sgr(
         255, 80, 80, TH_BG_R, TH_BG_G, TH_BG_B, 0
     ) + warn_text + " " + _SB + "│" + _SR;
+}
+
+def _ac_item_row(label: str, desc: str, selected: bool, cols: int) -> str {
+    inner_w = cols - 4;
+    if inner_w < 4 {
+        return _empty_border_row(cols);
+    }
+    label_max: int = 20;
+    if label_max > inner_w - 6 {
+        label_max = inner_w - 6;
+    }
+    if label_max < 1 {
+        label_max = 1;
+    }
+    label_trunc = ansi_trunc(label, label_max);
+    label_len = visible_width(label_trunc);
+    pad_after = label_max - label_len;
+    if pad_after < 0 {
+        pad_after = 0;
+    }
+    desc_avail = inner_w - 2 - label_max - 2;
+    if desc_avail < 0 {
+        desc_avail = 0;
+    }
+    desc_trunc = ansi_trunc(desc, desc_avail);
+    desc_len = visible_width(desc_trunc);
+    total_len = 2 + label_len + pad_after + 2 + desc_len;
+    trail = inner_w - total_len;
+    if trail < 0 {
+        trail = 0;
+    }
+    item_sgr: str = _AC_NORM;
+    marker: str = "  ";
+    desc_sgr: str = _AC_NORM_DESC;
+    if selected {
+        item_sgr = _AC_SEL;
+        marker = "▸ ";
+        desc_sgr = _AC_SEL_DESC;
+    }
+    row: str = _SB + "│ " + item_sgr + marker + label_trunc;
+    if pad_after > 0 {
+        row = row + term_spaces(pad_after);
+    }
+    row = row + "  " + desc_sgr + desc_trunc;
+    if trail > 0 {
+        row = row + term_spaces(trail);
+    }
+    row = row + _SB + " │" + _SR;
+    return row;
 }
 
 def _idiv_s(a: int, b: int) -> int {
@@ -458,9 +513,18 @@ def screen_render(state: TuiState, cols: int, rows: int) -> list[str] {
     editor_h = _editor_height(ed, cols, rows);
     is_running = state.status == "running";
 
-    # Transcript occupies rows 3 .. (rows - 2 - editor_h).
-    # 1 separator row above editor, then editor_h content rows at bottom.
-    transcript_h = rows - 3 - 1 - editor_h;
+    # Autocomplete dropdown height: rendered above the ├───┤ divider (phase 7).
+    ac_h: int = 0;
+    if state.ac.active {
+        ac_h = len(state.ac.items);
+        if ac_h > 8 {
+            ac_h = 8;
+        }
+    }
+
+    # Transcript occupies rows 3 .. (rows - 2 - editor_h - ac_h).
+    # 1 separator row above editor, ac_h AC rows, then editor_h content rows at bottom.
+    transcript_h = rows - 3 - 1 - editor_h - ac_h;
     if transcript_h < 0 {
         transcript_h = 0;
     }
@@ -524,6 +588,20 @@ def screen_render(state: TuiState, cols: int, rows: int) -> list[str] {
             env = "API_KEY";
         }
         out.append(_warn_row(env, cols));
+    }
+
+    # Autocomplete dropdown rows (above editor divider, phase 7).
+    if state.ac.active and ac_h > 0 {
+        ac_i: int = 0;
+        while ac_i < ac_h {
+            item = state.ac.items[ac_i];
+            is_sel: bool = False;
+            if ac_i == state.ac.selected_idx {
+                is_sel = True;
+            }
+            out.append(_ac_item_row(item.label, item.description, is_sel, cols));
+            ac_i = ac_i + 1;
+        }
     }
 
     # Render editor rows (ed/editor_h/is_running already computed above).

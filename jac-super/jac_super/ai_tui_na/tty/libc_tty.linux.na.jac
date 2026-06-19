@@ -68,6 +68,8 @@ obj TtyCtx {
         saved_term: str = "",
         rows: int = 24,
         cols: int = 80,
+        x_pixels: int = 0,
+        y_pixels: int = 0,
         stdin_ready: int = 0,
         key_ready: int = 0,
         fd_saved: int = 0;
@@ -237,10 +239,14 @@ def tty_update_size {
     if ioctl(fd, TIOCGWINSZ, ws) == 0 {
         row: int = u16le(ws, 0);
         col: int = u16le(ws, 2);
+        xpx: int = u16le(ws, 4);
+        ypx: int = u16le(ws, 6);
         if row > 0 {
             if col > 0 {
                 g_tty.rows = row;
                 g_tty.cols = col;
+                g_tty.x_pixels = xpx;
+                g_tty.y_pixels = ypx;
             }
         }
     }
@@ -253,6 +259,16 @@ def tty_rows -> int {
 
 def tty_cols -> int {
     return g_tty.cols;
+}
+
+def tty_x_pixels -> int {
+    # Total terminal pixel width (ws_xpixel from TIOCGWINSZ). 0 if not reported.
+    return g_tty.x_pixels;
+}
+
+def tty_y_pixels -> int {
+    # Total terminal pixel height (ws_ypixel from TIOCGWINSZ). 0 if not reported.
+    return g_tty.y_pixels;
 }
 
 def tty_poll(timeout_ms: int) {

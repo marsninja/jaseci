@@ -20,6 +20,7 @@ Supported inline spans:
 
 import from .terminal { ansi_sgr, term_spaces, term_dashes }
 import from .width { visible_width, ansi_pad }
+import from .terminal_image { term_hyperlink }
 
 # Background matches the TUI chrome (screen.na.jac BG_R/G/B)
 glob _BG_R: int = 18,
@@ -232,6 +233,25 @@ def _md_apply_inline(s: str, base_sgr: str) -> str {
                 result = result + "\033[9m" + s[i + 2:j] + "\033[0m" + base_sgr;
                 i = j + 2;
                 continue;
+            }
+        }
+
+        # Inline link: [text](url) — OSC-8 hyperlink or "text (url)" fallback
+        if c == "[" {
+            j = _md_find_close(s, i + 1, "]", 1);
+            if j > i {
+                if j + 1 < n {
+                    if s[j + 1] == "(" {
+                        k = _md_find_close(s, j + 2, ")", 1);
+                        if k > j + 1 {
+                            link_text = s[i + 1:j];
+                            link_url = s[j + 2:k];
+                            result = result + term_hyperlink(link_text, link_url);
+                            i = k + 1;
+                            continue;
+                        }
+                    }
+                }
             }
         }
 

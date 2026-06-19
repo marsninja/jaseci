@@ -1,4 +1,4 @@
-"""Headless logic tests for the phase-6 overlay pickers.
+"""Headless logic tests for the phase-6 overlay pickers and phase-7 autocomplete.
 
 Pure-logic only: exercises SelectList filtering/navigation/key handling and the
 command/model/file item builders without opening a terminal, so it runs in CI
@@ -18,6 +18,7 @@ import from .libc_tty { tty_write }
 import from .state { TuiState }
 import from .select_list { SelectList, SelectItem }
 import from .commands { palette_commands, model_items, file_items }
+import from .autocomplete { fuzzy_score, ac_update, ac_apply }
 
 def emit(line: str) {
     tty_write(1, line + "\n");
@@ -129,6 +130,122 @@ def run_tests -> int {
     empty: list[SelectItem] = [];
     sl3.reset_items(empty);
     fails += check("current() is None when empty", sl3.current() is None);
+
+    # ── Autocomplete: fuzzy_score ───────────────────────────────────────────────
+    fails += check("fuzzy empty query -> 0", fuzzy_score("", "model") == 0);
+    fails += check("fuzzy no match -> -9999", fuzzy_score("xyz", "model") == -9999);
+    fails += check(
+        "fuzzy exact match scores very low", fuzzy_score("model", "model") < -50
+    );
+    fails += check("fuzzy subsequence matches", fuzzy_score("mo", "model") != -9999);
+    fails += check(
+        "fuzzy longer-than-text -> no match", fuzzy_score("modelx", "model") == -9999
+    );
+    fails += check(
+        "fuzzy consec beats scattered",
+        fuzzy_score("mo", "model") < fuzzy_score("mo", "macro")
+    );
+
+    # ── Autocomplete: ac_update slash trigger ────────────────────────────────────
+    ac_s = TuiState();
+    ac_s.files = ["src/app.jac", "src/util.jac", "README.md", "docs/api.md"];
+    ac_s.model_presets = ["anthropic/claude-sonnet-4-6"];
+
+    # Empty editor -> no AC
+    ac_update(ac_s);
+    fails += check("ac: empty editor -> inactive", not ac_s.ac.active);
+
+    # Type "/" -> slash trigger with all 6 commands
+    ac_s.editor.lines = ["/"];
+    ac_s.editor.cursor_col = 1;
+    ac_update(ac_s);
+    fails += check("ac: / -> active", ac_s.ac.active);
+    fails += check("ac: / kind=slash", ac_s.ac.kind == "slash");
+    fails += check("ac: / -> 6 commands", len(ac_s.ac.items) == 6);
+
+    # Type "/m" -> only /model matches
+    ac_s2 = TuiState();
+    ac_s2.files = ["src/app.jac"];
+    ac_s2.editor.lines = ["/m"];
+    ac_s2.editor.cursor_col = 2;
+    ac_update(ac_s2);
+    fails += check("ac: /m -> active", ac_s2.ac.active);
+    has_model: bool = False;
+    aci: int = 0;
+    while aci < len(ac_s2.ac.items) {
+        if ac_s2.ac.items[aci].value == "/model" {
+            has_model = True;
+        }
+        aci = aci + 1;
+    }
+    fails += check("ac: /m -> /model in items", has_model);
+
+    # No match -> dismissed
+    ac_s3 = TuiState();
+    ac_s3.files = [];
+    ac_s3.editor.lines = ["/zzz"];
+    ac_s3.editor.cursor_col = 4;
+    ac_update(ac_s3);
+    fails += check("ac: /zzz -> dismissed", not ac_s3.ac.active);
+
+    # ── Autocomplete: at_file trigger ────────────────────────────────────────────
+    ac_f = TuiState();
+    ac_f.files = ["src/app.jac", "src/util.jac", "README.md"];
+    ac_f.editor.lines = ["look at @src"];
+    ac_f.editor.cursor_col = 12;
+    ac_update(ac_f);
+    fails += check("ac: @src -> active", ac_f.ac.active);
+    fails += check("ac: @src kind=at_file", ac_f.ac.kind == "at_file");
+    fails += check("ac: @src -> 2 file matches", len(ac_f.ac.items) == 2);
+
+    # No files match -> inactive
+    ac_f2 = TuiState();
+    ac_f2.files = ["src/app.jac"];
+    ac_f2.editor.lines = ["@zzz"];
+    ac_f2.editor.cursor_col = 4;
+    ac_update(ac_f2);
+    fails += check("ac: @zzz no files -> inactive", not ac_f2.ac.active);
+
+    # ── Autocomplete: navigation ─────────────────────────────────────────────────
+    ac_n = TuiState();
+    ac_n.files = [];
+    ac_n.editor.lines = ["/"];
+    ac_n.editor.cursor_col = 1;
+    ac_update(ac_n);
+    fails += check("ac nav: starts at 0", ac_n.ac.selected_idx == 0);
+    ac_n.ac.nav_down();
+    fails += check("ac nav: down -> 1", ac_n.ac.selected_idx == 1);
+    ac_n.ac.selected_idx = 0;
+    ac_n.ac.nav_up();
+    fails += check("ac nav: up from 0 wraps to 5", ac_n.ac.selected_idx == 5);
+    ac_n.ac.dismiss();
+    fails += check("ac nav: dismiss clears active", not ac_n.ac.active);
+
+    # ── Autocomplete: ac_apply slash ─────────────────────────────────────────────
+    ac_ap = TuiState();
+    ac_ap.files = [];
+    ac_ap.editor.lines = ["/mo"];
+    ac_ap.editor.cursor_col = 3;
+    ac_update(ac_ap);
+    ac_ap.ac.selected_idx = 0;
+    ac_apply(ac_ap);
+    applied_text = ac_ap.editor.lines[0];
+    fails += check("ac apply: slash replaces prefix", applied_text == "/model ");
+    fails += check("ac apply: cursor after insertion", ac_ap.editor.cursor_col == 7);
+    fails += check("ac apply: ac dismissed", not ac_ap.ac.active);
+
+    # ── Autocomplete: ac_apply at_file ───────────────────────────────────────────
+    ac_af = TuiState();
+    ac_af.files = ["src/app.jac", "src/util.jac"];
+    ac_af.editor.lines = ["check @app"];
+    ac_af.editor.cursor_col = 10;
+    ac_update(ac_af);
+    fails += check("ac at_file: @app triggers", ac_af.ac.active);
+    ac_af.ac.selected_idx = 0;
+    ac_apply(ac_af);
+    af_text = ac_af.editor.lines[0];
+    fails += check("ac at_file: apply inserts @path", af_text.startswith("check @"));
+    fails += check("ac at_file: ac dismissed after apply", not ac_af.ac.active);
 
     emit(f"failures={fails}");
     return fails;

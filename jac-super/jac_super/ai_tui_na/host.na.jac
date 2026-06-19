@@ -29,6 +29,8 @@ import from .libc_tty {
     tty_update_size,
     tty_rows,
     tty_cols,
+    tty_x_pixels,
+    tty_y_pixels,
     tty_poll,
     tty_stdin_ready,
     tty_key_ready,
@@ -47,10 +49,14 @@ import from .terminal {
     term_disable_mouse
 }
 import from .state { TuiState }
+# See tui.na.jac priming comment: phase-7 state.na.jac changes require explicit
+# select_list priming so SelectItem resolves in overlay.na.jac during DFS.
+import from .select_list { SelectList, SelectItem }
 import from .ipc { ipc_read_frame_v2, ipc_send_cmd, ipc_parse_frame, ipc_next_command }
 import from .screen { screen_render }
 import from .diff { DiffEngine, diff_take_buf }
 import from .input { handle_key }
+import from .terminal_image { term_hyperlink, image_rows }
 import from .tui_core {
     tui_populate_state,
     tui_enter_screen,

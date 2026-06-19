@@ -9,6 +9,7 @@ codegen) and is append-only.
 import from .state { Event, DisplayRow, TuiState }
 import from .markdown { md_render }
 import from .tool_block { tool_call_rows, tool_result_rows }
+import from .terminal_image { image_rows, image_fallback }
 
 def event_prefix(ev: Event) -> str {
     kind = ev.kind;
@@ -35,6 +36,9 @@ def event_prefix(ev: Event) -> str {
     }
     if kind == "tool_result" {
         return "  | ";
+    }
+    if kind == "img" {
+        return "  ";
     }
     return "  ";
 }
@@ -142,6 +146,44 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
     }
     if kind == "tool_result" {
         tool_result_rows(ev.node, body, width, out);
+        return;
+    }
+
+    # Image events: node = "mime:width_px:height_px", text = base64 data
+    if kind == "img" {
+        img_mime: str = "image/png";
+        img_w: int = 0;
+        img_h: int = 0;
+        colon1 = ev.node.find(":");
+        if colon1 >= 0 {
+            img_mime = ev.node[:colon1];
+            rest_node = ev.node[colon1 + 1:];
+            colon2 = rest_node.find(":");
+            if colon2 >= 0 {
+                w_str = rest_node[:colon2];
+                h_str = rest_node[colon2 + 1:];
+                try {
+                    img_w = int(w_str);
+                } except Exception { }
+                try {
+                    img_h = int(h_str);
+                } except Exception { }
+            }
+        }
+        img_row_list = image_rows(body, img_mime, img_w, img_h, width);
+        ni = len(img_row_list);
+        ii: int = 0;
+        while ii < ni {
+            out.append(
+                DisplayRow(
+                    text=img_row_list[ii],
+                    kind=kind,
+                    is_continuation=ii > 0,
+                    pre_styled=True
+                )
+            );
+            ii = ii + 1;
+        }
         return;
     }
 

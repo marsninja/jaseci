@@ -30,6 +30,8 @@ import from .libc_tty {
     tty_update_size,
     tty_rows,
     tty_cols,
+    tty_x_pixels,
+    tty_y_pixels,
     tty_poll,
     tty_stdin_ready,
     tty_key_ready,
@@ -48,10 +50,15 @@ import from .terminal {
     term_disable_mouse
 }
 import from .state { TuiState }
+# select_list primed explicitly so SelectItem is resolvable when overlay.na.jac is
+# DFS'd via screen; adding AcItem/AcState to state.na.jac (phase 7) disrupted the
+# implicit priming path that previously worked without this line.
+import from .select_list { SelectList, SelectItem }
 import from .ipc { ipc_read_frame_v2, ipc_send_cmd }
 import from .screen { screen_render }
 import from .diff { DiffEngine }
 import from .input { handle_key }
+import from .terminal_image { term_hyperlink, image_rows }
 import from .tui_core { tui_setup, tui_loop_once, tui_teardown }
 
 glob args = sys.argv;
