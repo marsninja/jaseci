@@ -777,9 +777,9 @@ impl JacLangServer.get_token_at_position(
 ) -> Optional[uni.UniNode] {
     fs_path = uris.to_fs_path(file_path);
     with self._state_lock.read_lock() {
-        if fs_path not in self.mod.hub {
-            return None;
-        }
+        # Annex files (.impl/.test) have no hub entry of their own -- their
+        # nodes live in the merged head module -- but they do get a
+        # provenance-filtered sem manager, so gate on that rather than the hub.
         sem_mgr = self.sem_managers.get(fs_path);
         if not sem_mgr {
             return None;

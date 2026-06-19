@@ -36,9 +36,16 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
     backends -- `iter_context_stmts` (native) and
     `BaseAstGenPass._merge_module_bodies` (@sv/ecmascript) -- each of which then
     applies its own context filter. Annex (.impl/.test) and variant bodies are
-    spliced into the head module's own `body` by JacAnnexPass, so the woven set
-    is simply that one body; every annex-declared construct (a `glob`, `enum`,
-    standalone `def`/archetype, ...) is already present in it (issue #6754).
+    spliced into the head module's own `body` by JacAnnexPass, so every
+    annex-declared construct (a `glob`, `enum`, standalone `def`/archetype, ...)
+    is already present in it (issue #6754).
+
+    Annex-origin statements are woven BEFORE head-origin ones (partitioned by
+    `loc.mod_path`): a head module's top-level executable code (e.g. a
+    `with entry { ... }` that calls a function whose standalone definition lives
+    in an impl annex) runs at module load, so the annex's definitions must be
+    emitted first or the call hits an undefined name. (This restores the
+    impl-before-head order the pre-merge weave produced.)
 
     `strip_impl_defs` is True: matched `ImplDef`s are reached through the decls
     DeclImplMatchPass connects them to (the decl emits the construct from the
@@ -47,7 +54,18 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
     type-dispatches and ignores `ImplDef`s anyway.
     """
     static def iter_woven_segments(module: uni.Module) -> list[tuple[Sequence, bool]] {
-        return [(module.body, True)];
+        own = module.loc.mod_path;
+        annex_stmts = [
+            stmt
+            for stmt in module.body
+            if stmt.loc.mod_path and stmt.loc.mod_path != own
+        ];
+        head_stmts = [
+            stmt
+            for stmt in module.body
+            if not (stmt.loc.mod_path and stmt.loc.mod_path != own)
+        ];
+        return [(annex_stmts, True), (head_stmts, True)];
     }
 
     """Iterate top-level statements for a given context (see iter_woven_segments).
