@@ -32,7 +32,8 @@ import from jac_super.ai_agent.tui_shared {
     _dispatch_cmd,
     _ensure_na_artifact,
     _frame_blob,
-    _sidecar_tty_device
+    _sidecar_tty_device,
+    _tty_is_available
 }
 
 impl run_tui_session(req: AgentRequest) -> int {
@@ -72,25 +73,7 @@ impl run_tui_session(req: AgentRequest) -> int {
     cmd_args = resolved.get("cmd_args");
 
     tty_dev = _sidecar_tty_device();
-    # On Windows tty_dev is always "" (no /dev/pts path); check isatty() directly.
-    # Note: the subprocess backend on Windows is Phase 6 (out of scope for v1);
-    # in-process is the default and routes through run_tui_in_process instead.
-    if sys.platform == "win32" {
-        _win_tty: bool = False;
-        for _s in (sys.stderr, sys.stdin, sys.stdout) {
-            try {
-                if _s.isatty() {
-                    _win_tty = True;
-                }
-            } except Exception { }
-        }
-        if not _win_tty {
-            console.error(
-                "jac ai --tui needs an interactive terminal (stdin or stderr must be a TTY)"
-            );
-            return 1;
-        }
-    } elif not tty_dev {
+    if not _tty_is_available(tty_dev) {
         console.error(
             "jac ai --tui needs an interactive terminal (stdin or stderr must be a TTY)"
         );

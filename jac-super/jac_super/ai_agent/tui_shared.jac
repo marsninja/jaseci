@@ -173,6 +173,27 @@ def _sidecar_tty_device -> str {
 }
 
 
+def _tty_is_available(tty_dev: str) -> bool {
+    # True when the process has an interactive terminal. On POSIX, `tty_dev`
+    # is the non-empty path returned by `_sidecar_tty_device`; on Windows,
+    # `_sidecar_tty_device` always returns "" so we re-check isatty() directly.
+    # Single copy shared by both backends so the platform logic can't drift.
+    import sys;
+
+    if sys.platform == "win32" {
+        for stream in (sys.stderr, sys.stdin, sys.stdout) {
+            try {
+                if stream.isatty() {
+                    return True;
+                }
+            } except Exception { }
+        }
+        return False;
+    }
+    return bool(tty_dev);
+}
+
+
 def _configure_ui_env(r: any) -> dict {
     # Set the JAC_AI_UI_* env contract shared by both `jac ai --tui` backends and
     # gate agent bus capture with JAC_AI_UI_ACTIVE=1. The agent reads these on

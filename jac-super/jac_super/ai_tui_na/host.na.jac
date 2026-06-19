@@ -20,6 +20,7 @@ tui_render all read or mutate TuiState and MUST run under the host's render lock
 # block mirrors the proven-good order primed by tui.na.jac; the libc_tty /
 # terminal / screen symbols beyond what the exports use are otherwise unused but
 # REQUIRED to keep the --shared build green. Do not prune them.
+# Upstream fix tracked in jaseci-labs/jaseci#6793.
 import from .libc_tty {
     tty_open,
     tty_open_dev,

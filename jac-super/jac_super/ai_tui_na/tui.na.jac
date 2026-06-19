@@ -23,6 +23,7 @@ import os;
 # diff, input) PRIMES the resolver into the proven-good order. These imports are
 # otherwise unused here -- do not "clean them up" or the build regresses.
 # host.na.jac carries the same priming block for the --shared build.
+# Upstream fix tracked in jaseci-labs/jaseci#6793.
 import from .libc_tty {
     tty_open,
     tty_close,

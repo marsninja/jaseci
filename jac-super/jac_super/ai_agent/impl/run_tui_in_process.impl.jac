@@ -23,7 +23,8 @@ impl run_tui_in_process(req: AgentRequest) -> int {
         _debug_log,
         _dispatch_cmd,
         _frame_blob,
-        _sidecar_tty_device
+        _sidecar_tty_device,
+        _tty_is_available
     }
     import from jac_super.ai_agent.tui_host { TuiHost, _ensure_tui_lib, _tui_lib_path }
 
@@ -44,24 +45,7 @@ impl run_tui_in_process(req: AgentRequest) -> int {
     }
 
     tty_dev = _sidecar_tty_device();
-    # On Windows tty_dev is always "" (no /dev/pts path); check isatty() directly.
-    # On POSIX, "" means no controlling terminal.
-    if sys.platform == "win32" {
-        _win_tty: bool = False;
-        for _s in (sys.stderr, sys.stdin, sys.stdout) {
-            try {
-                if _s.isatty() {
-                    _win_tty = True;
-                }
-            } except Exception { }
-        }
-        if not _win_tty {
-            console.error(
-                "jac ai --tui needs an interactive terminal (stdin or stderr must be a TTY)"
-            );
-            return 1;
-        }
-    } elif not tty_dev {
+    if not _tty_is_available(tty_dev) {
         console.error(
             "jac ai --tui needs an interactive terminal (stdin or stderr must be a TTY)"
         );
