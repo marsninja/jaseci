@@ -20,7 +20,7 @@ glob _BG: str = "\033[48;2;18;18;28m",
 # fd < 0 the byte stream is appended here instead of written to a tty, so the
 # in-process host can render into memory for tests (tui_render_buf) with no TTY.
 # Must be an `obj` glob with a string FIELD -- a bare scalar glob would not
-# persist writes across :pub calls in NA codegen.
+# persist writes across :pub calls in NA codegen (jaseci-labs/jaseci#6816).
 obj PaintBuf {
     has text: str = "";
 

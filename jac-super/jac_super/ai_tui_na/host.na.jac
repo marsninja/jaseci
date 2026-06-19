@@ -61,7 +61,8 @@ import from .tui_core {
     tui_populate_state,
     tui_enter_screen,
     tui_leave_screen,
-    tui_render_once
+    tui_render_once,
+    _sync_size
 }
 
 # Pure object construction is safe in glob init (no libc / no tty); the libc/tty
@@ -168,6 +169,11 @@ def:pub tui_render -> int {
     if fd < 0 {
         return 0;
     }
+    # Re-sync the terminal size every tick. The in-process host has no SIGWINCH
+    # handler (unlike the subprocess loop, which calls _sync_size each iteration),
+    # so this is the one place a resize is detected: _sync_size marks dirty when
+    # rows or cols change, and the gated render below repaints accordingly.
+    _sync_size(host_state);
     if tui_render_once(host_state, host_diff, fd) {
         return 1;
     }

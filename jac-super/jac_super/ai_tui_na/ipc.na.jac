@@ -79,27 +79,36 @@ def _parse_eva_val(state: TuiState, val: str) -> None {
 }
 
 def ipc_apply_line(state: TuiState, key: str, val: str) {
-    if key == "STATUS" {
-        state.status = val;
-    }
-    if key == "ACTIVE" {
-        state.active = val;
-    }
-    if key == "MODEL" {
-        state.model_name = val;
-    }
-    if key == "NEEDS_KEY" {
-        state.needs_key = val == "1";
-    }
-    if key == "KEY_ENV" {
-        state.key_env = val;
-    }
+    # EV/EVA mutate the transcript through TuiState, which marks itself dirty
+    # (mark_layout_dirty), so they own their own repaint.
     if key == "EV" {
         _parse_ev_val(state, val);
+        return;
     }
     if key == "EVA" {
         _parse_eva_val(state, val);
+        return;
     }
+
+    # The rest are scalar status fields painted in the header/footer; a change to
+    # any of them must repaint. Marking dirty once here -- where the field is
+    # actually written -- follows the same "owner sets the flag" rule as the
+    # input/scroll handlers and the transcript mutators, so the render gate can
+    # stay a plain `dirty` check (no special-casing in ipc_parse_frame).
+    if key == "STATUS" {
+        state.status = val;
+    } elif key == "ACTIVE" {
+        state.active = val;
+    } elif key == "MODEL" {
+        state.model_name = val;
+    } elif key == "NEEDS_KEY" {
+        state.needs_key = val == "1";
+    } elif key == "KEY_ENV" {
+        state.key_env = val;
+    } else {
+        return;
+    }
+    state.dirty = True;
 }
 
 # Parse one already-assembled frame `blob` (KEY:VALUE lines joined by "\n", the
@@ -153,6 +162,10 @@ def ipc_parse_frame(state: TuiState, blob: str) -> bool {
         ipc_apply_line(state, key, val);
     }
 
+    # No blanket dirty set here: each ipc_apply_line either writes a status field
+    # (and marks dirty) or delegates to a TuiState mutator (which marks dirty via
+    # mark_layout_dirty). A frame that changes nothing on screen leaves the gate
+    # alone instead of forcing a needless repaint.
     return True;
 }
 
@@ -182,7 +195,7 @@ def ipc_read_frame_v2(state: TuiState) -> bool {
 # In-process command sink. Native enqueues command strings here when there is no
 # IPC pipe fd; the sv host drains them via tui_next_command() (Phase 1). Must be
 # an `obj` glob with list/cursor FIELDS -- bare scalar globs don't persist writes
-# across :pub calls in NA codegen.
+# across :pub calls in NA codegen (jaseci-labs/jaseci#6816).
 obj CmdQueue {
     has items: list[str] = [],
         cursor: int = 0;

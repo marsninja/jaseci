@@ -207,6 +207,11 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
 Width matches the renderer's inner content width (term_cols - 4). Records the
 width it built for in layout_cols and clears layout_dirty so render skips the
 rebuild until text or width changes again.
+
+Per-event render cache: events carry cache_text_len / cache_width / cached_rows
+so that only the event(s) whose text actually changed are re-rendered. On a
+streaming answer this means only the tail event is processed on each token —
+O(1) per token instead of O(N × L) — eliminating the GC-pressure blowup.
 """
 def build_rows(state: TuiState) {
     width = state.term_cols - 4;
@@ -221,7 +226,29 @@ def build_rows(state: TuiState) {
         if i > 0 {
             rows.append(DisplayRow(text="", kind="sep", is_continuation=False));
         }
-        wrap_event(state.events[i], width, rows);
+        ev = state.events[i];
+        # Cache hit: event text and terminal width unchanged — reuse stored rows.
+        if ev.cache_text_len == len(ev.text) and ev.cache_width == width {
+            j: int = 0;
+            nc = len(ev.cached_rows);
+            while j < nc {
+                rows.append(ev.cached_rows[j]);
+                j = j + 1;
+            }
+        } else {
+            # Cache miss: render fresh, update the per-event cache.
+            event_rows: list[DisplayRow] = [];
+            wrap_event(ev, width, event_rows);
+            ev.cache_text_len = len(ev.text);
+            ev.cache_width = width;
+            ev.cached_rows = event_rows;
+            j: int = 0;
+            nc = len(event_rows);
+            while j < nc {
+                rows.append(event_rows[j]);
+                j = j + 1;
+            }
+        }
         i = i + 1;
     }
     state.display_rows = rows;

@@ -1285,6 +1285,13 @@ impl AgentEventBus.emit(kind: str, fields: dict) -> None {
     if not self.active_feed {
         return;
     }
+    # If the last event was a streaming block, publish its final accumulated text
+    # as a full EV (no _delta) before moving on. This resyncs the TUI sidecar to
+    # the complete text in case any EVA delta frames were dropped due to a full
+    # subscriber queue during heavy streaming.
+    if self.events and self.events[-1].get("streaming") {
+        self.publish(dict(self.events[-1]));
+    }
     # No lock: the only writer is the single turn thread and the only reader is
     # the poll endpoint; under the GIL the list append and the slice-reassign
     # below are each atomic, and `snapshot` copies in one atomic step.
@@ -1325,6 +1332,11 @@ impl AgentEventBus.emit_stream(kind: str, token: str) -> None {
         ev_with_delta["_delta"] = token;
         self.publish(ev_with_delta);
     } else {
+        # Starting a new streaming block: if the previous event was streaming,
+        # flush its final accumulated text as a full EV so the sidecar resyncs.
+        if self.events and self.events[-1].get("streaming") {
+            self.publish(dict(self.events[-1]));
+        }
         ev = {"id": self._next_id, "kind": kind, "text": token, "streaming": True};
         self._next_id += 1;
         self.events.append(ev);
@@ -1408,10 +1420,18 @@ impl AgentEventBus.publish_ledger -> None {
     }
 }
 
-"""Register an SSE subscriber queue; returns it. Caller unsubscribes on close."""
+"""Register an SSE subscriber queue; returns it. Caller unsubscribes on close.
+
+Bounded at 512 so that a slow consumer (the NA sidecar during heavy rendering)
+cannot accumulate unbounded copies of growing event-text frames in the parent
+process. Streaming EVA frames are small (one token + id), so 512 slots is
+about 5 seconds of headroom at 100 tok/s; non-streaming frames are rare.
+Overflow frames are silently dropped — the TUI sidecar re-syncs via the next
+full snapshot on reconnect or reset.
+"""
 impl AgentEventBus.subscribe -> any {
     import from queue { Queue }
-    q = Queue();
+    q = Queue(maxsize=512);
     self._subscribers.append(q);
     return q;
 }

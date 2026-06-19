@@ -187,3 +187,145 @@ test "TuiHost drives a real pty: typing hi+Enter yields SEND:hi" {
 
     assert "SEND:hi" in cmds , f"typing hi+Enter must enqueue SEND:hi; got {cmds!r}";
 }
+
+
+test "TuiHost gated render repaints on a status-only frame (dirty invariant)" {
+    # Regression for the repaint invariant: a frame that changes only header/
+    # footer status fields (no transcript event) must still repaint through the
+    # *gated* render path (tui_render -> tui_render_once, which keys solely on
+    # `state.dirty`). The bug it guards: status fields were written without
+    # marking dirty, so the screen went stale until the next keystroke. This
+    # exercises the real tty path (tui_render_buf forces dirty and would mask it).
+    env = _host_env();
+    if not env["ok"] {
+        return;  # libtui.so unavailable.
+    }
+
+    try {
+        (controller_fd, follower_fd) = os.openpty();
+    } except Exception {
+        return;  # no pty available in this environment; skip.
+    }
+
+    started = False;
+    host = env["TuiHost"]();
+    try {
+        try {
+            import struct;
+            import fcntl;
+            import termios;
+            winsz = struct.pack("HHHH", 24, 80, 0, 0);
+            fcntl.ioctl(follower_fd, termios.TIOCSWINSZ, winsz);
+        } except Exception { }
+        try {
+            os.set_blocking(controller_fd, False);
+        } except Exception { }
+
+        host.load(env["lib_path"]);
+        rc = host.start(os.getcwd(), "", "", os.ttyname(follower_fd));
+        assert rc == 0 , f"host.start should return 0 on the pty, got {rc}";
+        started = True;
+
+        # Drain the startup paint so `dirty` is clear; once settled the gated
+        # render must report idle (nothing left to paint).
+        i = 0;
+        while i < 5 {
+            host.render();
+            try {
+                os.read(controller_fd, 65536);
+            } except Exception { }
+            i += 1;
+        }
+        assert host.render() == 0 , "gated render should be idle once the startup paint is drained";
+
+        # A status-only delta frame (no events) -- the exact case that used to
+        # leave the gate unmarked.
+        blob = env["frame_blob"]({"status": "running"});
+        assert host.apply_frame(blob) == 0 , "apply_frame should accept a status-only frame";
+        assert host.render() == 1 , "a status-only frame must repaint via the gated render path";
+    } finally {
+        if started {
+            try {
+                host.shutdown();
+            } except Exception { }
+        }
+        try {
+            os.close(controller_fd);
+        } except Exception { }
+        try {
+            os.close(follower_fd);
+        } except Exception { }
+    }
+}
+
+
+test "TuiHost repaints on a rows-only terminal resize (_sync_size dirty invariant)" {
+    # Regression for _sync_size: a purely VERTICAL resize (rows change, cols
+    # unchanged) leaves line wrapping intact but resizes the viewport that
+    # screen_render paints, so it must still mark `dirty` and repaint. The bug it
+    # guards: _sync_size only marked dirty on a column change, so a rows-only
+    # resize went stale. tui_render re-syncs size each tick (the in-process host
+    # has no SIGWINCH handler), which is the seam this exercises.
+    import struct;
+    import fcntl;
+    import termios;
+
+    env = _host_env();
+    if not env["ok"] {
+        return;  # libtui.so unavailable.
+    }
+
+    try {
+        (controller_fd, follower_fd) = os.openpty();
+    } except Exception {
+        return;  # no pty available in this environment; skip.
+    }
+
+    started = False;
+    host = env["TuiHost"]();
+    try {
+        try {
+            fcntl.ioctl(
+                follower_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0)
+            );
+        } except Exception {
+            return;  # cannot size the pty; skip rather than assert on a no-op.
+        }
+        try {
+            os.set_blocking(controller_fd, False);
+        } except Exception { }
+
+        host.load(env["lib_path"]);
+        rc = host.start(os.getcwd(), "", "", os.ttyname(follower_fd));
+        assert rc == 0 , f"host.start should return 0 on the pty, got {rc}";
+        started = True;
+
+        # Settle the startup paint so the gate is clear (render reports idle).
+        i = 0;
+        while i < 5 {
+            host.render();
+            try {
+                os.read(controller_fd, 65536);
+            } except Exception { }
+            i += 1;
+        }
+        assert host.render() == 0 , "gated render should be idle once the startup paint is drained";
+
+        # Rows-only resize: cols stay 80, rows go 24 -> 30. The old _sync_size
+        # marked nothing dirty here, so render would stay idle (the bug).
+        fcntl.ioctl(follower_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 80, 0, 0));
+        assert host.render() == 1 , "a rows-only resize must repaint via the gated render path";
+    } finally {
+        if started {
+            try {
+                host.shutdown();
+            } except Exception { }
+        }
+        try {
+            os.close(controller_fd);
+        } except Exception { }
+        try {
+            os.close(follower_fd);
+        } except Exception { }
+    }
+}

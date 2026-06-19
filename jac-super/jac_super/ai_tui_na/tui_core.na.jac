@@ -41,10 +41,16 @@ def _sync_size(state: TuiState) {
     tty_update_size();
     new_rows: int = tty_rows();
     new_cols: int = tty_cols();
-    state.term_rows = new_rows;
+    # A column change alters line wrapping, so the display-row cache must be
+    # rebuilt (mark_layout_dirty). A rows-only change leaves wrapping intact but
+    # resizes the viewport that screen_render paints, so it still needs a repaint
+    # (dirty) -- without this a purely vertical resize would never redraw.
     if new_cols != state.term_cols {
-        state.layout_dirty = True;
+        state.mark_layout_dirty();
+    } elif new_rows != state.term_rows {
+        state.dirty = True;
     }
+    state.term_rows = new_rows;
     state.term_cols = new_cols;
 }
 
@@ -99,6 +105,11 @@ def tui_leave_screen(state: TuiState, fd: int) {
 # diff.na.jac). Returns True if it painted, False if nothing was dirty. Shared by
 # the subprocess loop and the host's tui_render export.
 def tui_render_once(state: TuiState, diff_engine: DiffEngine, fd: int) -> bool {
+    # `dirty` is the single repaint gate. Every state change that affects the
+    # screen sets it at its source: scroll/input/overlay handlers directly, the
+    # transcript mutators and resize via mark_layout_dirty, and status fields in
+    # ipc_apply_line. `layout_dirty` is purely the build_rows cache key, not a
+    # paint trigger, so it does not belong in this condition.
     if not state.dirty {
         return False;
     }
@@ -143,10 +154,14 @@ def tui_setup(state: TuiState, project: str, files_env: str, presets_env: str) -
     return 0;
 }
 
-# One iteration of the subprocess render loop: poll, drain a keystroke, read an
-# IPC frame if pending, repaint if dirty. Returns True to keep looping, False
-# once quit is requested (key/QUIT) or the IPC stream closes. Keyboard is handled
-# before IPC frames so a steady ui_stream() delta feed cannot starve editing.
+# One iteration of the subprocess render loop: poll, drain a keystroke, drain
+# ALL pending IPC frames, repaint once. Returns True to keep looping, False
+# once quit is requested (key/QUIT) or the IPC stream closes. Keyboard is
+# handled before IPC frames so a steady ui_stream() delta feed cannot starve
+# editing. Draining ALL available frames before a single render call is the
+# key to keeping up with fast LLM token streams: with per-event render caching
+# each frame is cheap to process, and rendering once after all pending frames
+# are drained avoids redundant repaints.
 def tui_loop_once(state: TuiState, diff_engine: DiffEngine) -> bool {
     tty_poll(50);
 
@@ -160,14 +175,21 @@ def tui_loop_once(state: TuiState, diff_engine: DiffEngine) -> bool {
         }
     }
 
-    if tty_stdin_ready() > 0 {
+    # Drain ALL available IPC frames before rendering, up to 64 per tick.
+    # At 100 tok/s the producer sends ~5 EVA frames per 50 ms poll; processing
+    # them all and painting once avoids queue buildup and redundant repaints.
+    # The 64-frame cap prevents stalling on a partial frame whose trailing `---`
+    # hasn't arrived yet (tty_stdin_ready sees bytes but ipc_read_frame_v2 would
+    # block on tty_read_line waiting for the newline).
+    frames_drained: int = 0;
+    while tty_stdin_ready() > 0 and frames_drained < 64 {
         ok = ipc_read_frame_v2(state);
         if not ok {
             state.quit_flag = True;
             return False;
         }
         _sync_size(state);
-        state.dirty = True;
+        frames_drained = frames_drained + 1;
     }
 
     tui_render_once(state, diff_engine, 1);
