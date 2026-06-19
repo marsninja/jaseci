@@ -596,6 +596,9 @@ impl JacCompiler.parse_str(
     }
     import from pathlib { Path as _HubPath }
     target_program.mod.hub[str(_HubPath(mod.loc.mod_path).resolve())] = mod;
+    # JacAnnexPass splices each annex's body into the head module and coerces it
+    # to the head's deployment context (so a native head's annex globals/enums/
+    # defs survive native codegen's context filter -- issue #6754).
     JacAnnexPass(ir_in=mod, prog=target_program);
     return mod;
 }

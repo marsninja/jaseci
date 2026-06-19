@@ -2,16 +2,27 @@
 
 """Return the module's standalone statement stream for codegen.
 
-    Annex/test/variant bodies are already merged into nd.body by JacAnnexPass.
-    Matched ImplDefs are emitted via their declarations, so they are dropped
-    from this standalone stream.
-"""
+Derives the woven statements and per-segment `ImplDef` stripping from the shared
+`ModuleCodegenPass.iter_woven_segments` so @sv/ecmascript and native agree on
+exactly which statements a module contributes (issue #6754). Annex bodies are
+merged into the head module by JacAnnexPass, so this is effectively the head
+body with its decl-reached `ImplDef`s stripped."""
 impl BaseAstGenPass._merge_module_bodies(nd: uni.Module) -> list {
-    return [
-        item
-        for item in nd.body
-        if not isinstance(item, uni.ImplDef)
-    ];
+    merged: list = [];
+    for (body, strip_impl_defs) in ModuleCodegenPass.iter_woven_segments(nd) {
+        if strip_impl_defs {
+            merged.extend(
+                [
+                    item
+                    for item in body
+                    if not isinstance(item, uni.ImplDef)
+                ]
+            );
+        } else {
+            merged.extend(body);
+        }
+    }
+    return merged;
 }
 
 """Instantiate child passes for sub-modules.
