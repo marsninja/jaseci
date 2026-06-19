@@ -15,6 +15,16 @@ impl JacSuperAiPlugin.run_ai_agent(req: object) -> int | None {
     if bool(r?.tui) {
         backend = os.environ.get("JAC_AI_TUI_BACKEND", "").strip().lower();
         if backend == "subprocess" {
+            import sys;
+            if sys.platform == "win32" {
+                import from jaclang.cli.console { console }
+                console.error(
+                    "JAC_AI_TUI_BACKEND=subprocess is not supported on Windows "
+                    "(IPC stdio remap is not yet wired). "
+                    "Unset JAC_AI_TUI_BACKEND to use the default in-process backend."
+                );
+                return 1;
+            }
             import from jac_super.ai_agent.run_tui_session { run_tui_session }
             return run_tui_session(req);
         }
