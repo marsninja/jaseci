@@ -205,7 +205,21 @@ def tty_close {
         if len(saved) > 0 {
             # `saved` already holds the original 60-byte termios; restore it
             # directly as an i8* -- no struct round-trip needed.
-            tcsetattr(fd, TCSANOW, saved);
+            rc: int = tcsetattr(fd, TCSANOW, saved);
+            if rc != 0 {
+                # If restoring the exact saved termios fails, try to at least
+                # restore canonical mode and signal handling so the terminal
+                # is usable after exit. This is a fallback to prevent leaving
+                # the terminal in a broken raw state.
+                fallback: str = calloc(TERMIOS_SZ, 1);
+                if tcgetattr(fd, fallback) == 0 {
+                    # Re-enable canonical mode, signals, and echo
+                    lflag: int = read_u32(fallback, 12) | (ICANON | ISIG | ECHO);
+                    poke_u32(fallback, 12, lflag);
+                    tcsetattr(fd, TCSANOW, fallback);
+                }
+                free(fallback);
+            }
             free(saved);
             g_tty.saved_term = "";
         }

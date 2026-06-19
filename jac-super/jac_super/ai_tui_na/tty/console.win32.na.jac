@@ -247,10 +247,21 @@ def tty_close {
     in_h: int = g_tty.in_handle;
     out_h: int = g_tty.out_handle;
     if in_h >= 0 {
-        SetConsoleMode(in_h, g_tty.saved_in_mode);
+        # Restore input mode with error checking
+        if SetConsoleMode(in_h, g_tty.saved_in_mode) == 0 {
+            # Fallback: restore at least processed input and line input
+            # so Ctrl+C and other keybindings work after exit
+            fallback: int = g_tty.saved_in_mode | ENABLE_PROCESSED_INPUT | ENABLE_LINE_INPUT;
+            SetConsoleMode(in_h, fallback);
+        }
     }
     if out_h >= 0 {
-        SetConsoleMode(out_h, g_tty.saved_out_mode);
+        # Restore output mode with error checking
+        if SetConsoleMode(out_h, g_tty.saved_out_mode) == 0 {
+            # Fallback: clear VT processing if restore fails
+            fallback: int = g_tty.saved_out_mode & ~ENABLE_VT_PROCESSING;
+            SetConsoleMode(out_h, fallback);
+        }
     }
     g_tty.in_handle = -1;
     g_tty.out_handle = -1;
