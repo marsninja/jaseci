@@ -564,9 +564,6 @@ impl JacAutoLintPass.enter_module(nd: uni.Module) -> None {
     module = nd;
     if self.main_module is None {
         self.main_module = module;
-        for impl_mod in module.impl_mod {
-            self.traverse(impl_mod);
-        }
     }
     new_body: list[uni.UniNode] = [];
     for stmt in module.body {
