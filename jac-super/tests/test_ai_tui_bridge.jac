@@ -127,8 +127,8 @@ test "command resolution reports missing binary and threads seed prompt" {
 
 test "_list_project_files enumerates files under a project dir" {
     import tempfile;
-    tui_mod = importlib.import_module("jac_super.ai_agent.run_tui_session");
-    lister = getattr(tui_mod, "_list_project_files");
+    shared_mod = importlib.import_module("jac_super.ai_agent.tui_shared");
+    lister = getattr(shared_mod, "_list_project_files");
     with tempfile.TemporaryDirectory() as d {
         os.makedirs(os.path.join(d, "sub"));
         with open(os.path.join(d, "a.txt"), "w") as f {
@@ -162,6 +162,7 @@ test "run_tui_session suppresses terminal prints only for the session lifetime" 
     runner = getattr(tui_mod, "run_tui_session");
     old_resolve = getattr(tui_mod, "_resolve_tui_command");
     old_spawn = getattr(tui_mod, "_spawn_tui_backend");
+    old_tty_device = getattr(tui_mod, "_sidecar_tty_device");
     old_configure = getattr(ai_mod, "ui_configure");
     old_stream = getattr(ai_mod, "ui_stream");
     old_stop = getattr(ai_mod, "ui_stop");
@@ -174,6 +175,12 @@ test "run_tui_session suppresses terminal prints only for the session lifetime" 
 
     def fake_spawn(_cmd_args: list) -> DummySpawnedProc {
         return DummySpawnedProc();
+    }
+
+    def fake_sidecar_tty_device -> str {
+        # Headless CI has no controlling tty; bypass the gate so we exercise
+        # _configure_ui_env / ui_configure without a real /dev/pts path.
+        return "/dev/pts/99";
     }
 
     def fake_configure {
@@ -190,6 +197,7 @@ test "run_tui_session suppresses terminal prints only for the session lifetime" 
 
     setattr(tui_mod, "_resolve_tui_command", fake_resolve);
     setattr(tui_mod, "_spawn_tui_backend", fake_spawn);
+    setattr(tui_mod, "_sidecar_tty_device", fake_sidecar_tty_device);
     setattr(ai_mod, "ui_configure", fake_configure);
     setattr(ai_mod, "ui_stream", fake_stream);
     setattr(ai_mod, "ui_stop", fake_stop);
@@ -199,6 +207,7 @@ test "run_tui_session suppresses terminal prints only for the session lifetime" 
     } finally {
         setattr(tui_mod, "_resolve_tui_command", old_resolve);
         setattr(tui_mod, "_spawn_tui_backend", old_spawn);
+        setattr(tui_mod, "_sidecar_tty_device", old_tty_device);
         setattr(ai_mod, "ui_configure", old_configure);
         setattr(ai_mod, "ui_stream", old_stream);
         setattr(ai_mod, "ui_stop", old_stop);
