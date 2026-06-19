@@ -1318,8 +1318,12 @@ impl AgentEventBus.emit_stream(kind: str, token: str) -> None {
         and self.events[-1].get("streaming")
     ) {
         self.events[-1]["text"] = str(self.events[-1].get("text", "")) + token;
-        # Re-push the grown event so the client sees the cleaned text grow live.
-        self.publish(self.events[-1]);
+        # Re-push with _delta = just the new token so the TUI IPC can send an
+        # EVA (append) line instead of the full growing body — avoids O(n²) byte-by-byte
+        # reads in tty_read_line. SSE/web clients see the full "text" and ignore "_delta".
+        ev_with_delta = dict(self.events[-1]);
+        ev_with_delta["_delta"] = token;
+        self.publish(ev_with_delta);
     } else {
         ev = {"id": self._next_id, "kind": kind, "text": token, "streaming": True};
         self._next_id += 1;

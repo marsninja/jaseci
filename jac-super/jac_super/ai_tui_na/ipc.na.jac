@@ -60,6 +60,24 @@ def _parse_ev_val(state: TuiState, val: str) -> None {
     state.upsert_event(ev_id, kind, text, node_name);
 }
 
+def _parse_eva_val(state: TuiState, val: str) -> None {
+    # EVA:<id>:<escaped_delta> — append delta to existing streaming event text.
+    i1 = val.find(":");
+    if i1 < 0 {
+        return;
+    }
+    id_str = val[:i1];
+    delta_esc = val[i1 + 1:];
+    delta = _unescape(delta_esc);
+
+    ev_id: int = 0;
+    try {
+        ev_id = int(id_str);
+    } except Exception { }
+
+    state.append_to_event(ev_id, delta);
+}
+
 def ipc_apply_line(state: TuiState, key: str, val: str) {
     if key == "STATUS" {
         state.status = val;
@@ -78,6 +96,9 @@ def ipc_apply_line(state: TuiState, key: str, val: str) {
     }
     if key == "EV" {
         _parse_ev_val(state, val);
+    }
+    if key == "EVA" {
+        _parse_eva_val(state, val);
     }
 }
 

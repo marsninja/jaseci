@@ -85,7 +85,16 @@ def _frame_blob(frame: dict) -> str {
             parts.append(_ev_line(ev));
         }
     } elif frame.get("ev") {
-        parts.append(_ev_line(frame["ev"]));
+        ev = frame["ev"];
+        delta = ev.get("_delta");
+        if delta is not None {
+            # Streaming append: ship only the new token (O(token) not O(full_body)).
+            # Sidecar handles EVA by appending to the existing event text.
+            ev_id = str(ev.get("id", 0));
+            parts.append(f"EVA:{ev_id}:{_esc_text(delta)}");
+        } else {
+            parts.append(_ev_line(ev));
+        }
     }
 
     parts.append("---");

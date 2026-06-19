@@ -4,12 +4,12 @@ Row strings carry SGR color codes but no cursor-positioning sequences.
 The DiffEngine (diff.na.jac) owns cursor movement and paints changed rows.
 
 Layout (0-indexed rows):
-  0        ┌─ jac.ai ─ cwd ─────────────── model ─┐
-  1        │ status  active  [hints right-aligned]  │
-  2        ├────────────────────────────────────────┤
-  3..R-3   │ transcript events                      │
-  R-2      ├────────────────────────────────────────┤
-  R-1      │ › input text                           │
+  0        │ status  active  [hints right-aligned]  │
+  1        ├────────────────────────────────────────┤
+  2..R-4   │ transcript events                      │
+  R-3      ├────────────────────────────────────────┤
+  R-2      │ › input text                           │
+  R-1      │ cwd ─────────────── model               │
 """
 
 import from .state { TuiState, DisplayRow, EditorState }
@@ -105,10 +105,10 @@ def _kind_sgr(kind: str) -> str {
 }
 
 # ── Row builders ─────────────────────────────────────────────────────────────
-def _header_row(cwd: str, model: str, cols: int) -> str {
-    # Row 0: ┌─ jac.ai ── cwd ──── model ─┐
-    # Fixed left = 12 vis cols ("┌─" + " jac.ai " + "──"), right = 2 ("─┐").
-    # Remaining space: cwd + dashes (min 2) + model.
+def _footer_row(cwd: str, model: str, cols: int) -> str {
+    # Footer row: │ cwd ─────────────── model │
+    # Fixed left = 2 vis cols ("│ "), right = 2 (" │").
+    # Remaining space: cwd + dashes + model.
     model_s: str = model;
     if visible_width(model_s) == 0 {
         model_s = "no model";
@@ -116,21 +116,19 @@ def _header_row(cwd: str, model: str, cols: int) -> str {
     model_len = visible_width(model_s);
 
     cwd_d = _cwd_short(cwd);
-    cwd_avail = cols - 16 - model_len;
+    cwd_avail = cols - 6 - model_len;
     if cwd_avail < 0 {
         cwd_avail = 0;
     }
     cwd_disp = ansi_trunc(cwd_d, cwd_avail);
     cwd_len = visible_width(cwd_disp);
 
-    total_dashes = cols - 14 - cwd_len - model_len;
-    if total_dashes < 2 {
-        total_dashes = 2;
+    total_dashes = cols - 4 - cwd_len - model_len;
+    if total_dashes < 1 {
+        total_dashes = 1;
     }
 
-    row: str = _SB + "┌─";
-    row = row + _ST + " jac.ai ";
-    row = row + _SB + "──";
+    row: str = _SB + "│ ";
     if cwd_len > 0 {
         row = row + _SC + cwd_disp;
     }
@@ -138,12 +136,12 @@ def _header_row(cwd: str, model: str, cols: int) -> str {
     if model_len > 0 {
         row = row + _SM + model_s;
     }
-    row = row + _SB + "─┐" + _SR;
+    row = row + " " + _SB + "│" + _SR;
     return row;
 }
 
 def _status_row(state: TuiState, cols: int) -> str {
-    # Row 1: │ status  active          hints │
+    # Row 0: │ status  active          hints │
     inner_w = cols - 4;
 
     st_text: str = "○ idle";
@@ -468,7 +466,7 @@ def _editor_height(ed: EditorState, cols: int, rows: int) -> int {
         text_w = 1;
     }
     total_vl = _ed_total_vlines(ed, text_w);
-    max_h: int = rows - 6;  # leave room for header+status+divider+sep+at_least_1_transcript
+    max_h: int = rows - 5;  # leave room for status+divider+sep+at_least_1_transcript+footer
     if max_h < 1 {
         max_h = 1;
     }
@@ -489,7 +487,7 @@ def screen_render(state: TuiState, cols: int, rows: int) -> list[str] {
     # Return one row string per terminal row. Called every dirty cycle.
     out: list[str] = [];
 
-    if cols < 10 or rows < 5 {
+    if cols < 10 or rows < 6 {
         i: int = 0;
         while i < rows {
             out.append("");
@@ -498,17 +496,14 @@ def screen_render(state: TuiState, cols: int, rows: int) -> list[str] {
         return out;
     }
 
-    # Row 0: header
-    out.append(_header_row(state.cwd, state.model_name, cols));
-
-    # Row 1: status bar
+    # Row 0: status bar
     out.append(_status_row(state, cols));
 
-    # Row 2: content divider
+    # Row 1: content divider
     out.append(_divider_row("├", "┤", cols));
 
     # Editor height is variable: compute it now so transcript area is sized correctly.
-    # Layout: rows 0-2 = header/status/divider; 1 separator before editor; editor_h rows.
+    # Layout: rows 0-1 = status/divider; 1 separator before editor; editor_h rows; 1 footer.
     ed = state.editor;
     editor_h = _editor_height(ed, cols, rows);
     is_running = state.status == "running";
@@ -522,9 +517,9 @@ def screen_render(state: TuiState, cols: int, rows: int) -> list[str] {
         }
     }
 
-    # Transcript occupies rows 3 .. (rows - 2 - editor_h - ac_h).
-    # 1 separator row above editor, ac_h AC rows, then editor_h content rows at bottom.
-    transcript_h = rows - 3 - 1 - editor_h - ac_h;
+    # Transcript occupies rows 2 .. (rows - 3 - editor_h - ac_h).
+    # 1 separator row above editor, ac_h AC rows, editor_h content rows, 1 footer row.
+    transcript_h = rows - 2 - 1 - editor_h - ac_h - 1;
     if transcript_h < 0 {
         transcript_h = 0;
     }
@@ -616,6 +611,9 @@ def screen_render(state: TuiState, cols: int, rows: int) -> list[str] {
         out.append(editor_rows[ri]);
         ri = ri + 1;
     }
+
+    # Footer row with cwd and model info
+    out.append(_footer_row(state.cwd, state.model_name, cols));
 
     if state.overlay_active {
         modal = overlay_build_modal(state, cols, rows);

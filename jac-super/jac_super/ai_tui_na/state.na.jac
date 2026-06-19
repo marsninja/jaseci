@@ -191,6 +191,18 @@ obj TuiState {
         self.layout_dirty = True;
     }
 
+    # Append delta text to an existing streaming event (EVA IPC line). Avoids
+    # shipping the full accumulated body on every token; ipc.na.jac calls this.
+    def append_to_event(ev_id: int, delta: str) -> None {
+        for ev in self.events {
+            if ev.id == ev_id {
+                ev.text = ev.text + delta;
+                self.layout_dirty = True;
+                return;
+            }
+        }
+    }
+
     # Scrolling operates on display-row indices; clamping against the live
     # transcript height happens in render (which knows the visible height).
     def scroll_up(n: int) {
