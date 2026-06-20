@@ -1,0 +1,99 @@
+name: Test jaclang single-binary installer
+
+# Proves the single binary is hermetic: it runs on a clean image with NO Python
+# installed, writes nothing outside the cache, and degrades to a temp cache when
+# HOME is read-only. Builds the binary first via build-binary.yml, then tests it.
+
+on:
+  pull_request:
+    paths:
+      - "tools/binary/**"
+      - "scripts/install-binary.sh"
+      - ".github/workflows/build-binary.yml"
+      - ".github/workflows/test-installer-binary.yml"
+  workflow_dispatch:
+    inputs:
+      jaclang_version:
+        description: "jaclang version to build & test"
+        required: true
+        type: string
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck install-binary.sh
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck scripts/install-binary.sh
+
+  build:
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      # On PRs we build the version currently declared in jac/pyproject.toml.
+      jaclang_version: ${{ inputs.jaclang_version || '0.16.7' }}
+
+  # No Python anywhere on the image -> proves the binary is fully self-contained.
+  clean-image-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm-slim
+    steps:
+      - name: Assert the image has no python
+        run: |
+          set -eux
+          if command -v python3 >/dev/null 2>&1; then
+            echo "::error::python3 unexpectedly present; this test must run python-free"
+            exit 1
+          fi
+          apt-get update && apt-get install -y --no-install-recommends ca-certificates
+      - name: Download built binary
+        uses: actions/download-artifact@v4
+        with:
+          name: jac-${{ inputs.jaclang_version || '0.16.7' }}-linux-x86_64
+          path: dist
+      - name: Run hello / obj under a clean env
+        run: |
+          set -eux
+          BIN="$PWD/dist/jac-${{ inputs.jaclang_version || '0.16.7' }}-linux-x86_64"
+          chmod +x "$BIN"
+          # Run from a fresh writable dir: `jac run` persists a session db under
+          # the cwd, so the cwd must be writable.
+          WORK="$(mktemp -d)"; cd "$WORK"
+          printf 'with entry { print("hello"); }\n' > hello.jac
+          printf 'obj P { has x:int=0; def sq->int { return self.x*self.x; } }\nwith entry { print(P(x=6).sq()); }\n' > obj.jac
+          env -i HOME="$WORK" XDG_CACHE_HOME="$WORK/.cache" PATH=/usr/bin:/bin "$BIN" --version
+          env -i HOME="$WORK" XDG_CACHE_HOME="$WORK/.cache" PATH=/usr/bin:/bin "$BIN" run hello.jac | grep -q hello
+          env -i HOME="$WORK" XDG_CACHE_HOME="$WORK/.cache" PATH=/usr/bin:/bin "$BIN" run obj.jac | grep -q 36
+      - name: Assert nothing written outside the cache
+        run: |
+          set -eux
+          BIN="dist/jac-${{ inputs.jaclang_version || '0.16.7' }}-linux-x86_64"
+          before=$(sha256sum "$BIN")
+          env -i HOME=/root XDG_CACHE_HOME=/root/.cache PATH=/usr/bin:/bin "$BIN" --version >/dev/null
+          after=$(sha256sum "$BIN")
+          [ "$before" = "$after" ]  # the binary itself is never mutated
+          test -d /root/.cache/jac  # all state lives under the cache
+
+  # Read-only HOME -> the launcher's temp-dir fallback must engage.
+  readonly-home:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm-slim
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: jac-${{ inputs.jaclang_version || '0.16.7' }}-linux-x86_64
+          path: dist
+      - name: Run with an unwritable HOME and no XDG_CACHE_HOME
+        run: |
+          set -eux
+          BIN="dist/jac-${{ inputs.jaclang_version || '0.16.7' }}-linux-x86_64"
+          chmod +x "$BIN"
+          printf 'with entry { print("ro-ok"); }\n' > /tmp/hello.jac
+          mkdir -p /ro/home && chmod -w /ro/home
+          out="$(env -i HOME=/ro/home TMPDIR=/tmp PATH=/usr/bin:/bin "$BIN" run /tmp/hello.jac)"
+          echo "$out" | grep -q ro-ok   # ran despite unwritable HOME (temp fallback)

@@ -55,6 +55,49 @@ Re-run the install command to upgrade to the latest version. The installer detec
 
 ---
 
+## Single Native Binary (no Python, no uv)
+
+There is a second, fully independent installer that downloads a **single self-contained `jac` executable**. It statically embeds CPython and runs the Jac core in-process, so it needs **no system Python, no uv, and no pip** -- at install time or at runtime. This is the jac**lang** core only (no jaseci plugins).
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install-binary.sh | bash
+```
+
+This installs `jac` to `~/.local/bin`. On first run it unpacks its bundled runtime into `~/.cache/jac` (about one second); subsequent runs start in well under a second. The binary itself is never modified -- all state lives under `~/.cache/jac`.
+
+> **Platform support:** v1 ships **linux-x86_64** only. On other platforms use the uv installer above; macOS and Windows binaries are planned.
+
+### Binary installer options
+
+```bash
+# specific version
+curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install-binary.sh | bash -s -- --version 0.16.7
+
+# custom install dir
+curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install-binary.sh | bash -s -- --bin-dir /usr/local/bin
+
+# uninstall (optionally removes the ~/.cache/jac runtime)
+curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install-binary.sh | bash -s -- --uninstall
+```
+
+| Flag | Description |
+|------|-------------|
+| `--version V` | Install a specific jaclang version |
+| `--bin-dir DIR` | Install location (default: `~/.local/bin`) |
+| `--uninstall` | Remove the binary (and optionally the runtime cache) |
+
+### Which installer should I use?
+
+| | uv installer (`install.sh`) | single binary (`install-binary.sh`) |
+|---|---|---|
+| Needs Python/uv | installs uv + Python for you | **nothing** -- fully self-contained |
+| Scope | full ecosystem (all plugins) | jaclang core only |
+| Platforms | linux, macOS, Windows | linux-x86_64 (v1) |
+
+The two installers are independent and can coexist.
+
+---
+
 ## Install via pip
 
 If you already have Python 3.12+ and prefer pip:

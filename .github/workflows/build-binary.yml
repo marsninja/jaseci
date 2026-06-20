@@ -1,0 +1,107 @@
+name: Build jaclang single binary
+
+# Builds the self-contained `jac` native executable (in-process libpython embed,
+# no system Python/uv/pip required). linux-x86_64 only in v1. Independent of the
+# uv installer and of the (removed) pex/scie standalone build.
+
+on:
+  workflow_call:
+    inputs:
+      jaclang_version:
+        description: "jaclang version to build (must exist on PyPI)"
+        required: true
+        type: string
+      release_tag:
+        description: "release tag to upload the asset to (optional)"
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      jaclang_version:
+        description: "jaclang version to build (must exist on PyPI, e.g. 0.16.7)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-binary:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: linux-x86_64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build in manylinux2014 (glibc 2.17) container
+        run: |
+          set -euxo pipefail
+          VERSION="${{ inputs.jaclang_version }}"
+          ASSET="jac-${VERSION}-${{ matrix.platform }}"
+          # Build inside manylinux2014 so the binary's glibc floor is 2.17 (runs
+          # on virtually any modern distro). We invoke the image via `docker run`
+          # rather than the job-level `container:` key because GitHub's Node20
+          # actions (actions/checkout) cannot execute under glibc 2.17 -- so
+          # checkout runs on the host and the build runs in the mounted workspace.
+          docker run --rm -v "$PWD":/work -w /work \
+            -e VERSION="$VERSION" -e ASSET="$ASSET" \
+            quay.io/pypa/manylinux2014_x86_64 bash -euxo pipefail -c '
+              # zstd CLI (payload de/compression) + static libzstd.a (linked into
+              # the launcher; libzstd is not in the manylinux2014 allowlist).
+              yum install -y epel-release || true
+              yum install -y zstd libzstd-static libzstd-devel || yum install -y zstd || true
+              if ! ls /usr/lib64/libzstd.a /usr/local/lib/libzstd.a >/dev/null 2>&1; then
+                curl -fsSL -o /tmp/zstd.tar.gz \
+                  https://github.com/facebook/zstd/releases/download/v1.5.6/zstd-1.5.6.tar.gz
+                tar -C /tmp -xzf /tmp/zstd.tar.gz
+                make -C /tmp/zstd-1.5.6 -j lib
+                make -C /tmp/zstd-1.5.6 install PREFIX=/usr/local
+              fi
+              # The builder is itself written in Jac, so install a jac on the
+              # build host to run it; the bundled version is pinned by
+              # --jaclang-version and need not match the host jac.
+              PYBIN=/opt/python/cp312-cp312/bin/python
+              "$PYBIN" -m pip install "jaclang==${VERSION}"
+              JAC="$(dirname "$PYBIN")/jac"
+              "$JAC" run tools/binary/build.jac \
+                --jaclang-version "${VERSION}" \
+                --output "dist/${ASSET}"
+            '
+          echo "asset_name=${ASSET}" >> "$GITHUB_ENV"
+
+      - name: Verify binary (clean env, no system Python on PATH)
+        run: |
+          set -euxo pipefail
+          BIN="$PWD/dist/${{ env.asset_name }}"
+          # Run from a fresh, writable dir: `jac run` persists a session db under
+          # the cwd (base path defaults to os.getcwd()), so the cwd must be
+          # writable by the non-root runner.
+          WORK="$(mktemp -d)"; cd "$WORK"
+          printf 'with entry { print("ok"); }\n' > hello.jac
+          env -i HOME="$WORK" PATH=/usr/bin:/bin "$BIN" --version
+          out="$(env -i HOME="$WORK" PATH=/usr/bin:/bin "$BIN" run hello.jac)"
+          echo "$out" | grep -q "ok"
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.asset_name }}
+          path: |
+            dist/${{ env.asset_name }}
+            dist/${{ env.asset_name }}.sha256
+
+      - name: Upload to GitHub Release
+        if: inputs.release_tag != '' || github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          TAG="${{ inputs.release_tag }}"
+          [ -n "$TAG" ] || TAG="${{ github.event.release.tag_name }}"
+          gh release upload "$TAG" \
+            "dist/${{ env.asset_name }}" \
+            "dist/${{ env.asset_name }}.sha256" \
+            --clobber
