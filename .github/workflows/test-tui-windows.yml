@@ -109,6 +109,13 @@ jobs:
   test-windows-native:
     runs-on: windows-latest
 
+    # The Windows runner defaults Python stdout to cp1252, which cannot encode the
+    # box-drawing/VT characters the console gate prints. Force UTF-8 so the gate's
+    # output isn't mangled into a UnicodeEncodeError.
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+
     steps:
       - uses: actions/checkout@v4
         with:
