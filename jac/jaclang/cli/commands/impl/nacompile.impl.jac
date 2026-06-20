@@ -219,13 +219,13 @@ impl nacompile(
     is_windows = ("windows" in target)
     or (target in ["win", "win64", "mingw"])
     or (not target and sys.platform == "win32");
-    if is_windows and (sys.platform != "win32" or "-" in target) {
-        # Cross-compiling to Windows from a non-Windows host: pin the triple
-        # explicitly so NaIRGenPass and the emit step both target the correct ABI.
-        # On a native Windows host with a short alias (e.g. --target windows),
-        # leave JAC_NATIVE_TARGET unset so both passes use from_default_triple();
-        # some llvmlite Windows builds emit ELF (not COFF) when the triple is
-        # provided via env var but produce correct COFF with the native default.
+    if is_windows {
+        # Pin the Windows triple explicitly on every host (native or cross) so
+        # NaIRGenPass and the emit step both target the COFF/PE ABI deterministically.
+        # The object format LLVM emits is derived from the target triple's OS, so an
+        # explicit windows-msvc (or user-supplied) triple guarantees a COFF object
+        # regardless of what the host llvmlite reports as its default triple. A bare
+        # alias maps to the msvc triple; a full triple the user passed is used verbatim.
         os.environ["JAC_NATIVE_TARGET"] = (
             target if "-" in target else "x86_64-pc-windows-msvc"
         );
@@ -591,6 +591,42 @@ impl nacompile(
 
     obj_bytes = target_machine.emit_object(mod);
     console.print(f"  Object code emitted ({len(obj_bytes)} bytes).");
+
+    # Guard: the pure-Jac linkers each parse one specific object format, so a host
+    # llvmlite that emits the wrong format for the requested target (observed: some
+    # Windows hosts emitting ELF) must fail fast here with actionable diagnostics
+    # rather than surfacing a misleading "could not parse object file" downstream.
+    _magic = bytes(obj_bytes[:4]);
+    _is_elf = _magic == b"\x7fELF";
+    _is_macho = _magic in [
+        b"\xcf\xfa\xed\xfe",
+        b"\xfe\xed\xfa\xcf",
+        b"\xce\xfa\xed\xfe",
+        b"\xfe\xed\xfa\xce"
+    ];
+    # A COFF object has no fixed 4-byte magic; it is simply "neither ELF nor Mach-O".
+    _fmt_ok = True;
+    _want = "";
+    if is_windows {
+        _want = "COFF";
+        _fmt_ok = not (_is_elf or _is_macho);
+    } elif is_macos {
+        _want = "Mach-O";
+        _fmt_ok = _is_macho;
+    } elif not is_wasm {
+        _want = "ELF";
+        _fmt_ok = _is_elf;
+    }
+    if not _fmt_ok {
+        console.error(
+            f"emit_object produced a non-{_want} object for the requested target "
+            f"(first 4 bytes: {_magic.hex()}). target-machine triple="
+            f"{target_machine.triple!r}, module triple={mod.triple!r}, host default="
+            f"{llvm.get_default_triple()!r}. This llvmlite build cannot emit {_want} "
+            f"for this target; pin a compatible llvmlite or build via the cross path."
+        );
+        return 1;
+    }
 
     # Step 7: Link into native executable (platform-specific)
     if is_windows {
