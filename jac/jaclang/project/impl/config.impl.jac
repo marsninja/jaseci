@@ -372,12 +372,6 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     }
     if "plugins" in data {
         plugins_data = data["plugins"];
-        if "discovery" in plugins_data {
-            self.plugins_config.discovery = plugins_data["discovery"];
-        }
-        if "enabled" in plugins_data {
-            self.plugins_config.enabled = plugins_data["enabled"];
-        }
         if "disabled" in plugins_data {
             self.plugins_config.disabled = plugins_data["disabled"];
         }
@@ -968,8 +962,6 @@ impl _parse_toml_data(
     if "plugins" in data {
         plugins_data = data["plugins"];
         config.plugins_config = PluginsConfig(
-            discovery=plugins_data.get("discovery", "auto"),
-            enabled=plugins_data.get("enabled", []),
             disabled=plugins_data.get("disabled", [])
         );
         for (key, value) in plugins_data.items() {

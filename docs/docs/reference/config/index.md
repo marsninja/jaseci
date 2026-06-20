@@ -410,13 +410,13 @@ See [Storage Reference](../plugins/jac-scale.md#storage) for the full storage AP
 
 ### [plugins]
 
-Plugin configuration:
+Plugins are selected positively by listing them in `[dependencies]`. The only
+`[plugins]` toggle is `disabled`, an escape hatch to bypass a specific
+(e.g. broken) plugin without uninstalling it:
 
 ```toml
 [plugins]
-discovery = "auto"      # "auto", "manual", or "disabled"
-enabled = ["byllm"] # Explicitly enabled
-disabled = []           # Explicitly disabled
+disabled = []           # Plugin identifiers to bypass, e.g. ["jac-scale", "jac-client:cli"]
 
 # Plugin-specific settings (byllm splits model identity from call params)
 [plugins.byllm.model]

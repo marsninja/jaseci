@@ -757,7 +757,7 @@ jac plugins enable byllm
 jac plugins disabled
 ```
 
-> **Note:** To install or uninstall plugins, use `pip install` / `pip uninstall` directly. The `jac plugins` command manages enabled/disabled state for already-installed plugins.
+> **Note:** To add or remove a plugin, declare it in `jac.toml` `[dependencies]` (e.g. via `jac add <plugin>`); `jac` provisions it into the project's `.jac/venv`. The `jac plugins` command only toggles the disabled state of already-provisioned plugins.
 >
 > **💡 Popular Plugins**:
 >

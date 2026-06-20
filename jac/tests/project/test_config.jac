@@ -856,10 +856,10 @@ test "merge plugins config" {
         cfg = JacConfig.load(temp_project / "jac.toml");
         overlay = temp_project / "overlay.toml";
         overlay.write_text(
-            "[plugins]\ndiscovery = \"manual\"\n\n[plugins.byllm]\ndefault_model = \"gpt-4\"\n"
+            "[plugins]\ndisabled = [\"jac-scale\"]\n\n[plugins.byllm]\ndefault_model = \"gpt-4\"\n"
         );
         cfg.merge_from_toml_file(overlay);
-        assert cfg.plugins_config.discovery == "manual";
+        assert "jac-scale" in cfg.plugins_config.disabled;
         assert "byllm" in cfg.plugins;
         assert cfg.plugins["byllm"]["default_model"] == "gpt-4";
     }

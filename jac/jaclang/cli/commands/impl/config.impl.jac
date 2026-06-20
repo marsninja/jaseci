@@ -550,7 +550,7 @@ def _config_groups {
         "check": "Check command defaults (print_errs)",
         "dot": "Dot/graph visualization defaults (depth, traverse, format)",
         "cache": "Cache settings (enabled, dir)",
-        "plugins": "Plugin settings (discovery, enabled, disabled)",
+        "plugins": "Plugin settings (disabled)",
         "environment": "Environment profile settings (default_profile)"
     };
     for grp in CONFIG_GROUPS {

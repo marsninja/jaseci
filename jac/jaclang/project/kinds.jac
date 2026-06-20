@@ -115,14 +115,6 @@ def _has_client(config: JacConfig) -> bool {
     if "client" in config.plugins {
         return True;
     }
-    # Explicitly enabled. Entries are plugin identifiers like `jac-client:cli`
-    # or `jac-client:*` (package:plugin), so match by package prefix rather
-    # than the bare package name.
-    for ident in config.plugins_config.enabled {
-        if ident == "jac-client" or ident.startswith("jac-client:") {
-            return True;
-        }
-    }
     return False;
 }
 

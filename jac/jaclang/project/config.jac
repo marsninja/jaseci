@@ -147,11 +147,13 @@ obj CacheConfig {
         dir: str = "cache";
 }
 
-"""Plugin settings from [plugins] section."""
+"""Plugin settings from [plugins] section.
+
+Plugins are selected positively by declaring them in [dependencies]; `disabled`
+is the one remaining escape hatch for bypassing a specific (e.g. broken) plugin
+without uninstalling it."""
 obj PluginsConfig {
-    has discovery: str = "auto",
-        enabled: list[str] = [],
-        disabled: list[str] = [];  # Plugins temporarily bypassed by user
+    has disabled: list[str] = [];  # Plugins temporarily bypassed by user
 }
 
 """Storage settings from [storage] section."""
