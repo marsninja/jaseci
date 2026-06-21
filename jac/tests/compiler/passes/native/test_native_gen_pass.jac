@@ -90,6 +90,24 @@ test "native osp: spawn returns the walker" {
     assert collect_one(0) == 0;
 }
 
+test "native osp: skip in an impl-annex walker event ability (issue #6794)" {
+    # `skip` is a valid Return-family statement in a walker `with X entry` event
+    # ability, and native lowers it there. When the ability is split decl/impl,
+    # the `skip` lives in an `impl Walker.ability with X entry` ImplDef in the
+    # annex. Before the fix the native capability check — now scanning annex
+    # bodies (#6754) — saw the ImplDef (not an inline Ability) around the `skip`
+    # and falsely rejected it (E5090), producing no IR; a module importing it
+    # then failed to link (E5024) and `jac test` reported "native engine
+    # unavailable". Here `grab` skips val==0 nodes and sums the rest.
+    (eng, _) = compile_native("osp_skip_annex.na.jac");
+    collect = get_func(
+        eng, "collect", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64
+    );
+    assert collect(10, 0, 32) == 42;  # the val==0 node is skipped
+    assert collect(0, 0, 0) == 0;  # every node skipped
+    assert collect(5, 5, 5) == 15;
+}
+
 test "arithmetic negate" {
     (eng, _) = compile_native("arithmetic.na.jac");
     neg = get_func(eng, "negate", ctypes.c_int64, ctypes.c_int64);
@@ -2683,11 +2701,11 @@ test "native osp node constructed in a non-OSP module carries its dispatch tag (
 test "native osp construct living only in an impl annex materializes imported archetypes" {
     # A builder module IMPORTS OSP archetypes (`Hub`/`Area`) from another native
     # module and wires them (`++>`) from an IMPL ANNEX (`.na.impl.jac`), not its
-    # head file. DeclImplMatchPass attaches an annex body via `decl.body =
-    # <ImplDef from the annex module>`, never splicing it into the head decl's
-    # `kid`, so the OSP construct is reachable only through `mod.impl_mod`.
-    # The OSP construct scan (now `OspAnalysis._uses_construct`) swept just the
-    # head module's `iter_context_stmts` + kid tree, classified the builder as a
+    # head file. The annex body is spliced into the head module's tree by
+    # JacAnnexPass while keeping its own `loc.mod_path`, so the OSP construct
+    # lives off the head but originates in the annex file.
+    # The OSP construct scan (now `OspAnalysis._uses_construct`) historically
+    # swept just the head file's own statements, classified the builder as a
     # non-OSP user, and never gave the imported archetypes their stable type-tag
     # -- the annexed `++>` then failed with
     # E5090 ("not materialized") at nacompile (or mis-codegen SIGSEGV in a fuller
