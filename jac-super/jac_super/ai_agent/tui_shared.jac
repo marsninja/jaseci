@@ -230,6 +230,11 @@ def _configure_ui_env(r: any) -> dict {
     os.environ["JAC_AI_UI_NCTX"] = str(int(r?.n_ctx or 0));
     os.environ["JAC_AI_UI_FILES"] = files_env;
     os.environ["JAC_AI_UI_MODEL_PRESETS"] = presets_env;
+    # Session resume controls: forwarded from the AgentRequest so ui_configure
+    # can resolve/restore the right session instead of always starting fresh.
+    os.environ["JAC_AI_UI_RESUME"] = str(r?.resume or "");
+    os.environ["JAC_AI_UI_CONTINUE"] = "1" if bool(r?.continue_last) else "";
+    os.environ["JAC_AI_UI_SESSION"] = str(r?.session_name or "");
 
     old_active = os.environ.get("JAC_AI_UI_ACTIVE");
     os.environ["JAC_AI_UI_ACTIVE"] = "1";
@@ -240,6 +245,9 @@ def _configure_ui_env(r: any) -> dict {
         } else {
             os.environ["JAC_AI_UI_ACTIVE"] = old_active;
         }
+        os.environ.pop("JAC_AI_UI_RESUME", None);
+        os.environ.pop("JAC_AI_UI_CONTINUE", None);
+        os.environ.pop("JAC_AI_UI_SESSION", None);
     }
 
     return {

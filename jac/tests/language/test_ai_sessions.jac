@@ -25,6 +25,8 @@ import from jaclang.cli.ai_agent {
     _ledger_from_dict,
     _restore_cfg,
     _print_scrollback,
+    _emit_scrollback_to_bus,
+    ui_configure,
     cmd_sessions,
     cmd_resume,
     cmd_name,
@@ -945,6 +947,277 @@ test "/forget cancelled by the user leaves the session intact" {
         assert os.path.exists(os.path.join(tmp, "sessions", f"{old_id}.json")) , "file must survive a cancel";
     } finally {
         _restore_state(snap);
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+# ---------------------------------------------------------------------------
+# ui_configure session persistence (TUI / web-UI path)
+# ---------------------------------------------------------------------------
+"""Snapshot the extra state ui_configure touches beyond _snapshot_state."""
+def _snap_ui -> tuple {
+    m = _ai_mod();
+    return (
+        m.agent.bus.active_feed,
+        list(m.agent.bus.events),
+        m.agent.bus._next_id,
+        m.agent.bus.status,
+        m.agent.ws.ci,
+        m.agent.cfg.yolo_mode,
+        m.agent.cfg.n_ctx,
+        os.environ.get("JAC_AI_UI_PROJECT"),
+        os.environ.get("JAC_AI_UI_MODEL"),
+        os.environ.get("JAC_AI_UI_NCTX"),
+        os.environ.get("JAC_AI_UI_RESUME"),
+        os.environ.get("JAC_AI_UI_CONTINUE"),
+        os.environ.get("JAC_AI_UI_SESSION")
+    );
+}
+
+"""Restore the extra state ui_configure touches."""
+def _restore_ui(snap: tuple) {
+    m = _ai_mod();
+    (
+        active_feed,
+        events,
+        next_id,
+        status,
+        ci,
+        yolo_mode,
+        n_ctx,
+        proj,
+        model_env,
+        nctx_env,
+        resume_env,
+        cont_env,
+        sess_env
+    ) = snap;
+    m.agent.bus.active_feed = active_feed;
+    m.agent.bus.events = events;
+    m.agent.bus._next_id = next_id;
+    m.agent.bus.status = status;
+    m.agent.ws.ci = ci;
+    m.agent.cfg.yolo_mode = yolo_mode;
+    m.agent.cfg.n_ctx = n_ctx;
+    def _restore_env(key: str, val: str | None) {
+        if val is None {
+            os.environ.pop(key, None);
+        } else {
+            os.environ[key] = val;
+        }
+    }
+    _restore_env("JAC_AI_UI_PROJECT", proj);
+    _restore_env("JAC_AI_UI_MODEL", model_env);
+    _restore_env("JAC_AI_UI_NCTX", nctx_env);
+    _restore_env("JAC_AI_UI_RESUME", resume_env);
+    _restore_env("JAC_AI_UI_CONTINUE", cont_env);
+    _restore_env("JAC_AI_UI_SESSION", sess_env);
+}
+
+
+test "ui_configure with no resume flags creates a fresh session" {
+    snap = _snapshot_state();
+    ui_snap = _snap_ui();
+    tmp = tempfile.mkdtemp(prefix="jac-ai-ui-");
+    try {
+        os.environ["JAC_AI_CACHE"] = tmp;
+        os.environ["JAC_AI_UI_PROJECT"] = tmp;
+        os.environ["JAC_AI_UI_MODEL"] = "";
+        os.environ["JAC_AI_UI_NCTX"] = "0";
+        os.environ.pop("JAC_AI_UI_RESUME", None);
+        os.environ.pop("JAC_AI_UI_CONTINUE", None);
+        os.environ.pop("JAC_AI_UI_SESSION", None);
+        ui_configure();
+        m = _ai_mod();
+        rec = m._session_record;
+        assert rec , "session record must be set";
+        assert rec["turns"] == [] , "fresh session must have no turns";
+        assert rec["cwd"] == os.path.normpath(tmp) , "cwd must match JAC_AI_UI_PROJECT";
+        assert os.path.exists(os.path.join(tmp, "sessions", f"{rec['id']}.json")) , "shell record must be on disk";
+    } finally {
+        _restore_state(snap);
+        _restore_ui(ui_snap);
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+
+test "ui_configure with JAC_AI_UI_CONTINUE=1 resumes the most recent session" {
+    snap = _snapshot_state();
+    ui_snap = _snap_ui();
+    tmp = tempfile.mkdtemp(prefix="jac-ai-ui-");
+    try {
+        os.environ["JAC_AI_CACHE"] = tmp;
+        # Seed a prior session with a ledger change via the REPL path.
+        agent.ws.cwd = os.path.normpath(tmp);
+        _resolve_session(ResolveReq());
+        m = _ai_mod();
+        saved_id = m._session_record["id"];
+        agent.ledger = Ledger();
+        agent.ledger.record("Build", "added a walker node");
+        _save_session("add a walker", _fake_stats(1));
+
+        # Now boot the TUI path with --continue.
+        os.environ["JAC_AI_UI_PROJECT"] = tmp;
+        os.environ["JAC_AI_UI_MODEL"] = "";
+        os.environ["JAC_AI_UI_NCTX"] = "0";
+        os.environ["JAC_AI_UI_CONTINUE"] = "1";
+        os.environ.pop("JAC_AI_UI_RESUME", None);
+        os.environ.pop("JAC_AI_UI_SESSION", None);
+        ui_configure();
+
+        rec = _ai_mod()._session_record;
+        assert rec["id"] == saved_id , "ui_configure --continue must load the prior session";
+        assert len(rec["turns"]) == 1 , "prior turn must survive across ui_configure resume";
+        assert _ai_mod().agent.ledger is not None , "ledger must be restored";
+        changes = _ai_mod().agent.ledger.changes;
+        assert any("added a walker node" in str(c) for c in changes) , "ledger content must be restored";
+    } finally {
+        _restore_state(snap);
+        _restore_ui(ui_snap);
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+
+test "ui_configure with JAC_AI_UI_RESUME=<id> resumes the named session by id" {
+    snap = _snapshot_state();
+    ui_snap = _snap_ui();
+    tmp = tempfile.mkdtemp(prefix="jac-ai-ui-");
+    try {
+        os.environ["JAC_AI_CACHE"] = tmp;
+        agent.ws.cwd = os.path.normpath(tmp);
+        _resolve_session(ResolveReq());
+        m = _ai_mod();
+        saved_id = m._session_record["id"];
+        agent.ledger = Ledger();
+        agent.ledger.remember("OSP pattern chosen");
+        _save_session("seed", None);
+
+        os.environ["JAC_AI_UI_PROJECT"] = tmp;
+        os.environ["JAC_AI_UI_MODEL"] = "";
+        os.environ["JAC_AI_UI_NCTX"] = "0";
+        os.environ["JAC_AI_UI_RESUME"] = saved_id;
+        os.environ.pop("JAC_AI_UI_CONTINUE", None);
+        os.environ.pop("JAC_AI_UI_SESSION", None);
+        ui_configure();
+
+        rec = _ai_mod()._session_record;
+        assert rec["id"] == saved_id , "ui_configure must load the requested session by id";
+        notes = _ai_mod().agent.ledger.notes;
+        assert any("OSP pattern chosen" in n for n in notes) , "ledger notes must be restored";
+    } finally {
+        _restore_state(snap);
+        _restore_ui(ui_snap);
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+
+test "ui_configure with JAC_AI_UI_SESSION creates a named session and finds it on second boot" {
+    snap = _snapshot_state();
+    ui_snap = _snap_ui();
+    tmp = tempfile.mkdtemp(prefix="jac-ai-ui-");
+    try {
+        os.environ["JAC_AI_CACHE"] = tmp;
+        os.environ["JAC_AI_UI_PROJECT"] = tmp;
+        os.environ["JAC_AI_UI_MODEL"] = "";
+        os.environ["JAC_AI_UI_NCTX"] = "0";
+        os.environ["JAC_AI_UI_SESSION"] = "myfeature";
+        os.environ.pop("JAC_AI_UI_RESUME", None);
+        os.environ.pop("JAC_AI_UI_CONTINUE", None);
+
+        ui_configure();
+        first_id = _ai_mod()._session_record["id"];
+        assert _ai_mod()._session_record["name"] == "myfeature" , "--session sets the session name on creation";
+
+        # Second boot: same JAC_AI_UI_SESSION finds the existing named session.
+        ui_configure();
+        assert _ai_mod()._session_record["id"] == first_id , "second boot with same --session name must find the same session";
+    } finally {
+        _restore_state(snap);
+        _restore_ui(ui_snap);
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+
+test "_emit_scrollback_to_bus emits historical user+answer events per turn" {
+    snap = _snapshot_state();
+    ui_snap = _snap_ui();
+    tmp = tempfile.mkdtemp(prefix="jac-ai-ui-");
+    try {
+        m = _ai_mod();
+        m.agent.bus.active_feed = True;
+        m.agent.bus.events = [];
+        m.agent.bus._next_id = 1;
+
+        record = {
+            "id": "abc123",
+            "name": "mytest",
+            "turns": [
+                {
+                    "objective": "add a walker",
+                    "phases": [
+                        {"name": "Build", "answer": "Walker added successfully."}
+                    ]
+                },
+                {
+                    "objective": "fix the bug",
+                    "phases": [{"name": "QA", "answer": "Bug fixed."}]
+                }
+            ]
+        };
+        _emit_scrollback_to_bus(record);
+
+        events = m.agent.bus.events;
+        # First event: resume banner
+        assert events[0]["kind"] == "system" , "first event must be resume banner";
+        assert "mytest" in events[0]["text"] , "banner must include the session label";
+        assert "2 prior turn" in events[0]["text"] , "banner must include turn count";
+        assert events[0].get("historical") is True , "banner must be marked historical";
+
+        # Turn 1: user objective + answer
+        user_evs = [
+            e
+            for e in events
+            if e["kind"] == "user" and e.get("historical")
+        ];
+        assert len(user_evs) == 2 , "one historical user event per turn";
+        assert user_evs[0]["text"] == "add a walker";
+        assert user_evs[1]["text"] == "fix the bug";
+
+        answer_evs = [
+            e
+            for e in events
+            if e["kind"] == "answer" and e.get("historical")
+        ];
+        assert len(answer_evs) == 2 , "one historical answer event per turn";
+        assert "Walker added" in answer_evs[0]["text"];
+        assert "Bug fixed" in answer_evs[1]["text"];
+    } finally {
+        _restore_state(snap);
+        _restore_ui(ui_snap);
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+
+test "_emit_scrollback_to_bus is silent for a record with no turns" {
+    snap = _snapshot_state();
+    ui_snap = _snap_ui();
+    tmp = tempfile.mkdtemp(prefix="jac-ai-ui-");
+    try {
+        m = _ai_mod();
+        m.agent.bus.active_feed = True;
+        m.agent.bus.events = [];
+        m.agent.bus._next_id = 1;
+
+        _emit_scrollback_to_bus({"id": "x", "turns": []});
+        assert m.agent.bus.events == [] , "no turns means no events emitted";
+    } finally {
+        _restore_state(snap);
+        _restore_ui(ui_snap);
         shutil.rmtree(tmp, ignore_errors=True);
     }
 }

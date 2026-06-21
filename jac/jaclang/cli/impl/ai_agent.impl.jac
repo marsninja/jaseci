@@ -3715,15 +3715,54 @@ impl _install_ui_provider_capture(target_bus: any = None) -> None {
 # ---------------------------------------------------------------------------
 # Web UI bridge -- backend the bundled `ai_ui` server endpoints call.
 # ---------------------------------------------------------------------------
+"""Emit prior turns as historical events on the bus so the TUI displays them.
+
+Called on resume inside `ui_configure`. One `user` + `answer` event pair per
+prior turn gives the TUI a proper event stream to render, matching the live
+turn format. `historical: True` lets the rendering layer dim or style them
+differently from live events. A record with no turns emits nothing.
+"""
+def _emit_scrollback_to_bus(record: dict) {
+    turns = record.get("turns", []);
+    if not turns {
+        return;
+    }
+    label = str(record.get("name") or record.get("id", ""));
+    n = len(turns);
+    agent.bus.emit(
+        "system",
+        {"text": f"Resumed session {label} — {n} prior turn(s).", "historical": True}
+    );
+    for t in turns {
+        obj_text = str(t.get("objective", "")).strip();
+        if obj_text {
+            agent.bus.emit("user", {"text": obj_text, "historical": True});
+        }
+        phases = t.get("phases", []);
+        if phases {
+            last = phases[-1];
+            ans = str(last.get("answer", "")).strip();
+            if ans {
+                agent.bus.emit(
+                    "answer", {"text": truncate(ans, 1200), "historical": True}
+                );
+            }
+        }
+    }
+}
+
 """Configure the agent for a UI session from the launcher's environment.
 
 Called once at the UI server's boot. Reads the user's project directory and
 model knobs from the `JAC_AI_UI_*` env vars the launcher set, points `agent.ws.cwd`
 and a fresh `CodeIntelligence` at that project, builds the model, and forces
-yolo mode (the server has no terminal to confirm at). Idempotent.
+yolo mode (the server has no terminal to confirm at). Resolves the session
+(resume/continue/name/new) from the JAC_AI_UI_RESUME/CONTINUE/SESSION vars
+forwarded by `_configure_ui_env`, so TUI sessions persist across restarts
+identically to the terminal REPL. Idempotent.
 """
 impl ui_configure -> None {
-    global agent_model;
+    global agent_model,_session_store,_session_record;
     # The launcher set these when it spawned this server process.
     proj = os.environ.get("JAC_AI_UI_PROJECT") or os.getcwd();
     agent.ws.cwd = os.path.normpath(proj);
@@ -3743,7 +3782,55 @@ impl ui_configure -> None {
     # A project-rooted CodeIntelligence so the semantic tools work, lazily so
     # boot stays cheap. No on_event hook: its prints would only clutter the log.
     agent.ws.ci = CodeIntelligence(proj_dir=agent.ws.cwd, lazy=True);
-    reset_session();
+    # Session resolution (mirrors run_agent's _resolve_session path). The three
+    # resume selectors are forwarded from AgentRequest by _configure_ui_env so
+    # the TUI path persists sessions identically to the terminal REPL.
+    # At most one selector may be set; two or more emits an error and falls back
+    # to a fresh session so the TUI still boots cleanly.
+    cwd = agent.ws.cwd;
+    resume_id = os.environ.get("JAC_AI_UI_RESUME", "").strip();
+    cont = os.environ.get("JAC_AI_UI_CONTINUE", "") == "1";
+    session_name = os.environ.get("JAC_AI_UI_SESSION", "").strip();
+    selectors = sum([bool(resume_id), cont, bool(session_name)]);
+    store = SessionStore();
+    record: dict | None = None;
+    if selectors > 1 {
+        agent.bus.emit(
+            "error",
+            {
+                "text": "--resume, --continue, and --session are mutually exclusive; starting a fresh session."
+            }
+        );
+    } else {
+        if resume_id {
+            record = store.load(resume_id);
+        } elif cont {
+            record = store.most_recent(cwd);
+        } elif session_name {
+            record = store.resolve_by_name(cwd, session_name);
+            if record is None {
+                record = store.create(cwd, session_name);
+            }
+        }
+    }
+    if record is None {
+        record = store.create(cwd);
+    }
+    _session_store = store;
+    _session_record = record;
+    _led = _session_record.get("ledger", {});
+    resuming = bool(
+        _session_record.get("turns") or _led.get("changes") or _led.get("notes")
+    );
+    if resuming {
+        _restore_session_state(_session_record);
+        _emit_scrollback_to_bus(_session_record);
+    } else {
+        reset_session();
+    }
+    # Write the shell record now so the session id exists on disk even if no
+    # turn runs in this process (e.g. the user opens the TUI and closes it).
+    _save_session();
     # `agent.ws.cwd` is now set to the user's project, so build_model resolves the
     # model and byLLM config from their jac.toml (via `_byllm_config`), not this
     # child server's working directory (the bundled ai_ui dir).
