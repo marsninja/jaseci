@@ -106,28 +106,3 @@ jobs:
         with:
           name: ${{ steps.pkg.outputs.asset }}
           path: jac/dist/*
-
-  # Publish the Jac client runtime (@jaseci/runtime) to npm, versioned to this
-  # jaclang release (from jac/jac.toml) so JSX/component packages have a runtime
-  # dependency to resolve against. Runs once, not per-platform.
-  publish-npm-runtime:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' || inputs.tag != ''
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up jac (build the binary)
-        uses: ./.github/actions/setup-jac
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Build and publish @jaseci/runtime
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          jac bundle --target npm-runtime -o dist-runtime
-          npm publish dist-runtime/jaseci-runtime-*.tgz --access public

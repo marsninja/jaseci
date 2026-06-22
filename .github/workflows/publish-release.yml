@@ -25,10 +25,6 @@ on:
         description: "Publish jac-mcp"
         type: boolean
         default: false
-      jaseci:
-        description: "Publish jaseci meta-package"
-        type: boolean
-        default: false
 
 permissions: {}
 
@@ -70,10 +66,9 @@ jobs:
           IN_BYLLM: ${{ inputs['jac-byllm'] && 'jac-byllm' || '' }}
           IN_SCALE: ${{ inputs['jac-scale'] && 'jac-scale' || '' }}
           IN_MCP: ${{ inputs['jac-mcp'] && 'jac-mcp' || '' }}
-          IN_JASECI: ${{ inputs.jaseci && 'jaseci' || '' }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            PACKAGES="$IN_BYLLM $IN_SCALE $IN_MCP $IN_JASECI"
+            PACKAGES="$IN_BYLLM $IN_SCALE $IN_MCP"
             echo "Manual dispatch - selected packages: $PACKAGES"
             jac run scripts/parse_release.jac --packages "$PACKAGES"
           else
@@ -122,7 +117,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Set up additional Python versions so plugin wheels precompile bytecode for each.
+      # Set up additional Python versions needed for precompile (both plugins and jaclang itself).
       - name: Set up Python 3.13 (for precompile)
         if: matrix.precompile == true
         uses: actions/setup-python@v5
@@ -135,14 +130,18 @@ jobs:
         with:
           python-version: "3.14"
 
-      # Build the jac binary (used by `jac bundle` + extra build commands).
+      # Build the jac binary for plugin builds (jac bundle) + extra build commands.
+      # jaclang itself ships as the binary (released via release-jaclang.yml), not a
+      # PyPI wheel, so the parse step should not emit a 'jaclang' matrix entry; the
+      # jaclang-only steps below are legacy and no-op without one.
       - name: Set up jac (build the binary)
+        if: matrix.name != 'jaclang'
         uses: ./.github/actions/setup-jac
 
       # Install the package itself for extra build commands.
       # Plugins have no pyproject.toml (jac.toml is the source of truth), so use `jac install`.
       - name: Install package (for build commands)
-        if: matrix.extra_build_cmd != ''
+        if: matrix.extra_build_cmd != '' && matrix.name != 'jaclang'
         run: jac install -e ./${{ matrix.dir }}
 
       # Install extra pip dependencies for build commands (a sibling plugin a build step needs)
@@ -175,6 +174,7 @@ jobs:
       # Plugins precompile against jaclang from the local source tree, not PyPI:
       # this build runs before the freshly-bumped plugin version is published.
       - name: Build plugin wheel
+        if: matrix.publish_pypi == true
         working-directory: ${{ matrix.dir }}
         env:
           JAC_PRECOMPILE_LOCAL_INSTALL: ${{ github.workspace }}/jac
@@ -184,6 +184,7 @@ jobs:
         run: jac bundle ${{ matrix.precompile == true && '--precompile' || '' }}
 
       - name: Upload package artifacts
+        if: matrix.publish_pypi == true
         uses: actions/upload-artifact@v4
         with:
           name: Packages-${{ matrix.pypi }}
@@ -191,9 +192,9 @@ jobs:
 
   # ============================================================================
   # Publish npm packages (npmjs.org) - independent of the PyPI tiers.
-  # A package opts in with an [npm] section in its jac.toml. The Jac client
-  # runtime (@jaseci/runtime) is versioned to jaclang and published from the
-  # binary release workflow (release-jaclang.yml), not here.
+  # A package opts in with an [npm] section in its jac.toml; the Jac client
+  # runtime (@jaseci/runtime) is published alongside jaclang so JSX/component
+  # packages have a runtime dependency to resolve against.
   # ============================================================================
   publish-npm:
     needs: [parse-release, build]
@@ -209,30 +210,45 @@ jobs:
         with:
           persist-credentials: false
 
-      # This package opts into npm publishing if its jac.toml has an [npm] section.
+      # Decide what npm work (if any) this matrix entry implies:
+      #   runtime -> this is jaclang, also publish @jaseci/runtime
+      #   pkg     -> this package's jac.toml has an [npm] section (opt-in)
       - name: Determine npm work
         id: npm
         run: |
-          PKG=false
+          RUNTIME=false; PKG=false
+          if [ "${{ matrix.name }}" = "jaclang" ]; then RUNTIME=true; fi
           if [ -f "${{ matrix.dir }}/jac.toml" ] && grep -qE '^\[npm\]' "${{ matrix.dir }}/jac.toml"; then PKG=true; fi
+          ANY=false; if [ "$RUNTIME" = "true" ] || [ "$PKG" = "true" ]; then ANY=true; fi
+          echo "runtime=$RUNTIME" >> "$GITHUB_OUTPUT"
           echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
+          echo "any=$ANY" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
-        if: steps.npm.outputs.pkg == 'true'
+        if: steps.npm.outputs.any == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Set up Node.js
-        if: steps.npm.outputs.pkg == 'true'
+        if: steps.npm.outputs.any == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Set up jac (build the binary)
-        if: steps.npm.outputs.pkg == 'true'
+        if: steps.npm.outputs.any == 'true'
         uses: ./.github/actions/setup-jac
+
+      # Publish @jaseci/runtime (versioned to the jaclang release).
+      - name: Build and publish @jaseci/runtime
+        if: steps.npm.outputs.runtime == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          jac bundle --target npm-runtime -o dist-runtime
+          npm publish dist-runtime/jaseci-runtime-*.tgz --access public
 
       # Publish an opt-in package's npm tarball.
       - name: Build and publish npm package
@@ -245,11 +261,73 @@ jobs:
           npm publish dist/*.tgz --access public
 
   # ============================================================================
-  # Publish Tier 2: the plugins (byllm, jac-scale, jac-mcp). jaclang is the host
-  # binary, not a PyPI tier, so the plugins are the first published tier.
+  # Publish Tier 1 (reserved; empty). jaclang is the tier-0 anchor (native
+  # binary, not published to PyPI), so this tier currently matches no packages
+  # and no-ops; kept as scaffolding for future tier-1 PyPI packages.
+  # ============================================================================
+  publish-tier1:
+    needs: [parse-release, build]
+    if: needs.parse-release.outputs.has_releases == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.parse-release.outputs.matrix) }}
+    steps:
+      - name: Check if tier 1
+        id: check
+        run: |
+          if [[ "${{ matrix.tier }}" != "1" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download package
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: Packages-${{ matrix.pypi }}
+          path: dist
+
+      - name: Publish to PyPI
+        if: steps.check.outputs.skip != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+          # Idempotent re-runs: a manual re-publish (or rerun after a partial
+          # failure) skips versions already on PyPI instead of erroring.
+          skip-existing: true
+
+  wait-tier1:
+    needs: [parse-release, publish-tier1]
+    if: needs.parse-release.outputs.has_releases == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up jac (build the binary)
+        uses: ./.github/actions/setup-jac
+
+      - name: Wait for tier 1 on PyPI
+        env:
+          MATRIX: ${{ needs.parse-release.outputs.matrix }}
+        run: jac run scripts/wait_for_pypi.jac --matrix "$MATRIX" --tier 1
+
+  # ============================================================================
+  # Publish Tier 2: packages depending on jaclang
   # ============================================================================
   publish-tier2:
-    needs: [parse-release, build]
+    needs: [parse-release, build, wait-tier1]
     if: needs.parse-release.outputs.has_releases == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
@@ -368,18 +446,85 @@ jobs:
         run: jac run scripts/wait_for_pypi.jac --matrix "$MATRIX" --tier 3
 
   # ============================================================================
+  # Publish Tier 4 (reserved; no packages currently). Tiers 1/3/4 are now empty
+  # -- jaclang is the tier-0 anchor (native binary, no PyPI) and the plugins are
+  # tier 2. These jobs no-op on an empty tier; kept as scaffolding for future
+  # dependency-ordered PyPI packages.
+  # ============================================================================
+  publish-tier4:
+    needs: [parse-release, build, wait-tier3]
+    if: needs.parse-release.outputs.has_releases == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.parse-release.outputs.matrix) }}
+    steps:
+      - name: Check if tier 4
+        id: check
+        run: |
+          if [[ "${{ matrix.tier }}" != "4" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download package
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: Packages-${{ matrix.pypi }}
+          path: dist
+
+      - name: Publish to PyPI
+        if: steps.check.outputs.skip != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+          # Idempotent re-runs: a manual re-publish (or rerun after a partial
+          # failure) skips versions already on PyPI instead of erroring.
+          skip-existing: true
+
+  wait-tier4:
+    needs: [parse-release, publish-tier4]
+    if: needs.parse-release.outputs.has_releases == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up jac (build the binary)
+        uses: ./.github/actions/setup-jac
+
+      - name: Wait for tier 4 on PyPI
+        env:
+          MATRIX: ${{ needs.parse-release.outputs.matrix }}
+        run: jac run scripts/wait_for_pypi.jac --matrix "$MATRIX" --tier 4
+
+  # ============================================================================
   # Push tags after successful publish
   # ============================================================================
   push-tags:
-    needs: [parse-release, publish-tier2, publish-tier3]
+    needs: [parse-release, build, publish-tier1, publish-tier2, publish-tier3, publish-tier4]
     if: |
       always() &&
       needs.parse-release.outputs.has_releases == 'true' &&
-      (needs.publish-tier2.result == 'success' || needs.publish-tier3.result == 'success')
+      needs.build.result == 'success'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     permissions:
       contents: write
+    outputs:
+      anchor_version: ${{ steps.tags.outputs.anchor_version }}
+      anchor_release_tag: ${{ steps.tags.outputs.anchor_release_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -396,17 +541,36 @@ jobs:
         id: tags
         env:
           MATRIX: ${{ needs.parse-release.outputs.matrix }}
+          TIER1_RESULT: ${{ needs.publish-tier1.result }}
           TIER2_RESULT: ${{ needs.publish-tier2.result }}
           TIER3_RESULT: ${{ needs.publish-tier3.result }}
+          TIER4_RESULT: ${{ needs.publish-tier4.result }}
         run: |
           echo "$MATRIX" | jq -c '.include[]' | while read -r pkg; do
             pypi_name=$(echo "$pkg" | jq -r '.pypi')
             version=$(echo "$pkg" | jq -r '.version')
             tier=$(echo "$pkg" | jq -r '.tier')
+            is_anchor=$(echo "$pkg" | jq -r '.is_anchor')
+
+            # The anchor (jaclang) is not published to PyPI; it tags the release
+            # directly. Its v{version} tag is the primary release tag --
+            # publishing the release on it fires release-jaclang.yml to build
+            # and attach the native binaries.
+            if [[ "$is_anchor" == "true" ]]; then
+              vtag="v${version}"
+              echo "Creating anchor release tag: $vtag"
+              git tag --annotate --message="jaclang ${version}" "$vtag" "$GITHUB_SHA"
+              git push origin "$vtag"
+              echo "anchor_version=$version" >> "$GITHUB_OUTPUT"
+              echo "anchor_release_tag=$vtag" >> "$GITHUB_OUTPUT"
+              continue
+            fi
 
             case "$tier" in
+              1) result="$TIER1_RESULT" ;;
               2) result="$TIER2_RESULT" ;;
               3) result="$TIER3_RESULT" ;;
+              4) result="$TIER4_RESULT" ;;
             esac
 
             if [[ "$result" == "success" ]]; then
@@ -424,7 +588,13 @@ jobs:
   # ============================================================================
   create-github-release:
     needs: [parse-release, push-tags]
-    if: always() && needs.push-tags.result == 'success'
+    # The GitHub Release is anchored on jaclang: it is created only when jaclang
+    # was part of the release (anchor_release_tag is set). Plugin-only releases
+    # publish to PyPI + push per-plugin tags but do NOT cut a GitHub Release, so
+    # the latest release always carries the native binaries (install.sh relies
+    # on that). The binaries themselves are attached by release-jaclang.yml,
+    # which fires on the release-publish event below.
+    if: always() && needs.push-tags.result == 'success' && needs.push-tags.outputs.anchor_release_tag != ''
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     permissions:
@@ -443,33 +613,42 @@ jobs:
           GH_REPO: ${{ github.repository }}
           MATRIX: ${{ needs.parse-release.outputs.matrix }}
           RELEASE_SUMMARY: ${{ needs.parse-release.outputs.release_summary }}
+          ANCHOR_RELEASE_TAG: ${{ needs.push-tags.outputs.anchor_release_tag }}
+          ANCHOR_VERSION: ${{ needs.push-tags.outputs.anchor_version }}
         run: |
-          # Tag the release off the first published package.
-          PRIMARY_TAG=$(echo "$MATRIX" | jq -r '.include[0] | "\(.pypi)-v\(.version)"')
+          PRIMARY_TAG="$ANCHOR_RELEASE_TAG"
 
           # Build release notes
           {
-            echo "## Packages Released"
+            echo "## jaclang ${ANCHOR_VERSION} (native \`jac\` binary)"
             echo ""
-            while read -r pkg; do
-              pypi_name=$(echo "$pkg" | jq -r '.pypi')
-              version=$(echo "$pkg" | jq -r '.version')
-              echo "- **${pypi_name}** ${version} ([PyPI](https://pypi.org/project/${pypi_name}/${version}/))"
-            done < <(echo "$MATRIX" | jq -c '.include[]')
+            echo "Install: \`curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install.sh | bash\`"
+            echo ""
+            PLUGINS=$(echo "$MATRIX" | jq -r '.include[] | select(.publish_pypi == true) | "- **\(.pypi)** \(.version) ([PyPI](https://pypi.org/project/\(.pypi)/\(.version)/))"')
+            if [[ -n "$PLUGINS" ]]; then
+              echo "### Plugins published to PyPI"
+              echo ""
+              echo "$PLUGINS"
+            fi
           } > release_notes.md
 
-          # Create release
+          # Attach any plugin wheels (empty for a jaclang-only release; the
+          # native binaries are added by release-jaclang.yml on publish).
+          shopt -s nullglob
+          assets=(dist/*)
+
           gh release create "$PRIMARY_TAG" \
             --verify-tag \
+            --latest \
             --title "Release: $RELEASE_SUMMARY" \
             --notes-file release_notes.md \
-            dist/*
+            "${assets[@]}"
 
   # ============================================================================
   # Summary
   # ============================================================================
   summary:
-    needs: [parse-release, build, publish-tier2, publish-tier3, wait-tier3, push-tags, create-github-release]
+    needs: [parse-release, build, publish-tier1, publish-tier2, publish-tier3, publish-tier4, wait-tier3, wait-tier4, push-tags, create-github-release]
     if: always() && needs.parse-release.outputs.has_releases == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 5
@@ -478,10 +657,12 @@ jobs:
         env:
           SUMMARY: ${{ needs.parse-release.outputs.release_summary }}
           BUILD: ${{ needs.build.result }}
+          TIER1: ${{ needs.publish-tier1.result }}
           TIER2: ${{ needs.publish-tier2.result }}
           TIER3: ${{ needs.publish-tier3.result }}
           TAGS: ${{ needs.push-tags.result }}
           RELEASE: ${{ needs.create-github-release.result }}
+          ANCHOR_VERSION: ${{ needs.push-tags.outputs.anchor_version }}
         run: |
           {
             echo "## Release Summary: $SUMMARY"
@@ -490,14 +671,17 @@ jobs:
             echo "|------|--------|"
             echo "| Build | $BUILD |"
             echo "| Publish Tier 2 (plugins) | $TIER2 |"
-            echo "| Publish Tier 3 | $TIER3 |"
             echo "| Push Tags | $TAGS |"
-            echo "| GitHub Release | $RELEASE |"
+            echo "| GitHub Release (anchor) | $RELEASE |"
             echo ""
-            echo "> The native \`jac\` binary (jaclang) is built and attached to the GitHub Release by the separate **Release jac native binary** workflow, which fires on release publish."
+            if [[ -n "$ANCHOR_VERSION" ]]; then
+              echo "> jaclang \`$ANCHOR_VERSION\` anchored this release. The native \`jac\` binaries are built and attached to the \`v$ANCHOR_VERSION\` GitHub Release by the separate **Release jac native binary** workflow, which fires on release publish."
+            else
+              echo "> Plugin-only release: published to PyPI and tagged; no GitHub Release is cut (the latest GitHub Release stays the most recent jaclang/binary release)."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [[ "$TIER2" == "failure" || "$TIER3" == "failure" ]]; then
+          if [[ "$TIER1" == "failure" || "$TIER2" == "failure" || "$TIER3" == "failure" ]]; then
             echo "::error::Some packages failed to publish"
             exit 1
           fi

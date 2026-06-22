@@ -282,7 +282,7 @@ GitHub Actions workflows in `.github/workflows/`:
 | `docs-validation.yml` | Documentation builds without errors |
 | `test-installer.yml` | Clean install from scratch works |
 | `create-release-pr.yml` | Automated version bump PRs |
-| `release-jaclang.yml` | Build + release the `jac` binary (and npm runtime) |
+| `release-jaclang.yml` | Build + release the native `jac` binary |
 | `release-byllm.yml` / `release-scale.yml` / `release-mcp.yml` | Per-plugin PyPI publishing |
 | `publish-release.yml` | Tiered plugin PyPI publish on release merge |
 | `deploy-docs.yml` | Deploy docs site to production |

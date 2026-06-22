@@ -24,51 +24,70 @@ class PackageInfo(NamedTuple) {
     has extra_build_cmd: str = "";
     has needs_nodejs: bool = False;
     has extra_build_deps: str = "";
+    # jaclang ships as the native `jac` binary, not a PyPI wheel. It does not
+    # publish to PyPI (publish_pypi=False) and it anchors the GitHub Release
+    # (is_anchor=True): a release that bumps jaclang creates the v<version> tag,
+    # which fires release-jaclang.yml to build + attach the binaries.
+    has publish_pypi: bool = True;
+    has is_anchor: bool = False;
 }
-# jaclang and the `jaseci` meta-package are no longer published to PyPI -- jaclang
-# ships as the self-contained `jac` binary (release-jaclang.yml) and is the host
-# dependency for every plugin at runtime. Only the plugins below release to PyPI.
+
 glob PACKAGES: dict[(str, PackageInfo)] = {
-    "jac-byllm": PackageInfo(
-        dir="jac-byllm",
-        pypi="byllm",
-        tier=2,
-        release_notes="docs/docs/community/release_notes/byllm.md",
-        notes_display="byllm",
-        submodules=True,
-        precompile=True
-    ),
-    "jac-scale": PackageInfo(
-        dir="jac-scale",
-        pypi="jac-scale",
-        tier=2,
-        release_notes="docs/docs/community/release_notes/jac-scale.md",
-        notes_display="jac-scale",
-        submodules=True,
-        precompile=True,
-        extra_build_cmd="jac run scripts/build_admin_ui.jac",
-        needs_nodejs=True
-    ),
-    "jac-mcp": PackageInfo(
-        dir="jac-mcp",
-        pypi="jac-mcp",
-        tier=2,
-        release_notes="docs/docs/community/release_notes/jac-mcp.md",
-        notes_display="jac-mcp",
-        submodules=True,
-        precompile=True,
-        extra_build_cmd="jac run scripts/bundle_docs.jac"
-    )
-},
-     # Cross-plugin PyPI dependencies (jaclang is host-provided by the binary, so
-     # it is not a synced dependency). Empty today -- no plugin depends on another;
-     # populate if that changes so dependent version pins stay in sync on release.
+         # Anchor: not published to PyPI; its version tags the GitHub Release.
+         "jaclang": PackageInfo(
+             dir="jac",
+             pypi="jaclang",
+             tier=0,
+             release_notes="docs/docs/community/release_notes/jaclang.md",
+             notes_display="jaclang",
+             submodules=True,
+             precompile=True,
+             publish_pypi=False,
+             is_anchor=True
+         ),
+         "jac-byllm": PackageInfo(
+             dir="jac-byllm",
+             pypi="byllm",
+             tier=2,
+             release_notes="docs/docs/community/release_notes/byllm.md",
+             notes_display="byllm",
+             submodules=True,
+             precompile=True
+         ),
+         "jac-scale": PackageInfo(
+             dir="jac-scale",
+             pypi="jac-scale",
+             tier=2,
+             release_notes="docs/docs/community/release_notes/jac-scale.md",
+             notes_display="jac-scale",
+             submodules=True,
+             precompile=True,
+             extra_build_cmd="jac run scripts/build_admin_ui.jac",
+             needs_nodejs=True
+         ),
+         "jac-mcp": PackageInfo(
+             dir="jac-mcp",
+             pypi="jac-mcp",
+             tier=2,
+             release_notes="docs/docs/community/release_notes/jac-mcp.md",
+             notes_display="jac-mcp",
+             submodules=True,
+             precompile=True,
+             extra_build_cmd="jac run scripts/bundle_docs.jac"
+         )
+     },
+     # Internal version pins between released packages. Plugins consume jaclang
+     # as a host dependency (provided by the binary), not a PyPI pin, and no
+     # longer depend on each other now that the jaseci meta-package is gone, so
+     # there are no cross-package version pins to sync.
      INTERNAL_DEPS: dict[(str, list[str])] = {
-    "byllm": [],
-    "jac-scale": [],
-    "jac-mcp": []
-},
+         "jaclang": [],
+         "byllm": [],
+         "jac-scale": [],
+         "jac-mcp": []
+     },
      DEPENDENTS: dict[(str, list[str])] = {};
+
 with entry {
     for (_pkg_key, _pkg_info) in PACKAGES.items() {
         for _dep in INTERNAL_DEPS.get(_pkg_info.pypi, []) {
@@ -76,9 +95,17 @@ with entry {
         }
     }
 }
-"""Read the current version from a package's jac.toml manifest."""
+
+"""Read the current version from a package's manifest.
+
+    Prefers jac.toml; falls back to pyproject.toml for packages (e.g. jac/)
+    that cannot migrate because they bootstrap the jac toolchain itself.
+    """
 def get_current_version(repo_root: Path, pkg_dir: str) -> str {
-    manifest = repo_root / pkg_dir / "jac.toml";
+    jac_toml = repo_root / pkg_dir / "jac.toml";
+    manifest = jac_toml
+        if jac_toml.exists()
+        else repo_root / pkg_dir / "pyproject.toml";
     data = tomllib.loads(manifest.read_text());
     return str(data["project"]["version"]);
 }
