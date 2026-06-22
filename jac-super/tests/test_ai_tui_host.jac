@@ -9,7 +9,7 @@ the frozen frame/command seam crossing it. Two layers:
      the shared `_frame_blob` encoder + native parser, and assert it round-trips
      into the rendered screen buffer. Also proves the na -> sv pull queue starts
      drained and quit is unset. This is the sv-side twin of the native Phase-1
-     gate (`ai_tui_na/test_host.py`), reached through the real `TuiHost` wrapper
+     gate (`jac-super/jac_super/ai_tui_na/test_host.jac`), reached through the real `TuiHost` wrapper
      rather than raw ctypes.
   2. Real PTY (skips cleanly where openpty is unavailable): open a pseudo-tty,
      `start` the host on it, type `hi`+Enter into the controller end, and drive

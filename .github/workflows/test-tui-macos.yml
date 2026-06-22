@@ -20,6 +20,7 @@ on:
       - 'jac-super/jac_super/ai_tui_na/**'
       - 'jac-super/jac_super/ai_agent/tui_host.jac'
       - 'jac-super/jac_super/ai_agent/tui_shared.jac'
+      - 'jac-super/tests/**'
       - '.github/workflows/test-tui-macos.yml'
   pull_request:
     branches: [main]
@@ -27,6 +28,7 @@ on:
       - 'jac-super/jac_super/ai_tui_na/**'
       - 'jac-super/jac_super/ai_agent/tui_host.jac'
       - 'jac-super/jac_super/ai_agent/tui_shared.jac'
+      - 'jac-super/tests/**'
       - '.github/workflows/test-tui-macos.yml'
   workflow_dispatch:
 
@@ -88,6 +90,11 @@ jobs:
           echo "$FILE_OUT" | grep -q "Mach-O 64-bit" \
             || { echo "FAIL: jac-na-tui is not Mach-O 64-bit"; exit 1; }
           echo "ok: jac-na-tui is Mach-O 64-bit"
+
+      - name: jac-super bridge tests (subprocess transport)
+        run: |
+          pip install pytest
+          pytest -x jac-super/tests/test_ai_tui_bridge.jac
 
   # ── macOS native job ────────────────────────────────────────────────────────────
   # Native arm64 macOS build, codesign, and three headless gates:
@@ -185,6 +192,11 @@ jobs:
       - name: Headless host gate (ctypes CDLL load + frame parse)
         working-directory: jac-super/jac_super/ai_tui_na
         run: python -m jaclang run test_host.jac
+
+      - name: jac-super sv-side TUI tests
+        run: |
+          pip install pytest
+          pytest -x jac-super/tests
 
       - name: Picker logic tests
         working-directory: jac-super/jac_super/ai_tui_na

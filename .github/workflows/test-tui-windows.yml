@@ -23,6 +23,7 @@ on:
       - 'jac-super/jac_super/ai_tui_na/**'
       - 'jac-super/jac_super/ai_agent/tui_host.jac'
       - 'jac-super/jac_super/ai_agent/tui_shared.jac'
+      - 'jac-super/tests/**'
       - '.github/workflows/test-tui-windows.yml'
   pull_request:
     branches: [main]
@@ -30,6 +31,7 @@ on:
       - 'jac-super/jac_super/ai_tui_na/**'
       - 'jac-super/jac_super/ai_agent/tui_host.jac'
       - 'jac-super/jac_super/ai_agent/tui_shared.jac'
+      - 'jac-super/tests/**'
       - '.github/workflows/test-tui-windows.yml'
   workflow_dispatch:
 
@@ -89,6 +91,11 @@ jobs:
             || { echo "FAIL: jac-na-tui.exe is not a PE/COFF file"; exit 1; }
           echo "ok: jac-na-tui.exe is PE32+"
 
+      - name: jac-super bridge tests (subprocess transport)
+        run: |
+          pip install pytest
+          pytest -x jac-super/tests/test_ai_tui_bridge.jac
+
   # ── Windows native job ───────────────────────────────────────────────────────
   # Native x64 Windows build and three headless gates:
   #   1. test_pickers      — picker logic (no TTY, no ctypes, pure NA)
@@ -126,6 +133,12 @@ jobs:
         working-directory: jac-super/jac_super/ai_tui_na
         shell: pwsh
         run: ./build.ps1 -Quick
+
+      - name: jac-super sv-side TUI tests
+        shell: pwsh
+        run: |
+          pip install pytest
+          pytest -x jac-super/tests
 
       - name: Picker logic tests
         working-directory: jac-super/jac_super/ai_tui_na
