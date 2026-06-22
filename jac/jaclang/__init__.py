@@ -74,7 +74,13 @@ def _add_project_venv_to_path() -> None:
             and os.path.isdir(site_packages)
             and site_packages not in sys.path
         ):
-            sys.path.insert(0, site_packages)
+            # addsitedir (not sys.path.insert): it ALSO processes .pth files,
+            # which is how editable installs (`jac install -e`) put the package
+            # source on the path. A bare insert finds the dist-info/entry point
+            # but not the editable source, so `ep.load()` would still ImportError.
+            import site
+
+            site.addsitedir(site_packages)
     except Exception:
         # Plugin discovery falls back to the binary's own site; never fatal.
         pass
