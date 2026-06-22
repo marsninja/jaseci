@@ -1,7 +1,7 @@
 """Phase-0 prototype: validate tui_helpers.so before building the full TUI.
 
 Build and run:
-  cd jac-super/jac_super/ai_tui_na
+  cd ai_tui_na
   gcc -O2 -shared -fPIC -o proto/libtui_helpers.so tui_helpers.c
   jac nacompile proto/rawmode_proto.na.jac -o proto/rawmode_proto
   ./proto/rawmode_proto

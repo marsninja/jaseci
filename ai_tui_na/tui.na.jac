@@ -6,7 +6,7 @@ IPC contract (see ipc.na.jac):
   /dev/tty: keyboard in; ANSI rendering on fd 1
 
 Build:
-  cd jac-super/jac_super/ai_tui_na
+  cd ai_tui_na
   ./build.sh
 """
 

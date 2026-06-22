@@ -1,35 +1,37 @@
 name: Run tests for TUI macOS
 
-# Phase 4 of the macOS port (PLAN-tui-macos.md §Phase 4).
+# Native TUI port (top-level ai_tui_na/) — macOS coverage.
 #
 # Two jobs:
-#   macos-cross-compile  — Linux runner, builds libtui.dylib via nacompile
-#                          --target darwin, asserts Mach-O format. Validates
-#                          the compiler's Mach-O backend handles this code's
-#                          FFI shape (calloc'd struct buffers, ioctl(i64)).
-#   macos-native         — macos-latest runner, native build + full test suite:
-#                          CDLL load, picker logic, PTY termios harness.
+#   macos-cross-compile  — Linux runner, builds libtui.dylib + jac-na-tui via
+#                          nacompile --target darwin, asserts Mach-O format.
+#                          Validates the compiler's Mach-O backend handles this
+#                          code's FFI shape (calloc'd struct buffers, ioctl(i64))
+#                          before a macOS runner is involved.
+#   macos-native         — macos-latest runner, native build + headless gates:
+#                          codesign, export-trie completeness, CDLL load, picker
+#                          logic, PTY termios harness.
 #
-# CI green is necessary but NOT sufficient to merge — Phase 5 (human Mac
-# sign-off on Terminal.app/iTerm2/Warp) gates the final merge.
+# Toolchain: jaclang ships as the self-contained `jac` binary (Zig launcher +
+# bundled CPython), built once per job via the setup-jac composite action. This
+# replaces the retired `pip install -e ./jac` editable install.
+#
+# CI green is necessary but NOT sufficient to merge — human Mac sign-off on
+# Terminal.app/iTerm2/Warp gates the final merge.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'jac-super/jac_super/ai_tui_na/**'
-      - 'jac-super/jac_super/ai_agent/tui_host.jac'
-      - 'jac-super/jac_super/ai_agent/tui_shared.jac'
-      - 'jac-super/tests/**'
+      - 'ai_tui_na/**'
       - '.github/workflows/test-tui-macos.yml'
+      - '.github/actions/setup-jac/**'
   pull_request:
     branches: [main]
     paths:
-      - 'jac-super/jac_super/ai_tui_na/**'
-      - 'jac-super/jac_super/ai_agent/tui_host.jac'
-      - 'jac-super/jac_super/ai_agent/tui_shared.jac'
-      - 'jac-super/tests/**'
+      - 'ai_tui_na/**'
       - '.github/workflows/test-tui-macos.yml'
+      - '.github/actions/setup-jac/**'
   workflow_dispatch:
 
 jobs:
@@ -46,23 +48,15 @@ jobs:
         with:
           submodules: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install jaclang + jac-super
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ./jac
-          jac install -e ./jac-super
+      - name: Set up jac (build the binary, cached)
+        uses: ./.github/actions/setup-jac
 
       - name: Cross-compile NA TUI → Darwin (--target darwin)
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: JAC_AI_TUI_TARGET=darwin bash build.sh --quick
 
       - name: Assert libtui.dylib is Mach-O 64-bit
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
           FILE_OUT="$(file bin/libtui.dylib)"
           echo "file: $FILE_OUT"
@@ -71,7 +65,7 @@ jobs:
           echo "ok: Mach-O 64-bit confirmed"
 
       - name: Assert libtui.dylib links libSystem
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
           # strings is always available on Linux and reads Mach-O bytes fine;
           # /usr/lib/libSystem.B.dylib appears verbatim in the LC_LOAD_DYLIB cmd.
@@ -83,18 +77,13 @@ jobs:
           fi
 
       - name: Assert jac-na-tui is Mach-O 64-bit
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
           FILE_OUT="$(file bin/jac-na-tui)"
           echo "file: $FILE_OUT"
           echo "$FILE_OUT" | grep -q "Mach-O 64-bit" \
             || { echo "FAIL: jac-na-tui is not Mach-O 64-bit"; exit 1; }
           echo "ok: jac-na-tui is Mach-O 64-bit"
-
-      - name: jac-super bridge tests (subprocess transport)
-        run: |
-          pip install pytest
-          pytest -x jac-super/tests/test_ai_tui_bridge.jac
 
   # ── macOS native job ────────────────────────────────────────────────────────────
   # Native arm64 macOS build, codesign, and three headless gates:
@@ -110,30 +99,22 @@ jobs:
         with:
           submodules: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install jaclang + jac-super
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ./jac
-          jac install -e ./jac-super
+      - name: Set up jac (build the binary, cached)
+        uses: ./.github/actions/setup-jac
 
       - name: Build NA TUI (native macOS)
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: bash build.sh --quick
 
       - name: Verify libtui.dylib is codesigned
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
           codesign --verify --verbose bin/libtui.dylib \
             || { echo "FAIL: libtui.dylib not properly signed"; exit 1; }
           echo "ok: codesign verify passed"
 
       - name: Assert libtui.dylib export trie is complete
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
           python3 - << 'PYEOF'
           import struct, sys
@@ -190,21 +171,20 @@ jobs:
           PYEOF
 
       - name: Headless host gate (ctypes CDLL load + frame parse)
-        working-directory: jac-super/jac_super/ai_tui_na
-        run: python -m jaclang run test_host.jac
-
-      - name: jac-super sv-side TUI tests
-        run: |
-          pip install pytest
-          pytest -x jac-super/tests
+        working-directory: ai_tui_na
+        run: jac run test_host.jac
 
       - name: Picker logic tests
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
-          python -m jaclang nacompile test_pickers.na.jac -o bin/test_pickers
+          # test_pickers imports `.libc_tty`; stage the darwin backend (build.sh
+          # --quick removes its staged copy on exit) before compiling.
+          cp tty/libc_tty.darwin.na.jac libc_tty.na.jac
+          trap 'rm -f libc_tty.na.jac' EXIT
+          jac nacompile test_pickers.na.jac -o bin/test_pickers
           codesign --sign - bin/test_pickers
           ./bin/test_pickers
 
       - name: PTY termios harness (Darwin flag-table + raw-mode gate)
-        working-directory: jac-super/jac_super/ai_tui_na
-        run: python -m jaclang run test_tty_darwin.jac
+        working-directory: ai_tui_na
+        run: jac run test_tty_darwin.jac

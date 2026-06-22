@@ -14,17 +14,37 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# ── resolve the jaclang to build with ───────────────────────────────────────
-# Prefer the repo's editable jaclang (the venv at the repo root) over any global
-# `jac` on PATH — a global uv-tool install can be stale and miss compiler fixes
-# this TUI depends on (e.g. multi-`with entry` codegen).
-REPO_VENV="$SCRIPT_DIR/../../../.venv"
-if [ -x "$REPO_VENV/bin/python" ]; then
+# ── resolve the jac toolchain to build with ─────────────────────────────────
+# jaclang ships as the self-contained `jac` binary (Zig launcher + bundled
+# CPython); `pip install -e jac` is gone. Resolution order:
+#   1. $JAC_BIN            — explicit override
+#   2. jac/zig-out/bin/jac — the repo's freshly built binary (CI builds this via
+#                            the setup-jac action; locally via `cd jac && zig build`)
+#   3. .venv editable      — legacy local-dev fallback: an editable jaclang whose
+#                            source still resolves into the working tree (no zig
+#                            needed), so the dev loop survives without a zig install
+#   4. jac on PATH         — last resort (may be a stale global install)
+# This dir is now a top-level package, so the repo root is one level up.
+# Canonicalize it (no trailing `..`) so the editable venv's sys.prefix matches
+# and python doesn't emit a "Unexpected value in sys.prefix" RuntimeWarning.
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_JAC="$REPO_ROOT/jac/zig-out/bin/jac"
+REPO_VENV="$REPO_ROOT/.venv"
+if [ -n "${JAC_BIN:-}" ]; then
+    JAC=("$JAC_BIN")
+    echo "==> Using \$JAC_BIN: $JAC_BIN"
+elif [ -x "$REPO_JAC" ]; then
+    JAC=("$REPO_JAC")
+    echo "==> Using repo-built jac binary: $REPO_JAC"
+elif [ -x "$REPO_VENV/bin/python" ]; then
     JAC=("$REPO_VENV/bin/python" -m jaclang)
-    echo "==> Using repo jaclang: $REPO_VENV/bin/python -m jaclang"
-else
+    echo "==> Using repo editable jaclang: $REPO_VENV/bin/python -m jaclang"
+elif command -v jac >/dev/null 2>&1; then
     JAC=(jac)
-    echo "==> Using jac on PATH (no repo .venv found)"
+    echo "==> Using jac on PATH"
+else
+    echo "==> No jac toolchain found. Build the binary: (cd jac && zig build)" >&2
+    exit 1
 fi
 
 # ── select the TTY backend ───────────────────────────────────────────────────

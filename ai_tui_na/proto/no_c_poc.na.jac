@@ -1,7 +1,7 @@
 """POC: zero custom C — terminal I/O via libc_tty.na.jac only.
 
 Build:
-  cd jac-super/jac_super/ai_tui_na
+  cd ai_tui_na
   ../../../.venv/bin/python -m jaclang nacompile proto/no_c_poc.na.jac -o proto/no_c_poc
 
 Run (interactive):

@@ -1,46 +1,46 @@
 name: Run tests for TUI Windows
 
-# Phase 4 of the Windows port (PLAN-tui-windows.md §Phase 4).
+# Native TUI port (top-level ai_tui_na/) — Windows coverage.
 #
-# Two jobs:
-#   windows-cross-compile  — Linux runner, builds tui.dll + jac-na-tui.exe
-#                            via nacompile --target windows, asserts PE/COFF
-#                            format. Validates the compiler's PE backend handles
-#                            this module's FFI shape (calloc'd INPUT_RECORD
-#                            buffers, kernel32 imports) before a Windows runner
-#                            is involved.
-#   windows-native         — windows-latest runner, native build + full test suite:
-#                            picker logic, CDLL load + frame round-trip (test_host),
-#                            Win32 console constant probe + VT gate (test_console_win32).
+# Currently ONE active job:
+#   windows-cross-compile  — Linux runner, builds tui.dll + jac-na-tui.exe +
+#                            test_pickers.exe via nacompile --target windows,
+#                            asserts PE/COFF format. Validates the compiler's PE
+#                            backend handles this module's FFI shape (calloc'd
+#                            INPUT_RECORD buffers, kernel32 imports) and uploads
+#                            test_pickers.exe so a future run-only job can execute
+#                            it on a Windows runner.
 #
-# CI green is necessary but NOT sufficient to merge — Phase 5 (human sign-off
-# on Windows Terminal / PowerShell / VT-enabled cmd) gates the final merge.
+# The real-Windows-host native job is DEFERRED — see the NOTE at the bottom.
+# jaclang now ships only as the `jac` binary, which has no Windows target
+# (python-build-standalone ships no Windows pbs), so we can no longer run jaclang
+# on a windows-latest runner. The path forward is cross-compile-on-Linux +
+# run-only-on-Windows; it is parked until the base pipeline is proven.
+#
+# Toolchain: the self-contained `jac` binary (Zig launcher + bundled CPython),
+# built via the setup-jac composite action — replaces `pip install -e ./jac`.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'jac-super/jac_super/ai_tui_na/**'
-      - 'jac-super/jac_super/ai_agent/tui_host.jac'
-      - 'jac-super/jac_super/ai_agent/tui_shared.jac'
-      - 'jac-super/tests/**'
+      - 'ai_tui_na/**'
       - '.github/workflows/test-tui-windows.yml'
+      - '.github/actions/setup-jac/**'
   pull_request:
     branches: [main]
     paths:
-      - 'jac-super/jac_super/ai_tui_na/**'
-      - 'jac-super/jac_super/ai_agent/tui_host.jac'
-      - 'jac-super/jac_super/ai_agent/tui_shared.jac'
-      - 'jac-super/tests/**'
+      - 'ai_tui_na/**'
       - '.github/workflows/test-tui-windows.yml'
+      - '.github/actions/setup-jac/**'
   workflow_dispatch:
 
 jobs:
   # ── Linux cross-compile gate ────────────────────────────────────────────────
-  # Build tui.dll and jac-na-tui.exe targeting x86-64 Windows PE/COFF on a
-  # Linux runner. Cannot run the output, but `file` asserts PE32+ format and a
-  # Python byte-check confirms the MZ magic — enough to validate the PE codegen
-  # path for this module's FFI shape before any Windows runner is involved.
+  # Build tui.dll, jac-na-tui.exe and test_pickers.exe targeting x86-64 Windows
+  # PE/COFF on a Linux runner. Cannot run the output here, but `file` asserts
+  # PE32+ format and a byte-check confirms the MZ magic — enough to validate the
+  # PE codegen path for this module's FFI shape before any Windows runner.
   test-windows-cross-compile:
     runs-on: blacksmith-4vcpu-ubuntu-2404
 
@@ -49,23 +49,15 @@ jobs:
         with:
           submodules: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install jaclang + jac-super
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ./jac
-          jac install -e ./jac-super
+      - name: Set up jac (build the binary, cached)
+        uses: ./.github/actions/setup-jac
 
       - name: Cross-compile NA TUI → Windows (--target windows)
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: JAC_AI_TUI_TARGET=win32 bash build.sh --quick
 
       - name: Assert tui.dll is PE32+ (COFF)
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
           FILE_OUT="$(file bin/tui.dll)"
           echo "file: $FILE_OUT"
@@ -74,7 +66,7 @@ jobs:
           echo "ok: PE/COFF format confirmed"
 
       - name: Assert tui.dll has MZ magic
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
           python3 -c "
           data = open('bin/tui.dll', 'rb').read(2)
@@ -83,7 +75,7 @@ jobs:
           "
 
       - name: Assert jac-na-tui.exe is PE32+
-        working-directory: jac-super/jac_super/ai_tui_na
+        working-directory: ai_tui_na
         run: |
           FILE_OUT="$(file bin/jac-na-tui.exe)"
           echo "file: $FILE_OUT"
@@ -91,75 +83,44 @@ jobs:
             || { echo "FAIL: jac-na-tui.exe is not a PE/COFF file"; exit 1; }
           echo "ok: jac-na-tui.exe is PE32+"
 
-      - name: jac-super bridge tests (subprocess transport)
+      - name: Cross-compile test_pickers.exe (headless picker logic)
+        working-directory: ai_tui_na
         run: |
-          pip install pytest
-          pytest -x jac-super/tests/test_ai_tui_bridge.jac
+          # test_pickers imports `.libc_tty`; stage the win32 backend before
+          # compiling (build.sh --quick already removed its staged copy).
+          cp tty/console.win32.na.jac libc_tty.na.jac
+          trap 'rm -f libc_tty.na.jac' EXIT
+          jac nacompile test_pickers.na.jac --target windows -o bin/test_pickers.exe
+          FILE_OUT="$(file bin/test_pickers.exe)"
+          echo "file: $FILE_OUT"
+          echo "$FILE_OUT" | grep -qiE "PE32\+|PE32" \
+            || { echo "FAIL: test_pickers.exe is not a PE/COFF file"; exit 1; }
+          echo "ok: test_pickers.exe is PE32+"
 
-  # ── Windows native job ───────────────────────────────────────────────────────
-  # Native x64 Windows build and three headless gates:
-  #   1. test_pickers      — picker logic (no TTY, no ctypes, pure NA)
-  #   2. test_host.jac      — CDLL (tui.dll) load + apply_frame/render (no TTY)
-  #   3. test_console_win32.jac — Win32 constant probe + VT output gate
-  #                               (VT live section auto-skips on headless runners)
-  test-windows-native:
-    runs-on: windows-latest
-
-    # The Windows runner defaults Python stdout to cp1252, which cannot encode the
-    # box-drawing/VT characters the console gate prints. Force UTF-8 so the gate's
-    # output isn't mangled into a UnicodeEncodeError.
-    env:
-      PYTHONUTF8: '1'
-      PYTHONIOENCODING: 'utf-8'
-
-    steps:
-      - uses: actions/checkout@v4
+      - name: Upload Windows artifacts (for the future run-only Windows job)
+        uses: actions/upload-artifact@v4
         with:
-          submodules: true
+          name: tui-windows-binaries
+          path: |
+            ai_tui_na/bin/test_pickers.exe
+            ai_tui_na/bin/jac-na-tui.exe
+            ai_tui_na/bin/tui.dll
+          retention-days: 7
+          if-no-files-found: error
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install jaclang + jac-super
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ./jac
-          jac install -e ./jac-super
-
-      - name: Build NA TUI (native Windows, quick)
-        working-directory: jac-super/jac_super/ai_tui_na
-        shell: pwsh
-        run: ./build.ps1 -Quick
-
-      - name: jac-super sv-side TUI tests
-        shell: pwsh
-        run: |
-          pip install pytest
-          pytest -x jac-super/tests
-
-      - name: Picker logic tests
-        working-directory: jac-super/jac_super/ai_tui_na
-        shell: pwsh
-        run: |
-          Copy-Item "tty\console.win32.na.jac" "libc_tty.na.jac"
-          try {
-            python -m jaclang nacompile test_pickers.na.jac --target windows -o bin\test_pickers.exe
-            if ($LASTEXITCODE -ne 0) { throw "test_pickers.exe compile failed" }
-            .\bin\test_pickers.exe
-            if ($LASTEXITCODE -ne 0) { throw "test_pickers.exe failed" }
-          } finally {
-            Remove-Item "libc_tty.na.jac" -ErrorAction SilentlyContinue
-          }
-
-      - name: Headless host gate (ctypes CDLL load + frame parse)
-        working-directory: jac-super/jac_super/ai_tui_na
-        shell: pwsh
-        run: python -m jaclang run test_host.jac
-
-      - name: Win32 console constant + VT gate
-        working-directory: jac-super/jac_super/ai_tui_na
-        shell: pwsh
-        run: python -m jaclang run test_console_win32.jac
+  # ── NOTE: real-Windows-host native job is DEFERRED ──────────────────────────
+  # The previous `test-windows-native` job built AND ran the TUI on a
+  # windows-latest runner via `pip install -e ./jac`. That is no longer possible:
+  # jaclang ships only as the `jac` binary, which builds for Linux and macOS
+  # (python-build-standalone has no Windows target — see build.zig osArchString /
+  # launcher/fetch-pbs.sh), so there is no `jac` to install or run on Windows.
+  #
+  # The intended replacement does NOT need jaclang on Windows: cross-compile
+  # test_pickers.exe on Linux (the job above already does this and uploads it),
+  # then a windows-latest job downloads the artifact and runs the bare .exe —
+  # no toolchain required to execute a self-contained native binary. The host
+  # gate (test_host.jac) and Win32 console gate (test_console_win32.jac), which
+  # DO run jaclang under CPython on Windows, stay parked until a Windows `jac`
+  # binary exists (tracked upstream as a follow-up to #6855).
+  #
+  # This is parked deliberately until the Linux/macOS pipeline is proven green.
