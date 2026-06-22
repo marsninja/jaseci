@@ -21,11 +21,6 @@ on:
         type: choice
         default: skip
         options: [skip, patch, minor, major]
-      jaseci:
-        description: "jaseci meta-package bump"
-        type: choice
-        default: skip
-        options: [skip, patch, minor, major]
 
 permissions: {}
 
@@ -54,8 +49,7 @@ jobs:
           jac run scripts/validate_release.jac \
             --jac-byllm "${{ inputs.jac-byllm }}" \
             --jac-scale "${{ inputs.jac-scale }}" \
-            --jac-mcp "${{ inputs.jac-mcp }}" \
-            --jaseci "${{ inputs.jaseci }}"
+            --jac-mcp "${{ inputs.jac-mcp }}"
 
       - name: Bump versions
         id: release
@@ -63,8 +57,7 @@ jobs:
           jac run scripts/release.jac \
             --jac-byllm "${{ inputs.jac-byllm }}" \
             --jac-scale "${{ inputs.jac-scale }}" \
-            --jac-mcp "${{ inputs.jac-mcp }}" \
-            --jaseci "${{ inputs.jaseci }}"
+            --jac-mcp "${{ inputs.jac-mcp }}"
 
       - name: Configure git
         run: |
