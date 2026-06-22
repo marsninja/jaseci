@@ -48,7 +48,7 @@ def parse_from_title(pr_title: str) -> list[dict] {
 
     Used by the manual (workflow_dispatch) re-publish path: the caller selects
     which packages to publish and the version is read straight from each
-    package's jac.toml (or pyproject.toml for jaclang). Lets a release be
+    package's jac.toml. Lets a release be
     re-fired after a partial CI failure without re-merging a release/* PR.
     """
 def parse_from_packages(pkg_names: list[str]) -> list[dict] {

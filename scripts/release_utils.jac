@@ -94,16 +94,13 @@ with entry {
         }
     }
 }
-"""Read the current version from a package's manifest.
+"""Read the current version from a package's jac.toml manifest.
 
-    Prefers jac.toml; falls back to pyproject.toml for packages (e.g. jac/)
-    that cannot migrate because they bootstrap the jac toolchain itself.
+    jac.toml is the single source of truth for every package (jaclang included:
+    its version lives in jac/jac.toml and it ships as the binary, not on PyPI).
     """
 def get_current_version(repo_root: Path, pkg_dir: str) -> str {
-    jac_toml = repo_root / pkg_dir / "jac.toml";
-    manifest = jac_toml
-        if jac_toml.exists()
-        else repo_root / pkg_dir / "pyproject.toml";
+    manifest = repo_root / pkg_dir / "jac.toml";
     data = tomllib.loads(manifest.read_text());
     return str(data["project"]["version"]);
 }

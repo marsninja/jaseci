@@ -35,8 +35,10 @@ mkdir -p "$site"
 # jaclang is pure source + data (no compiled extension of its own), so copy it
 # straight from the tree instead of building a wheel -- no pyproject backend.
 cp -R "$JACSRC/jaclang" "$site/jaclang"
+# _jac_finder is the lazy .jac import finder; the launcher's BOOT_SRC calls
+# `import _jac_finder; _jac_finder.install()` at startup (no .pth / sitecustomize
+# shim is shipped -- those were editable-install-only).
 cp "$JACSRC/_jac_finder.py" "$site/"
-[ -f "$JACSRC/sitecustomize.py" ] && cp "$JACSRC/sitecustomize.py" "$site/"
 find "$site/jaclang" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
 find "$site/jaclang" -name '*.pyc' -delete 2>/dev/null || true
 rm -rf "$site/jaclang/_precompiled" 2>/dev/null || true

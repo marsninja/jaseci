@@ -532,7 +532,7 @@ def _create_root_gitignore(project_path: Path, entries: list[str]) {
     console.print(f"  ✔ .gitignore", style="success");
 }
 
-"""Install all dependencies from jac.toml, or packages into the activated environment."""
+"""Install all dependencies from jac.toml, or packages into the project venv."""
 impl install(
     packages: list = [],
     editable: list = [],
@@ -550,7 +550,7 @@ impl install(
 ) -> int {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
-    import from jaclang.project.dependencies { DependencyInstaller, pip_command }
+    import from jaclang.project.dependencies { DependencyInstaller }
     import from jaclang.project.dep_registry { get_dependency_registry }
 
     flag_defs: list = [
@@ -568,7 +568,7 @@ impl install(
         for (enabled, flag) in flag_defs
         if enabled
     ];
-    # ── Direct install into activated environment ─────────────────────────────
+    # ── Direct install into the project venv ──────────────────────────────────
     if packages {
         if editable {
             console.error(
@@ -583,39 +583,35 @@ impl install(
                 "Use 'jac add <pkg> --dev' to track packages in jac.toml."
             );
         }
-        console.print(
-            f"\n📦 Installing {len(packages)} package(s) into activated environment",
-            style="bold"
-        );
-        cmd: list[str] = [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--upgrade"
-        ] + install_flags + packages;
-        if verbose {
-            console.print(f"  Running: {' '.join(cmd)}", style="muted");
-        }
-        result = subprocess.run(cmd, capture_output=not verbose, text=True);
-        if result.returncode != 0 {
-            err_detail: str = result.stderr or result.stdout or "(see output above)";
-            console.error(f"Install failed:\n{err_detail}");
+        # Install into the project's venv (the single-binary model's second
+        # environment), NOT the binary's embedded interpreter. Routes through
+        # DependencyInstaller so the venv is created/used exactly like the
+        # jac.toml-driven install path; `jac add` is the variant that also
+        # records the package in jac.toml.
+        config = get_config();
+        if config is None {
+            console.error(
+                "No jac.toml found",
+                hint="Run 'jac create' to start a project, or cd into one."
+            );
             return 1;
         }
-        if dry_run {
-            if result.stdout {
-                console.print(result.stdout, style="dim");
-            }
-            console.success("Dry run complete (nothing installed).");
-            return 0;
+        installer = DependencyInstaller(
+            config=config,
+            verbose=verbose,
+            install_flags=install_flags,
+            use_uv=not no_uv
+        );
+        console.print(
+            f"\n📦 Installing {len(packages)} package(s) into {config.project.name}",
+            style="bold"
+        );
+        console.print(f"  Virtual environment: {config.get_venv_dir()}", style="muted");
+        # install_package handles --dry-run (via install_flags), venv creation,
+        # and success/failure reporting.
+        if not installer.install_package(packages) {
+            return 1;
         }
-        if not verbose {
-            for pkg in packages {
-                console.print(f"  ✔ {pkg}", style="success");
-            }
-        }
-        console.success("Package(s) installed");
         return 0;
     }
     # ── Editable install ──────────────────────────────────────────────────────
@@ -623,12 +619,14 @@ impl install(
     #   -e ./a ./b -e ./c  →  [["./a","./b"],["./c"]]  →  ["./a","./b","./c"]
     editable = [p for group in (editable or []) for p in group];
     if editable {
-        import site;
         import from jaclang.publish.builder { WheelBuilder }
+        import from jaclang.project.dependencies { get_venv_site_packages }
 
-        # Phase 1 — collect all dep specs for a single unified pip call.
-        editable_targets: list = [];
-        all_dep_specs: list[str] = [];
+        # Each editable target owns its own project venv (.jac/venv); deps go
+        # there and the source is linked there too. jaclang itself is provided
+        # by the binary, so it is never installed into these venvs. (Targets are
+        # installed independently — separate venvs preclude a single shared
+        # resolve, which matches the per-project model.)
         for editable_path in editable {
             src_dir: Path = Path(editable_path).resolve();
             if not src_dir.is_dir() {
@@ -667,45 +665,30 @@ impl install(
                     );
                 }
             }
-            all_dep_specs.extend(dep_specs);
-            editable_targets.append((config, src_dir));
             console.print(
                 f"\n📦 Editable: {config.project.name} ({src_dir})", style="bold"
             );
-        }
-
-        # Phase 2 — single pip call for all combined deps (unified resolver)
-        if all_dep_specs {
             console.print(
-                f"\n  Installing {len(all_dep_specs)} dependencies...", style="muted"
+                f"  Virtual environment: {config.get_venv_dir()}", style="muted"
             );
-            result = subprocess.run(
-                pip_command(
-                    sys.executable,
-                    ["install", "--upgrade"] + (
-                        installer.install_flags or []
-                    ) + all_dep_specs,
-                    installer.use_uv
-                ),
-                capture_output=not verbose,
-                text=True,
-            );
-            if result.returncode != 0 {
-                console.error(
-                    f"Dependency install failed:\n{result.stderr or result.stdout}"
+            # Create the venv (covers the no-deps case) then install deps into it.
+            installer.ensure_venv();
+            if dep_specs {
+                console.print(
+                    f"  Installing {len(dep_specs)} dependencies...", style="muted"
                 );
-                return 1;
+                if not installer.install_package(dep_specs) {
+                    return 1;
+                }
             }
-        }
-
-        if dry_run {
-            console.print("  ✔ Dry run complete (nothing installed).", style="success");
-            return 0;
-        }
-
-        # Phase 3 — link each package as editable
-        site_pkgs = Path(site.getsitepackages()[0]);
-        for (config, src_dir) in editable_targets {
+            if dry_run {
+                console.print(
+                    "  ✔ Dry run complete (nothing installed).", style="success"
+                );
+                continue;
+            }
+            # Link the source as editable into this project's venv site-packages.
+            site_pkgs = get_venv_site_packages(config.get_venv_dir());
             WheelBuilder(config=config).install_editable(src_dir, site_pkgs);
             console.print(f"  ✔ Linked {src_dir}", style="success");
         }

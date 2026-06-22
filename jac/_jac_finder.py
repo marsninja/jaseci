@@ -1,7 +1,8 @@
 """Lightweight lazy finder for .jac modules.
 
-Registered via jaclang.pth at Python startup. Costs ~0ms for non-Jac Python.
-On first .jac import, triggers ``import jaclang`` to bootstrap the full
+Installed by the jac binary's launcher at startup (``import _jac_finder;
+_jac_finder.install()`` in launcher.zig BOOT_SRC). Costs ~0ms for non-Jac
+Python. On first .jac import, triggers ``import jaclang`` to bootstrap the full
 compiler, then delegates to the real JacMetaImporter.
 """
 

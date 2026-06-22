@@ -23,22 +23,40 @@ git remote -v
 
 **Setting Up Your Dev Envrionment**
 
+jaclang ships as one self-contained `jac` binary (a Zig launcher + a bundled
+CPython -- no system Python, uv, or pip). There is no `pip install -e jac`: you
+build the binary and put it on PATH. The one-shot script does all of this:
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e jac
+bash scripts/fresh_env.sh
+export PATH="$PWD/jac/zig-out/bin:$PATH"   # the script prints this line too
+```
+
+Or by hand:
+
+```bash
+# Build the binary (needs zig 0.16.0 + zstd; typeshed submodule checked out).
+git submodule update --init jac/jaclang/vendor/typeshed
+( cd jac && zig build )
+export PATH="$PWD/jac/zig-out/bin:$PATH"
+
+# Plugins (editable): deps land in each plugin's own .jac/venv.
 jac install -e jac-byllm
 jac install -e jac-scale
 jac install -e jac-mcp
-pip install pre-commit
+
+# pre-commit is a standalone dev tool; its jac hooks call the `jac` binary.
+pipx install pre-commit   # or a throwaway venv: python3 -m venv .venv-precommit && . .venv-precommit/bin/activate && pip install pre-commit
 pre-commit install
-pip install pytest pytest-xdist pytest-asyncio
 ```
+
+To test a change to `jac/jaclang`, rebuild the binary (`cd jac && zig build`)
+then run the suite. The binary bundles the test runner (pytest + xdist).
 
 **Run Some Tests**
 
 ```bash
-pytest jac -n auto
+( cd jac && jac test )       # the jaclang suite
 # See ci jobs in github actions for more stuff to run
 ```
 
@@ -181,12 +199,12 @@ After the release PR is merged, the **Publish Release** workflow triggers automa
 3. The workflow then handles everything automatically:
    - Builds all packages once ([precompiling bytecode](https://docs.jaseci.org/reference/publishing/) for packages that need it)
    - Publishes in dependency order (tiered):
-     - **Tier 1**: `jaclang` (base package; everything depends on it; includes the client and desktop runtimes)
-     - **Tier 2**: `jac-byllm`, `jac-scale`, `jac-mcp` (depend only on `jaclang`)
+     - **Tier 1**: `jaclang` -- *not* published to PyPI; it ships as the native `jac` binary (built and attached to the GitHub Release by `release-jaclang.yml`). This tier only creates jaclang's release tag and publishes `@jaseci/runtime` to npm.
+     - **Tier 2**: `jac-byllm`, `jac-scale`, `jac-mcp` (PyPI wheels; depend only on `jaclang`, which the binary provides)
      - **Tier 4**: `jaseci` (meta-package; depends on everything above)
    - Pushes git tags (`{package}-v{version}`, plus `v{version}` for jaseci)
-   - Creates a GitHub Release with artifacts
-   - Builds standalone binaries (if jaseci was released)
+   - Creates a GitHub Release with the plugin wheels
+   - Publishing the release triggers `release-jaclang.yml`, which builds the `jac` binary per platform and attaches it to that release
 
 > **Note**: The workflow waits for each tier on PyPI before publishing the next, so a package never lands before a dependency it pins. Tiers are configured per package in `scripts/release_utils.jac`.
 

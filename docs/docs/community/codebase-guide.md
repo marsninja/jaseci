@@ -281,9 +281,9 @@ GitHub Actions workflows in `.github/workflows/`:
 | `jac-check.yml` | Lint and format enforcement |
 | `docs-validation.yml` | Documentation builds without errors |
 | `test-installer.yml` | Clean install from scratch works |
-| `build-standalone.yml` | Standalone binary packaging |
 | `create-release-pr.yml` | Automated version bump PRs |
-| `release-*.yml` | Per-package PyPI publishing (one per package) |
+| `release-jaclang.yml` | Builds + attaches the self-contained `jac` binary on release |
+| `release-*.yml` | Per-plugin PyPI publishing (one per plugin) |
 | `deploy-docs.yml` | Deploy docs site to production |
 
 Pre-commit hooks run formatting and linting on every commit locally. See `.pre-commit-config.yaml` for the full hook list.
