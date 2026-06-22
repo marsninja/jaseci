@@ -25,16 +25,10 @@ class PackageInfo(NamedTuple) {
     has needs_nodejs: bool = False;
     has extra_build_deps: str = "";
 }
+# jaclang and the `jaseci` meta-package are no longer published to PyPI -- jaclang
+# ships as the self-contained `jac` binary (release-jaclang.yml) and is the host
+# dependency for every plugin at runtime. Only the plugins below release to PyPI.
 glob PACKAGES: dict[(str, PackageInfo)] = {
-    "jaclang": PackageInfo(
-        dir="jac",
-        pypi="jaclang",
-        tier=1,
-        release_notes="docs/docs/community/release_notes/jaclang.md",
-        notes_display="jaclang",
-        submodules=True,
-        precompile=True
-    ),
     "jac-byllm": PackageInfo(
         dir="jac-byllm",
         pypi="byllm",
@@ -64,27 +58,15 @@ glob PACKAGES: dict[(str, PackageInfo)] = {
         submodules=True,
         precompile=True,
         extra_build_cmd="jac run scripts/bundle_docs.jac"
-    ),
-    # Tier 4: the meta-package depends on everything above.
-    "jaseci": PackageInfo(
-        dir="jaseci-package",
-        pypi="jaseci",
-        tier=4,
-        release_notes="",
-        notes_display="jaseci"
     )
 },
+     # Cross-plugin PyPI dependencies (jaclang is host-provided by the binary, so
+     # it is not a synced dependency). Empty today -- no plugin depends on another;
+     # populate if that changes so dependent version pins stay in sync on release.
      INTERNAL_DEPS: dict[(str, list[str])] = {
-    "jaclang": [],
-    "byllm": ["jaclang"],
-    "jac-scale": ["jaclang"],
-    "jac-mcp": ["jaclang"],
-    "jaseci": [
-        "jaclang",
-        "byllm",
-        "jac-scale",
-        "jac-mcp"
-    ]
+    "byllm": [],
+    "jac-scale": [],
+    "jac-mcp": []
 },
      DEPENDENTS: dict[(str, list[str])] = {};
 with entry {
@@ -94,16 +76,9 @@ with entry {
         }
     }
 }
-"""Read the current version from a package's manifest.
-
-    Prefers jac.toml; falls back to pyproject.toml for packages (e.g. jac/)
-    that cannot migrate because they bootstrap the jac toolchain itself.
-    """
+"""Read the current version from a package's jac.toml manifest."""
 def get_current_version(repo_root: Path, pkg_dir: str) -> str {
-    jac_toml = repo_root / pkg_dir / "jac.toml";
-    manifest = jac_toml
-        if jac_toml.exists()
-        else repo_root / pkg_dir / "pyproject.toml";
+    manifest = repo_root / pkg_dir / "jac.toml";
     data = tomllib.loads(manifest.read_text());
     return str(data["project"]["version"]);
 }

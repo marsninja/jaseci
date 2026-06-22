@@ -3,12 +3,11 @@
 Extracts package names and versions from merged release PR titles and outputs
 a GitHub Actions matrix for tiered publishing.
 
-Example PR title: "release: jaclang 1.2.3, jac-byllm 2.0.0"
+Example PR title: "release: jac-byllm 2.0.0, jac-scale 1.2.3"
 
-The output matrix `includes tier information for dependency-aware publishing:
-  - Tier 1: jaclang (base package, no internal dependencies)
-  - Tier 2: jac-byllm, jac-scale, etc. (depend on jaclang)
-  - Tier 3: jaseci meta-package (depends on all)
+The output matrix `includes tier information for dependency-aware publishing.
+Only the plugins publish to PyPI (tier 2); jaclang ships as the `jac` binary
+(release-jaclang.yml) and is the host dependency for every plugin at runtime.
 """
 import from __future__ { annotations }
 import argparse;
@@ -48,8 +47,8 @@ def parse_from_title(pr_title: str) -> list[dict] {
 
     Used by the manual (workflow_dispatch) re-publish path: the caller selects
     which packages to publish and the version is read straight from each
-    package's jac.toml (or pyproject.toml for jaclang). Lets a release be
-    re-fired after a partial CI failure without re-merging a release/* PR.
+    package's jac.toml. Lets a release be re-fired after a partial CI failure
+    without re-merging a release/* PR.
     """
 def parse_from_packages(pkg_names: list[str]) -> list[dict] {
     repo_root = Path(__file__).resolve().parent.parent;
