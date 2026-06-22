@@ -56,7 +56,6 @@ jaseci/
 ├── jac-scale/            # Plugin: cloud deployment (FastAPI, Kubernetes, Docker)
 ├── jac-mcp/              # Plugin: MCP server for AI-assisted development
 ├── jac-plugins/          # Additional community plugins
-├── jaseci-package/       # Plugin-bundle metadata (jaclang ships as the `jac` binary, not pip)
 ├── docs/                 # MkDocs documentation site
 └── scripts/              # Release, CI, and utility scripts
 ```
@@ -283,8 +282,9 @@ GitHub Actions workflows in `.github/workflows/`:
 | `docs-validation.yml` | Documentation builds without errors |
 | `test-installer.yml` | Clean install from scratch works |
 | `create-release-pr.yml` | Automated version bump PRs |
-| `release-jaclang.yml` | Builds + attaches the native `jac` binary (jaclang) on release publish |
-| `release-*.yml` | Publishes the plugins to PyPI (one per plugin) |
+| `release-jaclang.yml` | Build + release the native `jac` binary |
+| `release-byllm.yml` / `release-scale.yml` / `release-mcp.yml` | Per-plugin PyPI publishing |
+| `publish-release.yml` | Tiered plugin PyPI publish on release merge |
 | `deploy-docs.yml` | Deploy docs site to production |
 
 Pre-commit hooks run formatting and linting on every commit locally. See `.pre-commit-config.yaml` for the full hook list.
