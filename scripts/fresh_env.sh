@@ -7,9 +7,11 @@
 # (`cd jac && zig build`) and run `jac test`. The binary bundles the test runner
 # (pytest + xdist), so `jac test` needs no system Python.
 #
-# Plugins (byllm/scale/mcp) are still ordinary Python packages: `jac install -e`
-# drops their deps into each plugin's own project venv (.jac/venv) and links the
-# source there; jaclang is provided by the binary, never installed into a venv.
+# Plugins (byllm/scale/mcp) are still ordinary Python packages. `jac install -e`
+# is run from this repo root (a jac project), so each plugin's deps and linked
+# source land in THIS project's .jac/venv -- the consuming project owns every
+# third-party package. There is no binary-global install target; jaclang itself
+# is provided by the binary and never installed into a venv.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"

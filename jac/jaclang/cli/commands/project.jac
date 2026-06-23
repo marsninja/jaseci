@@ -3,9 +3,7 @@
 import from jaclang.cli.command { Arg, ArgKind }
 import from jaclang.cli.registry { get_registry }
 
-glob registry = get_registry(),
-     # Python 3.X minor versions targeted by `jac bundle --precompile`.
-     _PRECOMPILE_MINOR_RANGE: range = range(12, 15);
+glob registry = get_registry();
 
 """Initialize a new Jac project."""
 @registry.command(
@@ -151,13 +149,6 @@ def create(
             help="Prefer wheel files over source distributions",
             short=""
         ),
-        Arg.create(
-            "no-uv",
-            typ=bool,
-            default=False,
-            help="Use pip directly even if uv is available",
-            short=""
-        ),
 
     ],
     examples=[
@@ -182,7 +173,6 @@ def create(
         ("jac install --dry-run", "Preview what would be installed without doing it"),
         ("jac install --no-deps", "Install packages without their dependencies"),
         ("jac install --prefer-binary", "Prefer pre-built wheels over source builds"),
-        ("jac install --no-uv", "Use pip directly even if uv is available"),
 
     ],
     group="project"
@@ -199,8 +189,7 @@ def install(
     dry_run: bool = False,
     no_deps: bool = False,
     quiet: bool = False,
-    prefer_binary: bool = False,
-    no_uv: bool = False
+    prefer_binary: bool = False
 ) -> int;
 
 """Add dependencies to the project."""
