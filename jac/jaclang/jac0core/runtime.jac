@@ -934,6 +934,7 @@ class JacCmd {
         its own implementation to replace it. `req` is an `AgentRequest`
         carrying the resolved flags plus a `CodeIntelligence` handle.
         """
+    @hookable
     static def run_ai_agent(req: object) -> int;
 }
 
