@@ -96,6 +96,15 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch typeshed stdlib stubs into the checkout
+        # The nacompile subprocess tests shell out to `<jac> -m jaclang`, which
+        # (via -m's cwd-prepend, working-directory: jac) resolves the IN-TREE
+        # jaclang and loads jac/jaclang/vendor/typeshed/stdlib for native type
+        # resolution. Those stubs are gitignored now (fetched at the pinned
+        # commit, not committed), so materialize them in the checkout -- without
+        # them the checker is blind and na-compilation fails.
+        working-directory: jac
+        run: bash launcher/fetch-typeshed.sh
       - name: Download the jac binary
         uses: actions/download-artifact@v4
         with:
