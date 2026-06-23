@@ -550,7 +550,7 @@ impl install(
 ) -> int {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
-    import from jaclang.project.dependencies { DependencyInstaller }
+    import from jaclang.project.dependencies { DependencyInstaller, pip_command }
     import from jaclang.project.dep_registry { get_dependency_registry }
 
     flag_defs: list = [
@@ -572,8 +572,9 @@ impl install(
     # A bare `jac install <pkg>` installs into the binary's environment and works
     # outside a project (no jac.toml needed) -- this is the global/tool install
     # path. Per-project deps go through `jac add` / the no-arg `jac install`
-    # (which target the project venv); editable installs (-e, below) target each
-    # package's own .jac/venv.
+    # (which target the project venv); editable installs (-e, below) likewise go
+    # into the activated environment so the linked source is importable from any
+    # project (e.g. installing a plugin like jac-scale for the whole toolchain).
     if packages {
         if editable {
             console.error(
@@ -628,14 +629,16 @@ impl install(
     #   -e ./a ./b -e ./c  →  [["./a","./b"],["./c"]]  →  ["./a","./b","./c"]
     editable = [p for group in (editable or []) for p in group];
     if editable {
+        import site;
         import from jaclang.publish.builder { WheelBuilder }
-        import from jaclang.project.dependencies { get_venv_site_packages }
 
-        # Each editable target owns its own project venv (.jac/venv); deps go
-        # there and the source is linked there too. jaclang itself is provided
-        # by the binary, so it is never installed into these venvs. (Targets are
-        # installed independently — separate venvs preclude a single shared
-        # resolve, which matches the per-project model.)
+        # Editable targets are linked into the activated (binary) environment so
+        # the source is importable from any project -- the global/tool install
+        # model shared with bare `jac install <pkg>`. jaclang itself is provided
+        # by the binary, so it is never installed here.
+        # Phase 1 — collect all dep specs for a single unified pip call.
+        editable_targets: list = [];
+        all_dep_specs: list[str] = [];
         for editable_path in editable {
             src_dir: Path = Path(editable_path).resolve();
             if not src_dir.is_dir() {
@@ -674,30 +677,45 @@ impl install(
                     );
                 }
             }
+            all_dep_specs.extend(dep_specs);
+            editable_targets.append((config, src_dir));
             console.print(
                 f"\n📦 Editable: {config.project.name} ({src_dir})", style="bold"
             );
+        }
+
+        # Phase 2 — single pip call for all combined deps (unified resolver)
+        if all_dep_specs {
             console.print(
-                f"  Virtual environment: {config.get_venv_dir()}", style="muted"
+                f"\n  Installing {len(all_dep_specs)} dependencies...", style="muted"
             );
-            # Create the venv (covers the no-deps case) then install deps into it.
-            installer.ensure_venv();
-            if dep_specs {
-                console.print(
-                    f"  Installing {len(dep_specs)} dependencies...", style="muted"
+            result = subprocess.run(
+                pip_command(
+                    sys.executable,
+                    ["install", "--upgrade"] + (
+                        installer.install_flags or []
+                    ) + all_dep_specs,
+                    installer.use_uv
+                ),
+                capture_output=not verbose,
+                text=True,
+            );
+            if result.returncode != 0 {
+                console.error(
+                    f"Dependency install failed:\n{result.stderr or result.stdout}"
                 );
-                if not installer.install_package(dep_specs) {
-                    return 1;
-                }
+                return 1;
             }
-            if dry_run {
-                console.print(
-                    "  ✔ Dry run complete (nothing installed).", style="success"
-                );
-                continue;
-            }
-            # Link the source as editable into this project's venv site-packages.
-            site_pkgs = get_venv_site_packages(config.get_venv_dir());
+        }
+
+        if dry_run {
+            console.print("  ✔ Dry run complete (nothing installed).", style="success");
+            return 0;
+        }
+
+        # Phase 3 — link each package as editable into the activated site-packages
+        site_pkgs = Path(site.getsitepackages()[0]);
+        for (config, src_dir) in editable_targets {
             WheelBuilder(config=config).install_editable(src_dir, site_pkgs);
             console.print(f"  ✔ Linked {src_dir}", style="success");
         }

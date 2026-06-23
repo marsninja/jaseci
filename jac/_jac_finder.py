@@ -64,7 +64,16 @@ def add_project_venv_to_path() -> None:
             and os.path.isdir(site_packages)
             and site_packages not in sys.path
         ):
+            # addsitedir appends (and processes .pth, which editable installs
+            # rely on), but a project's venv must take PRECEDENCE -- its pinned
+            # deps have to shadow the binary's global site and any leaked system
+            # site-packages. So promote everything addsitedir just added to the
+            # front of sys.path, preserving their relative order.
+            before = list(sys.path)
             site.addsitedir(site_packages)
+            added = [p for p in sys.path if p not in before]
+            if added:
+                sys.path[:] = added + [p for p in sys.path if p not in added]
     except Exception:
         # Discovery falls back to the binary's own site; never fatal.
         pass
