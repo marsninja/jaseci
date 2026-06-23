@@ -446,9 +446,10 @@ jobs:
         cd jac-gpt && jac install
 
     - name: Install Playwright dependencies
-      # Into the binary runtime, since the e2e test runs through the binary.
+      # --global puts it in the binary's own site so the e2e (run from jac-gpt/)
+      # can import it; a plain install would land in the repo-root project venv.
       run: |
-        jac install playwright
+        jac install playwright --global
         jac -m playwright install chromium --with-deps
 
     - name: Type check jac-gpt
