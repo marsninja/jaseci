@@ -1078,6 +1078,14 @@ test "isinstance user tuple of classes" {
     assert f(3) == 1;  # ColoredSquare (<: Square)
 }
 
+test "isinstance user no-vtable operand is clean false" {
+    # A standalone struct (no vtable) checked against a vtable class must be a
+    # principled False, never a garbage read of its first user field.
+    (eng, _) = compile_native("isinstance_user.na.jac");
+    f = get_func(eng, "test_loose_not_square", ctypes.c_int64);
+    assert f() == 0;
+}
+
 # --- TestNativeDicts ---
 test "dicts dict new empty" {
     (eng, _) = compile_native("dicts_sets.na.jac");

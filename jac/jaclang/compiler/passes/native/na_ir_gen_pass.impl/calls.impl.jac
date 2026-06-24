@@ -1005,16 +1005,13 @@ impl NaIRGenPass._emit_isinstance_user(
     }
     # Concrete target set: every native archetype with an emitted vtable whose
     # MRO contains a requested name (i.e. the name itself or a subclass of it).
+    # Iterating a dict already yields unique keys and the inner `break` stops at
+    # the first matching name, so no extra dedup is needed.
     target_vtables: list[ir.GlobalVariable] = [];
-    seen: set[str] = set();
     for cand in self.vtable_globals {
-        if cand in seen {
-            continue;
-        }
         cand_mro = self._mro_of(cand);
         for name in names {
             if name in cand_mro {
-                seen.add(cand);
                 target_vtables.append(self.vtable_globals[cand]);
                 break;
             }
@@ -1025,6 +1022,25 @@ impl NaIRGenPass._emit_isinstance_user(
         # non-polymorphic type name) -- cannot lower soundly.
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
+    }
+    # Field 0 is the vtable slot only when the operand's static struct has a
+    # vtable; for a plain struct it is the first user-declared field and must
+    # NOT be read as a vtable pointer. Resolve the operand's static struct to
+    # decide how (and whether) to read field 0.
+    struct_name = self._struct_name_of(nd.params[0] if nd.params else None);
+    if struct_name is None or struct_name not in self.struct_types {
+        # Unknown / foreign / not-lowered operand: cannot read field 0 soundly.
+        self._emit_unsupported_builtin_call(nd, "isinstance");
+        return None;
+    }
+    if struct_name not in self.vtable_globals {
+        # A locally lowered struct with no vtable participates in no inheritance,
+        # so it can never be an instance of a vtable-bearing target: the result
+        # is statically False (and field 0 is a user field, not a vtable slot).
+        if self._is_owned(operand) {
+            self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
+        }
+        return ir.Constant(i1, 0);
     }
     # Guard the field-0 load behind a null check: `isinstance(None, T)` is
     # False and must not dereference.

@@ -38,6 +38,13 @@ obj ColoredSquare(Square) {
     has color: int = 0;
 }
 
+# Standalone struct (no inheritance -> no vtable). `isinstance` against a
+# vtable-bearing class must be a principled `False`, not a garbage read of
+# field 0 (which here is the first user field, not a vtable slot).
+obj Loose {
+    has v: int = 0;
+}
+
 def make(kind: int) -> Shape {
     if kind == 1 {
         return Circle(radius=2);
@@ -86,6 +93,10 @@ def test_side(kind: int) -> int {
 
 def test_round_or_square(kind: int) -> int {
     return 1 if is_round_or_square(make(kind)) else 0;
+}
+
+def test_loose_not_square -> int {
+    return 1 if isinstance(Loose(v=5), Square) else 0;
 }
 
 with entry {
