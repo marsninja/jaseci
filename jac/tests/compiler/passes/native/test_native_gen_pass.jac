@@ -1072,6 +1072,19 @@ test "class name: vtable-less class lowers to a constant name" {
     assert f() == b"Lone";
 }
 
+test "class name: method-less vtable hierarchy still reads its own name" {
+    # `Tag`/`SubA`/`SubB` declare no methods, so their vtable method layout is
+    # empty -- but `Tag` is still vtable-flagged (it has subclasses). The vtable
+    # must be emitted anyway so the per-class name slot exists; otherwise reading
+    # `t.__class__.__name__` off a base-typed receiver dereferences an
+    # uninitialized field-0 slot (segfault, PR #6933 review).
+    (eng, _) = compile_native("class_name.na.jac");
+    a = get_func(eng, "suba_name", ctypes.c_char_p);
+    b = get_func(eng, "subb_name", ctypes.c_char_p);
+    assert a() == b"SubA";
+    assert b() == b"SubB";
+}
+
 # --- TestNativeDicts ---
 test "dicts dict new empty" {
     (eng, _) = compile_native("dicts_sets.na.jac");

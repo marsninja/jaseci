@@ -35,7 +35,12 @@ impl NaIRGenPass._build_vtable(arch_name: str) -> None {
 """Emit a vtable global constant for a class."""
 impl NaIRGenPass._emit_vtable_global(arch_name: str) -> None {
     layout = self.vtable_layouts.get(arch_name);
-    if layout is None or not layout {
+    # An empty method layout (a vtable-flagged class with no methods anywhere in
+    # its MRO -- a bare base/leaf in a hierarchy) still emits a vtable: the
+    # reserved `__name__` header slot must exist so the instance's field-0 slot
+    # is written at construction and `self.__class__.__name__` has a valid slot
+    # to read (issue #6930 A2). Only a missing layout (never built) is skipped.
+    if layout is None {
         return;
     }
     i8_ptr = ir.IntType(8).as_pointer();
