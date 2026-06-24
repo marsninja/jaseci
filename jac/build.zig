@@ -348,9 +348,16 @@ fn macosShim(
             cc.addFileArg(.{ .cwd_relative = b.fmt("{s}/{s}", .{ libdir, entry.name }) });
         }
     }
+    // The LLVM release archives are ThinLTO bitcode, so ld64 must lower them to
+    // native code at link time via libLTO. Apple's bundled libLTO tracks Xcode and
+    // is too old on the CI runners ("Invalid summary version 12, should be in
+    // [1-10]" -> segfault), so point ld64 at the release's OWN libLTO.dylib (kept
+    // by payload.zig extractLlvmSubset) -- it matches the bitcode it produced.
+    // This is link-time only; the output dylib gains no libLTO runtime dep.
+    cc.addPrefixedFileArg("-Wl,-lto_library,", .{ .cwd_relative = b.fmt("{s}/lib/libLTO.dylib", .{llvm_dir}) });
     // LLVM's system deps. zstd comes from Homebrew (not on the default search
-    // path); z/xml2/c++ are in the macOS SDK.
-    cc.addArgs(&.{ "-lz", "-lxml2", "-lc++" });
+    // path); z/xml2 are in the macOS SDK, and clang++ links libc++ itself.
+    cc.addArgs(&.{ "-lz", "-lxml2" });
     cc.addArgs(&.{ "-I/opt/homebrew/opt/zstd/include", "-L/opt/homebrew/opt/zstd/lib", "-lzstd" });
     cc.addArgs(&.{ "-Wl,-exported_symbol,_LLVMPY_*", "-Wl,-install_name,@rpath/libjacllvm.dylib" });
     cc.addArg("-o");
