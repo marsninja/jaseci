@@ -174,15 +174,13 @@ machinery as any user `.na.jac`, with zero per-module backend work. Resolved
 relative to the installed `jaclang` package so it works both from the editable
 source tree and a packaged binary.
 """
-def native_stdlib_root() -> (str | None) {
+def native_stdlib_root -> (str | None) {
     import os;
     import jaclang;
     if not jaclang?.__file__ {
         return None;
     }
-    root = os.path.join(
-        os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib"
-    );
+    root = os.path.join(os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib");
     return root if os.path.isdir(root) else None;
 }
 

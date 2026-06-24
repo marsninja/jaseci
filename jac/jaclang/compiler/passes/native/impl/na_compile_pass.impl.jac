@@ -520,8 +520,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 _bundled_rel = source_mod_path + ".jac"
                     if source_mod_path.endswith(".na")
                     else source_mod_path
-                    if source_mod_path.endswith(".jac")
-                    else source_mod_path + ".na.jac";
+                        if source_mod_path.endswith(".jac")
+                        else source_mod_path + ".na.jac";
                 _bundled_cand = os.path.join(_bundled_root, _bundled_rel);
                 if os.path.exists(_bundled_cand) {
                     full_path = _bundled_cand;

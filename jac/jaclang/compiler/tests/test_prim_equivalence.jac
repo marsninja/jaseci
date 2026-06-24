@@ -219,11 +219,7 @@ test "os" {
 # posixpath on sv and the bundled na_stdlib/os/path.na.jac on na. ---
 test "os.path bundled" {
     run_with_both(
-        "prim_ospath.jac",
-        "ospath_py",
-        "ospath_cl",
-        "ospath_na",
-        require=["na"]
+        "prim_ospath.jac", "ospath_py", "ospath_cl", "ospath_na", require=["na"]
     );
 }
 
