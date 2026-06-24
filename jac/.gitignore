@@ -79,3 +79,4 @@ dist/
 # TARBALL_SHA256 / LICENSE / PROVENANCE.md beside the stubs are tracked.
 jaclang/vendor/typeshed/stdlib/
 .llvm-build/
+libjacllvm.so

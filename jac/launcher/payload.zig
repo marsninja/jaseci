@@ -398,23 +398,19 @@ fn mkPayload(
         ,
     });
 
-    // Native LLVM. With --shim, bundle the Zig-built LLVMPY_* shim
-    // (jac/native, statically linked against host LLVM) next to its Jac binding
-    // -- the in-tree replacement for the llvmlite wheel. Without it, fall back to
-    // pip-installing llvmlite (pinned to jac.toml). The Jac binding ctypes-loads
-    // whichever ships (jaclang/compiler/passes/native/llvm/binding/ffi.jac).
-    if (shim_so) |so| {
-        const dst_dir = try std.fmt.allocPrint(a, "{s}/jaclang/compiler/passes/native/llvm", .{site});
-        try Dir.cwd().createDirPath(io, dst_dir);
-        log("==> bundling Zig-built LLVMPY_* shim ({s})", .{so});
-        try Dir.cwd().copyFile(so, Dir.cwd(), try std.fmt.allocPrint(a, "{s}/libjacllvm.so", .{dst_dir}), io, .{});
-    } else {
-        // Pin to jac.toml's declared constraint so a breaking llvmlite release
-        // can't get baked in.
-        const llvmlite = tomlDepSpec(toml, "llvmlite") orelse "llvmlite>=0.43.0";
-        log("==> fetching runtime dep: {s}", .{llvmlite});
-        _ = runChild(io, &.{ py, "-m", "pip", "install", "--quiet", llvmlite, "--target", site }, null, false);
-    }
+    // Native LLVM: bundle the Zig-built LLVMPY_* shim (jac/native, statically
+    // linked against host LLVM) next to its Jac binding. The Jac binding
+    // ctypes-loads it (jaclang/compiler/passes/native/llvm/binding/ffi.jac).
+    // The shim is required -- there is no llvmlite wheel fallback (#6925).
+    const so = shim_so orelse die(
+        "mkpayload: no LLVM shim (--shim). Run `zig build fetch-llvm` once so the" ++
+            " build can compile + statically link the LLVMPY_* shim.",
+        .{},
+    );
+    const dst_dir = try std.fmt.allocPrint(a, "{s}/jaclang/compiler/passes/native/llvm", .{site});
+    try Dir.cwd().createDirPath(io, dst_dir);
+    log("==> bundling Zig-built LLVMPY_* shim ({s})", .{so});
+    try Dir.cwd().copyFile(so, Dir.cwd(), try std.fmt.allocPrint(a, "{s}/libjacllvm.so", .{dst_dir}), io, .{});
 
     if (skip_precompile) {
         log("==> skipping JIR precompile (--skip-precompile); modules compile on first run", .{});
@@ -558,8 +554,8 @@ fn stageTree(io: Io, gpa: Allocator, a: Allocator, pbs_py_dir: []const u8, site:
         defer site_src.close(io);
         try copyTree(io, gpa, a, site_src, try std.fmt.allocPrint(a, "{s}/site", .{stage}), skipStageSite);
     }
-    // llvmlite bundles libLLVM (~160 MiB); strip its shared lib too (best-effort).
-    stripBestEffort(io, try std.fmt.allocPrint(a, "{s}/site/llvmlite/binding/libllvmlite.so", .{stage}));
+    // The LLVMPY_* shim statically links LLVM (~130 MiB); strip it (best-effort).
+    stripBestEffort(io, try std.fmt.allocPrint(a, "{s}/site/jaclang/compiler/passes/native/llvm/libjacllvm.so", .{stage}));
 }
 
 /// Strip a shared library in place to shed debug info / local symbols / dead LTO
@@ -738,15 +734,6 @@ fn tomlString(toml: []const u8, key: []const u8) ?[]const u8 {
         return after[0..q2];
     }
     return null;
-}
-
-/// Extract a PEP 508 dep spec (e.g. `llvmlite>=0.47.0`) for `pkg` from a
-/// `dependencies = ["..."]` line, terminated at the closing quote.
-fn tomlDepSpec(toml: []const u8, pkg: []const u8) ?[]const u8 {
-    const start = std.mem.indexOf(u8, toml, pkg) orelse return null;
-    const tail = toml[start..];
-    const end = std.mem.indexOfScalar(u8, tail, '"') orelse return null;
-    return tail[0..end];
 }
 
 fn cloneEnv(gpa: Allocator, parent: *std.process.Environ.Map) !std.process.Environ.Map {

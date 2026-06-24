@@ -210,8 +210,9 @@ fn addTreeInputs(b: *std.Build, run: *std.Build.Step.Run, sub_path: []const u8) 
 /// The Jac binding loads the result via ctypes (JAC_LLVM_SHIM / payload path).
 fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) ?*std.Build.Step.Compile {
     // -Dllvm-dir wins; otherwise use the fetch-llvm cache (.llvm-build). If
-    // neither has LLVM, return null so the build keeps the llvmlite wheel -- a
-    // non-breaking default; run `zig build fetch-llvm` once to go wheel-free.
+    // neither has LLVM, return null and the build fails at mkpayload with a
+    // "run `zig build fetch-llvm`" message (so fetch-llvm itself still configures
+    // before LLVM exists). The shim is required -- there is no wheel fallback.
     const llvm_dir = b.option([]const u8, "llvm-dir",
         "Extracted LLVM 20.1.x dir (default: the fetch-llvm cache .llvm-build/...)") orelse LLVM_CACHE_DIR;
     const io = b.graph.io;
