@@ -506,6 +506,29 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
         }
 
+        # Bundled native stdlib fallback (issue #6940): a dep whose
+        # source_module names a shipped na_stdlib module lives outside the
+        # importing project's tree, so the relative joins above miss it.
+        # Re-root the same `<source>.na.jac` suffix at the bundled stdlib dir
+        # so the bundled module's object code is compiled and link_in'd exactly
+        # like a user dep. resolve_native_module already chose this module for
+        # the importer; this is the matching link-side lookup.
+        if not os.path.exists(full_path) {
+            import from jaclang.jac0core.codeinfo { native_stdlib_root }
+            _bundled_root = native_stdlib_root();
+            if _bundled_root is not None {
+                _bundled_rel = source_mod_path + ".jac"
+                    if source_mod_path.endswith(".na")
+                    else source_mod_path
+                    if source_mod_path.endswith(".jac")
+                    else source_mod_path + ".na.jac";
+                _bundled_cand = os.path.join(_bundled_root, _bundled_rel);
+                if os.path.exists(_bundled_cand) {
+                    full_path = _bundled_cand;
+                }
+            }
+        }
+
         if not os.path.exists(full_path) {
             self.emit(W5023, path=full_path);
             continue;
