@@ -595,7 +595,7 @@ obj MicroserviceManifestBuilder {
         };
     }
 
-    """Startup probe for no-image pods: they install jac (and, in experimental
+    """Startup probe for pods: they install jac at startup from the PVC bundle
     mode, git-clone + compile it) and run a first jaclang compile AT STARTUP,
     which easily exceeds the liveness grace. The startup probe suppresses
     liveness/readiness until the app first answers (~15min budget) so the slow

@@ -229,72 +229,33 @@ obj KubernetesTarget(DeploymentTarget) {
         commands.append('export BUN_INSTALL="$HOME/.bun"');
         commands.append('export PATH="$BUN_INSTALL/bin:$PATH"');
 
-        if app_config.experimental {
-            commands.append('rm -rf jaseci');
-            # The pod has no SSH key/known_hosts, so a `git@host:owner/repo`
-            # or `ssh://` URL makes the clone hang then fail. Normalize the
-            # common GitHub SCP-style SSH form to anonymous HTTPS so the
-            # in-cluster clone works for public repos without credentials.
-            repo_url = config.jaseci_repo_url;
-            if repo_url.startswith('git@') and ':' in repo_url {
-                host_path = repo_url[4:];
-                host = host_path.split(':', 1)[0];
-                path = host_path.split(':', 1)[1];
-                repo_url = f"https://{host}/{path}";
-            } elif repo_url.startswith('ssh://git@') {
-                repo_url = 'https://' + repo_url[len('ssh://git@'):];
-            }
-            clone_cmd = f"git clone --branch {config.jaseci_branch} --single-branch {repo_url}";
-            commands.append(clone_cmd);
-            commands.append('cd ./jaseci');
-            if config.jaseci_commit {
-                commands.append(f"git checkout {config.jaseci_commit}");
-            }
-            commands.append('git submodule update --init --recursive');
-            commands.append('pip install pluggy');
-            # The image pre-installs jaclang from PyPI; if that released version
-            # is newer than this branch, a plain `pip install -e ./jac` is a
-            # no-op (pip sees the requirement already satisfied) and the pod runs
-            # released jaclang instead of the local checkout. --force-reinstall
-            # makes the local editable win regardless of version; --no-deps
-            # keeps it from re-resolving the already-installed dependency tree.
-            commands.append('pip install --force-reinstall --no-deps -e ./jac');
-            commands.append('jac install -e ./jac-scale --extras all');
-            # Only when the checkout still ships jac-client (older forks pre-#6840):
-            # skip-when-absent. The client framework now lives in jaclang core.
-            commands.append('[ ! -d ./jac-client ] || jac install -e ./jac-client');
-            commands.append('jac install -e ./jac-byllm');
-            commands.append('jac install -e ./jac-mcp');
-            commands.append('cd ..');
+        packages = config.plugin_versions or {};
+        jaclang_v = packages.get('jaclang', 'latest');
+        scale_v = packages.get('jac_scale', 'latest');
+        byllm_v = packages.get('jac_byllm', 'latest');
+        mcp_v = packages.get('jac_mcp', 'latest');
+        if jaclang_v == 'latest' {
+            commands.append('pip install jaclang');
         } else {
-            packages = config.plugin_versions or {};
-            jaclang_v = packages.get('jaclang', 'latest');
-            scale_v = packages.get('jac_scale', 'latest');
-            byllm_v = packages.get('jac_byllm', 'latest');
-            mcp_v = packages.get('jac_mcp', 'latest');
-            if jaclang_v == 'latest' {
-                commands.append('pip install jaclang');
+            commands.append(f'pip install jaclang=={jaclang_v}');
+        }
+        if scale_v == 'latest' {
+            commands.append('pip install "jac-scale[all]"');
+        } else {
+            commands.append(f'pip install "jac-scale[all]=={scale_v}"');
+        }
+        if byllm_v and byllm_v != 'none' {
+            if byllm_v == 'latest' {
+                commands.append('pip install byllm');
             } else {
-                commands.append(f'pip install jaclang=={jaclang_v}');
+                commands.append(f'pip install byllm=={byllm_v}');
             }
-            if scale_v == 'latest' {
-                commands.append('pip install "jac-scale[all]"');
+        }
+        if mcp_v and mcp_v != 'none' {
+            if mcp_v == 'latest' {
+                commands.append('pip install jac-mcp');
             } else {
-                commands.append(f'pip install "jac-scale[all]=={scale_v}"');
-            }
-            if byllm_v and byllm_v != 'none' {
-                if byllm_v == 'latest' {
-                    commands.append('pip install byllm');
-                } else {
-                    commands.append(f'pip install byllm=={byllm_v}');
-                }
-            }
-            if mcp_v and mcp_v != 'none' {
-                if mcp_v == 'latest' {
-                    commands.append('pip install jac-mcp');
-                } else {
-                    commands.append(f'pip install jac-mcp=={mcp_v}');
-                }
+                commands.append(f'pip install jac-mcp=={mcp_v}');
             }
         }
 
