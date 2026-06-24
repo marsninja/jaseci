@@ -250,7 +250,7 @@ class JacScalePluginConfig {
                         "enabled": {
                             "type": "bool",
                             "default": False,
-                            "description": "Enable microservice mode (off by default). Use `jac setup microservice` to configure."
+                            "description": "Enable microservice mode (auto-derived from sv imports; set [plugins.scale.microservices] to customize)."
                         },
                         "gateway_port": {
                             "type": "int",

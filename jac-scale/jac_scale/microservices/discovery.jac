@@ -12,8 +12,8 @@ two service markers:
     service.
 
 It returns a default routes map `{module_name: prefix}` covering the union of
-both (prefixes via `derive_prefix`, so they match what `jac setup microservice`
-would write), which the orchestrator turns into a service registry.
+both (prefixes from the shared `route_policy` slug source), which the
+orchestrator turns into a service registry.
 
 Why the parser instead of line regexes: the markers are then recognized exactly
 as the compiler sees them. `sv import from cart_app` text inside a docstring is
@@ -34,7 +34,7 @@ gateway can route to.
 import jaclang.jac0core.unitree as uni;
 import from pathlib { Path }
 import from jaclang.jac0core.parser { parse }
-import from jac_scale.microservices.setup { derive_prefix }
+import from jac_scale.runtime.discovery.route_policy { derive_route_prefix }
 
 # The parser tags EVERY `import` with `code_context == SERVER` (that is the
 # default code context), so code_context cannot tell an `sv import` from a plain
@@ -120,10 +120,10 @@ def should_enter_local_ms(
 """Discover sv-import services next to `entry_file`.
 
 Returns `{module_name: prefix}` for every service module found, excluding the
-entry/gateway module itself (it is never a spawned peer). Prefixes come from
-`derive_prefix` so they match `jac setup microservice` output. Returns an empty
-dict for a monolith (no markers), which is the regression guard that keeps
-non-microservice apps on the plain `jac start` path.
+entry/gateway module itself (it is never a spawned peer). Prefixes come from the
+shared `route_policy` slug source. Returns an empty dict for a monolith (no
+markers), which is the regression guard that keeps non-microservice apps on the
+plain `jac start` path.
 
 Accepts either an entry file (scans its directory, excludes the entry module) or
 a directory (scans it, excludes nothing - the orchestrator's working-directory
@@ -168,7 +168,10 @@ def discover_sv_services(entry_file: str) -> dict[str, str] {
 
     routes: dict[str, str] = {};
     for name in sorted(services) {
-        routes[name] = derive_prefix(name);
+        # The "/api" namespace is kept transitionally so routing behavior is
+        # unchanged; the gateway redesign drops it (route_policy is then the
+        # single slug source for BE routing, FE serviceRoutes, and OpenAPI).
+        routes[name] = "/api" + derive_route_prefix(name);
     }
     return routes;
 }

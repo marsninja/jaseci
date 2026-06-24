@@ -41,7 +41,7 @@ obj MicroserviceOrchestrator {
             logger.warning(
                 "No microservices to run: no routes were declared or discovered "
                 "(no `sv import` / `to sv:` markers next to the entry file). "
-                "Run `jac setup microservice` to configure explicitly."
+                "Set [plugins.scale.microservices.routes] to declare them explicitly."
             );
             return;
         }
