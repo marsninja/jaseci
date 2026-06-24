@@ -85,8 +85,20 @@ pub fn main(init: std.process.Init) !void {
             try fetchTypeshed(io, gpa, a, argv[2]);
         },
         .mkpayload => {
-            if (n < 5) die("usage: payload mkpayload <pbs-python-dir> <repo-root> <out.tar.gz>", .{});
-            try mkPayload(io, gpa, a, init.environ_map, argv[2], argv[3], argv[4]);
+            if (n < 5) die("usage: payload mkpayload <pbs-python-dir> <repo-root> <out.tar.gz> [--shim=PATH] [--skip-precompile]", .{});
+            // Trailing flags (after the positional pbs/root/out, see build.zig):
+            var shim_so: ?[]const u8 = null;
+            var skip_precompile = false;
+            var i: usize = 5;
+            while (i < n) : (i += 1) {
+                const arg = argv[i];
+                if (std.mem.startsWith(u8, arg, "--shim=")) {
+                    shim_so = arg["--shim=".len..];
+                } else if (std.mem.eql(u8, arg, "--skip-precompile")) {
+                    skip_precompile = true;
+                }
+            }
+            try mkPayload(io, gpa, a, init.environ_map, argv[2], argv[3], argv[4], shim_so, skip_precompile);
         },
         .@"typeshed-sha" => {
             if (n < 3) die("usage: payload typeshed-sha <commit>", .{});
@@ -267,6 +279,8 @@ fn mkPayload(
     pbs_py_dir: []const u8,
     repo_root: []const u8,
     out: []const u8,
+    shim_so: ?[]const u8,
+    skip_precompile: bool,
 ) !void {
     const py = try resolvePython(io, a, pbs_py_dir);
     const work = try std.fmt.allocPrint(a, "{s}.work", .{out});
@@ -325,13 +339,29 @@ fn mkPayload(
         ,
     });
 
-    // The sole runtime dependency (a binary wheel from PyPI). Pin to jac.toml's
-    // declared constraint so a breaking llvmlite release can't get baked in.
-    const llvmlite = tomlDepSpec(toml, "llvmlite") orelse "llvmlite>=0.43.0";
-    log("==> fetching runtime dep: {s}", .{llvmlite});
-    _ = runChild(io, &.{ py, "-m", "pip", "install", "--quiet", llvmlite, "--target", site }, null, false);
+    // Native LLVM. With --shim, bundle the Zig-built LLVMPY_* shim
+    // (jac/native, statically linked against host LLVM) next to its Jac binding
+    // -- the in-tree replacement for the llvmlite wheel. Without it, fall back to
+    // pip-installing llvmlite (pinned to jac.toml). The Jac binding ctypes-loads
+    // whichever ships (jaclang/compiler/passes/native/llvm/binding/ffi.jac).
+    if (shim_so) |so| {
+        const dst_dir = try std.fmt.allocPrint(a, "{s}/jaclang/compiler/passes/native/llvm", .{site});
+        try Dir.cwd().createDirPath(io, dst_dir);
+        log("==> bundling Zig-built LLVMPY_* shim ({s})", .{so});
+        try Dir.cwd().copyFile(so, Dir.cwd(), try std.fmt.allocPrint(a, "{s}/libjacllvm.so", .{dst_dir}), io, .{});
+    } else {
+        // Pin to jac.toml's declared constraint so a breaking llvmlite release
+        // can't get baked in.
+        const llvmlite = tomlDepSpec(toml, "llvmlite") orelse "llvmlite>=0.43.0";
+        log("==> fetching runtime dep: {s}", .{llvmlite});
+        _ = runChild(io, &.{ py, "-m", "pip", "install", "--quiet", llvmlite, "--target", site }, null, false);
+    }
 
-    try precompile(io, gpa, a, parent_env, py, pbs_py_dir, site);
+    if (skip_precompile) {
+        log("==> skipping JIR precompile (--skip-precompile); modules compile on first run", .{});
+    } else {
+        try precompile(io, gpa, a, parent_env, py, pbs_py_dir, site);
+    }
 
     // Bundle runtime helpers (pytest/-xdist -> `jac test`, watchdog -> `jac start
     // --dev`, tomlkit -> project tooling). Installed AFTER precompile so the

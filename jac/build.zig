@@ -43,7 +43,8 @@ pub fn build(b: *std.Build) void {
     // Replaces the bundled libllvmlite.so (llvmlite wheel). Gated on -Dllvm-dir
     // (an extracted LLVM 20.1.x prebuilt); without it the step is unavailable so
     // the normal binary build is unaffected. See jac/native/README.md, #6925.
-    addLlvmShim(b, target, optimize);
+    // When set, the shim replaces the llvmlite wheel in the payload below.
+    const jacllvm_lib = addLlvmShim(b, target, optimize);
 
     // --- launcher stub (links libc only; Python is dlopened at runtime) ----
     const launcher_mod = b.createModule(.{
@@ -121,6 +122,16 @@ pub fn build(b: *std.Build) void {
         mk.step.dependOn(&fetch.step);
         mk.step.dependOn(&fetch_ts.step);
         const out = mk.addOutputFileArg("payload.tar.gz");
+        // Optional trailing flags (parsed after the positional pbs/root/out):
+        // --shim ships the Zig-built LLVMPY_* shim instead of pip-installing the
+        // llvmlite wheel; --skip-precompile drops the JIR precompile (fast
+        // wheel-free link validation; first run compiles modules on demand).
+        if (jacllvm_lib) |lib| {
+            mk.addPrefixedFileArg("--shim=", lib.getEmittedBin());
+        }
+        if (b.option(bool, "skip-precompile", "mkpayload: skip the JIR precompile (faster link validation)") orelse false) {
+            mk.addArg("--skip-precompile");
+        }
         // Track the payload's real inputs so it repacks when any source changes.
         // NOTE: addDirectoryArg hashes only the directory PATH (Zig 0.16
         // Run.zig), not its contents -- a bare dir arg silently never
@@ -182,9 +193,9 @@ fn addTreeInputs(b: *std.Build, run: *std.Build.Step.Run, sub_path: []const u8) 
 /// PATH is an extracted LLVM 20.1.x release (`lib/libLLVM*.a` + `include/`); a
 /// future `fetch-llvm` step downloads it at a pinned version (mirrors fetch-pbs).
 /// The Jac binding loads the result via ctypes (JAC_LLVM_SHIM / payload path).
-fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) ?*std.Build.Step.Compile {
     const llvm_dir = b.option([]const u8, "llvm-dir",
-        "Path to an extracted LLVM 20.1.x prebuilt (lib/*.a + include/); enables the jacllvm shim step") orelse return;
+        "Path to an extracted LLVM 20.1.x prebuilt (lib/*.a + include/); enables the jacllvm shim step") orelse return null;
 
     const mod = b.createModule(.{
         .target = target,
@@ -231,6 +242,7 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
 
     b.step("jacllvm", "Build the LLVMPY_* shim (jac/native) statically linked against -Dllvm-dir's LLVM")
         .dependOn(&b.addInstallArtifact(lib, .{}).step);
+    return lib;
 }
 
 fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {

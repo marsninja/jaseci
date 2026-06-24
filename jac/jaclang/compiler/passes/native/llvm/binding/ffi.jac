@@ -29,29 +29,47 @@ def _library_name() -> str {
 }
 
 
-"""Locate the shipped libllvmlite shared object on sys.path.
+def _shim_name() -> str {
+    if os.name == 'posix' {
+        if sys.platform == 'darwin' {
+            return 'libjacllvm.dylib';
+        }
+        return 'libjacllvm.so';
+    }
+    return 'jacllvm.dll';
+}
 
-The .so still ships in the payload site/ (the llvmlite wheel is installed until
-the Zig step drops it); we load the file directly without importing the
-llvmlite Python package."""
+
+"""Locate the LLVMPY_* shared object to ctypes-load.
+
+Resolution order: (1) JAC_LLVM_SHIM override; (2) the Zig-built libjacllvm.so,
+shipped in the payload next to this package (jaclang/compiler/passes/native/
+llvm/) and found by scanning sys.path -- the same packing path libpython and
+the wheel's .so ride in; (3) the llvmlite wheel's libllvmlite.so (fallback
+while the wheel is still bundled). No llvmlite Python package is imported."""
 def _find_libllvmlite() -> str {
-    # Explicit override: the Zig-built LLVMPY_* shim (from jac/native), set by
-    # the build/runtime once the static-linked shim is available.
     override = os.environ.get('JAC_LLVM_SHIM', None);
     if override and os.path.isfile(override) {
         return override;
     }
-    name = _library_name();
+    shim = _shim_name();
+    wheel = _library_name();
     for p in sys.path {
         if not p {
             continue;
         }
-        cand = os.path.join(p, 'llvmlite', 'binding', name);
+        cand = os.path.join(
+            p, 'jaclang', 'compiler', 'passes', 'native', 'llvm', shim
+        );
         if os.path.isfile(cand) {
             return cand;
         }
+        legacy = os.path.join(p, 'llvmlite', 'binding', wheel);
+        if os.path.isfile(legacy) {
+            return legacy;
+        }
     }
-    raise OSError(f"Could not locate '{name}' on sys.path");
+    raise OSError(f"Could not locate '{shim}' or '{wheel}' on sys.path");
 }
 
 
