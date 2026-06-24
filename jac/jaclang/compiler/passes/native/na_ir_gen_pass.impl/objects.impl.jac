@@ -507,12 +507,19 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
             self.param_vars.add(param_name);
         }
     }
-    # Per-method native-capability boundary (workstream A4, #6930). A
-    # construction-critical method (init/postinit) is exempt: a gap there means
-    # the class genuinely cannot be natively constructed, so it stays a hard
-    # error. Every other method may fall back to its Python implementation, so
-    # mark the diagnostic lists and demote the method if its body cannot lower.
-    _isolate = method_name not in ("init", "__init__", "postinit", "__post_init__");
+    # Per-method native-capability boundary (workstream A4, #6930). Two method
+    # classes are exempt and keep a gap as a hard error:
+    #   - construction-critical methods (init/postinit): a gap there means the
+    #     class genuinely cannot be natively constructed.
+    #   - vtable slots: native polymorphic dispatch cannot fall back to Python,
+    #     so demoting a virtual method would leave its (already-built) vtable
+    #     index dangling and its vtable global slot pointing at an abort stub.
+    #     A virtual method that will not lower disqualifies the class instead.
+    # Every other (non-virtual, direct-dispatch) method may fall back to its
+    # Python implementation, so mark the diagnostic lists and demote it if its
+    # body cannot lower.
+    _isolate = method_name not in ("init", "__init__", "postinit", "__post_init__")
+    and method_name not in self.vtable_method_indices.get(arch_name, {});
     _err_mark = len(self.prog.errors_had) if _isolate else 0;
     _local_mark = len(self.errors_had) if _isolate else 0;
     # Generate body (handle ImplDef wrapper from DeclImplMatchPass)
@@ -560,9 +567,12 @@ reduce the partially-emitted body to an abort stub so the module IR stays
 valid and any unexpected native dispatch fails loudly, and drop the method
 from the native symbol + export tables (method_funcs / func_symtab, hence
 NativeModuleLayout.methods and install_native_wrappers) so it is neither
-call-resolvable from native code nor advertised as native. The ir.Function
-object is preserved (only its body is replaced) so any vtable slot already
-referencing it stays well-formed. Returns True if the method was demoted."""
+call-resolvable from native code nor advertised as native; a native call site
+that still references it emits E5090 via _native_skipped_methods. The
+ir.Function object is preserved (only its body is replaced) so the abort stub
+stays a valid definition. Callers gate this on the method being eligible (not
+a vtable slot or constructor), so a demoted method is never a live vtable
+entry. Returns True if the method was demoted."""
 impl NaIRGenPass._demote_method_if_unlowerable(
     full_name: str, func: ir.Function, err_mark: int, local_mark: int
 ) -> bool {
@@ -1619,14 +1629,39 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     # Find method: walk MRO
     func = None;
     full_name = "";
+    _demoted = False;
     for check_name in self._mro_of(type_name) {
         full_name = f"{check_name}.{method_name}";
         if full_name in self.method_funcs {
             func = self.method_funcs[full_name];
             break;
         }
+        if full_name in self._native_skipped_methods {
+            _demoted = True;
+            break;
+        }
     }
     if func is None {
+        # The callee was demoted to Python-only (workstream A4, #6930). The
+        # native pathway cannot fall back to Python mid-stream, so surface the
+        # call as E5090 instead of silently dropping it (which would yield a
+        # null result). The diagnostic cascades correctly: a demotable caller
+        # falls back to Python too, while an entry / free function rejects the
+        # whole module -- both honest, since a Python-only method is not
+        # callable from native code.
+        if _demoted {
+            self.emit(
+                E5090,
+                node_override=nd,
+                kind="method",
+                name=f"{type_name}.{method_name}",
+                help_text=(
+                    f"'{method_name}' has no native lowering and was demoted to "
+                    f"its Python implementation; it cannot be called from native "
+                    f"code. Call it from a Python/@sv context instead."
+                )
+            );
+        }
         return None;
     }
     # Get the object pointer (reuse if already computed in chained path)

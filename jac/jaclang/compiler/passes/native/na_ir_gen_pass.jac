@@ -189,8 +189,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
         # could not lower. They are demoted to Python-only — dropped from
         # method_funcs / the native layout, their body reduced to an abort stub
         # — so an un-lowerable method does not poison its class's native layout,
-        # constructor, or lowerable siblings. Construction-critical methods
-        # (init/postinit) are never demoted: a gap there is a genuine hard error.
+        # constructor, or lowerable siblings. Read by _codegen_method_call to
+        # turn a native call to a demoted method into an E5090 (rather than a
+        # silently-dropped null call). Construction-critical methods
+        # (init/postinit) and vtable slots are never demoted: a gap there is a
+        # genuine hard error.
         _native_skipped_methods: set[str] = set(),
         # Object-Spatial kernel lowering (Phase 4 / issue #6146).
         # The OSP "program facts" (archetype kinds, stable type tags, is_a
