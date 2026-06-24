@@ -581,14 +581,28 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     }
     # Native acceleration is best-effort: the demotion is invisible to a clean
     # build, which makes a wrongly-rejected method hard to spot. Surface the
-    # discarded diagnostics under JAC_NATIVE_DEBUG so the fallback is visible
-    # while developing the backend (mirrors native_accel.accelerate_module).
+    # discarded diagnostics so the fallback is visible while developing against
+    # the native backend. On by default via [check] warn_native_seams (set it
+    # False for quiet builds); JAC_NATIVE_DEBUG forces it on regardless. This is
+    # a terminal warning, not a compiler diagnostic: the editor compiles
+    # no_cgen so this pass never runs there (mirrors native_accel).
     import os;
-    if os.environ.get("JAC_NATIVE_DEBUG", "") {
+    _warn = bool(os.environ.get("JAC_NATIVE_DEBUG", ""));
+    if not _warn {
+        _warn = True;
+        try {
+            import from jaclang.project.config { get_config }
+            _cfg = get_config();
+            if _cfg and _cfg.check {
+                _warn = bool(_cfg.check.warn_native_seams);
+            }
+        } except Exception { }
+    }
+    if _warn {
         import sys;
         _why = "; ".join(str(e) for e in self.prog.errors_had[err_mark:]);
         sys.stderr.write(
-            f"Native acceleration: demoting {full_name} to Python-only "
+            f"warning: native seam -- demoting {full_name} to Python-only "
             f"(un-lowerable): {_why}\n"
         );
     }

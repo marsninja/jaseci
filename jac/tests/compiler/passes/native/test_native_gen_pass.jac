@@ -125,6 +125,26 @@ test "native partial class: un-lowerable method skipped, sibling stays native" {
     assert "Literal.evaluate" not in layout.methods;
 }
 
+test "native partial class: demotion warns on the terminal by default (#6934)" {
+    # warn_native_seams defaults True, so demoting an un-lowerable method prints
+    # a terminal warning naming the method — a silent native fallback is visible
+    # during a build. The compile still succeeds (A4 demotes, no errors).
+    _saved = sys.stderr;
+    _cap = io.StringIO();
+    sys.stderr = _cap;
+    try {
+        prog = JacProgram();
+        prog.compile(file_path=str(os.path.join(FIXTURES, "partial_native.na.jac")));
+    } finally {
+        sys.stderr = _saved;
+    }
+    assert not prog.errors_had;
+    _out = _cap.getvalue();
+    assert "native seam" in _out;
+    assert "Literal.evaluate" in _out;
+    assert "Python-only" in _out;
+}
+
 test "native partial class: native caller of a demoted method errors, not silent" {
     # A method demoted to Python-only is not callable from native code: the
     # native pathway cannot fall back to Python mid-stream. A native call site
