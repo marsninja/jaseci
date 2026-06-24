@@ -34,7 +34,7 @@ gateway can route to.
 import jaclang.jac0core.unitree as uni;
 import from pathlib { Path }
 import from jaclang.jac0core.parser { parse }
-import from jac_scale.runtime.discovery.route_policy { derive_route_prefix }
+import from jac_scale.runtime.discovery.route_policy { derive_route_prefix, guard_route_name }
 
 # The parser tags EVERY `import` with `code_context == SERVER` (that is the
 # default code context), so code_context cannot tell an `sv import` from a plain
@@ -168,6 +168,10 @@ def discover_sv_services(entry_file: str) -> dict[str, str] {
 
     routes: dict[str, str] = {};
     for name in sorted(services) {
+        # Reject, at discovery time, a service whose route would shadow a builtin
+        # gateway segment (admin, walker, ...) - a clear error here beats a silent
+        # route collision at gateway routing time.
+        guard_route_name(name);
         # The "/api" namespace is kept transitionally so routing behavior is
         # unchanged; the gateway redesign drops it (route_policy is then the
         # single slug source for BE routing, FE serviceRoutes, and OpenAPI).

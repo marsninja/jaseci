@@ -88,19 +88,27 @@ def sanitized_jac_toml(base: Path) -> (str | None) {
         return None;
     }
     out: list[str] = [];
-    skipping = False;
+    in_scale_section = False;
+    at_top_level = True;
     for line in src.read_text().splitlines() {
         stripped = line.lstrip();
         if stripped.startswith("[") {
-            header = stripped.lstrip("[").rstrip().rstrip("]").strip();
-            skipping = header == "plugins.scale" or header.startswith("plugins.scale.");
-            if skipping {
+            # Take the name between the brackets; split on "]" so a trailing
+            # inline comment (e.g. `[plugins.scale] # creds`) cannot smuggle the
+            # section past the credential check.
+            header = stripped.lstrip("[").split("]")[0].strip();
+            in_scale_section = header == "plugins.scale" or header.startswith("plugins.scale.");
+            at_top_level = False;
+            if in_scale_section {
                 continue;
             }
-        } elif stripped == "plugins.scale" or stripped.startswith("plugins.scale.") {
+        } elif at_top_level and stripped.startswith("plugins.scale.") {
+            # Top-level dotted-key form of a scale setting (creds); drop it.
+            # Only at top level: under another section, `plugins.scale.x` is that
+            # section's subkey, not a jac-scale credential.
             continue;
         }
-        if not skipping {
+        if not in_scale_section {
             out.append(line);
         }
     }
