@@ -1,229 +1,205 @@
 # Decoupling `na` from the Python `llvmlite` Dependency
 
-> **Status:** Validation + RFC for [issue #6925](https://github.com/jaseci-labs/jaseci/issues/6925).
-> This document records what was *verified against the tree* before any code
-> was written, corrects two material scope errors in the issue, and lays out a
-> realistic, phased plan. It does **not** itself change runtime behaviour.
+> **Status:** Implementation RFC for [issue #6925](https://github.com/jaseci-labs/jaseci/issues/6925).
+> **Goal:** remove the Python **`llvmlite`** package from the runtime entirely and
+> link LLVM **directly into the Zig `jac` binary**, using **`py2jac`** to bootstrap
+> the Jac-side reimplementation. Every fact below was measured against the tree
+> and the upstream llvmlite checkout in `_planning/llvmlite/`.
 
 ## Overview
 
-The single `jac` binary bundles a ~160 MB `libllvmlite.so` and drives native
-(`na`) JIT compilation through the Python **`llvmlite`** package. Issue #6925
-proposes to drop that runtime dependency by (1) statically linking a curated,
-host-only LLVM into the binary and (2) reimplementing the binding layer in pure
-Jac against LLVM's stable C API (`llvm-c`), keeping `llvmlite` as reference
-only.
-
-The *direction* is sound and the JIT/codegen binding surface is small. But the
-issue as written under-scopes the work by roughly an order of magnitude and
-contains one feasibility blocker it does not acknowledge. This document is the
-validation pass that surfaces both, so the implementation can be planned
-against reality rather than against the issue's optimistic framing.
+Native (`na`) Jac compiles to LLVM IR and JITs it via the Python `llvmlite`
+package, which bundles a ~160 MB `libllvmlite.so` into the runtime payload. The
+goal here is to delete that Python dependency and the bundled `.so`, fold LLVM
+into the `jac` binary that Zig already builds, and reimplement llvmlite's two
+Python layers in Jac -- bootstrapped mechanically with `py2jac` rather than
+hand-written from scratch.
 
 This is an **internals** document; it assumes the codespace model from
 [Compiler Architecture](compiler_architecture.md) and the boundary model from
 [Cross-Codespace Interop](interop.md).
 
-## TL;DR -- verdict
+## The shape of llvmlite (why this is tractable)
 
-| # | Claim in the issue | Verdict |
-|---|---|---|
-| 1 | `llvmlite>=0.47.0` pinned in `jac/jac.toml`; native pass imports `llvmlite.binding`; one `add_symbol` touchpoint in `interop_bridge.jac` | **Accurate** |
-| 2 | The `llvmlite.binding` surface `na` uses is a small subset that maps ~1:1 onto LLVM-C | **Accurate** (full inventory below) |
-| 3 | `libllvmlite.so` has zero CPython coupling (ctypes `CDLL`), ~160 MB, LLVM linked inside | **Accurate** |
-| 4 | "Bind LLVM-C directly" / "skip llvmlite's shim entirely" against the shipped artifact | **Blocked** -- the shipped `.so` exports **0** raw `LLVM*` symbols (only 312 `LLVMPY_*`). A *new* LLVM build with `llvm-c` symbols exported is mandatory, not optional. |
-| 5 | Definition of done = "binding reimplemented (~30 fns), `llvmlite` gone, `na` suite green" | **Materially incomplete** -- the issue never mentions **`llvmlite.ir`**, a large pure-Python IR *builder* used ~5,000 times across the native passes. Removing the *package* requires reimplementing it too. |
-| 6 | `mkpayload.sh` pip-installs the wheel | **Minor inaccuracy** -- the dependency flows through `jac/jac.toml` `dependencies`, not a line in `mkpayload.sh`. |
+`llvmlite` is not one thing. It is three layers plus LLVM, and they decouple
+cleanly:
 
-**Bottom line:** #6925's "~30 functions / `na` suite green" framing describes only
-the `llvmlite.binding` swap. The package cannot leave `jac.toml` until
-`llvmlite.ir` is also replaced, and the LLVM-C path cannot start until a custom
-LLVM is built. The true effort is a multi-PR program, not a single change.
+| Layer | Source | Size | Nature | Plan |
+|---|---|---|---|---|
+| **`llvmlite.ir`** | `llvmlite/ir/*.py` | 4,424 LOC | **pure Python** IR *builder* (emits textual LLVM IR) | **`py2jac` -> Jac** |
+| **`llvmlite.binding`** | `llvmlite/binding/*.py` | 4,358 LOC | **ctypes** marshalling over the `LLVMPY_*` C ABI | **`py2jac` -> Jac** |
+| **ffi shim** | `ffi/*.cpp` | 4,447 LOC | **C++** wrapping LLVM's C++ API, exports `LLVMPY_*` | **compile with Zig, link into binary** |
+| **LLVM** | upstream | tens of MB (host-only) | static libraries | **statically linked into the binary** |
 
-## What is true today
+**The key insight:** keep llvmlite's battle-tested C++ shim and statically link
+it (plus LLVM) into the `jac` binary; translate only the two *Python* layers
+with `py2jac`. Because the native ABI (`LLVMPY_*`) is preserved exactly, the
+binding becomes a near-mechanical translation and every behaviour the `na` pass
+already relies on -- including `enable_jit_events`, which has no clean LLVM-C
+path -- keeps working unchanged. This is strictly less risky than the issue's
+"rebind against LLVM-C" framing, and reuses far more existing, proven code.
 
-### Two distinct `llvmlite` layers are in use, not one
+### What we measured about the current artifact
 
-The issue frames the work around `llvmlite.binding` (the ctypes marshalling
-layer over the native shim). The tree actually depends on **two** independent
-`llvmlite` sub-packages:
+- `libllvmlite.so` exports **312 `LLVMPY_*`** symbols and **0 raw `LLVM*`**
+  symbols. That is deliberate: `ffi/CMakeLists.txt` sets
+  `CXX_VISIBILITY_PRESET hidden` and exports only the shim. So binding LLVM-C
+  directly is impossible against today's `.so` -- but the `LLVMPY_*` ABI we keep
+  is exactly what `binding` already calls.
+- The payload tool pip-installs llvmlite from the `jac.toml` spec into the
+  bundled `site/` at `jac/launcher/payload.zig:330-332`; `jac/jac.toml:10` pins
+  it. Those are the two removal points.
+- The launcher (`jac/launcher/launcher.zig`) links libc only and **dlopens the
+  bundled libpython in-process**. So symbols linked into the `jac` executable
+  are reachable from the embedded interpreter's `ctypes.CDLL(None)` -- provided
+  they are in the binary's dynamic symbol table (see Part 1).
 
-1. **`llvmlite.binding`** -- ctypes wrappers over the `LLVMPY_*` C ABI exported
-   by `libllvmlite.so`. Drives parse / verify / optimize / JIT / emit. This is
-   the layer the issue describes.
-2. **`llvmlite.ir`** -- a **pure-Python LLVM-IR builder** (`ir.Module`,
-   `ir.IRBuilder`, the type and constant constructors). It emits *textual* IR
-   which is then handed to `binding.parse_assembly`. The issue does not mention
-   it at all.
-
-Both must go for the package pin to leave `jac/jac.toml`.
-
-### `llvmlite.binding` -- full consumer + API inventory
-
-Consumers (not just `na_compile_pass`):
-
-| File | Uses |
-|---|---|
-| `compiler/passes/native/impl/na_compile_pass.impl.jac` | the bulk: parse, verify, init, target machine, new-PM optimize, MCJIT, emit, bitcode, dynamic symbols, linkage surgery |
-| `compiler/passes/native/wasm_build.jac` | `initialize_all_*`, `parse_assembly`, `Target`, `create_pipeline_tuning_options`, `create_pass_builder` |
-| `jac0core/interop_bridge.jac` | the single `add_symbol(name, addr)` interop touchpoint |
-| `jac0core/codeinfo.jac` | `import type` of `ModuleRef`, `ExecutionEngine` (carried on codegen state) |
-
-API surface, mapped to LLVM-C and to the already-exported `LLVMPY_*`:
-
-| `llvmlite.binding` call | LLVM-C | `LLVMPY_*` exported today? |
-|---|---|---|
-| `parse_assembly` | `LLVMParseIRInContext` | ✅ |
-| `Module.verify` | `LLVMVerifyModule` | ✅ |
-| `Target.from_triple` / `from_default_triple` | `LLVMGetTargetFromTriple` / `LLVMGetDefaultTargetTriple` | ✅ |
-| `create_target_machine(opt, jit)` | `LLVMCreateTargetMachine` | ✅ |
-| `create_pipeline_tuning_options` / `create_pass_builder` / `ModulePassManager.run` | `LLVMCreatePassBuilderOptions` + `LLVMRunPasses` | ✅ |
-| `create_mcjit_compiler` | `LLVMCreateMCJITCompilerForModule` | ✅ |
-| `ExecutionEngine.get_function_address` | `LLVMGetFunctionAddress` | ✅ |
-| `TargetMachine.emit_object` | `LLVMTargetMachineEmitToMemoryBuffer` | ✅ |
-| `Module.as_bitcode` | `LLVMWriteBitcodeToMemoryBuffer` | ✅ |
-| `load_library_permanently` | `LLVMLoadLibraryPermanently` | ✅ |
-| `add_symbol(name, addr)` | `LLVMAddSymbol` | ✅ |
-| `Module.link_in` (na↔na) | `LLVMLinkModules2` | ✅ |
-| get/set `linkage` (link-time surgery) | `LLVMGet/SetLinkage` | ✅ |
-| `initialize_native_*` / `initialize_all_*` | `LLVMInitializeNative{Target,AsmPrinter}` / `LLVMInitializeAll*` | ✅ |
-| `ExecutionEngine.enable_jit_events` | **no clean MCJIT path in `llvm-c`** | ✅ (`LLVMPY_*` exposes it) |
-
-This is ~30 entry points -- bounded, but detail-sensitive (opaque handles,
-out-param error strings, `LLVMDisposeMessage` / `LLVMDisposeMemoryBuffer`
-lifetimes, reading bytes out of an `LLVMMemoryBuffer`). The issue's risk call --
-"lifetime/dispose bugs are the likely failure mode" -- is correct.
-
-Note the `enable_jit_events` row: it is used (live GDB/JIT registration in
-`na_compile_pass.impl.jac`). The `LLVMPY_*` ABI exposes it; `llvm-c` does not
-cleanly for MCJIT, so the LLVM-C path needs the issue's documented fallback (a
-small C shim) and the `LLVMPY_*` path does not.
-
-### `llvmlite.ir` -- the omitted elephant
-
-The pure-Python IR builder is used pervasively across the native passes
-(`na_ir_gen_pass` and its impl tree, `compiler/targets/abi.jac`,
-`primitives_native.jac`, `type_evaluator.impl/imported.impl.jac`,
-`jac0core/impl/unitree.impl.jac`). Approximate call counts:
-
-| Constructor | Uses |
-|---|---|
-| `ir.Value` | ~1,886 |
-| `ir.Constant` | ~1,726 |
-| `ir.IntType` | ~1,040 |
-| `ir.PointerType` | ~220 |
-| `ir.IRBuilder` | ~187 |
-| `ir.Function` | ~183 |
-| `ir.Type` / `ir.FunctionType` / `ir.*StructType` / globals / blocks / FP types | ~600 combined |
-
-Reimplementing this is a far larger and riskier effort than the binding swap:
-it is a full IR-emission layer (type system, constant folding/printing,
-instruction formatting). It can be done two ways -- a pure-Jac textual-IR
-emitter (matches today's "build text, then `parse_assembly`" flow) or building
-IR through LLVM-C's `IRBuilder` directly -- but either is its own multi-PR
-project. **No acceptance criterion in #6925 covers it, yet criterion "remove
-`llvmlite` from `jac.toml`" cannot pass without it.**
-
-### What survives untouched
-
-The object-file linkers (`elf_linker`, `macho_linker`, `pe_linker`,
-`wasm_linker`) consume the **bytes** returned by `emit_object()`; they have no
-`llvmlite` coupling beyond receiving that buffer. They are unaffected by any
-binding swap. The interop marshalling in `interop_bridge.jac` is already
-`llvmlite`-independent (pure ctypes `CFUNCTYPE`/`cast`/`py_func_table`); it
-touches LLVM at exactly one line, so re-routing that single `add_symbol`
-carries the whole interop layer across -- the issue is right about this.
-
-### Symbol-export reality (the blocker)
-
-Measured on the shipped artifact:
+## Target architecture
 
 ```
-$ nm -D --defined-only .../llvmlite/binding/libllvmlite.so
-  LLVMPY_*  exported : 312
-  raw LLVM* exported : 0
+ TODAY                                   AFTER
+ jac binary (libc launcher)              jac binary (libc launcher)
+   -> dlopen libpython                     -> dlopen libpython
+        -> import llvmlite (Python pkg)         -> import jaclang...._llvm  (Jac, py2jac'd)
+             ir/      (pure Python)                  ir/      (pure Jac)
+             binding/ (ctypes)  ──┐                  binding/ (ctypes)  ──┐
+   payload/site/llvmlite/         │                                       │ CDLL(None)
+     libllvmlite.so  ~160 MB  ◄───┘ CDLL(path)   [LLVMPY_* shim + LLVM] ◄─┘
+       (shim + LLVM, from wheel)               statically linked INTO the jac binary
 ```
 
-LLVM is statically linked *inside* `libllvmlite.so` but its `llvm-c` symbols are
-**hidden** -- llvmlite's CMake exports only its own `LLVMPY_*` shim. Consequences:
+The `.so` and the Python package both disappear; the shim+LLVM move into the
+binary; the two Python layers become vendored Jac.
 
-- **You cannot bind `llvm-c` against the current `.so`.** The symbols are not in
-  the process image to resolve via `RTLD_DEFAULT`. Issue criterion #1 (a curated
-  build that *exports* `llvm-c`) is therefore load-bearing for the LLVM-C plan,
-  not a "nice to have."
-- **You *can* bind the 312 `LLVMPY_*` symbols today**, with no new build. That is
-  the cheapest way to delete the *Python* `binding` package while reusing the
-  shipped native shim -- at the cost of not reducing binary size and not removing
-  the `.so`.
+## Part 1 -- Native: LLVM + shim into the `jac` binary
 
-## Two viable bindings -- pick deliberately
+1. **Compile `ffi/*.cpp` with Zig.** Zig compiles C++ via its bundled clang and
+   ships its own libc++ (`link_libcpp = true`), which sidesteps the host
+   `libstdc++` coupling today's `.so` carries. Add the shim as a **dedicated
+   native-runtime compilation unit** in `build.zig`, linked into the final `jac`
+   executable -- *not* folded into the hot launcher path, which must stay
+   libc-only and run before Python. The shim's symbols sit dormant until the
+   native pass first calls one.
+2. **Provide host-only LLVM static archives.** `ffi/CMakeLists.txt` lists the
+   components: `mcjit orcjit OrcDebugging AsmPrinter AllTargetsCodeGens
+   AllTargetsAsmParsers`. `na` is **MCJIT-only**, so drop `orcjit` /
+   `OrcDebugging` (and exclude `ffi/orcjit.cpp`, 379 LOC) and build
+   `LLVM_TARGETS_TO_BUILD=host`. Source the archives via a **pinned fetch step**
+   that mirrors the existing `payload fetch-pbs` / `fetch-typeshed` pattern
+   (`payload fetch-llvm <os-arch>`), so contributors download prebuilt static
+   libs rather than building LLVM locally -- consistent with how the bundled
+   CPython and typeshed are already provisioned. (Build-from-source stays
+   available as a fallback for unsupported triples.)
+3. **Export `LLVMPY_*` from the binary.** The shim's CMake hides everything;
+   here we must do the opposite for the ~312 `LLVMPY_*` entry points so
+   `ctypes.CDLL(None)` (RTLD_DEFAULT over the process image) resolves them.
+   Link the `jac` executable with an exported-symbol list limited to `LLVMPY_*`
+   (keep all other symbols, including raw `LLVM*`, hidden -- no namespace
+   pollution, smaller dynamic table than blanket `--export-dynamic`).
 
-| | **A. Bind `LLVMPY_*` (reuse shipped `.so`)** | **B. Bind `llvm-c` (issue's target)** |
-|---|---|---|
-| New LLVM build required | No | **Yes** (host-only MCJIT, `llvm-c` exported, into `build.zig` as a dedicated native unit) |
-| Removes Python `binding` marshalling | Yes | Yes |
-| Removes `libllvmlite.so` / shrinks binary | **No** | Yes (the issue's 167 MB → tens-of-MB goal) |
-| `enable_jit_events` | Works (shim exposes it) | Needs ~20-line C shim |
-| Drops `llvmlite` from `jac.toml` | **No** (still need the `.so` + `llvmlite.ir`) | Only after `llvmlite.ir` is also replaced |
-| Effort | Lower; no toolchain work | Higher; LLVM build + packaging on 4 platforms |
+**Result of Part 1:** the ~160 MB `libllvmlite.so` leaves the payload; a pruned
+host-only LLVM + the shim live in the `jac` binary; `LLVMPY_*` is callable from
+the embedded interpreter exactly as before.
 
-Neither option alone closes #6925, because both still leave `llvmlite.ir` in
-place. Option A is the natural *first* increment (proves the marshalling
-contract in pure Jac with zero build-system risk); Option B is required to hit
-the size goal; the `ir` reimplementation is required to drop the package. They
-are independent and can land in that order.
+## Part 2 -- Jac binding (`py2jac` from `binding/*.py`)
 
-## Corrected phased plan
+1. **Translate** `llvmlite/binding/*.py` with `py2jac` into a vendored package,
+   e.g. `jac/jaclang/compiler/passes/native/_llvm/binding/`.
+2. **Re-point the loader.** `binding/ffi.py` does `ctypes.CDLL(<path to .so>)`;
+   change it to `ctypes.CDLL(None)` so it binds the in-binary shim. This file
+   uses `__slots__` + `__getattr__` for its lazy `ffi.lib.LLVMPY_*` function
+   table; both are supported in Jac, but because it is small and the most
+   native-coupled piece, hand-authoring the Jac loader (rather than shipping
+   `py2jac` output verbatim) is the cleaner choice.
+3. **Apply the fix-up pass** (Part 4).
+4. **Re-point consumers:** `na_compile_pass(.impl)`, `wasm_build`, the
+   `ModuleRef`/`ExecutionEngine` type imports in `codeinfo`, and the single
+   `add_symbol` touchpoint in `interop_bridge`.
 
-Each phase is independently shippable and independently verifiable against the
-existing `na` suite (`jac/tests/compiler/passes/native/` plus the
-`na_py_interop*` interop fixtures, which already exercise `na`↔`sv`, `na`↔py,
-and `na`↔`na`).
+## Part 3 -- Jac IR builder (`py2jac` from `ir/*.py` -- the bulk)
 
-1. **P0 -- Pure-Jac binding over `LLVMPY_*`, behind a flag.** Reimplement the
-   `llvmlite.binding` surface (the ~30 entry points above) in Jac via ctypes
-   against the already-exported `LLVMPY_*` ABI. Run *parallel* to the existing
-   path; default unchanged. Re-route `interop_bridge.jac`'s single `add_symbol`.
-   Removes the Python `binding` marshalling dependency with no build-system risk.
-   *Gate:* parity harness -- same modules, both paths, identical JIT behaviour and
-   byte-identical `emit_object`/`as_bitcode`.
-2. **P1 -- Flip default to the Jac binding; delete `import llvmlite.binding`** from
-   `na_compile_pass`, `wasm_build`, and the `codeinfo` type imports. `llvmlite`
-   stays pinned (still needed for `.ir` + the `.so`).
-3. **P2 -- Curated host-only MCJIT LLVM**, `llvm-c` symbols exported, statically
-   linked into the `jac` binary as a dedicated native unit (launcher stub
-   unchanged), wired through `build.zig`/`mkpayload.sh`. Re-point the P0 binding
-   from `LLVMPY_*` to `llvm-c`; add the `enable_jit_events` shim. *Gate:* `na`
-   suite green on the new artifact + size comparison vs the 160 MB `.so`.
-4. **P3 -- Replace `llvmlite.ir`** with a pure-Jac IR emitter (or LLVM-C
-   `IRBuilder` path) across `na_ir_gen_pass`, `abi`, `primitives_native`, and the
-   type-evaluator. *Gate:* byte-identical IR for the suite, then the package pin
-   leaves `jac/jac.toml` and `llvmlite` is gone from the payload.
+`llvmlite.ir` is pure Python with **no native dependency** -- it builds an
+in-memory object graph and emits textual IR. Translating it removes a dependency
+outright (nothing native to link).
 
-Acceptance criteria from #6925 map onto these phases; the only new requirement
-this validation adds is **P3**, without which "remove `llvmlite`" is unreachable.
+1. **Translate** `llvmlite/ir/*.py` (builder, instructions, module, types,
+   values, ...) with `py2jac` into `.../_llvm/ir/`.
+2. **Apply the fix-up pass** (Part 4). The `@contextlib.contextmanager` + `yield`
+   helpers in `builder.py` (`goto_block`, `if_then`, ...) translate -- Jac
+   supports generators, decorator factories (`@functools.wraps`), and the dunder
+   surface these use.
+3. **Re-point consumers:** `na_ir_gen_pass` (+ its impl tree), `compiler/targets/abi`,
+   `primitives_native`, `type_evaluator.impl/imported`, `jac0core/impl/unitree`.
+4. **Validate by golden IR.** The current path already produces textual IR fed to
+   `parse_assembly`; assert the Jac builder emits **byte-identical** IR for every
+   module in the `na` suite before flipping the default.
+
+## Part 4 -- The `py2jac` fix-up pass
+
+`py2jac` is a faithful first-draft engine, not a finishing tool. Measured on real
+llvmlite source (`ir/types.py`, `binding/executionengine.py`), it gets the hard
+parts right and fails in three concentrated, **mechanical** ways:
+
+| What `py2jac` gets RIGHT (leave alone) | What needs a fix-up codemod |
+|---|---|
+| bare `super.method` (the dominant Jac idiom), `@property`/`@classmethod`/`@staticmethod`, `__new__` (Jac `class` *invokes* it; instance-cache semantics match Python), ctypes `.argtypes`/`.restype` (preserved), `__str__`/`__eq__`/`__hash__`/`__repr__`, `with ... as` context managers, `yield`, `__getattr__` | **(1) `has` declarations:** emits Python's implicit `self.x = ...` but **zero** `has x: T;`. In `class` mode the checker then can't see any instance attribute -- one 20 KB module produced ~43 `E1032 "Type is Unknown"` + `E1030/E1031`. Synthesize `has` decls from `__init__`/`__new__`/class-body assignments. |
+| | **(2) `del x` -> `delete(x,)`:** confirmed runtime `NameError: name 'delete' is not defined`; silently breaks e.g. `_StrCaching`'s cache invalidation. Rewrite to the native `del` statement. |
+| | **(3) no type inference:** every param `: Any`, every return `-> object`. Type at least the public surface to pass `jac check` and meet the repo's type-safety bar. |
+
+Two of the three (`has`, `del`) are pure syntactic codemods over the vendored
+output. **Recommendation:** fix `has`-emission *inside `py2jac`* -- it is the
+single highest-leverage gap and pays off for every future Python->Jac port, not
+just this one. Type annotations (3) are the only inherently manual part, bounded
+to the public API surface.
+
+## Part 5 -- Remove the package
+
+- Delete the `llvmlite` pin from `jac/jac.toml:10`.
+- Delete the pip-install block at `jac/launcher/payload.zig:330-332`; `llvmlite`
+  no longer lands in the payload `site/`.
+- **License:** llvmlite is BSD-2-Clause. Carry its `LICENSE` (and
+  `LICENSE.thirdparty`) into the vendored `_llvm/` directory and attribute the
+  translation -- the Jac code is a derived work.
+
+## Phasing (each phase independently verifiable)
+
+The `na` suite (`jac/tests/compiler/passes/native/` plus the `na_py_interop*`
+fixtures, which already exercise `na`<->`sv`, `na`<->py, `na`<->`na`) is the gate
+throughout.
+
+1. **Native unit lands.** `build.zig` compiles the shim, links host-only LLVM,
+   exports `LLVMPY_*`. Smoke test: from the bundled interpreter,
+   `ctypes.CDLL(None).LLVMPY_LinkInMCJIT` resolves. No Jac changes yet; the
+   wheel still drives `na`.
+2. **Vendored Jac binding behind a flag.** Runs parallel to the wheel; parity
+   harness asserts identical JIT behaviour and **byte-identical**
+   `emit_object`/`as_bitcode`.
+3. **Vendored Jac `ir` builder.** Golden byte-identical IR across the suite, then
+   flip both Jac layers to default and delete `import llvmlite.*`.
+4. **Drop the package.** Remove the `jac.toml` pin and the `payload.zig`
+   install; `na` suite green on the wheel-free binary; record the size delta vs
+   the 160 MB `.so`.
 
 ## Risks
 
-- **Marshalling lifetimes** (both binding options): disposing C-allocated
-  messages/memory buffers, opaque-handle ownership, out-param error strings.
-  This is where subtle JIT corruption hides; the parity harness is the guardrail.
-- **`enable_jit_events` on `llvm-c`** (Option B only): no clean MCJIT path --
-  budget the C shim early or accept losing live GDB JIT registration.
-- **`llvmlite.ir` scope (P3):** by call volume this is the dominant cost and the
-  issue's effort estimate excludes it. Treat it as its own project.
-- **LLVM build packaging (P2):** host-only MCJIT across all four shipped
-  platforms; symbol-visibility must keep `llvm-c` exported (the exact thing
-  llvmlite's CMake hides).
+- **LLVM static-lib sourcing** -- pin a version, host prebuilt host-only archives
+  per shipped platform; keep a build-from-source fallback. Largest logistical
+  item.
+- **libc++ / RTTI** -- the shim builds `-fno-rtti` against LLVM in most configs;
+  match LLVM's RTTI setting or the link fails (the CMake has the same dance).
+- **Symbol export** -- only `LLVMPY_*` must enter the dynamic table; verify the
+  embedded interpreter resolves them and that nothing else leaks.
+- **`py2jac` fix-up tail** -- mostly mechanical (`has`, `del`, types), but spot-
+  check the generator/context-manager helpers in `ir/builder.py` and the
+  `__getattr__` loader after translation.
+- **License/attribution** -- vendoring a translation of BSD-2 code requires
+  carrying the notice.
 
 ## References
 
-- `jac/jaclang/compiler/passes/native/na_compile_pass.jac`, `.../impl/na_compile_pass.impl.jac` -- current binding usage
-- `jac/jaclang/compiler/passes/native/wasm_build.jac` -- second binding consumer
-- `jac/jaclang/compiler/passes/native/na_ir_gen_pass*`, `compiler/targets/abi.jac`, `primitives_native.jac` -- `llvmlite.ir` consumers (P3 surface)
-- `jac/jaclang/jac0core/interop_bridge.jac` -- single `add_symbol` LLVM touchpoint
-- `jac/jaclang/jac0core/codeinfo.jac` -- `ModuleRef` / `ExecutionEngine` type imports
-- `jac/jaclang/compiler/passes/native/{elf,macho,pe,wasm}_linker*` -- `emit_object` byte consumers (unaffected)
-- `jac/jac.toml` -- the `llvmlite>=0.47.0` pin (leaves only after P3)
-- `jac/launcher/mkpayload.sh`, `jac/build.zig`, `jac/launcher/launcher.zig` -- payload + binary build (P2)
-- LLVM `llvm-c/*.h` -- the stable C API (Option B); numba/llvmlite `ffi/*` -- reference only
+- `_planning/llvmlite/` -- upstream checkout: `ir/*.py` (4,424 LOC, py2jac in), `binding/*.py` (4,358 LOC, py2jac in), `ffi/*.cpp` (4,447 LOC, Zig-compiled shim), `ffi/CMakeLists.txt` (LLVM component list)
+- `jac/jaclang/compiler/passes/native/na_compile_pass.jac` + `impl/` -- binding consumer; `enable_jit_events` at `impl/na_compile_pass.impl.jac:262`
+- `jac/jaclang/compiler/passes/native/na_ir_gen_pass*`, `compiler/targets/abi.jac`, `primitives_native.jac` -- `llvmlite.ir` consumers
+- `jac/jaclang/jac0core/interop_bridge.jac` (single `add_symbol`), `codeinfo.jac` (`ModuleRef`/`ExecutionEngine`)
+- `jac/launcher/payload.zig:330-332` (payload install), `jac/jac.toml:10` (pin), `jac/build.zig`, `jac/launcher/launcher.zig` (in-process libpython dlopen)
+- `jac py2jac <file.py>` -- the Python->Jac translator (`cli/commands/transform.jac` -> `PyastBuildPass`)
