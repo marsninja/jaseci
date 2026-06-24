@@ -698,33 +698,57 @@ impl MicroserviceGateway.setup -> FastAPI {
         svc_label: str = "__unmatched__";
         try {
             resp: Response | None = None;
-            if path == "/healthz/live" {
-                # K8s livenessProbe target. Always 200 if dispatcher runs.
-                svc_label = "__health_live__";
-                resp = gw.handle_health_live();
-            } elif path == "/healthz/ready" {
-                # K8s readinessProbe target. 503 during drain so kube-proxy
-                # removes us from Endpoints before in-flight requests
-                # finish; pair with preStop + terminationGracePeriodSeconds.
-                svc_label = "__health_ready__";
-                resp = gw.handle_health_ready();
-            } elif path == "/health" or path == "/healthz" {
-                # Backward-compat aliases. /healthz used to be the
-                # combined probe target; now /healthz/live + /ready
-                # serve K8s and /healthz keeps the registry-summary view
-                # for humans / dashboards. /health is the legacy alias.
-                svc_label = "__health__";
-                resp = gw.handle_health();
-            } elif path == "/metrics" {
-                svc_label = "__metrics__";
-                resp = gw.handle_metrics();
-            } elif path == "/openapi.json" {
-                svc_label = "__openapi__";
-                resp = await gw.handle_openapi();
-            } elif path == "/docs" {
-                svc_label = "__docs__";
-                resp = gw.handle_docs();
-            } elif path == "/admin" or path.startswith("/admin/") {
+            # Delegate the routing decision to the pure dispatch port. It
+            # encodes the canonical order (builtin exact -> admin -> service
+            # proxy by longest prefix -> builtin passthrough -> static) once,
+            # so the embedded and process gateways stay in lockstep. The
+            # handlers below are unchanged; only the *which-handler* choice
+            # moves into classify_route.
+            import from jac_scale.runtime.gateway.dispatch {
+                classify_route,
+                ROUTE_BUILTIN,
+                ROUTE_ADMIN,
+                ROUTE_PROXY
+            }
+            service_prefixes: list = [
+                e.prefix for e in gw.registry.entries.values()
+            ];
+            decision = classify_route(path, service_prefixes);
+
+            if decision.kind == ROUTE_BUILTIN {
+                # Builtin exact paths. classify_route gated us into this
+                # branch; the sub-routing (live vs ready vs health vs
+                # metrics vs openapi vs docs) is kept here, on the raw
+                # path, exactly as before.
+                if path == "/healthz/live" {
+                    # K8s livenessProbe target. Always 200 if dispatcher runs.
+                    svc_label = "__health_live__";
+                    resp = gw.handle_health_live();
+                } elif path == "/healthz/ready" {
+                    # K8s readinessProbe target. 503 during drain so
+                    # kube-proxy removes us from Endpoints before in-flight
+                    # requests finish; pair with preStop +
+                    # terminationGracePeriodSeconds.
+                    svc_label = "__health_ready__";
+                    resp = gw.handle_health_ready();
+                } elif path == "/health" or path == "/healthz" {
+                    # Backward-compat aliases. /healthz used to be the
+                    # combined probe target; now /healthz/live + /ready
+                    # serve K8s and /healthz keeps the registry-summary view
+                    # for humans / dashboards. /health is the legacy alias.
+                    svc_label = "__health__";
+                    resp = gw.handle_health();
+                } elif path == "/metrics" {
+                    svc_label = "__metrics__";
+                    resp = gw.handle_metrics();
+                } elif path == "/openapi.json" {
+                    svc_label = "__openapi__";
+                    resp = await gw.handle_openapi();
+                } elif path == "/docs" {
+                    svc_label = "__docs__";
+                    resp = gw.handle_docs();
+                }
+            } elif decision.kind == ROUTE_ADMIN {
                 # A-05c: when the admin JSON API has been installed,
                 # JFastApiServer has registered FastAPI routes for
                 # /admin/login, /admin/me, /admin/users, etc., plus a
@@ -746,32 +770,41 @@ impl MicroserviceGateway.setup -> FastAPI {
                     admin_resp = not_found(path);
                 }
                 resp = admin_resp;
-            } else {
-                # Prefix-match first so we can label the service name on
-                # proxy hits even before handle_proxy gets the Response.
+            } elif decision.kind == ROUTE_PROXY {
+                # Service proxy: classify_route picked the longest matching
+                # service prefix. We still call match_route to get the
+                # ServiceEntry (and its name for the metric label) - same
+                # registry, same match - so proxy behavior is byte-for-byte
+                # what it was.
                 matched = gw.registry.match_route(path);
                 if matched {
                     svc_label = matched.name;
                     resp = await gw.handle_proxy(request, path);
                 }
-                if resp is None {
-                    builtin = await gw.handle_builtin_passthrough(request, path);
-                    if builtin is not None {
-                        svc_label = "__builtin__";
-                        resp = builtin;
-                    }
+            }
+
+            # Fallthrough cascade. For ROUTE_PASSTHROUGH / ROUTE_STATIC (and
+            # for any builtin/proxy branch that produced no response - e.g.
+            # an unhealthy proxy that returns None, or a normalized-only
+            # builtin path) we run the same passthrough -> static -> 404
+            # chain the gateway always has.
+            if resp is None {
+                builtin = await gw.handle_builtin_passthrough(request, path);
+                if builtin is not None {
+                    svc_label = "__builtin__";
+                    resp = builtin;
                 }
-                if resp is None {
-                    static_resp = gw.handle_static(request, path);
-                    if static_resp is not None {
-                        svc_label = "__static__";
-                        resp = static_resp;
-                    }
+            }
+            if resp is None {
+                static_resp = gw.handle_static(request, path);
+                if static_resp is not None {
+                    svc_label = "__static__";
+                    resp = static_resp;
                 }
-                if resp is None {
-                    import from jac_scale.runtime.context.errors { not_found }
-                    resp = not_found(path);
-                }
+            }
+            if resp is None {
+                import from jac_scale.runtime.context.errors { not_found }
+                resp = not_found(path);
             }
             # Echo trace id so clients can correlate and our e2e can
             # verify end-to-end propagation across the gateway hop.

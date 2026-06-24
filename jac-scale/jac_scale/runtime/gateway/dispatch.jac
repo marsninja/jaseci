@@ -3,7 +3,8 @@
 Both the embedded and the process gateway run the same decision to pick where a
 request goes, in this order:
 
-  1. builtin exact paths   (/healthz/*, /health, /metrics, /openapi.json, /docs)
+  1. builtin exact paths   (/healthz/*, /health, /healthz, /metrics,
+                            /openapi.json, /docs)
   2. admin                 (/admin, /admin/*)
   3. service proxy         longest service-prefix match -> that service
   4. builtin passthrough   (/walker, /function, /user, ... fan-out)
@@ -19,6 +20,7 @@ glob _BUILTIN_EXACT: set[str] = {
          "/healthz/live",
          "/healthz/ready",
          "/health",
+         "/healthz",
          "/metrics",
          "/openapi.json",
          "/docs"
