@@ -1043,6 +1043,35 @@ test "chess play random moves stress" {
     );
 }
 
+# --- TestNativeClassName (issue #6930 workstream A2) ---
+test "class name: __class__.__name__ is polymorphic over subclasses" {
+    # `kind` is defined only on the base `Widget`, so a subclass instance must
+    # recover its own runtime class name through the vtable, not freeze to the
+    # declaring class. Before A2 these reads E5090'd ("attribute access
+    # '__name__'"); now they lower to the per-class name.
+    (eng, _) = compile_native("class_name.na.jac");
+    bk = get_func(eng, "button_kind", ctypes.c_char_p);
+    sk = get_func(eng, "slider_kind", ctypes.c_char_p);
+    wk = get_func(eng, "widget_kind", ctypes.c_char_p);
+    assert bk() == b"Button";
+    assert sk() == b"Slider";
+    assert wk() == b"Widget";
+}
+
+test "class name: type(self).__name__ matches __class__.__name__" {
+    (eng, _) = compile_native("class_name.na.jac");
+    f = get_func(eng, "button_kind_via_type", ctypes.c_char_p);
+    assert f() == b"Button";
+}
+
+test "class name: vtable-less class lowers to a constant name" {
+    # `Lone` has no parents and no subclasses, so it carries no vtable; the
+    # access lowers to a constant load rather than a vtable read.
+    (eng, _) = compile_native("class_name.na.jac");
+    f = get_func(eng, "lone_kind", ctypes.c_char_p);
+    assert f() == b"Lone";
+}
+
 # --- TestNativeDicts ---
 test "dicts dict new empty" {
     (eng, _) = compile_native("dicts_sets.na.jac");
