@@ -104,6 +104,7 @@ nav:
       - UniIR Nodes: "internals/uniir_node.md"
       - Compiler Architecture: "internals/compiler_architecture.md"
       - Cross-Codespace Interop: "internals/interop.md"
+      - Decoupling na from llvmlite: "internals/llvmlite_decoupling.md"
 
   - Ask Jac GPT ✨: https://jac-gpt.jaseci.org
 
