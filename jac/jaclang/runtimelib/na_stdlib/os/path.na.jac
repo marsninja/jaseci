@@ -7,6 +7,15 @@ module through the shared bundled-stdlib resolver; on the sv/Python pathway
 the identical import binds CPython's real `os.path` (posixpath). The two are
 held congruent by the tri-backend equivalence suite (prim_ospath.jac).
 
+WARNING (sv/na congruence is POSIX-only): CPython's `os.path` is `posixpath`
+on POSIX hosts but `ntpath` on Windows. This module implements `posixpath`
+semantics unconditionally, so on a Windows native target (`nacompile --target
+windows`) `import from os.path` would resolve here and silently diverge from
+the sv pathway's `ntpath` (backslash separators, drive letters, ...). The
+congruence guarantee therefore holds on POSIX targets (Linux/macOS) only; a
+bundled `ntpath` plus platform-aware dispatch for Windows native is tracked as
+a follow-up under #6940.
+
 These are the pure-string POSIX path helpers — they mirror CPython's
 `posixpath` byte-for-byte, including the `normpath`/`split`/`splitext` edge
 cases (collapsed slashes, `..` resolution, leading-dot filenames). Functions
