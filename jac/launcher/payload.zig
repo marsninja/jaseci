@@ -37,6 +37,7 @@ const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const flate = std.compress.flate;
 const zstd = std.compress.zstd;
+const xz = std.compress.xz;
 const Dir = Io.Dir;
 const runtime = @import("runtime.zig");
 
@@ -56,7 +57,15 @@ const TYPESHED_VENDOR = "jaclang/vendor/typeshed";
 
 const MAX_PATH = Dir.max_path_bytes;
 
-const Cmd = enum { @"fetch-pbs", @"fetch-typeshed", mkpayload, @"typeshed-sha" };
+const Cmd = enum { @"fetch-pbs", @"fetch-typeshed", @"fetch-llvm", mkpayload, @"typeshed-sha" };
+
+// LLVM release whose static archives the LLVMPY_* shim (jac/native) links
+// against. Must match the version the shim source (llvmlite 0.47.0) targets.
+const LLVM_TAG = "llvmorg-20.1.8";
+const LLVM_DIRNAME = "LLVM-20.1.8-Linux-X64";
+const LLVM_ASSET = LLVM_DIRNAME ++ ".tar.xz";
+const LLVM_BASE = "https://github.com/llvm/llvm-project/releases/download";
+const LLVM_SHA256 = "1ead36b3dfcb774b57be530df42bec70ab2d239fbce9889447c7a29a4ddc1ae6";
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
@@ -79,6 +88,10 @@ pub fn main(init: std.process.Init) !void {
         .@"fetch-pbs" => {
             if (n < 4) die("usage: payload fetch-pbs <os-arch> <dest-dir>", .{});
             try fetchPbs(io, gpa, a, argv[2], argv[3]);
+        },
+        .@"fetch-llvm" => {
+            if (n < 3) die("usage: payload fetch-llvm <dest-dir>", .{});
+            try fetchLlvm(io, gpa, a, argv[2]);
         },
         .@"fetch-typeshed" => {
             if (n < 3) die("usage: payload fetch-typeshed <repo-root>", .{});
@@ -170,6 +183,52 @@ fn fetchPbs(io: Io, gpa: Allocator, a: Allocator, osarch: []const u8, dest: []co
 
     if (!fileExists(io, marker)) die("fetch-pbs: extract produced no PYTHON.json", .{});
     log("fetch-pbs: ready at {s}/python", .{dest});
+}
+
+// =============================================================== fetch-llvm ===
+
+/// Download + verify + extract the pinned LLVM release into <dest>/LLVM-...-X64.
+/// build.zig points -Dllvm-dir at that tree; jacllvm links its static archives
+/// into the LLVMPY_* shim. Idempotent (skips if already extracted). Mirrors
+/// fetch-pbs, but the LLVM asset is .tar.xz rather than .tar.zst.
+fn fetchLlvm(io: Io, gpa: Allocator, a: Allocator, dest: []const u8) !void {
+    const marker = try std.fmt.allocPrint(a, "{s}/{s}/lib/libLLVMCore.a", .{ dest, LLVM_DIRNAME });
+    if (fileExists(io, marker)) {
+        log("fetch-llvm: already present at {s}/{s}", .{ dest, LLVM_DIRNAME });
+        return;
+    }
+
+    const url = try std.fmt.allocPrint(a, "{s}/{s}/{s}", .{ LLVM_BASE, LLVM_TAG, LLVM_ASSET });
+    log("fetch-llvm: downloading {s} (~1.9 GB, one-time)", .{LLVM_ASSET});
+    const tarxz = try httpGetAlloc(io, gpa, url);
+    defer gpa.free(tarxz);
+
+    // The static archives become host LLVM linked into the shipped shim, so a
+    // swapped/MITM'd asset must not slip through.
+    const actual = sha256Hex(tarxz);
+    if (!std.mem.eql(u8, &actual, LLVM_SHA256)) {
+        die("fetch-llvm: checksum mismatch for {s}\n  expected {s}\n  actual   {s}", .{ LLVM_ASSET, LLVM_SHA256, &actual });
+    }
+
+    try Dir.cwd().createDirPath(io, dest);
+    var ddir = try Dir.cwd().openDir(io, dest, .{});
+    defer ddir.close(io);
+
+    var src = Io.Reader.fixed(tarxz);
+    const buf = try gpa.alloc(u8, 1 << 20);
+    defer gpa.free(buf);
+    var dx = xz.Decompress.init(&src, gpa, buf) catch |err|
+        die("fetch-llvm: xz init failed: {s}", .{@errorName(err)});
+    // The xz/tar stream can report a benign tail error (trailing padding/index)
+    // after every real entry is already written, so judge success by the marker
+    // -- mirrors how the precompiler/fetch-pbs validate by output, not exit code.
+    std.tar.extract(io, ddir, &dx.reader, .{ .mode_mode = .executable_bit_only, .strip_components = 0 }) catch |err| {
+        if (!fileExists(io, marker)) die("fetch-llvm: extract failed: {s}", .{@errorName(err)});
+        log("fetch-llvm: tolerated benign post-extract error: {s}", .{@errorName(err)});
+    };
+
+    if (!fileExists(io, marker)) die("fetch-llvm: extract produced no libLLVMCore.a", .{});
+    log("fetch-llvm: ready at {s}/{s}", .{ dest, LLVM_DIRNAME });
 }
 
 fn pbsPlatform(osarch: []const u8) ?[]const u8 {

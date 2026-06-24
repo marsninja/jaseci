@@ -23,6 +23,10 @@
 
 const std = @import("std");
 
+// Where `zig build fetch-llvm` extracts the pinned LLVM (see payload.zig
+// LLVM_DIRNAME); the default -Dllvm-dir for the jacllvm shim.
+const LLVM_CACHE_DIR = ".llvm-build/LLVM-20.1.8-Linux-X64";
+
 pub fn build(b: *std.Build) void {
     // Build the launcher for a BASELINE CPU of the host arch, not the build
     // machine's native CPU. The `jac` binary is distributed -- and in CI it is
@@ -83,6 +87,17 @@ pub fn build(b: *std.Build) void {
         fetch_ts_only.has_side_effects = true;
         b.step("fetch-typeshed", "Fetch the pinned typeshed stdlib stubs into the checkout")
             .dependOn(&fetch_ts_only.step);
+    }
+
+    // Standalone: download + extract the pinned LLVM for the jacllvm shim into
+    // .llvm-build/ (one-time, ~1.9 GB). After this, a plain `zig build` picks it
+    // up via LLVM_CACHE_DIR and ships the wheel-free binary.
+    {
+        const fetch_llvm = b.addRunArtifact(tool);
+        fetch_llvm.addArgs(&.{ "fetch-llvm", b.pathFromRoot(".llvm-build") });
+        fetch_llvm.has_side_effects = true;
+        b.step("fetch-llvm", "Download + extract the pinned LLVM for the wheel-free jacllvm shim")
+            .dependOn(&fetch_llvm.step);
     }
 
     const osarch = osArchString(target.result) orelse {
@@ -194,8 +209,15 @@ fn addTreeInputs(b: *std.Build, run: *std.Build.Step.Run, sub_path: []const u8) 
 /// future `fetch-llvm` step downloads it at a pinned version (mirrors fetch-pbs).
 /// The Jac binding loads the result via ctypes (JAC_LLVM_SHIM / payload path).
 fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) ?*std.Build.Step.Compile {
+    // -Dllvm-dir wins; otherwise use the fetch-llvm cache (.llvm-build). If
+    // neither has LLVM, return null so the build keeps the llvmlite wheel -- a
+    // non-breaking default; run `zig build fetch-llvm` once to go wheel-free.
     const llvm_dir = b.option([]const u8, "llvm-dir",
-        "Path to an extracted LLVM 20.1.x prebuilt (lib/*.a + include/); enables the jacllvm shim step") orelse return null;
+        "Extracted LLVM 20.1.x dir (default: the fetch-llvm cache .llvm-build/...)") orelse LLVM_CACHE_DIR;
+    const io = b.graph.io;
+    const libdir = b.fmt("{s}/lib", .{llvm_dir});
+    var dir = b.build_root.handle.openDir(io, libdir, .{ .iterate = true }) catch return null;
+    defer dir.close(io);
 
     const mod = b.createModule(.{
         .target = target,
@@ -222,11 +244,6 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
 
     // Link every LLVM static archive; the linker drops what the shim never
     // references (host-only pruning of the archive set is a size follow-up).
-    const libdir = b.fmt("{s}/lib", .{llvm_dir});
-    const io = b.graph.io;
-    var dir = b.build_root.handle.openDir(io, libdir, .{ .iterate = true }) catch |err|
-        std.debug.panic("jacllvm: cannot open {s}: {s}", .{ libdir, @errorName(err) });
-    defer dir.close(io);
     var it = dir.iterate();
     while (it.next(io) catch @panic("jacllvm: lib iterate failed")) |entry| {
         if (entry.kind != .file) continue;

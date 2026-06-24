@@ -15,28 +15,37 @@ wheel.
 - These `.cpp` files are kept verbatim (numba/llvmlite v0.47.0) so they track
   upstream llvmlite for a given LLVM version (currently **LLVM 20.1.x**).
 
-## Building
+## Building (wheel-free binary)
 
 ```bash
-# 1. Get a matching LLVM (20.1.x) prebuilt with static archives + headers:
-#    https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-Linux-X64.tar.xz
-#    (extract somewhere; it ships lib/libLLVM*.a + include/)
-# 2. Compile the shim + statically link LLVM into libjacllvm.so:
-cd jac && zig build jacllvm -Dllvm-dir=/path/to/LLVM-20.1.8-Linux-X64
-#    -> jac/zig-out/lib/libjacllvm.so  (312 LLVMPY_* symbols)
+cd jac
+zig build fetch-llvm   # one-time: download + verify + extract pinned LLVM 20.1.x
+                       # into .llvm-build/ (pure Zig, ~1.9 GB)
+zig build              # auto-detects .llvm-build, compiles the shim, statically
+                       # links LLVM, and packs libjacllvm.so into the jac binary
+                       # (no llvmlite wheel). Without fetch-llvm, falls back to
+                       # bundling the wheel -- a non-breaking default.
 ```
 
-The Jac binding finds the shim via `JAC_LLVM_SHIM=/path/to/libjacllvm.so` (falls
-back to the llvmlite wheel's `.so` on `sys.path` while the wheel is still
-bundled).
+Just the shim, against an explicit LLVM dir:
 
-**Remaining to fully retire the wheel** (each needs a heavier build op):
+```bash
+zig build jacllvm -Dllvm-dir=/path/to/LLVM-20.1.8-Linux-X64
+#  -> jac/zig-out/lib/libjacllvm.so  (312 LLVMPY_* symbols)
+```
 
-- a pure-Zig `fetch-llvm` step (pinned download, mirrors `fetch-pbs`) so the
-  build is reproducible without a manual `-Dllvm-dir`;
-- payload assembly builds `jacllvm` and drops the `llvmlite` pip-install
-  (`launcher/payload.zig`) + the `jac.toml` pin;
-- (optional) link the shim into the `jac` executable and load via
-  `ctypes.CDLL(None)` for a true single-binary, instead of the sidecar `.so`.
+The shim rides in the payload trailer exactly like the bundled libpython:
+packed into the single `jac` binary, extracted at first run, and ctypes-loaded
+by the Jac binding (resolution order: `JAC_LLVM_SHIM`, the payload's
+`libjacllvm.so`, then the llvmlite wheel as a fallback).
+
+**Notes / size follow-ups:**
+
+- The full LLVM release links all targets; a host-only pruned build (or a
+  pruned archive set) would shrink the shim from ~134 MB.
+- `--skip-precompile` (mkpayload) skips the JIR precompile for fast link
+  validation; shipping builds keep it for fast first-run startup.
+- The `jac.toml` `llvmlite` pin remains for the wheel fallback path; it can be
+  dropped once `fetch-llvm` is the guaranteed default.
 
 See `docs/docs/internals/llvmlite_decoupling.md` and issue #6925.
