@@ -59,26 +59,21 @@ def _scale_pre_hook(context: HookContext) -> None {
         filename = context.get_arg("filename");
         # Discover when unset (to decide whether to enter) or when enabled
         # but no routes were declared (to fill defaults). Explicit routes win.
-        discovered: dict[str, str] = {};
         if filename and ((enabled is None) or (not ms_config.get("routes", {}))) {
             import from jac_scale.runtime.discovery.discovery { discover_sv_services }
-            discovered = discover_sv_services(filename);
-        }
-        import from jac_scale.runtime.discovery.discovery { should_enter_local_ms }
-        if should_enter_local_ms(
-            enabled, is_sv_sibling, scale_flag, bool(discovered)
-        ) {
-            auto_detected: bool = enabled is None;
             if not ms_config.get("routes", {}) {
-                ms_config["routes"] = discovered;
+                ms_config["routes"] = discover_sv_services(filename);
             }
-            if auto_detected {
+        }
+        # The LocalRealizer owns the decide-and-dispatch (via the planner): it
+        # serves a microservice fleet or declines so core serves the monolith.
+        import from jac_scale.runtime.realizer.local_realizer { LocalRealizer }
+        realizer = LocalRealizer(ms_config=ms_config);
+        if realizer.should_serve(enabled) {
+            if enabled is None {
                 _print_autodetect_banner(ms_config.get("routes", {}));
             }
-            import from jac_scale.runtime.orchestrator.orchestrator {
-                start_microservice_mode
-            }
-            start_microservice_mode(ms_config);
+            realizer.serve();
             context.set_data("cancel_execution", True);
             context.set_data("cancel_return_code", 0);
             return;
