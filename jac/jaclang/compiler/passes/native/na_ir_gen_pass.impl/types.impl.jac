@@ -719,13 +719,16 @@ impl NaIRGenPass._try_resolve_field_type(var: uni.UniNode) -> tuple {
 
 """Whether a checker `TypeBase` is the sentinel `UnknownType` (an unresolved /
 typo'd type name). Distinguishes a real author error from a foreign type the
-backend simply cannot model (issue #6930, A3)."""
+backend simply cannot model (issue #6930, A3). If the type-system module can't
+be imported (a degraded environment that should never occur once the checker
+has stamped types), conservatively answer True so the type stays LOUD -- routed
+to the E2018/E5090 resolver -- rather than silently becoming an opaque slot."""
 impl NaIRGenPass._type_base_is_unknown(tb: any) -> bool {
     try {
         import from jaclang.compiler.type_system.types { UnknownType as _UnknownType }
         return isinstance(tb, _UnknownType);
     } except ImportError {
-        return False;
+        return True;
     }
 }
 

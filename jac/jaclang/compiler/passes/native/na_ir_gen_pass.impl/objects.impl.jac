@@ -989,6 +989,14 @@ impl NaIRGenPass._codegen_instantiation(
             if key_name is None or key_name not in field_indices {
                 continue;
             }
+            # Opaque foreign slots are null-only and outside the RC discipline
+            # (issue #6930, A3): never retain/store an explicitly-passed value
+            # here -- the zero-init pass nulls the slot, consistent with the
+            # defaults loop and the destructor. (Native code can only pass
+            # `None` for a foreign-typed field anyway.)
+            if key_name in opaque_fields {
+                continue;
+            }
             val = self._codegen_expr(param.value);
             if val is None {
                 # Empty dict/list literal returns None from _codegen_dict_val /
