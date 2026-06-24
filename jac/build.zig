@@ -261,7 +261,7 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
     const shim_flags = [_][]const u8{ "-std=c++17", "-fno-rtti", "-fno-exceptions", "-DNDEBUG" };
 
     const bin: std.Build.LazyPath = if (target.result.os.tag == .macos)
-        macosShim(b, &dir, llvm_dir, libdir, &shim_srcs, &shim_flags)
+        macosShim(b, target, optimize, &dir, llvm_dir, libdir, &shim_srcs, &shim_flags)
     else blk: {
         const mod = b.createModule(.{
             .target = target,
@@ -324,6 +324,8 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
 /// (matching the CMake APPLE branch). Returns the emitted dylib as a LazyPath.
 fn macosShim(
     b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
     dir: *std.Io.Dir,
     llvm_dir: []const u8,
     libdir: []const u8,
@@ -333,6 +335,20 @@ fn macosShim(
     const io = b.graph.io;
     const cc = b.addSystemCommand(&.{"c++"});
     cc.addArg("-dynamiclib");
+    // Target the resolved arch explicitly rather than the host c++'s default, so a
+    // Rosetta/emulated shell can't produce an x86_64 dylib against arm64 archives.
+    cc.addArgs(&.{ "-arch", switch (target.result.cpu.arch) {
+        .aarch64 => "arm64",
+        .x86_64 => "x86_64",
+        else => @panic("jacllvm: unsupported macOS arch for the c++ shim link"),
+    } });
+    // Respect -Doptimize the way the Linux (Zig addLibrary) path does.
+    cc.addArg(switch (optimize) {
+        .Debug => "-O0",
+        .ReleaseSafe => "-O2",
+        .ReleaseFast => "-O3",
+        .ReleaseSmall => "-Oz",
+    });
     // Match the CMake visibility preset: hide everything, the LLVMPY_* API is
     // annotated default-visibility (native/core.h API_EXPORT) so it stays exported.
     cc.addArgs(&.{ "-fvisibility=hidden", "-fvisibility-inlines-hidden" });
@@ -366,7 +382,11 @@ fn macosShim(
     // LLVM's system deps. zstd comes from Homebrew (not on the default search
     // path); z/xml2 are in the macOS SDK, and clang++ links libc++ itself.
     cc.addArgs(&.{ "-lz", "-lxml2" });
-    cc.addArgs(&.{ "-I/opt/homebrew/opt/zstd/include", "-L/opt/homebrew/opt/zstd/lib", "-lzstd" });
+    // Homebrew's prefix is /opt/homebrew on Apple Silicon, /usr/local on Intel;
+    // HOMEBREW_PREFIX overrides both for a custom install.
+    const brew = b.graph.environ_map.get("HOMEBREW_PREFIX") orelse
+        (if (target.result.cpu.arch == .aarch64) "/opt/homebrew" else "/usr/local");
+    cc.addArgs(&.{ b.fmt("-I{s}/opt/zstd/include", .{brew}), b.fmt("-L{s}/opt/zstd/lib", .{brew}), "-lzstd" });
     cc.addArgs(&.{ "-Wl,-exported_symbol,_LLVMPY_*", "-Wl,-install_name,@rpath/libjacllvm.dylib" });
     cc.addArg("-o");
     return cc.addOutputFileArg("libjacllvm.dylib");
