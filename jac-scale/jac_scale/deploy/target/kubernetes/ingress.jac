@@ -5,7 +5,9 @@ import bcrypt;
 import from jac_scale._optdeps.kubernetes { client, ApiException }
 import from jac_scale.deploy.target.kubernetes.kubernetes_config { KubernetesConfig }
 import from jac_scale.observability.logger { Logger }
-import from jac_scale.deploy.target.kubernetes.utils.kubernetes_utils { delete_if_exists }
+import from jac_scale.deploy.target.kubernetes.utils.kubernetes_utils {
+    delete_if_exists
+}
 import from jac_scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
 
 """Deploys and manages an app-scoped NGINX Ingress controller plus Ingress routing rules.

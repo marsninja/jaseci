@@ -11,9 +11,7 @@ headers. Identity values should be the normalized form (lowercase, trimmed).
 import logging;
 import from datetime { UTC, datetime }
 import from typing { Any }
-import from jac_scale.runtime.middleware.rate_limit {
-    _resolve_client_ip as client_ip
-}
+import from jac_scale.runtime.middleware.rate_limit { _resolve_client_ip as client_ip }
 
 glob _audit_logger = logging.getLogger('jac_scale.identity.audit');
 

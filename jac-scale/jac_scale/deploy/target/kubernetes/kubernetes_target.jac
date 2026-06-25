@@ -4,10 +4,7 @@ import from jaclang.runtimelib.client { BUN_VERSION }
 import from jac_scale.deploy.target.deployment_target { DeploymentTarget }
 import from jac_scale.config.app_config { AppConfig }
 import from jac_scale.models.deployment_result { DeploymentResult }
-import from jac_scale.models.resource_status {
-    ResourceStatus,
-    ResourceStatusInfo
-}
+import from jac_scale.models.resource_status { ResourceStatus, ResourceStatusInfo }
 import from jac_scale.observability.logger { Logger }
 import from jac_scale.deploy.target.kubernetes.kubernetes_config { KubernetesConfig }
 import from jac_scale.injector.bundle { JAC_ZIG_VERSION }
@@ -41,7 +38,11 @@ import from jac_scale.deploy.database.factory { DatabaseProviderFactory }
 import from jac_scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jac_scale.deploy.target.kubernetes.ingress { IngressDeployer }
 import from jac_scale.deploy.autoscale.factory { AutoscalerFactory }
-import from jac_scale.deploy.autoscale.autoscaler { AutoscalerSpec, Trigger, TriggerAuth }
+import from jac_scale.deploy.autoscale.autoscaler {
+    AutoscalerSpec,
+    Trigger,
+    TriggerAuth
+}
 import time;
 
 """Kubernetes deployment target implementation."""
@@ -1472,10 +1473,7 @@ obj KubernetesTarget(DeploymentTarget) {
                 command=command,
                 working_dir=self.k8s_config.app_mount_path,
                 volume_mounts=[
-                    {
-                        'name': 'app-code',
-                        'mountPath': self.k8s_config.app_mount_path
-                    },
+                    {'name': 'app-code', 'mountPath': self.k8s_config.app_mount_path},
                     {'name': 'tmp', 'mountPath': '/tmp'}
                 ],
                 secret_ref_name=secret_ref_name,

@@ -1,9 +1,6 @@
 """MongoDB PersistenceBackend Implementation."""
 
-import from jac_scale.runtime.context.tracing {
-    start_memory_span,
-    end_memory_span
-}
+import from jac_scale.runtime.context.tracing { start_memory_span, end_memory_span }
 import from jaclang.runtimelib.exceptions { WriteConflict }
 
 """Post-initialization: connect to MongoDB and load DB-resident aliases.

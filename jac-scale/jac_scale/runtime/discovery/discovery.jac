@@ -34,7 +34,10 @@ gateway can route to.
 import jaclang.jac0core.unitree as uni;
 import from pathlib { Path }
 import from jaclang.jac0core.parser { parse }
-import from jac_scale.runtime.discovery.route_policy { derive_route_prefix, guard_route_name }
+import from jac_scale.runtime.discovery.route_policy {
+    derive_route_prefix,
+    guard_route_name
+}
 
 # The parser tags EVERY `import` with `code_context == SERVER` (that is the
 # default code context), so code_context cannot tell an `sv import` from a plain

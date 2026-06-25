@@ -61,13 +61,11 @@ def is_reserved(module_name: str) -> bool {
 Called at discovery time so the collision surfaces with an actionable message
 instead of silently shadowing a builtin path once the gateway is serving.
 """
-def guard_route_name(module_name: str) -> None {
+def guard_route_name(module_name: str) {
     if is_reserved(module_name) {
         slug = service_slug(module_name);
         raise ValueError(
-            f"service '{module_name}' derives the route '/{slug}', which collides "
-            + f"with a builtin gateway segment. Rename the service module so its "
-            + f"route does not shadow a builtin path."
+            f"service '{module_name}' derives the route '/{slug}', which collides " + f"with a builtin gateway segment. Rename the service module so its " + f"route does not shadow a builtin path."
         );
     }
 }

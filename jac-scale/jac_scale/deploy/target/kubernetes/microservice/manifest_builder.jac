@@ -109,8 +109,7 @@ obj MicroserviceManifestBuilder {
         self._bundle_object_key = injector._object_key;
         bundle["injector"] = injector;
         for manifest in injector.extra_manifests(
-            k8s_safe_name(self.k8s_config.app_name),
-            self.k8s_config.namespace
+            k8s_safe_name(self.k8s_config.app_name), self.k8s_config.namespace
         ) {
             if manifest.get("kind") == "PersistentVolumeClaim" {
                 pvcs_from_injector = bundle.get("pvcs", {});
@@ -897,10 +896,7 @@ obj MicroserviceManifestBuilder {
             # cloned checkout; plugins live in the binary's own resolver, so
             # no PYDEPS_DIR / PYTHONPATH override.
             env_list.append(
-                {
-                    "name": "PATH",
-                    "value": f"{JAC_BIN_DIR}:/usr/local/bin:/usr/bin:/bin"
-                }
+                {"name": "PATH", "value": f"{JAC_BIN_DIR}:/usr/local/bin:/usr/bin:/bin"}
             );
         } else {
             env_list.append({"name": "PYTHONPATH", "value": PYDEPS_DIR});

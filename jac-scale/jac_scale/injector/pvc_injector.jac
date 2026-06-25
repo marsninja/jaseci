@@ -73,10 +73,7 @@ volume and installs jac there so the main container starts fast."""
 def build_pvc_init_container(base_image: str, bundle_path: str) -> dict[str, any] {
     install = " ".join([f"'{spec}'" for spec in pinned_install_specs()]);
     script = (
-        "set -eu; "
-        + f"tar xzf {bundle_path} -C {APP_MOUNT_PATH}; "
-        + f"{ensure_jac_toml_cmd()}; "
-        + f"pip install --no-cache-dir --target={PYDEPS_DIR} {install}"
+        "set -eu; " + f"tar xzf {bundle_path} -C {APP_MOUNT_PATH}; " + f"{ensure_jac_toml_cmd()}; " + f"pip install --no-cache-dir --target={PYDEPS_DIR} {install}"
     );
     return {
         "name": "jac-pvc-bootstrap",
@@ -85,7 +82,11 @@ def build_pvc_init_container(base_image: str, bundle_path: str) -> dict[str, any
         "args": [script],
         "volumeMounts": [
             {"name": APP_VOLUME_NAME, "mountPath": APP_MOUNT_PATH},
-            {"name": BUNDLE_VOLUME_NAME, "mountPath": BUNDLE_MOUNT_PATH, "readOnly": True}
+            {
+                "name": BUNDLE_VOLUME_NAME,
+                "mountPath": BUNDLE_MOUNT_PATH,
+                "readOnly": True
+            }
         ]
     };
 }
@@ -112,7 +113,7 @@ obj PvcInjector(Injector) {
 
     """Pack the project, content-address it, and seed it onto the PVC. Records the
     object key for mutate_pod_spec(). The seed itself is deploy-time I/O."""
-    def prepare(app_name: str, namespace: str, project_dir: str) -> None {
+    def prepare(app_name: str, namespace: str, project_dir: str) {
         raw = pack_source(project_dir);
         digest = content_address(raw);
         self._object_key = bundle_object_key(app_name, digest);
@@ -126,10 +127,11 @@ obj PvcInjector(Injector) {
     manifest and bundle logic stays unit-testable without a cluster; covered by
     the k8s e2e.
     """
-    def _seed(app_name: str, namespace: str, raw: bytes) -> None {
+    def _seed(app_name: str, namespace: str, raw: bytes) {
         logger.info(
-            f"pvc-injector: publishing {len(raw)} bytes for app {app_name} "
-            + f"at {bundle_pvc_path(self._object_key)}"
+            f"pvc-injector: publishing {len(raw)} bytes for app {app_name} " + f"at {bundle_pvc_path(
+                self._object_key
+            )}"
         );
     }
 
@@ -150,7 +152,9 @@ obj PvcInjector(Injector) {
         );
 
         bundle_path = bundle_pvc_path(self._object_key);
-        init_containers: list[dict[str, any]] = list(pod_spec.get("initContainers", []));
+        init_containers: list[dict[str, any]] = list(
+            pod_spec.get("initContainers", [])
+        );
         init_containers.append(build_pvc_init_container(base_image, bundle_path));
         pod_spec["initContainers"] = init_containers;
 

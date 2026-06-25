@@ -1192,9 +1192,7 @@ impl JFastApiServer.init(
             reset_current_trace,
             ensure_trace_id
         }
-        import from jac_scale.runtime.context.log_emit {
-            install_structured_logging
-        }
+        import from jac_scale.runtime.context.log_emit { install_structured_logging }
         install_structured_logging();
 
         # O-02: configure tracing once (gated by tracing_installed), then
@@ -1286,8 +1284,6 @@ impl JFastApiServer.init(
 
     # P13: drain registered last -> outermost, so a 503 short-circuits
     # before JWT/context setup runs during graceful shutdown.
-    import from jac_scale.runtime.lifecycle.drain {
-        build_drain_middleware
-    }
+    import from jac_scale.runtime.lifecycle.drain { build_drain_middleware }
     self.app.middleware('http')(build_drain_middleware("service"));
 }

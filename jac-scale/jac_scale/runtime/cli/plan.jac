@@ -9,12 +9,10 @@ import yaml;
 import from typing { Any }
 import from jaclang.cli.console { console }
 import from jac_scale.config.app_config { AppConfig }
-import from jac_scale.deploy.target.kubernetes.microservice.manifest_builder { GATEWAY_NAME }
-import from jac_scale.runtime.cli.diagnostics {
-    Diagnostic,
-    PlanValidator,
-    has_errors
+import from jac_scale.deploy.target.kubernetes.microservice.manifest_builder {
+    GATEWAY_NAME
 }
+import from jac_scale.runtime.cli.diagnostics { Diagnostic, PlanValidator, has_errors }
 import from jac_scale.runtime.cli._narrow { dget, iget, lget, pod_spec, sget }
 
 

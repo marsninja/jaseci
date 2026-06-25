@@ -83,7 +83,9 @@ def _scale_pre_hook(context: HookContext) -> None {
     # --scale: the KubernetesRealizer owns target selection, config, dry-run,
     # TLS, and the deploy, setting the hook's cancel/return data.
     if scale_flag {
-        import from jac_scale.runtime.realizer.kubernetes_realizer { KubernetesRealizer }
+        import from jac_scale.runtime.realizer.kubernetes_realizer {
+            KubernetesRealizer
+        }
         KubernetesRealizer(ms_config=ms_config).realize(context);
     }
 }
@@ -219,6 +221,7 @@ class JacCmd {
                     help="Build the pod's `jac` binary from a cloned jaseci checkout (the branch's own jaclang) instead of the released installer",
                     short=""
                 ),
+
             ],
             pre_hook=_scale_pre_hook,
             source="jac-scale"
@@ -447,9 +450,7 @@ class JacCmd {
             source="jac-scale"
         )
         def scale_cmd(action: str, service_name: str = "", lines: int = 50) -> int {
-            import from jac_scale.runtime.orchestrator.orchestrator {
-                build_registry
-            }
+            import from jac_scale.runtime.orchestrator.orchestrator { build_registry }
             import from jac_scale.runtime.orchestrator.local_deployer { LocalDeployer }
 
             scale_config = get_scale_config();
@@ -470,7 +471,9 @@ class JacCmd {
             # Fill routes from auto-discovery (scanning the working directory)
             # when none are declared, matching what `jac start` does on launch.
             if not ms_config.get("routes", {}) {
-                import from jac_scale.runtime.discovery.discovery { discover_sv_services }
+                import from jac_scale.runtime.discovery.discovery {
+                    discover_sv_services
+                }
                 discovered = discover_sv_services(".");
                 if discovered {
                     ms_config["routes"] = discovered;

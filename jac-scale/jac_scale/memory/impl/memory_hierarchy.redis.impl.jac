@@ -1,9 +1,6 @@
 """Redis CacheBackend Implementation."""
 
-import from jac_scale.runtime.context.tracing {
-    start_memory_span,
-    end_memory_span
-}
+import from jac_scale.runtime.context.tracing { start_memory_span, end_memory_span }
 
 """Deserialize a cached doc and stamp the per-field hash snapshot, exactly
 like L3 loads do. An anchor entering L1 from L2 must be diffable by

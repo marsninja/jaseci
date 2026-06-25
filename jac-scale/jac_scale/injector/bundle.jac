@@ -102,7 +102,8 @@ def sanitized_jac_toml(base: Path) -> (str | None) {
             # inline comment (e.g. `[plugins.scale] # creds`) cannot smuggle the
             # section past the credential check.
             header = stripped.lstrip("[").split("]")[0].strip();
-            in_scale_section = header == "plugins.scale" or header.startswith("plugins.scale.");
+            in_scale_section = header == "plugins.scale"
+            or header.startswith("plugins.scale.");
             at_top_level = False;
             if in_scale_section {
                 continue;

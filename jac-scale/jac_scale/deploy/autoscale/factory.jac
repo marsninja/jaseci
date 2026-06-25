@@ -67,15 +67,11 @@ class AutoscalerFactory {
         }
         # Built-in engines
         if engine is None or engine == "hpa" {
-            import from jac_scale.deploy.autoscale.hpa_autoscaler {
-                HPAAutoscaler
-            }
+            import from jac_scale.deploy.autoscale.hpa_autoscaler { HPAAutoscaler }
             return HPAAutoscaler(logger=logger);
         }
         if engine == "keda" {
-            import from jac_scale.deploy.autoscale.keda_autoscaler {
-                KEDAAutoscaler
-            }
+            import from jac_scale.deploy.autoscale.keda_autoscaler { KEDAAutoscaler }
             return KEDAAutoscaler(logger=logger);
         }
         raise ValueError(

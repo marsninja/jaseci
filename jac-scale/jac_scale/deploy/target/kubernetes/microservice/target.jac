@@ -94,9 +94,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         # real cluster); the provisioning helper is idempotent for re-deploys.
         try {
             self._deploy_context = MicroserviceDatabaseProvisioner(
-                k8s_target=self,
-                logger=self.logger,
-                enabled=self.no_image
+                k8s_target=self, logger=self.logger, enabled=self.no_image
             ).provision(
                 app_name
             );
