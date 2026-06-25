@@ -620,7 +620,7 @@ obj _K8sStubMsCfg {
 
 test "ensure_sv_service registers DNS URL when in K8s mode" {
     import os;
-    import jac_scale.config_loader as cfg_mod;
+    import jac_scale.config.config_loader as cfg_mod;
     import from jac_scale.plugin { JacScalePlugin }
 
     orig_k8s_host = os.environ.get("KUBERNETES_SERVICE_HOST");

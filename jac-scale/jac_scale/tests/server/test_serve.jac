@@ -2252,7 +2252,7 @@ test "server startup - port fallback integration" {
 """Test that HealthCheckFilter is not attached by default (suppress_health_check_logs defaults to false)."""
 test "health check filter is disabled by default" {
     import logging;
-    import from jac_scale.config_loader { get_scale_config, reset_scale_config }
+    import from jac_scale.config.config_loader { get_scale_config, reset_scale_config }
     import from jac_scale.jserver.jfast_api { ConsoleLogHandler, HealthCheckFilter }
 
     reset_scale_config();

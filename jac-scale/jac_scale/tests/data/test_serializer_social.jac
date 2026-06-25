@@ -5,7 +5,7 @@ import from jaclang.runtimelib.serializer { Serializer }
 import from jac_scale.tests.fixtures.social_graph { User, Post, BuildGraph, QueryGraph }
 import from jac_scale.persistence.lib { kvstore }
 import from jac_scale.persistence.db { close_all_db_connections }
-import from jac_scale.config_loader { reset_scale_config }
+import from jac_scale.config.config_loader { reset_scale_config }
 import from testcontainers.mongodb { MongoDbContainer }
 import from uuid { uuid4 }
 import from jaclang.jac0core.archetype { NodeAnchor, EdgeAnchor, ObjectAnchor }

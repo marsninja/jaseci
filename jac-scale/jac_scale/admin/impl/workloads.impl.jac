@@ -90,7 +90,7 @@ monitoring rather than implying a transient outage.
 """
 def _unavailable_reason -> str {
     try {
-        import from jac_scale.config_loader { get_scale_config }
+        import from jac_scale.config.config_loader { get_scale_config }
         if not bool(get_scale_config().get_monitoring_config().get('enabled', False)) {
             return "Monitoring is disabled. Set [plugins.scale.monitoring] enabled = true in jac.toml and redeploy to see workload metrics.";
         }

@@ -1234,7 +1234,7 @@ obj _FakeScaleConfig {
 
 
 def _with_cors_config(cfg: dict, fn: object) -> object {
-    import jac_scale.config_loader as config_loader;
+    import jac_scale.config.config_loader as config_loader;
     orig = config_loader.get_scale_config;
     fake = _FakeScaleConfig(_cors=cfg);
     def fake_factory(project_dir: object = None) -> object {
@@ -1400,7 +1400,7 @@ obj _TimeoutStubCfg {
 
 test "http_forward_timeout precedence: per-service > global > default" {
     import from jac_scale.runtime.context.util { http_forward_timeout }
-    import jac_scale.config_loader as cfg_mod;
+    import jac_scale.config.config_loader as cfg_mod;
 
     original = getattr(cfg_mod, "get_scale_config");
     try {

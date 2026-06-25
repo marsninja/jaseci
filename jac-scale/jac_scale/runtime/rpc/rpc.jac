@@ -325,7 +325,7 @@ glob _SV_DEFAULT_RPC_TIMEOUT: float = 10.0;
 
 def _sv_rpc_timeout(module_name: str) -> float {
     try {
-        import from jac_scale.config_loader { get_scale_config }
+        import from jac_scale.config.config_loader { get_scale_config }
         ms_cfg = get_scale_config().get_microservices_config();
         svc_cfg = ms_cfg.get("services", {}).get(module_name, {});
         if "rpc_timeout" in svc_cfg {

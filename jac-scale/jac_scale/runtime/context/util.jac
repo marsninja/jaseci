@@ -127,7 +127,7 @@ read failure (e.g. no jac.toml in tests) falls through to the default.
 """
 def http_forward_timeout(service_name: str | None = None) -> float {
     try {
-        import from jac_scale.config_loader { get_scale_config }
+        import from jac_scale.config.config_loader { get_scale_config }
         ms_cfg = get_scale_config().get_microservices_config();
         if service_name {
             svc_cfg = ms_cfg.get("services", {}).get(service_name, {});

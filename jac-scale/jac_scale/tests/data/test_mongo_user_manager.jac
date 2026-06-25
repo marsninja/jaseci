@@ -2,7 +2,7 @@
 
 import os;
 import from jac_scale.identity.user_manager { JacScaleUserManager }
-import from jac_scale.config_loader { reset_scale_config }
+import from jac_scale.config.config_loader { reset_scale_config }
 
 """Test MongoDB user CRUD operations with testcontainers."""
 test "mongodb user operations" {

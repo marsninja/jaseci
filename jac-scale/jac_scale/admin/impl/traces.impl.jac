@@ -16,7 +16,7 @@ import from jac_scale.jserver.jserver {
     APIParameter,
     ParameterType
 }
-import from jac_scale.config_loader { get_scale_config }
+import from jac_scale.config.config_loader { get_scale_config }
 
 glob logger = logging.getLogger(__name__);
 

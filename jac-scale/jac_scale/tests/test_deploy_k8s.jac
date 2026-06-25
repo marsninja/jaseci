@@ -18,7 +18,7 @@ import from types { SimpleNamespace }
 
 import from jac_scale.config.app_config { AppConfig }
 import from jac_scale.models.deployment_result { DeploymentResult }
-import from jac_scale.config_loader { JacScaleConfig, get_scale_config }
+import from jac_scale.config.config_loader { JacScaleConfig, get_scale_config }
 import from jac_scale.deploy.target.factory { DeploymentTargetFactory }
 import from jac_scale.deploy.database.factory { DatabaseProviderFactory }
 import from jac_scale.observability.factory { UtilityFactory }

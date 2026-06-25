@@ -6,7 +6,7 @@ import from pathlib { Path }
 import from typing { Any }
 import from jac_scale.deploy.database.database_provider { DatabaseProvider }
 import from jac_scale.deploy.target.deployment_target { DeploymentTarget }
-import from jac_scale.config_loader { get_scale_config }
+import from jac_scale.config.config_loader { get_scale_config }
 
 glob logger = logging.getLogger(__name__),
      REDIS_ACLFILE_DIR = '/etc/redis-acl',

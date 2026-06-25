@@ -54,7 +54,7 @@ obj MicroserviceManifestBuilder {
             return self.microservices_config;
         }
         try {
-            import from jac_scale.config_loader { get_scale_config }
+            import from jac_scale.config.config_loader { get_scale_config }
             return get_scale_config().get_microservices_config();
         } except Exception {
             return {};

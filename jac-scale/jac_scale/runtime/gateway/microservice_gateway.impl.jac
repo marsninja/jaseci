@@ -651,7 +651,7 @@ impl MicroserviceGateway.setup -> FastAPI {
     import from jac_scale.runtime.middleware.metrics {
         build_gateway_metrics
     }
-    import from jac_scale.config_loader { get_scale_config }
+    import from jac_scale.config.config_loader { get_scale_config }
     mon_cfg = get_scale_config().get_monitoring_config();
     (self._metrics_registry, self._metrics_requests, self._metrics_duration) = (
         build_gateway_metrics(
@@ -867,7 +867,7 @@ impl MicroserviceGateway.setup -> FastAPI {
         )
     );
 
-    import from jac_scale.config_loader { get_scale_config }
+    import from jac_scale.config.config_loader { get_scale_config }
     ms_cfg = get_scale_config().get_microservices_config();
 
     # rate limit between drain and CORS. Preflights bypass the
@@ -915,7 +915,7 @@ impl MicroserviceGateway.setup -> FastAPI {
 can wrap `handle_exit` before the event loop starts."""
 impl MicroserviceGateway.start -> None {
     import from jac_scale.runtime.lifecycle.drain { install_signal_drain }
-    import from jac_scale.config_loader { get_scale_config }
+    import from jac_scale.config.config_loader { get_scale_config }
 
     if self.app is None {
         self.setup();

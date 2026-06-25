@@ -28,7 +28,7 @@ import from jac_scale.jserver.jserver {
     APIParameter,
     ParameterType
 }
-import from jac_scale.config_loader { get_scale_config }
+import from jac_scale.config.config_loader { get_scale_config }
 
 # Match the [trace=abc12345] prefix `TraceIdLogFilter` adds to plain
 # text logs - lets us recover a short trace id from pre-M-14.b lines.

@@ -14,7 +14,7 @@ import pytest;
 import from fastapi { Request }
 import from fastapi.responses { JSONResponse, RedirectResponse }
 
-import from jac_scale.config_loader { reset_scale_config }
+import from jac_scale.config.config_loader { reset_scale_config }
 import from jac_scale.shared.utils { is_safe_loopback_redirect }
 import from jac_scale.sso.google { GoogleSSOProvider }
 import from jac_scale.sso.apple { AppleSSOProvider }

@@ -1,9 +1,9 @@
-"""Tests for jac_scale.config_loader against the real loader (other
+"""Tests for jac_scale.config.config_loader against the real loader (other
 tests stub get_microservices_config; this catches bugs in the loader
 itself - e.g. when the ingress block was dropped from the return dict)."""
 
 import os;
-import from jac_scale.config_loader { JacScaleConfig }
+import from jac_scale.config.config_loader { JacScaleConfig }
 
 
 test "get_microservices_config returns ingress block" {

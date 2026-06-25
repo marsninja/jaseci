@@ -575,7 +575,7 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
     global _telemetry_store;
 
     # Create the store with configurable max_traces
-    import from jac_scale.config_loader { get_scale_config }
+    import from jac_scale.config.config_loader { get_scale_config }
     telemetry_cfg = get_scale_config().get_telemetry_config();
     _telemetry_store = TelemetryStore(max_traces=telemetry_cfg.get('max_traces', 1000));
     store = _telemetry_store;

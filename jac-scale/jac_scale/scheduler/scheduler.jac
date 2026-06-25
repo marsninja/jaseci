@@ -8,7 +8,7 @@ import from jac_scale._optdeps.apscheduler {
     ThreadPoolExecutor,
     HAS_APSCHEDULER
 }
-import from jac_scale.config_loader { get_scale_config }
+import from jac_scale.config.config_loader { get_scale_config }
 import from jaclang.runtimelib.scheduler { Scheduler, ScheduleTrigger }
 import from jac_scale.persistence.db { get_mongo_client }
 import from jac_scale.persistence.mongo_db { MongoDb }

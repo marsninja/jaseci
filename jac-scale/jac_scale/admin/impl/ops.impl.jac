@@ -29,7 +29,7 @@ import from jac_scale.jserver.jserver {
     APIParameter,
     ParameterType
 }
-import from jac_scale.config_loader { get_scale_config }
+import from jac_scale.config.config_loader { get_scale_config }
 import from jac_scale.admin.traces { _tempo_base_url }
 import from jac_scale.admin.logs { _loki_base_url, _app_namespace }
 import from jac_scale._optdeps.prometheus { HAS_PROMETHEUS }

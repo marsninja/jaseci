@@ -16,7 +16,7 @@ import jwt;
 import from datetime { UTC, datetime, timedelta }
 import from pydantic { BaseModel, Field }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
-import from jac_scale.config_loader { get_scale_config }
+import from jac_scale.config.config_loader { get_scale_config }
 import from jac_scale.persistence.db { Db, get_mongo_client }
 import from jac_scale.persistence.mongo_db { MongoDb }
 

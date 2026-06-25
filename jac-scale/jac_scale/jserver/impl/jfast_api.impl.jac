@@ -95,7 +95,7 @@ impl JFastApiServer.run_server(
 ) -> None {
     import from jaclang.cli.console { console }
     app = self.create_server();
-    import from jac_scale.config_loader { get_scale_config }
+    import from jac_scale.config.config_loader { get_scale_config }
     # Create custom handler for console logging
     console_handler = ConsoleLogHandler();
     console_handler.setFormatter(logging.Formatter("%(message)s"));
@@ -1206,7 +1206,7 @@ impl JFastApiServer.init(
             end_span
         }
         if not tracing_installed() {
-            import from jac_scale.config_loader { get_scale_config }
+            import from jac_scale.config.config_loader { get_scale_config }
             _trc_cfg = get_scale_config().get_microservices_config().get("tracing", {});
             install_tracing(
                 enabled=_trc_cfg.get("enabled", False),

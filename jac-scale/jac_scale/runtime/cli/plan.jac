@@ -420,7 +420,7 @@ obj Plan {
     on any failure so the plan still renders."""
     static def _load_ms_cfg -> tuple[dict, dict] {
         try {
-            import from jac_scale.config_loader { get_scale_config }
+            import from jac_scale.config.config_loader { get_scale_config }
             raw: Any = get_scale_config().get_microservices_config();
             ms_cfg: dict = raw if isinstance(raw, dict) else {};
             services_raw: Any = ms_cfg.get("services", {});
