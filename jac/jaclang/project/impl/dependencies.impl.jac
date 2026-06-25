@@ -40,6 +40,48 @@ impl DependencyInstaller.ensure_venv -> None {
             raise;
         }
     }
+    def _seed_host_fastuuid(dest_site: str) {
+        # The free-threaded binary host-provides a pure-Python `fastuuid`
+        # stand-in (the real Rust fastuuid ships no cp314t wheel and is a hard
+        # litellm dependency). A project venv is isolated from the host site, so
+        # without seeding it here pip would try to build the wheelless sdist and
+        # die with `Cannot import 'maturin'`. Copy the host module + its
+        # dist-info into the venv so pip resolves `fastuuid` as already
+        # satisfied. No-ops off the binary (no bundled fastuuid stand-in).
+        # Remove once upstream fastuuid publishes cp314t wheels.
+        import importlib.util;
+        import importlib.metadata as _meta;
+        import shutil;
+        dest = Path(dest_site);
+        if (dest / "fastuuid.py").exists() {
+            return;  # already seeded
+        }
+        origin = "";
+        ver = "";
+        try {
+            spec = importlib.util.find_spec("fastuuid");
+            if spec is not None and spec.origin {
+                origin = spec.origin;
+            }
+            ver = _meta.version("fastuuid");
+        } except Exception {
+            return;
+        }
+        if not origin or not ver {
+            return;
+        }
+        info = Path(origin).parent / f"fastuuid-{ver}.dist-info";
+        if not info.is_dir() {
+            return;  # host fastuuid isn't the bundled stand-in; leave it to pip
+        }
+        try {
+            dest.mkdir(parents=True, exist_ok=True);
+            shutil.copy2(origin, str(dest / "fastuuid.py"));
+            shutil.copytree(str(info), str(dest / info.name), dirs_exist_ok=True);
+        } except Exception {
+            return;  # best-effort; pip falls back to its normal resolution
+        }
+    }
     if self.venv_dir.exists() {
         # Validate the venv is not corrupted by checking for pyvenv.cfg and python binary
         pyvenv_cfg = self.venv_dir / "pyvenv.cfg";
@@ -67,6 +109,7 @@ impl DependencyInstaller.ensure_venv -> None {
     }
     # Add venv site-packages to sys.path
     site_packages = str(get_venv_site_packages(self.venv_dir));
+    _seed_host_fastuuid(site_packages);
     if site_packages not in sys.path {
         sys.path.insert(0, site_packages);
     }
