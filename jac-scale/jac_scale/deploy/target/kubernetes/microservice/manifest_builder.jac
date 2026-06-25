@@ -176,9 +176,9 @@ obj MicroserviceManifestBuilder {
                 "Microservice mode needs at least one declared service.\n"
                 "Add to your jac.toml:\n"
                 "  [plugins.scale.microservices.routes]\n"
-                "  my_service = \"/api/my\"\n"
+                "  my_service = \"/my\"\n"
                 "where 'my_service' is the name of a .jac file in the "
-                "project root and '/api/my' is the URL prefix the gateway "
+                "project root and '/my' is the URL prefix the gateway "
                 "will route to it."
             );
         }

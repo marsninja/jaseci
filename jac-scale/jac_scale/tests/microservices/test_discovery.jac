@@ -142,9 +142,9 @@ test "discover finds to-sv files and sv-import targets" {
     routes = discover_sv_services(str(Path(tmp) / "main.jac"));
 
     assert routes == {
-        "products_app": "/api/products",
-        "cart_app": "/api/cart",
-        "orders_app": "/api/orders"
+        "products_app": "/products",
+        "cart_app": "/cart",
+        "orders_app": "/orders"
     };
 
     shutil.rmtree(tmp);
@@ -159,7 +159,7 @@ test "discover excludes the entry module itself" {
     routes = discover_sv_services(str(Path(tmp) / "main.jac"));
 
     assert "main" not in routes;
-    assert routes == {"worker_app": "/api/worker"};
+    assert routes == {"worker_app": "/worker"};
 
     shutil.rmtree(tmp);
 }
@@ -170,7 +170,7 @@ test "discover detects sv-import-only targets even without a local to-sv file" {
 
     routes = discover_sv_services(str(Path(tmp) / "main.jac"));
 
-    assert routes == {"remote_app": "/api/remote"};
+    assert routes == {"remote_app": "/remote"};
 
     shutil.rmtree(tmp);
 }
