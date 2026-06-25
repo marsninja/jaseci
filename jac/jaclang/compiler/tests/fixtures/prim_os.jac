@@ -25,7 +25,12 @@ def os_py() -> dict {
     }
     makedirs_ok: int = 0;
     deep: str = "/tmp/jac_eq_py_mk/a/b/c";
-    os.makedirs(deep);
+    # Tolerate a leftover tree from an aborted run: CPython's default
+    # exist_ok=False raises FileExistsError, while the native makedirs (mkdir -p)
+    # ignores EEXIST. Guarding on exists keeps the two backends congruent.
+    if not os.path.exists(deep) {
+        os.makedirs(deep);
+    }
     if os.path.isdir(deep) {
         makedirs_ok = 1;
         os.rmdir("/tmp/jac_eq_py_mk/a/b/c");

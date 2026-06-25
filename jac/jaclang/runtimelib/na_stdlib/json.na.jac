@@ -140,6 +140,12 @@ obj _JsonParser {
         k: int = 0;
         while k < 4 {
             d: int = self._cc();
+            if d == -1 {
+                # Truncated `\uXXXX` at end of input: stop rather than spin the
+                # cursor past EOF. (Malformed-input rejection at large is a
+                # documented gap; valid JSON always has the four digits.)
+                break;
+            }
             nib: int = 0;
             if d >= 48 and d <= 57 {
                 nib = d - 48;

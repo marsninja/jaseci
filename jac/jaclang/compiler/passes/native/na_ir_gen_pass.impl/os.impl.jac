@@ -138,11 +138,11 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
 
     # os.makedirs(path, mode=0o777): create every leading directory component,
     # then the leaf. Implemented as the classic `mkdir -p` over libc mkdir
-    # (issue #6940 Phase 1): the path is copied into a stack buffer and walked;
-    # at each '/' the prefix is NUL-terminated in place, mkdir'd (EEXIST on an
-    # existing prefix is ignored, exactly as `mkdir -p`), then the '/' restored.
-    # NB: unlike CPython's `exist_ok=False` default, an already-existing leaf is
-    # not an error here -- a documented divergence on the unsupported edge.
+    # (issue #6940 Phase 1): the path is copied into a mutable scratch buffer and
+    # walked; at each '/' the prefix is NUL-terminated in place, mkdir'd (EEXIST
+    # on an existing prefix is ignored, exactly as `mkdir -p`), then the '/'
+    # restored. NB: unlike CPython's `exist_ok=False` default, an already-existing
+    # leaf is not an error here -- a documented divergence on the unsupported edge.
     if name == "makedirs" and params {
         p = self._codegen_expr(params[0]);
         if p is None {
@@ -158,13 +158,15 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
         strlen_fn = self._get_or_declare_extern("strlen", i64, [i8p]);
         memcpy_fn = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
         mkdir_fn = self._get_or_declare_extern("mkdir", i32, [i8p, i32]);
+        malloc_fn = self._get_or_declare_extern("malloc", i8p, [i64]);
+        free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
         plen = self.builder.call(strlen_fn, [p], name="mkdirs.len");
-        # Copy the path (incl. NUL) into a PATH_MAX stack buffer we can mutate.
-        buf = self.builder.alloca(ir.ArrayType(i8, 4096), name="mkdirs.buf");
-        bufp = self.builder.gep(
-            buf, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="mkdirs.bufp"
-        );
+        # Heap scratch sized to the path (incl. NUL) so it can be mutated in
+        # place. A fixed-size stack buffer would overflow for a path at/above its
+        # capacity (the path is an arbitrary-length caller argument), so the
+        # buffer is malloc'd to plen+1 and freed before returning.
         copy_n = self.builder.add(plen, ir.Constant(i64, 1), name="mkdirs.copyn");
+        bufp = self.builder.call(malloc_fn, [copy_n], name="mkdirs.buf");
         self.builder.call(memcpy_fn, [bufp, p, copy_n]);
         i_ptr = self.builder.alloca(i64, name="mkdirs.i");
         # Start at 1 so a leading '/' (POSIX root) is never NUL-terminated alone.
@@ -197,8 +199,9 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
         self.builder.store(next_i, i_ptr);
         self.builder.branch(head_bb);
         self.builder.position_at_end(after_bb);
-        # Finally create the full (leaf) path.
+        # Finally create the full (leaf) path, then release the scratch buffer.
         self.builder.call(mkdir_fn, [bufp, mode], name="mkdirs.leaf");
+        self.builder.call(free_fn, [bufp], name="mkdirs.free");
         return None;
     }
 
