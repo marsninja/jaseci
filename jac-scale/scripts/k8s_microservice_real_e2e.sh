@@ -138,9 +138,9 @@ kubectl label namespace "${NAMESPACE}" \
 cd "${PROJECT_DIR}"
 jac - <<PYEOF
 import logging, sys, jaclang  # noqa: F401
-from jac_scale.targets.kubernetes.microservice.target import KubernetesMicroserviceTarget
-from jac_scale.targets.kubernetes.kubernetes_config import KubernetesConfig
-from jac_scale.abstractions.config.app_config import AppConfig
+from jac_scale.deploy.target.kubernetes.microservice.target import KubernetesMicroserviceTarget
+from jac_scale.deploy.target.kubernetes.kubernetes_config import KubernetesConfig
+from jac_scale.config.app_config import AppConfig
 
 # Surface MonitoringDeployer / observability warnings to stderr so CI
 # logs show the actual error instead of the silent
@@ -164,7 +164,7 @@ target = KubernetesMicroserviceTarget(
     ),
     logger=StderrLogger(),
 )
-result = target.deploy(AppConfig(code_folder=".", app_name="jac-e2e", build=False))
+result = target.deploy(AppConfig(code_folder=".", app_name="jac-e2e"))
 if not result.success:
     print(f"deploy failed: {result.message}", file=sys.stderr)
     sys.exit(1)
