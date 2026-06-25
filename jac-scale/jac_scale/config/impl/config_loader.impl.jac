@@ -511,6 +511,24 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
         }
     }
 
+    # Client entry defaults to the project entry-point (main.jac) so the gateway
+    # builds + serves the app's frontend the same way monolith mode does. An
+    # explicit `entry = false` disables the client build; an explicit string
+    # overrides the entry point.
+    raw_client_entry = client_config.get('entry', None);
+    if raw_client_entry is False {
+        resolved_client_entry: str = '';
+    } elif raw_client_entry {
+        resolved_client_entry: str = str(raw_client_entry);
+    } else {
+        try {
+            import from jaclang.project.config { get_config }
+            resolved_client_entry: str = get_config().entry_point or 'main.jac';
+        } except Exception {
+            resolved_client_entry: str = 'main.jac';
+        }
+    }
+
     return {
         # Tri-state: None = unset (auto-detect), True/False = explicit choice.
         'enabled': ms_config.get('enabled', None),
@@ -543,7 +561,7 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
             'max_age': int(cors_config.get('max_age', 600))
         },
         'client': {
-            'entry': client_config.get('entry', ''),
+            'entry': resolved_client_entry,
             'dist_dir': client_config.get('dist_dir', '.jac/client/dist'),
             'base_route': client_config.get('base_route', '/')
         },
