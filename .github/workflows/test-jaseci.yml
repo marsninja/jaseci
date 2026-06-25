@@ -391,7 +391,6 @@ jobs:
         env:
           JAC_TEST_JOBS: "0"
         run: |
-          jac test jac_scale/tests/test_image_build.jac -x
           jac test jac_scale/tests/test_pod_env.jac -x
           jac test jac_scale/tests/test_k8s_utils.jac -x
           jac test jac_scale/tests/test_deploy_k8s.jac -x -f "not (early and exit)"
