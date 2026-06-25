@@ -1,4 +1,4 @@
-"""Register all built-in client build targets (web, pwa, static, mobile, desktop, react-native)."""
+"""Register all built-in client build targets (web, pwa, static, mobile, desktop, cef, react-native)."""
 import from jaclang.runtimelib.client.targets.registry {
     get_target_registry,
     TargetRegistry
@@ -9,6 +9,9 @@ import from jaclang.runtimelib.client.targets.static_target { StaticTarget }
 import from jaclang.runtimelib.client.targets.mobile_target { MobileTarget }
 import from jaclang.runtimelib.client.targets.desktop.native_desktop_target {
     NativeDesktopTarget
+}
+import from jaclang.runtimelib.client.targets.desktop.cef_desktop_target {
+    CefDesktopTarget
 }
 import from jaclang.runtimelib.client.targets.react_native_target { ReactNativeTarget }
 
@@ -24,6 +27,8 @@ def register_targets {
     registry.register(StaticTarget());
     registry.register(MobileTarget());
     registry.register(NativeDesktopTarget());
+    # CEF renderer variant of the desktop target (selected via --client cef).
+    registry.register(CefDesktopTarget());
     registry.register(ReactNativeTarget());
 }
 
