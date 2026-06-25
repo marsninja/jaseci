@@ -52,7 +52,7 @@ class Autoscaler {
     Returns True when the resource was written to the cluster, False when a
     preflight check determined the engine is unavailable and apply() exited
     early without writing anything.  Callers must check the return value
-    before stamping a success detail or emitting an 'applied' log line —
+    before stamping a success detail or emitting an 'applied' log line -
     engines like KEDAAutoscaler can degrade gracefully (no raise) yet still
     have written nothing, so an unconditional 'Successful' would be a lie.
 

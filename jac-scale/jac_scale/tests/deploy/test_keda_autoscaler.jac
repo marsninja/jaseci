@@ -1,6 +1,6 @@
 """Unit tests for KEDAAutoscaler.
 
-All tests run without a real cluster — cluster I/O is replaced by a
+All tests run without a real cluster - cluster I/O is replaced by a
 MagicMock injected via the _custom_api constructor parameter.
 
 IMPORTANT: KEDAAutoscaler._preflight_cache is a class-level dict shared
@@ -29,7 +29,7 @@ test "cpu trigger is translated to KEDA Utilization format" {
     assert result["type"] == "cpu";
     assert result["metricType"] == "Utilization";
     assert result["metadata"]["value"] == "70";
-    # metricType must NOT appear inside metadata — that would also break KEDA
+    # metricType must NOT appear inside metadata - that would also break KEDA
     assert "metricType" not in result["metadata"];
 }
 
@@ -205,7 +205,7 @@ test "build manifests with hpa bounds and non-cpu trigger produces ScaledObject 
     # Resolved precedence rule: engine=keda + [hpa] block coexist.  The [hpa]
     # block contributes min/max/cpu_target (expressed as a cpu Trigger); the
     # [[triggers]] block adds event-driven triggers.  Both must appear in the
-    # ScaledObject — dropping the cpu trigger removes the floor, dropping the
+    # ScaledObject - dropping the cpu trigger removes the floor, dropping the
     # event trigger defeats the purpose of using KEDA.
     keda = KEDAAutoscaler();
     spec = AutoscalerSpec(
