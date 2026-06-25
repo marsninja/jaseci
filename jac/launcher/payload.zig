@@ -542,12 +542,18 @@ fn mkPayload(
     }
 
     // Bundle runtime helpers (pytest/-xdist -> `jac test`, watchdog -> `jac start
-    // --dev`, tomlkit -> project tooling). Installed AFTER precompile so the
-    // precompiler's package walk only sees jaclang. Drop stray bytecode first so
-    // pip doesn't refuse the populated --target dir.
-    log("==> bundling pytest + pytest-xdist (jac test) + watchdog (jac start --dev)", .{});
+    // --dev`, tomlkit -> project tooling) plus the PEP 517 build backend
+    // (setuptools + wheel). The backend is load-bearing on the free-threaded ABI:
+    // when a dependency has no cp314t wheel, pip falls back to building the sdist,
+    // and the backend subprocess resolves `setuptools.build_meta` against the
+    // bundled site (the launcher pins PYTHONPATH there) -- which `ensurepip` no
+    // longer provides. Without these, every sdist/editable build dies with
+    // `BackendUnavailable: Cannot import 'setuptools.build_meta'`. Installed AFTER
+    // precompile so the precompiler's package walk only sees jaclang. Drop stray
+    // bytecode first so pip doesn't refuse the populated --target dir.
+    log("==> bundling pytest + pytest-xdist (jac test) + watchdog (jac start --dev) + setuptools/wheel (PEP 517 build backend)", .{});
     Dir.cwd().deleteTree(io, try std.fmt.allocPrint(a, "{s}/__pycache__", .{site})) catch {};
-    _ = runChild(io, &.{ py, "-m", "pip", "install", "--quiet", "pytest", "pytest-xdist", "watchdog>=3.0.0", "tomlkit", "--target", site }, null, false);
+    _ = runChild(io, &.{ py, "-m", "pip", "install", "--quiet", "pytest", "pytest-xdist", "watchdog>=3.0.0", "tomlkit", "setuptools", "wheel", "--target", site }, null, false);
 
     try stageTree(io, gpa, a, pbs_py_dir, site, stage);
 
