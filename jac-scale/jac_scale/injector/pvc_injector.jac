@@ -136,10 +136,21 @@ obj PvcInjector(Injector) {
     }
 
     def mutate_pod_spec(pod_spec: dict[str, any], base_image: str) -> dict[str, any] {
-        app_name = "app";
+        # Fail loudly rather than default to "app": the claim name is derived
+        # from app_name and must match the PVC that prepare() / extra_manifests()
+        # created under the real app name. Silently defaulting here would mount an
+        # `app-bundles` claim that was never created. The manifest builder sets
+        # _jac_meta before delegating, so a miss is a wiring bug, not a runtime
+        # state.
         metadata = pod_spec.get("_jac_meta");
-        if metadata is not None {
-            app_name = str(metadata.get("app_name", "app"));
+        app_name = str(metadata.get("app_name", "")) if metadata is not None else "";
+        if not app_name {
+            raise ValueError(
+                "PvcInjector.mutate_pod_spec requires pod_spec['_jac_meta']['app_name'] "
+                "(set by the manifest builder before delegating); without it the bundle "
+                "PVC claim name would not match the PVC created by prepare() / "
+                "extra_manifests(), so the pod would mount a claim that was never created."
+            );
         }
 
         _ensure_volume(pod_spec, {"name": APP_VOLUME_NAME, "emptyDir": {}});

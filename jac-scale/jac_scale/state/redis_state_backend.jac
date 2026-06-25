@@ -49,10 +49,15 @@ obj RedisStateBackend(StateBackend) {
     }
 
     def set(key: str, value: str, ttl_seconds: (int | None) = None) -> None {
-        if ttl_seconds is not None {
-            self.client.set(key, value, ex=ttl_seconds);
-        } else {
+        if ttl_seconds is None {
             self.client.set(key, value);
+        } elif ttl_seconds <= 0 {
+            # Parity with InProcessStateBackend: a non-positive TTL is immediate
+            # expiry, so the key must not persist. Redis rejects `ex <= 0`, so
+            # drop the key instead of writing an un-expirable value or erroring.
+            self.client.delete(key);
+        } else {
+            self.client.set(key, value, ex=ttl_seconds);
         }
     }
 
@@ -72,8 +77,12 @@ obj RedisStateBackend(StateBackend) {
     }
 
     def acquire_lock(key: str, ttl_seconds: int) -> bool {
-        # SET key 1 NX PX ttl: atomic test-and-set with auto-expiry.
-        result = self.client.set(key, "1", nx=True, px=ttl_seconds * 1000);
+        # SET key 1 NX PX ttl: atomic test-and-set with auto-expiry. Clamp to
+        # >= 1ms: redis rejects `px <= 0`, and InProcessStateBackend treats a
+        # non-positive ttl as an immediately-stale lock, which a 1ms expiry
+        # approximates without erroring.
+        px_ms = max(1, ttl_seconds * 1000);
+        result = self.client.set(key, "1", nx=True, px=px_ms);
         return bool(result);
     }
 

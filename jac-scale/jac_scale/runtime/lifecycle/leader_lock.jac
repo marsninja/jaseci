@@ -7,8 +7,15 @@ job id + fire time: the replica that wins the lock runs the task, the others ski
 The lock is intentionally NOT released on success; it is left to expire after
 `ttl_seconds` so a slower peer cannot re-run the same fire within the tick window.
 With the in-process backend (single replica) the lock is always free, so behavior
-is unchanged; with a Redis backend under --scale it becomes real cross-pod
-leader election and removes the double-fire.
+is unchanged; with a Redis backend under --scale it would become real cross-pod
+leader election and remove the double-fire.
+
+STATUS: building block, NOT yet wired into the scheduler. `run_once` is the
+mechanism; the scheduler's `_execute_task` does not gate fires through it yet (a
+correct gate needs a stable per-fire token that every replica derives identically,
+plus a StateBackend threaded into the scheduler). Until that wiring lands, a
+multi-replica `--scale` scheduler still double-fires. Tracked as deferred
+alongside the EmbeddedGateway / ServiceTransport wiring.
 """
 
 import logging;
