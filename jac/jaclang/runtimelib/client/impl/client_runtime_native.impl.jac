@@ -345,9 +345,9 @@ impl _buildRouteName(path: str) -> str {
     # rendered tree. The leading "/" is stripped ("/users" -> "users") but
     # internal "/" is preserved as the separator so "/users/profile" ->
     # "users/profile" stays distinct from "/users-profile" -> "users-profile".
-    # The old "_"-join + "-"->"_" flattening collided those and needed an
-    # unstable positional ordinal from route enumeration to disambiguate; that
-    # ordinal shifted whenever a route was inserted between existing ones.
+    # The old "_"-join + "-"->"_" flattening collided those and required a
+    # positional index from route enumeration to disambiguate; that index
+    # shifted whenever a route was inserted between existing ones.
     # ":" (param marker) -> "$" keeps the param convention while remaining a
     # valid, unique React Navigation screen key.
     return normalized[1:].replace(":", "$");
