@@ -48,12 +48,12 @@ resizable = true
 The native host exposes OS capabilities to your `cl` UI through a plugin bridge: `window.__jac.invoke(plugin, command, args)` (async, resolves to data or throws) and `window.__jac.on(event, cb)`. Don't hand-write those magic strings - import the typed SDK instead:
 
 ```jac
-import from "@jac/desktop" { fs, dialog, clipboard, notification, app_window, shell, path }
+import from "@jac/desktop" { fs, dialog, notification }
 
 async def export_notes(text: str) -> None {
     picked = await dialog.save_file("Export", "notes.txt");   # POSITIONAL args - see gotcha
     if not picked["canceled"] {
-        await fs.write_file(picked["path"], text);
+        await fs.write_file(picked["path"] as str, text);     # dict values are `any` - cast at the boundary
         await notification.send("Saved", "Notes exported.");
     }
 }
