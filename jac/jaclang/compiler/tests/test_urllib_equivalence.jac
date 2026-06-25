@@ -36,7 +36,7 @@ glob _BODY: bytes = b"hello world";
 `/hello` (200 text/plain) and `/redirect` (301 -> /hello). Everything else 404s.
 `log_message` is silenced so the test output stays clean."""
 class _LoopbackHandler(BaseHTTPRequestHandler) {
-    def do_GET(self: _LoopbackHandler) -> None {
+    def do_GET(self: _LoopbackHandler) {
         if self.path == "/hello" {
             self.send_response(200);
             self.send_header("Content-Type", "text/plain; charset=utf-8");

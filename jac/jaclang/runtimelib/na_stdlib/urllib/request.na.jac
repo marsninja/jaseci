@@ -41,10 +41,11 @@ redirect-following, returning an `HTTPResponse` record (status, body length,
 reason, url, body, headers). NOT yet covered (documented next slices):
 `HTTPResponse` accessor methods (`read()` / `getheader()`) and cross-module
 access to its `bytes`/`list` fields (only scalar `int` fields -- `status`,
-`body_length` -- marshal across a native module boundary today); a `Request`
-object (custom method / headers / `Range`); POST `data`; `timeout`; and raising
-`HTTPError` on 4xx/5xx (v1 returns the response with its `.status` set, matching
-libcurl semantics).
+`body_length` -- marshal across a native module boundary today); the effective
+post-redirect URL (`geturl()`, via `curl_easy_getinfo(CURLINFO_EFFECTIVE_URL)` --
+a variadic out-param read); a `Request` object (custom method / headers /
+`Range`); POST `data`; `timeout`; and raising `HTTPError` on 4xx/5xx (v1 returns
+the response with its `.status` set, matching libcurl semantics).
 """
 
 import os;
@@ -57,7 +58,7 @@ import os;
 # (the URL) lowers to its `char*`; an `int` value (a `FILE*` handle or a long
 # option like CURLOPT_FOLLOWLOCATION) is passed as-is.
 import from curl {
-    def curl_easy_init() -> int;  def curl_easy_setopt(
+    def curl_easy_init -> int;  def curl_easy_setopt(
         handle: int, option: int, *rest: int
     ) -> int;  def curl_easy_perform(handle: int) -> int;  def curl_easy_cleanup(
         handle: int
@@ -87,7 +88,8 @@ exposes via `.status` / `.read()` / `.getheader()` as plain fields:
   - `status`        : int   -- HTTP status code (e.g. 200), after redirects
   - `body_length`   : int   -- byte length of `body` (scalar mirror of `body`)
   - `reason`        : str   -- status reason phrase (e.g. "OK")
-  - `url`           : str   -- final URL (after redirects)
+  - `url`           : str   -- the requested URL (not the effective post-redirect
+                               URL; see the `geturl()` note in the next slices)
   - `body`          : bytes -- full response body, already buffered
   - `header_names`  : list[str] -- header names, lowercased
   - `header_values` : list[str] -- header values, parallel to `header_names`
@@ -142,6 +144,23 @@ def:pub urlopen(url: str) -> HTTPResponse {
     hdr_path = stem + ".hdr";
     body_fp = fopen(body_path, "wb");
     hdr_fp = fopen(hdr_path, "wb");
+    # A NULL FILE* would make libcurl's default writer fall back to stdout
+    # (silently dumping the body) and would make fclose(NULL) undefined
+    # behaviour, so bail out before wiring the handle up. fopen returns a
+    # `char*`-shaped pointer (reusing the compiler's libc `fopen` declaration),
+    # so the failure sentinel is a null pointer, tested with `is None`.
+    if body_fp is None or hdr_fp is None {
+        if body_fp is not None {
+            fclose(body_fp);
+        }
+        if hdr_fp is not None {
+            fclose(hdr_fp);
+        }
+        curl_easy_cleanup(h);
+        remove(body_path);
+        remove(hdr_path);
+        raise Exception("urlopen: cannot open temp file under " + _tmpdir());
+    }
 
     curl_easy_setopt(h, _CURLOPT_URL, url);
     curl_easy_setopt(h, _CURLOPT_WRITEDATA, body_fp);
@@ -171,9 +190,14 @@ def:pub urlopen(url: str) -> HTTPResponse {
     remove(body_path);
     remove(hdr_path);
 
-    # Parse the captured header text. Redirects emit one header block per hop;
-    # the FINAL block (after the last `HTTP/` status line) is what urllib
-    # exposes, so scan to the last status line, then collect its headers.
+    # Parse the captured header text. curl writes raw HTTP bytes with CRLF line
+    # endings; the header file is read as text and split on "\n", so each line
+    # keeps a trailing "\r" that `rstrip("\r")` strips (this also means an
+    # obs-fold continuation or a stray bare "\r" inside a value is normalized
+    # away -- acceptable for the header set this v1 surfaces). Redirects emit one
+    # header block per hop; the FINAL block (after the last `HTTP/` status line)
+    # is what urllib exposes, so scan to the last status line, then collect its
+    # headers.
     lines = hdr_text.split("\n");
     start: int = 0;
     scan: int = 0;
@@ -213,6 +237,10 @@ def:pub urlopen(url: str) -> HTTPResponse {
         }
         j += 1;
     }
+    # `url` is the REQUESTED url, not the effective post-redirect url. CPython's
+    # `geturl()` returns the final landing url; recovering it here needs
+    # curl_easy_getinfo(CURLINFO_EFFECTIVE_URL, &char*) -- a variadic out-param
+    # read -- which is a documented next slice (see the module docstring).
     return HTTPResponse(
         status=status,
         body_length=len(body),

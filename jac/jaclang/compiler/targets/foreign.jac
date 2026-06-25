@@ -137,8 +137,7 @@ def collect_foreign_fns(modules: list) -> dict {
                 }
                 out[fname] = {
                     "params": params,
-                    "ret": declared_type_name(decl.signature.return_type),
-                    "variadic": decl.signature.varargs is not None
+                    "ret": declared_type_name(decl.signature.return_type)
                 };
             }
         }

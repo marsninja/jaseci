@@ -94,6 +94,15 @@ impl NaIRGenPass._declare_clib_ability(nd: uni.Ability) -> None {
         "x86_64" in _abi_triple or "aarch64" in _abi_triple or "arm64" in _abi_triple
     );
     _decl_params = sig.get_parameters();
+    # A trailing `*rest` (vararg) param marks the symbol as a C variadic
+    # function (e.g. `curl_easy_setopt(handle, option, *rest)`). Both the ABI
+    # plan path and the legacy scalar path emit a `var_arg=True` LLVM
+    # declaration over only the fixed params, so the backend places variadic
+    # args per the platform psABI (on the stack for AArch64/AAPCS) where a fixed
+    # declaration would wrongly pass them in a register. Computed once here so a
+    # variadic function that also carries a by-value struct param (plan path)
+    # cannot silently fall back to a non-variadic declaration.
+    is_variadic = sig.varargs is not None;
     plan: (dict | None) = None;
     if _abi_supported {
         # The declared signature names come from the foreign declaration
@@ -154,7 +163,9 @@ impl NaIRGenPass._declare_clib_ability(nd: uni.Ability) -> None {
             sysv_ret_type = self._resolve_clib_type(sig.return_type);
             sysv_ret_plan["type"] = sysv_ret_type;
         }
-        sysv_fnty = ir.FunctionType(sysv_ret_type, sysv_param_types);
+        sysv_fnty = ir.FunctionType(
+            sysv_ret_type, sysv_param_types, var_arg=is_variadic
+        );
         if name in self.extern_funcs {
             sysv_func = self.extern_funcs[name];
         } elif name in self.func_symtab {
@@ -204,15 +215,10 @@ impl NaIRGenPass._declare_clib_ability(nd: uni.Ability) -> None {
         self.has_native_code = True;
         return;
     }
-    # Build parameter types -- value types for clib structs. A trailing
-    # `*rest` (vararg) param marks the symbol as a C variadic function
-    # (e.g. `curl_easy_setopt(handle, option, *rest)`); only the params
-    # *before* it are fixed, and the LLVM declaration is `var_arg=True` so
-    # the backend places the variadic args per the platform psABI (on the
-    # stack for AArch64/AAPCS, where a fixed declaration would wrongly pass
-    # them in registers). The variadic args themselves are emitted verbatim
-    # at the call site (see _codegen_clib_call's scalar path).
-    is_variadic = sig.varargs is not None;
+    # Build parameter types -- value types for clib structs. Only the params
+    # before a trailing `*rest` vararg are fixed; the variadic args themselves
+    # are emitted verbatim at the call site (see _codegen_clib_call's scalar
+    # path). `is_variadic` was computed once above so both ABI paths agree.
     fixed_params: list = [];
     for p in sig.get_parameters() {
         if p.is_vararg or p.is_kwargs {
