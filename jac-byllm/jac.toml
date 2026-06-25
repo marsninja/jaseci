@@ -27,6 +27,12 @@ litellm = ">=1.70.0,<=1.82.6"  # SECURITY: v1.82.7+ was compromised and yanked f
 loguru = ">=0.7.2,<0.8.0"
 httpx = ">=0.27.0"
 pillow = ">=12.0.0,<13.0.0"
+# litellm imports `yaml` (dotprompt) but does not declare PyYAML -- it arrived
+# transitively via tokenizers -> huggingface_hub -> pyyaml. On the free-threaded
+# build tokenizers is a host-provided import stub (no cp314t wheel), which drops
+# that chain, so declare PyYAML directly. 6.0.3 is the first release with a
+# cp314t wheel.
+pyyaml = ">=6.0.3,<7.0.0"
 
 [dev-dependencies]
 pytest = ">=8.3.2"
