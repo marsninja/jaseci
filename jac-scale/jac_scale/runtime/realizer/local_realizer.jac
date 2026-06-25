@@ -52,7 +52,14 @@ obj LocalRealizer {
     """Serve the microservice topology and block on the gateway. Only call after
     should_serve() returns True. Blocks until the gateway shuts down."""
     def serve -> None {
-        plan = plan_realization(False, self._service_count());
+        # should_serve() already gated out the 0-service pure monolith (core
+        # serves that in-process). Reaching here means >= 1 sv-service, so the
+        # realization spans the entry/gateway host PLUS each service process. The
+        # planner counts total deployable units, so the topology is over
+        # len(routes) + 1 - the +1 is the gateway/client host, its own unit.
+        # Without it a single-service app mis-plans as a monolith and the fleet
+        # is never started.
+        plan = plan_realization(False, self._service_count() + 1);
         logger.info(
             f"LocalRealizer: {plan.topology} via {plan.gateway_mode} gateway, "
             + f"{plan.transport} transport, {plan.state_backend} state"
