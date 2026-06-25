@@ -280,6 +280,32 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         if interop_py_funcs is not None:
             module.__dict__["__jac_interop_py_funcs__"] = interop_py_funcs
 
+        # Initialize the native module's globals -- and its imported na modules'
+        # static fields (e.g. datetime's `timezone.utc`) -- before the module
+        # body runs. A `with entry` may call a bridged `na {}` function during
+        # exec() below, and a native read of an uninitialized global aborts the
+        # process. The codegen-emitted `__jac_glob_init` (and a renamed
+        # `__jac_glob_init_<dep>` per imported na module, listed in dependency
+        # order by `native_transitive_sources`) populate those globals;
+        # `init_native_globals` runs each dep's, then the module's own. This
+        # mirrors native_accel.accelerate_module and the AOT `jac_entry`
+        # preamble, both of which run the same initializers first.
+        if native_engine is not None:
+            try:
+                from jaclang.jac0core.native_marshal import init_native_globals
+
+                actual_program = compiler._resolve_program(file_path, program)
+                gen = actual_program._native_cache.get(file_path)
+                if gen is None:
+                    hub_mod = actual_program.mod.hub.get(file_path)
+                    gen = hub_mod.gen if hub_mod is not None else None
+                manifest = gen.interop_manifest if gen is not None else None
+                init_native_globals(native_engine, manifest)
+            except Exception as exc:  # best-effort: never block a module import
+                logging.getLogger(__name__).debug(
+                    "Native global init failed for %s: %s", file_path, exc
+                )
+
         # Execute the bytecode directly in the module's namespace
         exec(codeobj, module.__dict__)
 
