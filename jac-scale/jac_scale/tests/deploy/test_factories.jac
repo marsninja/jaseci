@@ -381,4 +381,3 @@ test "hpa destroy collection also sweeps competing KEDA resources" {
         }
     }
 }
-
