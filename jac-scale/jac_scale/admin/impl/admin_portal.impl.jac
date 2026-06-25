@@ -21,7 +21,7 @@ import from jac_scale.jserver.jserver {
     ParameterType
 }
 import from jac_scale.config_loader { get_scale_config }
-import from jac_scale.user_manager { UserRole }
+import from jac_scale.identity.user_manager { UserRole }
 import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.jac0core.constant { Constants as Con }
 

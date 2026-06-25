@@ -5,7 +5,7 @@ import from pathlib { Path }
 import from typing { Any }
 import from jac_scale.emailer.emailer { Emailer }
 import from jac_scale.emailer.factory { create as create_emailer, register }
-import from jac_scale.auth_tokens { AuthTokenStore, reset_auth_token_store }
+import from jac_scale.identity.auth_tokens { AuthTokenStore, reset_auth_token_store }
 
 
 obj _RecordingEmailer(Emailer) {

@@ -51,7 +51,7 @@ import from jaclang.jac0core.constant { Constants as Con }
 import traceback;
 import from urllib.parse { quote }
 import from jac_scale.shared.utils { authenticate_or_fail, is_safe_loopback_redirect }
-import from jac_scale.auth_models {
+import from jac_scale.identity.auth_models {
     RegisterRequest,
     LoginRequest,
     UpdatePasswordRequest,

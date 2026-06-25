@@ -1,6 +1,6 @@
 """Structured audit events for security-sensitive auth flows.
 
-Emits go to the dedicated `jac_scale.audit` logger so ops can route them
+Emits go to the dedicated `jac_scale.identity.audit` logger so ops can route them
 independently of regular application logs (file, syslog, ELK, Loki, etc.).
 Fields land on the log record's `audit` extra so a JSON formatter picks
 them up as first-class columns.
@@ -15,7 +15,7 @@ import from jac_scale.runtime.middleware.rate_limit {
     _resolve_client_ip as client_ip
 }
 
-glob _audit_logger = logging.getLogger('jac_scale.audit');
+glob _audit_logger = logging.getLogger('jac_scale.identity.audit');
 
 """Emit a structured audit event.
 

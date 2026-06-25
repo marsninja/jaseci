@@ -21,7 +21,7 @@ import from jac_scale.sso.apple { AppleSSOProvider }
 import from jac_scale.sso.github { GithubSSOProvider }
 import from jac_scale.serve { JacAPIServer }
 import from jac_scale.shared.enums { Platforms, Operations }
-import from jac_scale.user_manager { JacScaleUserManager }
+import from jac_scale.identity.user_manager { JacScaleUserManager }
 import from jaclang.runtimelib.transport { TransportResponse }
 
 """Return mock SSO config with Google, Apple, and GitHub credentials configured."""
@@ -314,7 +314,7 @@ def _setup_user_manager -> tuple[str, JacScaleUserManager] {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path=test_dir);
     }
@@ -370,7 +370,7 @@ test "get sso with unconfigured platform" {
         reset_scale_config();
         mock_config = MockScaleConfig(mock_sso_config_without_credentials());
         with unittest.mock.patch(
-            "jac_scale.user_manager.get_scale_config", return_value=mock_config
+            "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
         ) {
             um = JacScaleUserManager(base_path="");
             sso = um.get_sso(Platforms.GOOGLE.value);
@@ -610,7 +610,7 @@ test "sso callback new user with no profile data" {
                 user_manager, "create_jwt_token", return_value="mock_jwt_token"
             ) {
                 with unittest.mock.patch(
-                    "jac_scale.user_manager.generate_random_password",
+                    "jac_scale.identity.user_manager.generate_random_password",
                     return_value="random_pass"
                 ) {
                     asyncio.run(
@@ -658,7 +658,7 @@ test "sso callback auto register new user" {
                 user_manager, "create_jwt_token", return_value="mock_jwt_token"
             ) {
                 with unittest.mock.patch(
-                    "jac_scale.user_manager.generate_random_password",
+                    "jac_scale.identity.user_manager.generate_random_password",
                     return_value="random_pass"
                 ) {
                     result = asyncio.run(
@@ -806,7 +806,7 @@ test "supported platforms initialization with jac toml credentials" {
         }
     );
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
@@ -819,7 +819,7 @@ test "supported platforms initialization without jac toml credentials" {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_without_credentials());
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" not in user_manager.SUPPORTED_PLATFORMS;
@@ -835,7 +835,7 @@ def _setup_real_user_manager -> tuple[str, JacScaleUserManager] {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path=test_dir);
     }
@@ -1276,7 +1276,7 @@ test "apple sso callback auto register new user" {
                 user_manager, "create_jwt_token", return_value="mock_apple_jwt"
             ) {
                 with unittest.mock.patch(
-                    "jac_scale.user_manager.generate_random_password",
+                    "jac_scale.identity.user_manager.generate_random_password",
                     return_value="random_pass"
                 ) {
                     result = asyncio.run(
@@ -1365,7 +1365,7 @@ test "supported platforms initialization with apple credentials" {
         }
     );
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
@@ -1385,7 +1385,7 @@ test "supported platforms initialization without apple credentials" {
         }
     );
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
@@ -1514,7 +1514,7 @@ test "github sso callback auto register new user" {
                 user_manager, "create_jwt_token", return_value="mock_github_jwt"
             ) {
                 with unittest.mock.patch(
-                    "jac_scale.user_manager.generate_random_password",
+                    "jac_scale.identity.user_manager.generate_random_password",
                     return_value="random_pass"
                 ) {
                     result = asyncio.run(
@@ -1602,7 +1602,7 @@ test "supported platforms initialization with github credentials" {
         }
     );
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "github" in user_manager.SUPPORTED_PLATFORMS;
@@ -1621,7 +1621,7 @@ test "supported platforms initialization without github credentials" {
         }
     );
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
@@ -1634,7 +1634,7 @@ test "supported platforms initialization with all providers" {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     with unittest.mock.patch(
-        "jac_scale.user_manager.get_scale_config", return_value=mock_config
+        "jac_scale.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
         user_manager = JacScaleUserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;

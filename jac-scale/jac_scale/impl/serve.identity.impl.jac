@@ -16,9 +16,9 @@
                                password.
 """
 
-import from jac_scale.audit { client_ip, emit as _audit_emit }
-import from jac_scale.auth_tokens { AuthTokenStore }
-import from jac_scale.identity_storage { IdentityTakenError }
+import from jac_scale.identity.audit { client_ip, emit as _audit_emit }
+import from jac_scale.identity.auth_tokens { AuthTokenStore }
+import from jac_scale.identity.identity_storage { IdentityTakenError }
 import from jac_scale.runtime.middleware.rate_limit {
     InProcessRateLimiter
 }

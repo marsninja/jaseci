@@ -1,7 +1,7 @@
 """Compact test for MongoDB user operations using testcontainers."""
 
 import os;
-import from jac_scale.user_manager { JacScaleUserManager }
+import from jac_scale.identity.user_manager { JacScaleUserManager }
 import from jac_scale.config_loader { reset_scale_config }
 
 """Test MongoDB user CRUD operations with testcontainers."""
@@ -228,7 +228,7 @@ test "legacy user migration and progressive rehashing" {
     import from pymongo { MongoClient }
     import hashlib;
     import tempfile;
-    import from jac_scale.identity_storage { IdentityStorage }
+    import from jac_scale.identity.identity_storage { IdentityStorage }
 
     ADMIN_UUID = '00000000-0000-0000-0000-000000000000';
     NEW_USER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
