@@ -18,11 +18,9 @@ import from jac_scale.injector.bundle {
     pack_source,
     content_address,
     bundle_object_key,
-    pinned_install_specs,
     ensure_jac_toml_cmd,
     APP_VOLUME_NAME,
-    APP_MOUNT_PATH,
-    PYDEPS_DIR
+    APP_MOUNT_PATH
 }
 
 glob logger = logging.getLogger(__name__);
@@ -69,12 +67,11 @@ def build_bundle_pvc(
 
 
 """Init container that unpacks the bundle from the mounted PVC onto the shared app
-volume and installs jac there so the main container starts fast."""
+volume. Code delivery ONLY: installing jac + deps (the binary, Bun, plugins) is
+the shared runtime bootstrap's job, run in the app container so the monolith and
+microservice cells install identically."""
 def build_pvc_init_container(base_image: str, bundle_path: str) -> dict[str, any] {
-    install = " ".join([f"'{spec}'" for spec in pinned_install_specs()]);
-    script = (
-        "set -eu; " + f"tar xzf {bundle_path} -C {APP_MOUNT_PATH}; " + f"{ensure_jac_toml_cmd()}; " + f"pip install --no-cache-dir --target={PYDEPS_DIR} {install}"
-    );
+    script = "set -eu; " + f"tar xzf {bundle_path} -C {APP_MOUNT_PATH}; " + ensure_jac_toml_cmd();
     return {
         "name": "jac-pvc-bootstrap",
         "image": base_image,

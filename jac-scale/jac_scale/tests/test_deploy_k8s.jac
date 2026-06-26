@@ -217,9 +217,7 @@ test "early exit" {
     );
 
     app_config = AppConfig(
-        code_folder=todo_app_path,
-        file_name="app_err.jac",
-        no_image=True
+        code_folder=todo_app_path, file_name="app_err.jac", no_image=True
     );
 
     result: DeploymentResult = deployment_target.deploy(app_config);
@@ -389,7 +387,6 @@ test "kubernetes target security policy dicts" {
         f"{app_name}-redis-network-policy",
         f"{app_name}-prometheus-network-policy",
         f"{app_name}-grafana-network-policy",
-        f"{app_name}-code-server-network-policy",
         f"{app_name}-kube-state-metrics-network-policy",
         f"{app_name}-node-exporter-network-policy",
 
@@ -863,9 +860,7 @@ test "shared ingress deploy fails fast when domain is not set" {
         'kubernetes', target_config, logger
     );
 
-    app_config = AppConfig(
-        code_folder='/tmp', file_name='main.jac', no_image=True
-    );
+    app_config = AppConfig(code_folder='/tmp', file_name='main.jac', no_image=True);
 
     result = deployment_target.deploy(app_config);
 
@@ -893,9 +888,7 @@ test "shared ingress deploy skips nodeport validation" {
         'kubernetes', target_config, logger
     );
 
-    app_config = AppConfig(
-        code_folder='/tmp', file_name='main.jac', no_image=True
-    );
+    app_config = AppConfig(code_folder='/tmp', file_name='main.jac', no_image=True);
 
     mock_provider = unittest.mock.MagicMock();
     mock_provider.needs_nlb_wait.return_value = False;

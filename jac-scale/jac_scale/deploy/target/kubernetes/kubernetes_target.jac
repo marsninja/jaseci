@@ -8,6 +8,10 @@ import from jac_scale.models.resource_status { ResourceStatus, ResourceStatusInf
 import from jac_scale.observability.logger { Logger }
 import from jac_scale.deploy.target.kubernetes.kubernetes_config { KubernetesConfig }
 import from jac_scale.injector.bundle { JAC_ZIG_VERSION }
+import from jac_scale.injector.pvc_injector { PvcInjector, bundle_pvc_name }
+import from jac_scale.deploy.target.kubernetes.runtime_bootstrap {
+    build_runtime_install_commands
+}
 import from jac_scale.deploy.target.kubernetes.utils.kubernetes_utils {
     COMPANION_DEFS,
     check_deployment_status,
@@ -22,7 +26,6 @@ import from jac_scale.deploy.target.kubernetes.utils.kubernetes_utils {
     get_cluster_provider,
     load_env_variables,
     validate_resource_limits,
-    sync_code_to_pvc,
     resize_pvc_if_needed
 }
 import from jac_scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
@@ -183,166 +186,16 @@ obj KubernetesTarget(DeploymentTarget) {
 
     """Build the bash command for setting up Jaseci runtime environment."""
     def _build_runtime_setup_command(app_config: AppConfig) -> list[str] {
-        config = self.k8s_config;
-        commands = [];
-
-        # Base setup
-        commands.append('export DEBIAN_FRONTEND=noninteractive');
-        # Disable apt sandbox: CAP_SETUID/CAP_SETGID are dropped in the container
-        # security context, so apt cannot drop privileges to the _apt user.
-        commands.append(
-            'echo \'APT::Sandbox::User "root";\' > /etc/apt/apt.conf.d/00sandbox'
-        );
-        # Remove repos that don't exist yet on Debian testing (trixie) to prevent
-        # apt-get update from hanging/failing on missing Release files.
-        # Legacy one-line format lives in *.list; modern python:3.x-slim images
-        # (Debian trixie) use the deb822 *.sources format where the suites are
-        # combined on a single `Suites:` line - the *.list-only sed misses it,
-        # so we also strip the trixie-updates token from `Suites:` lines there.
-        commands.append(
-            'sed -i \'/trixie-updates\\|trixie-security/d\' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true'
-        );
-        commands.append(
-            'sed -i -E \'/^Suites:/ s/[[:space:]]+trixie-updates//g\' /etc/apt/sources.list.d/*.sources 2>/dev/null || true'
-        );
-        # Make apt-get update resilient: bounded retries + short network
-        # timeouts so an unreachable suite (e.g. the deb822 trixie-security
-        # stanza) fails fast instead of stalling the pod for minutes, and
-        # `|| true` keeps a partial-but-usable index from aborting the build
-        # (git/curl/unzip resolve from the main trixie suite, which Hits).
-        commands.append(
-            'apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 '
-            '-o Acquire::https::Timeout=20 update || true'
+        commands = build_runtime_install_commands(
+            self.k8s_config, app_config.experimental
         );
 
-        # Install base packages (curl and unzip needed for Bun installation)
-        base_packages = ['git', 'curl', 'unzip'];
-        if config.additional_packages {
-            base_packages.extend(config.additional_packages);
-        }
-        commands.append(f"apt-get install -y {' '.join(base_packages)}");
-
-        # Install Bun (required for client framework frontend builds), pinned to the
-        # same version jac auto-installs locally (BUN_VERSION is the single
-        # source of truth in jaclang.runtimelib.client.bun_installer).
-        commands.append(
-            f'curl -fsSL https://bun.sh/install | bash -s "bun-v{BUN_VERSION}"'
-        );
-        commands.append('export BUN_INSTALL="$HOME/.bun"');
-        commands.append('export PATH="$BUN_INSTALL/bin:$PATH"');
-
-        if app_config.experimental {
-            commands.append('rm -rf jaseci');
-            # The pod has no SSH key/known_hosts, so a `git@host:owner/repo`
-            # or `ssh://` URL makes the clone hang then fail. Normalize the
-            # common GitHub SCP-style SSH form to anonymous HTTPS so the
-            # in-cluster clone works for public repos without credentials.
-            repo_url = config.jaseci_repo_url;
-            if repo_url.startswith('git@') and ':' in repo_url {
-                host_path = repo_url[4:];
-                host = host_path.split(':', 1)[0];
-                path = host_path.split(':', 1)[1];
-                repo_url = f"https://{host}/{path}";
-            } elif repo_url.startswith('ssh://git@') {
-                repo_url = 'https://' + repo_url[len('ssh://git@'):];
-            }
-            clone_cmd = f"git clone --branch {config.jaseci_branch} --single-branch {repo_url}";
-            commands.append(clone_cmd);
-            commands.append('cd ./jaseci');
-            if config.jaseci_commit {
-                commands.append(f"git checkout {config.jaseci_commit}");
-            }
-            commands.append('git submodule update --init --recursive');
-            # jaclang ships as the self-contained `jac` binary, not a pip/editable
-            # package, so the checkout is compiled with `zig build` to run the
-            # branch's own jaclang (the point of experimental mode). zstd is
-            # needed by build.zig's python-build-standalone payload step. The Zig
-            # version comes from injector.bundle.JAC_ZIG_VERSION (single source of
-            # truth, tracking jac/build.zig.zon's minimum_zig_version).
-            commands.append(
-                'apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 '
-                '-o Acquire::https::Timeout=20 update || true'
-            );
-            commands.append('apt-get install -y --no-install-recommends xz-utils zstd');
-            commands.append(
-                'ZARCH="$(uname -m)"; [ "$ZARCH" = "arm64" ] && ZARCH="aarch64"'
-            );
-            commands.append(f'ZDIR="zig-${{ZARCH}}-linux-{JAC_ZIG_VERSION}"');
-            commands.append(
-                f'curl -fsSL "https://ziglang.org/download/{JAC_ZIG_VERSION}/${{ZDIR}}.tar.xz" '
-                '| tar -xJ -C /tmp'
-            );
-            commands.append('export PATH="/tmp/${ZDIR}:$PATH"');
-            commands.append('( cd jac && zig build )');
-            commands.append('export PATH="$PWD/jac/zig-out/bin:$PATH"');
-            # --global: plugins go into the binary's own site so `jac start`
-            # finds them after `cd ..` (a bare `jac install` would target a
-            # per-project .jac/venv that isn't on PATH at run time).
-            commands.append('jac install -e ./jac-scale --extras all --global');
-            # byllm/mcp are optional: a core-only fork branch may not ship them,
-            # so skip-when-absent rather than failing the bootstrap.
-            commands.append(
-                '[ ! -d ./jac-byllm ] || jac install -e ./jac-byllm --global'
-            );
-            commands.append('[ ! -d ./jac-mcp ] || jac install -e ./jac-mcp --global');
-            commands.append('cd ..');
-        } else {
-            packages = config.plugin_versions or {};
-            jaclang_v = packages.get('jaclang', 'latest');
-            scale_v = packages.get('jac_scale', 'latest');
-            byllm_v = packages.get('jac_byllm', 'latest');
-            mcp_v = packages.get('jac_mcp', 'latest');
-            # jaclang ships as the self-contained `jac` binary (not on PyPI); the
-            # official installer fetches it from GitHub Releases onto PATH.
-            # `--version` pins to a specific jaseci release; omit it for latest.
-            install_jac = (
-                'curl -fsSL https://raw.githubusercontent.com/jaseci-labs/'
-                'jaseci/main/scripts/install.sh | bash'
-            );
-            if jaclang_v != 'latest' {
-                install_jac += f" -s -- --version {jaclang_v}";
-            }
-            commands.append(install_jac);
-            commands.append('export PATH="$HOME/.local/bin:$PATH"');
-            # Plugins install --global (into the binary's own site, honoring any
-            # pins in config.plugin_versions) so `jac start` finds them: these run
-            # before `cd {app_mount_path}`, so a bare `jac install` would have no
-            # project venv to target. Extras ride in the spec as PEP 508 brackets
-            # (`jac-scale[all]`) because `--extras` is dropped for named packages.
-            # jac-scale[all] is always needed; byllm/mcp are opt-out via 'none'.
-            if scale_v == 'latest' {
-                commands.append("jac install 'jac-scale[all]' --global");
-            } else {
-                commands.append(f"jac install 'jac-scale[all]=={scale_v}' --global");
-            }
-            if byllm_v and byllm_v != 'none' {
-                if byllm_v == 'latest' {
-                    commands.append('jac install byllm --global');
-                } else {
-                    commands.append(f'jac install byllm=={byllm_v} --global');
-                }
-            }
-            if mcp_v and mcp_v != 'none' {
-                if mcp_v == 'latest' {
-                    commands.append('jac install jac-mcp --global');
-                } else {
-                    commands.append(f'jac install jac-mcp=={mcp_v} --global');
-                }
-            }
-        }
-
-        # Change to app directory (project is already copied there via volume mount)
-        commands.append(f"cd {config.app_mount_path}");
-
-        # Install requirements
+        # Change to the app directory (the injector init container unpacked the
+        # project source there) and launch the monolith.
+        commands.append(f"cd {self.k8s_config.app_mount_path}");
         commands.append('jac install');
-
-        # Start the application
         commands.append(f"jac start {app_config.file_name}");
-
-        # Join all commands
         full_command = ' && '.join(commands);
-
         return ['bash', '-c', full_command];
     }
 
@@ -421,200 +274,6 @@ obj KubernetesTarget(DeploymentTarget) {
         }
 
         return container_config;
-    }
-
-    """Build volumes and build container configuration for code sync via code-server."""
-    def _build_volumes_config(
-        app_name: str, app_config: AppConfig, namespace: str, core_v1: any, apps_v1: any
-    ) -> dict[str, any] {
-        pvc_name = f"{app_name}-code-pvc";
-        pvc_size = self.k8s_config.pvc_size;
-        sync_image = self.k8s_config.busybox_image;
-
-        ensure_pvc_exists(core_v1, namespace, pvc_name, pvc_size);
-        if self.logger {
-            self.logger.info('Syncing application code to PVC');
-        }
-        sync_code_to_pvc(
-            core_v1, namespace, pvc_name, app_config.code_folder, app_name, sync_image
-        );
-
-        # Deploy code-server to serve code from PVC over HTTP
-        self._deploy_code_server(app_name, namespace, apps_v1, core_v1);
-
-        # Init container fetches code from code-server via wget (no PVC mount needed)
-        code_server_url = f"http://{app_name}-code-server:8080/code.tar.gz";
-        build_container = {
-            'name': 'build-app',
-            'image': self.k8s_config.busybox_image,
-            'securityContext': {
-                'runAsNonRoot': True,
-                'runAsUser': 1000,
-                'readOnlyRootFilesystem': False,
-                'allowPrivilegeEscalation': False,
-                'capabilities': {'drop': ['ALL']},
-                'seccompProfile': {'type': 'RuntimeDefault'}
-            },
-            'command': [
-                'sh',
-                '-c',
-                f"until wget -q -O {self.k8s_config.app_mount_path}/code.tar.gz {code_server_url}; do sleep 2; done && tar xzf {self.k8s_config.app_mount_path}/code.tar.gz -C {self.k8s_config.app_mount_path}/ && rm {self.k8s_config.app_mount_path}/code.tar.gz"
-            ],
-            'volumeMounts': [
-                {'name': 'app-code', 'mountPath': self.k8s_config.app_mount_path},
-                {'name': 'tmp', 'mountPath': '/tmp'}
-            ]
-        };
-
-        # Only emptyDir - no PVC mount on app pods, so they can schedule on any node
-        volumes = [
-            {'name': 'app-code', 'emptyDir': {}},
-            {'name': 'tmp', 'emptyDir': {}}
-        ];
-
-        return {'volumes': volumes, 'build_container': build_container};
-    }
-
-    """Deploy code-server: a single-replica busybox httpd that serves code from the PVC over HTTP."""
-    def _deploy_code_server(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
-        code_server_name = f"{app_name}-code-server";
-        code_server_labels = {'app': code_server_name};
-        pvc_name = f"{app_name}-code-pvc";
-        code_server_sa_name = f"{code_server_name}-sa";
-
-        # ServiceAccount for code-server
-        code_server_sa = {
-            'apiVersion': 'v1',
-            'kind': 'ServiceAccount',
-            'metadata': {
-                'name': code_server_sa_name,
-                'namespace': namespace,
-                'labels': {** code_server_labels, 'managed': 'jac-scale'}
-            },
-            'automountServiceAccountToken': False
-        };
-        try {
-            core_v1.read_namespaced_service_account(
-                name=code_server_sa_name, namespace=namespace
-            );
-        } except ApiException as e {
-            if e.status == 404 {
-                core_v1.create_namespaced_service_account(
-                    namespace=namespace, body=code_server_sa
-                );
-            } else {
-                raise;
-            }
-        }
-
-        # Code-server Deployment spec
-        deployment_body = {
-            'apiVersion': 'apps/v1',
-            'kind': 'Deployment',
-            'metadata': {
-                'name': code_server_name,
-                'namespace': namespace,
-                'labels': {** code_server_labels, 'managed': 'jac-scale'}
-            },
-            'spec': {
-                'replicas': 1,
-                'selector': {'matchLabels': code_server_labels},
-                'template': {
-                    'metadata': {'labels': code_server_labels},
-                    'spec': {
-                        'automountServiceAccountToken': False,
-                        'serviceAccountName': code_server_sa_name,
-                        'securityContext': {
-                            'seccompProfile': {'type': 'RuntimeDefault'}
-                        },
-                        'containers': [
-                            {
-                                'name': 'code-server',
-                                'image': self.k8s_config.busybox_image,
-                                # readOnlyRootFilesystem=False: busybox httpd writes
-                                # the tarball to /tmp before serving it.
-                                'securityContext': {
-                                    'runAsNonRoot': True,
-                                    'runAsUser': 1000,
-                                    'readOnlyRootFilesystem': False,
-                                    'allowPrivilegeEscalation': False,
-                                    'capabilities': {'drop': ['ALL']},
-                                    'seccompProfile': {'type': 'RuntimeDefault'}
-                                },
-                                'command': [
-                                    'sh',
-                                    '-c',
-                                    f"echo 'Code-server starting' && tar czf /tmp/code.tar.gz -C {self.k8s_config.workspace_path} --exclude='.jac' . && echo 'Tar completed' && httpd -f -p 8080 -h /tmp"
-                                ],
-                                'ports': [{'containerPort': 8080}],
-                                'volumeMounts': [
-                                    {
-                                        'name': 'code-source',
-                                        'mountPath': self.k8s_config.code_mount_path,
-                                        'readOnly': True
-                                    }
-                                ]
-                            }
-                        ],
-                        'volumes': [
-                            {
-                                'name': 'code-source',
-                                'persistentVolumeClaim': {'claimName': pvc_name}
-                            }
-                        ]
-                    }
-                }
-            }
-        };
-
-        # Code-server Service spec
-        service_body = {
-            'apiVersion': 'v1',
-            'kind': 'Service',
-            'metadata': {
-                'name': code_server_name,
-                'namespace': namespace,
-                'labels': {** code_server_labels, 'managed': 'jac-scale'}
-            },
-            'spec': {
-                'type': 'ClusterIP',
-                'ports': [{'port': 8080, 'targetPort': 8080}],
-                'selector': code_server_labels
-            }
-        };
-
-        # Delete existing code-server deployment to force re-tar of fresh code
-        delete_if_exists(
-            apps_v1.delete_namespaced_deployment,
-            code_server_name,
-            namespace,
-            'Deployment'
-        );
-        time.sleep(self.k8s_config.resource_deletion_wait);
-
-        # Create code-server deployment
-        apps_v1.create_namespaced_deployment(namespace=namespace, body=deployment_body);
-        if self.logger {
-            self.logger.info(f"Deployed code-server '{code_server_name}'");
-        }
-
-        # Create code-server service (if not exists)
-        try {
-            core_v1.read_namespaced_service(name=code_server_name, namespace=namespace);
-        } except ApiException as e {
-            if e.status == 404 {
-                core_v1.create_namespaced_service(
-                    namespace=namespace, body=service_body
-                );
-                if self.logger {
-                    self.logger.info(
-                        f"Created code-server service '{code_server_name}'"
-                    );
-                }
-            } else {
-                raise;
-            }
-        }
     }
 
     """Deploy all enabled databases and their optional dashboards."""
@@ -1108,17 +767,6 @@ obj KubernetesTarget(DeploymentTarget) {
                 'pod_selector': {'matchLabels': {'app': f"{app_name}-grafana"}},
                 'ingress_rules': [{'ports': [{'protocol': 'TCP', 'port': 3000}]}]
             },
-            {
-                'name': f"{app_name}-code-server-network-policy",
-                'pod_selector': {'matchLabels': {'app': f"{app_name}-code-server"}},
-                'ingress_rules': [
-                    # Code-server port - accepts traffic from main app
-                    {
-                        'from': [{'podSelector': {'matchLabels': {'app': app_name}}}],
-                        'ports': [{'protocol': 'TCP', 'port': 8080}]
-                    }
-                ]
-            },
             # kube-state-metrics - allow prometheus to scrape on port 8080
             {
                 'name': f"{app_name}-kube-state-metrics-network-policy",
@@ -1429,9 +1077,8 @@ obj KubernetesTarget(DeploymentTarget) {
                 );
             }
 
-            # 5. No image build: run on the python base image and sync local
-            #    source into the cluster via the code-server/no-image path.
-            repository_name = self.k8s_config.python_image;
+            # 5. No image build: run on the python base image; the PvcInjector
+            #    ships local source into the cluster (the unified no-Docker path).
 
             # 6. Get health check path
             health_check_path = self.k8s_config.health_check_path;
@@ -1440,30 +1087,31 @@ obj KubernetesTarget(DeploymentTarget) {
             init_containers = self._get_database_init_containers(app_name);
 
             # 8. Build configurations
-            volumes = [];
             resources_config = self._build_resource_config();
             probe_configs = self._build_probe_config(health_check_path);
 
-            # 9. Build container configuration
-            container_config = self._build_container_config(
-                app_name,
-                repository_name,
-                probe_configs,
-                resources_config,
-                secret_ref_name=secret_ref_name
+            # 9. Ship source into the cluster via the PvcInjector - the single,
+            # unified code-injection path (no Docker, no code-server). Pack the
+            # project, create + seed the ReadWriteMany bundle PVC, then
+            # mutate_pod_spec (after the Deployment is assembled) adds the unpack
+            # init container + bundle mount. app_name is already a DNS-1123 name
+            # (it names the Deployment/Service), so it doubles as the bundle key.
+            injector = PvcInjector();
+            injector.prepare(app_name, namespace, app_config.code_folder);
+            ensure_pvc_exists(
+                core_v1,
+                namespace,
+                bundle_pvc_name(app_name),
+                injector.size,
+                storage_class=injector.storage_class or None,
+                access_mode='ReadWriteMany'
             );
+            injector.seed(app_name, namespace);
+            details["ship_source_bundle"] = "Successful";
 
-            # 10. Volumes + code-sync: source is always shipped into the cluster
-            # (no-image path) and jac is installed at pod startup; there is no
-            # image-build branch anymore.
-            volumes_config = self._build_volumes_config(
-                app_name, app_config, namespace, core_v1, apps_v1
-            );
-            details["sync_code_to_pvc"] = "Successful";
-            volumes = volumes_config['volumes'];
-            build_container = volumes_config['build_container'];
-            init_containers.append(build_container);
-            # Build runtime setup command
+            # 10. Main container: the shared runtime bootstrap installs jac (binary
+            # + Bun + plugins, or the experimental zig-build) then `jac start`. The
+            # injector mounts the unpacked source at app_mount_path.
             command = self._build_runtime_setup_command(app_config);
             container_config = self._build_container_config(
                 app_name,
@@ -1472,10 +1120,6 @@ obj KubernetesTarget(DeploymentTarget) {
                 resources_config,
                 command=command,
                 working_dir=self.k8s_config.app_mount_path,
-                volume_mounts=[
-                    {'name': 'app-code', 'mountPath': self.k8s_config.app_mount_path},
-                    {'name': 'tmp', 'mountPath': '/tmp'}
-                ],
                 secret_ref_name=secret_ref_name,
                 needs_root=True
             );
@@ -1508,11 +1152,22 @@ obj KubernetesTarget(DeploymentTarget) {
                             },
                             'initContainers': init_containers,
                             'containers': [container_config],
-                            'volumes': volumes
+                            'volumes': []
                         }
                     }
                 }
             };
+
+            # 11c. Let the injector add the bundle PVC, the unpack init container,
+            # and the /app mount to the pod template - the same mutation the
+            # microservice cell uses, so both cells inject code identically.
+            template_spec = deployment['spec']['template']['spec'];
+            template_spec['_jac_meta'] = {'app_name': app_name, 'namespace': namespace};
+            template_spec = injector.mutate_pod_spec(
+                template_spec, self.k8s_config.python_image
+            );
+            template_spec.pop('_jac_meta', None);
+            deployment['spec']['template']['spec'] = template_spec;
 
             # 12. Delete existing resources if they exist
             delete_if_exists(
@@ -1713,31 +1368,6 @@ obj KubernetesTarget(DeploymentTarget) {
                 }
             }
 
-            # Check code-server deployment
-            code_server_name = f"{app_name}-code-server";
-            try {
-                apps_v1.read_namespaced_deployment(
-                    name=code_server_name, namespace=namespace
-                );
-                resources_exist = True;
-            } except ApiException as e {
-                if e.status != 404 {
-                    raise;
-                }
-            }
-
-            # Check code-server service
-            try {
-                core_v1.read_namespaced_service(
-                    name=code_server_name, namespace=namespace
-                );
-                resources_exist = True;
-            } except ApiException as e {
-                if e.status != 404 {
-                    raise;
-                }
-            }
-
             # Check MongoDB resources if enabled
             if self.k8s_config.mongodb_enabled {
                 mongodb_name = f"{app_name}-mongodb";
@@ -1907,34 +1537,20 @@ obj KubernetesTarget(DeploymentTarget) {
             'Service'
         );
         delete_k8s_secret(core_v1, namespace, f"{app_name}-secrets");
-        code_server_name = f"{app_name}-code-server";
+        # Clean up the injector bundle PVC and any orphaned loader pod (the
+        # unified code-injection path; code-server / code-pvc are gone).
         delete_if_exists(
-            apps_v1.delete_namespaced_deployment,
-            code_server_name,
-            namespace,
-            'Deployment'
-        );
-        delete_if_exists(
-            core_v1.delete_namespaced_service, code_server_name, namespace, 'Service'
-        );
-        delete_if_exists(
-            core_v1.delete_namespaced_pod, f"{app_name}-code-sync", namespace, 'Pod'
+            core_v1.delete_namespaced_pod, f"{app_name}-bundle-loader", namespace, 'Pod'
         );
         delete_if_exists(
             core_v1.delete_namespaced_persistent_volume_claim,
-            f"{app_name}-code-pvc",
+            bundle_pvc_name(app_name),
             namespace,
             'PersistentVolumeClaim'
         );
         delete_if_exists(
             core_v1.delete_namespaced_service_account,
             f"{app_name}-sa",
-            namespace,
-            'ServiceAccount'
-        );
-        delete_if_exists(
-            core_v1.delete_namespaced_service_account,
-            f"{app_name}-code-server-sa",
             namespace,
             'ServiceAccount'
         );
@@ -1946,7 +1562,6 @@ obj KubernetesTarget(DeploymentTarget) {
             f"{app_name}-redis-network-policy",
             f"{app_name}-prometheus-network-policy",
             f"{app_name}-grafana-network-policy",
-            f"{app_name}-code-server-network-policy",
             f"{app_name}-kube-state-metrics-network-policy",
             f"{app_name}-node-exporter-network-policy",
             f"{app_name}-mongo-express-network-policy",

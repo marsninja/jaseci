@@ -70,10 +70,6 @@ def ensure_namespace_exists(namespace: str) -> None;
 
 def delete_namespace(namespace: str) -> None;
 
-def exclude_folders(tarinfo: tarfile.TarInfo) -> Optional[tarfile.TarInfo];
-
-def create_tarball(source_dir: str, tar_path: str) -> None;
-
 def create_or_update_configmap(
     namespace: str, configmap_name: str, tar_path: str
 ) -> None;
@@ -120,12 +116,3 @@ def wait_for_pod_deletion(
 ) -> None;
 
 def run_kubectl_command(args: list[str], cwd: str | Path | None = None) -> None;
-
-def sync_code_to_pvc(
-    core_v1: client.CoreV1Api,
-    namespace: str,
-    pvc_name: str,
-    code_folder: str,
-    app_name: str,
-    sync_image: str
-) -> None;

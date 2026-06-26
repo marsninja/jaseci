@@ -1,6 +1,5 @@
 """Tests for Kubernetes utility functions."""
 
-import tarfile;
 import from pathlib { Path }
 import from tempfile { mkdtemp }
 import from types { SimpleNamespace }
@@ -10,14 +9,12 @@ import from jaclang.runtimelib.test { parametrize }
 import from jac_scale.deploy.target.kubernetes.utils { kubernetes_utils as utils }
 import from jac_scale.deploy.target.kubernetes.utils.kubernetes_utils {
     check_pods_restarted,
-    create_tarball,
     ensure_pvc_exists,
     load_env_variables,
     parse_cpu_quantity,
     parse_memory_quantity,
     parse_storage_quantity,
     resize_pvc_if_needed,
-    sync_code_to_pvc,
     validate_resource_limits
 }
 
@@ -187,101 +184,6 @@ test "cluster type detects aws by provider" {
     with unittest.mock.patch.object(utils.client, "CoreV1Api", lambda : FakeApi()) {
         assert utils.cluster_type() == "aws";
     }
-}
-
-# --- create_tarball ---
-test "create tarball captures files" {
-    tmp = Path(mkdtemp());
-    source_dir = tmp / "src";
-    source_dir.mkdir();
-    file_path = source_dir / "hello.txt";
-    file_path.write_text("hello");
-    tar_path = tmp / "archive.tar.gz";
-
-    create_tarball(str(source_dir), str(tar_path));
-
-    assert tar_path.exists();
-    with tarfile.open(tar_path, "r:gz") as tar {
-        member_names = tar.getnames();
-    }
-    assert "./hello.txt" in member_names;
-}
-
-test "create tarball excludes jac folder" {
-    tmp = Path(mkdtemp());
-    source_dir = tmp / "src";
-    source_dir.mkdir();
-    (source_dir / "app.py").write_text("print('hi')");
-    jac_dir = source_dir / ".jac";
-    jac_dir.mkdir();
-    (jac_dir / "cache.json").write_text("{}");
-    tar_path = tmp / "archive.tar.gz";
-
-    create_tarball(str(source_dir), str(tar_path));
-
-    with tarfile.open(tar_path, "r:gz") as tar {
-        member_names = tar.getnames();
-    }
-    assert "./app.py" in member_names;
-    assert not any(".jac" in name for name in member_names);
-}
-
-test "create tarball missing source" {
-    tmp = Path(mkdtemp());
-    tar_path = tmp / "archive.tar.gz";
-
-    raised = False;
-    try {
-        create_tarball(str(tmp / "missing"), str(tar_path));
-    } except FileNotFoundError {
-        raised = True;
-    }
-    assert raised , "Expected FileNotFoundError for missing source directory";
-}
-
-# --- sync_code_to_pvc pod affinity ---
-test "sync code to pvc sets pod affinity to code server" {
-    tmp = Path(mkdtemp());
-    code_dir = tmp / "app";
-    code_dir.mkdir();
-    (code_dir / "main.jac").write_text("with entry { print('hi'); }");
-
-    core_v1 = unittest.mock.MagicMock();
-
-    # Patch out I/O helpers so sync_code_to_pvc only builds the pod spec
-    with unittest.mock.patch.object(utils, "wait_for_pod_phase") {
-        with unittest.mock.patch.object(utils, "wait_for_pod_deletion") {
-            with unittest.mock.patch.object(utils, "run_kubectl_command") {
-                with unittest.mock.patch.object(utils, "create_tarball") {
-                    sync_code_to_pvc(
-                        core_v1,
-                        namespace="test-ns",
-                        pvc_name="test-pvc",
-                        code_folder=str(code_dir),
-                        app_name="myapp",
-                        sync_image="busybox:latest"
-                    );
-                }
-            }
-        }
-    }
-
-    call_args = core_v1.create_namespaced_pod.call_args;
-    assert call_args is not None , "create_namespaced_pod was not called";
-    pod_body = call_args[0][1];
-    spec = pod_body["spec"];
-
-    # Verify podAffinity exists and targets code-server
-    affinity = spec.get("affinity");
-    assert affinity is not None , "Pod spec must include affinity";
-    pod_affinity = affinity.get("podAffinity");
-    assert pod_affinity is not None , "Pod spec must include podAffinity";
-    rules = pod_affinity["preferredDuringSchedulingIgnoredDuringExecution"];
-    assert len(rules) == 1;
-    assert rules[0]["weight"] == 100;
-    term = rules[0]["podAffinityTerm"];
-    assert term["labelSelector"]["matchLabels"] == {"app": "myapp-code-server"};
-    assert term["topologyKey"] == "kubernetes.io/hostname";
 }
 
 # --- check_pods_restarted ---

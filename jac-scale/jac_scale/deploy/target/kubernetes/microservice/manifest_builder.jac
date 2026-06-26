@@ -31,14 +31,14 @@ obj MicroserviceManifestBuilder {
         secrets: dict[str, str] = {},
         deploy_context: DeployContext = DeployContext(),
         logger: any = None,
-        # no-image is the only code-shipping path: serve source from a
-        # ConfigMap + install jac at pod startup on a generic Python base
-        # image (no docker build/push). Retained as a field for callers/tests;
-        # always treated as true.
+        # no-image is the only code-shipping path: the PvcInjector ships source
+        # into the cluster and the shared runtime bootstrap installs jac at pod
+        # startup on a generic Python base image (no docker build/push). Retained
+        # as a field for callers/tests; always treated as true.
         no_image: bool = True,
-        # --experimental: the pod's `jac` binary is built from a cloned jaseci
-        # checkout, so the runtime PATH points at JAC_BIN_DIR instead of the
-        # pip-deps dir (mirrors the bootstrap branch in kubernetes_target).
+        # --experimental: the shared runtime bootstrap builds the pod's `jac`
+        # binary from a cloned jaseci checkout (zig build) instead of fetching the
+        # released binary; PATH is exported inline by the bootstrap either way.
         experimental: bool = False,
         project_dir: str = "",
         _bundle_object_key: str = "",
@@ -832,10 +832,21 @@ obj MicroserviceManifestBuilder {
         };
     }
 
-    """Pod entrypoint: reads JAC_SV_NAME and runs `jac scale gateway`
-    (gateway) or `jac start <name>.jac` (service). JAC_SV_SIBLING=1 is
-    exported so the pre-hook skips local-mode orchestration."""
+    """Pod entrypoint: runs the shared runtime bootstrap (install the jac binary,
+    Bun, and plugins - the same sequence as the monolith cell), then reads
+    JAC_SV_NAME and runs `jac scale gateway` (gateway) or `jac start <name>.jac`
+    (service). JAC_SV_SIBLING=1 is exported so the pre-hook skips local-mode
+    orchestration. The injector init container unpacked the source at
+    APP_MOUNT_PATH; the bootstrap installs jac there and exports PATH inline, so
+    no PYDEPS/PYTHONPATH env override is needed."""
     def _pod_entrypoint -> dict[str, any] {
+        import from jac_scale.deploy.target.kubernetes.runtime_bootstrap {
+            build_runtime_install_commands
+        }
+        import from jac_scale.injector.bundle { APP_MOUNT_PATH }
+        install = ' && '.join(
+            build_runtime_install_commands(self.k8s_config, self.experimental)
+        );
         gw_prefix = "";
         client_entry = self._client_entry();
         if client_entry {
@@ -848,9 +859,12 @@ obj MicroserviceManifestBuilder {
             );
         }
         return {
-            "command": ["sh", "-c"],
+            "command": ["bash", "-c"],
             "args": [
                 "set -euo pipefail; "
+                f"{install}; "
+                f"cd {APP_MOUNT_PATH}; "
+                "jac install; "
                 "export JAC_SV_SIBLING=1; "
                 'if [ "$JAC_SV_NAME" = "__gateway__" ]; then '
                 f"  {gw_prefix}"
@@ -894,32 +908,12 @@ obj MicroserviceManifestBuilder {
             container["resources"] = resources;
         }
         (shared_vols, shared_mounts) = self._shared_volumes_for_service(svc_name);
-        # Run from the extracted source on a shared emptyDir, resolving jac +
-        # deps the bootstrap initContainer installed under PYDEPS_DIR (added to
-        # PATH/PYTHONPATH). entry["args"]'s `jac` then resolves to the
-        # installed console script.
-        import from jac_scale.injector.bundle {
-            APP_MOUNT_PATH,
-            PYDEPS_DIR,
-            JAC_BIN_DIR
-        }
+        # The injector init container unpacked the source onto a shared emptyDir
+        # at APP_MOUNT_PATH; the entrypoint's runtime bootstrap installs jac there
+        # and exports PATH inline (binary or experimental zig-build), so no
+        # PYDEPS/PYTHONPATH/PATH env override is needed here.
+        import from jac_scale.injector.bundle { APP_MOUNT_PATH }
         container["workingDir"] = APP_MOUNT_PATH;
-        if self.experimental {
-            # Run the `jac` binary the experimental bootstrap built from the
-            # cloned checkout; plugins live in the binary's own resolver, so
-            # no PYDEPS_DIR / PYTHONPATH override.
-            env_list.append(
-                {"name": "PATH", "value": f"{JAC_BIN_DIR}:/usr/local/bin:/usr/bin:/bin"}
-            );
-        } else {
-            env_list.append({"name": "PYTHONPATH", "value": PYDEPS_DIR});
-            env_list.append(
-                {
-                    "name": "PATH",
-                    "value": f"{PYDEPS_DIR}/bin:/usr/local/bin:/usr/bin:/bin"
-                }
-            );
-        }
         if shared_mounts {
             container["volumeMounts"] = shared_mounts;
         }

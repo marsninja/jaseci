@@ -13,17 +13,12 @@ import hashlib;
 import tarfile;
 import from pathlib { Path }
 
-# Pod-side contract shared with the injector's init container.
-glob SOURCE_ARCHIVE_NAME: str = "source.tar.gz",
-     SOURCE_VOLUME_NAME: str = "jac-source",
-     SOURCE_MOUNT_PATH: str = "/jac-src",
-     APP_VOLUME_NAME: str = "jac-app",
+# Pod-side contract shared with the injector's init container. The bundle is
+# unpacked onto APP_VOLUME_NAME at APP_MOUNT_PATH; the shared runtime bootstrap
+# then installs jac there. JAC_ZIG_VERSION tracks jac/build.zig.zon's
+# minimum_zig_version (single source of truth for the experimental zig fetch).
+glob APP_VOLUME_NAME: str = "jac-app",
      APP_MOUNT_PATH: str = "/app",
-     PYDEPS_DIR: str = "/app/.pydeps",
-     # Experimental bootstrap: the `jac` binary is built from the cloned checkout
-     # into JAC_BIN_DIR; JAC_ZIG_VERSION tracks jac/build.zig.zon's
-     # minimum_zig_version (single source of truth for the zig toolchain fetch).
-     JAC_BIN_DIR: str = "/app/.jacbin",
      JAC_ZIG_VERSION: str = "0.16.0";
 
 # Directories never shipped into the cluster: build output, caches, vendored
@@ -161,32 +156,6 @@ def content_address(raw: bytes) -> str {
 same content reuses the same key and a changed tree gets a new one."""
 def bundle_object_key(app_name: str, digest: str) -> str {
     return f"bundles/{app_name}/{digest}.tar.gz";
-}
-
-
-"""In-pod pip specs, pinned to the versions the developer ran. `requests` is a
-runtime dep of the scale plugin shipped only in the test extra, so it (and the
-[all] deploy extras) must be installed explicitly. jac-client is added only when
-present locally (fullstack apps)."""
-def pinned_install_specs -> list[str] {
-    import importlib.metadata as _md;
-    specs: list[str] = [];
-    targets: list[tuple[str, str, bool]] = [
-        ("jaclang", "jaclang", True),
-        ("jac-scale[all]", "jac-scale", True),
-        ("requests", "requests", True),
-        ("jac-client", "jac-client", False)
-    ];
-    for (pip_name, dist_name, required) in targets {
-        try {
-            specs.append(f"{pip_name}=={_md.version(dist_name)}");
-        } except Exception {
-            if required {
-                specs.append(pip_name);
-            }
-        }
-    }
-    return specs;
 }
 
 
