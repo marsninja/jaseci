@@ -156,3 +156,40 @@ test "Mach-O: static-link XML_ExpatVersion from libexpat.a (multi-member) (#6978
     assert res.returncode == 0 , (f"exec exited {res.returncode}, stderr={res.stderr}");
     assert b"expat_" in res.stdout , f"unexpected output: {res.stdout}";
 }
+
+
+test "nacompile CLI: `import from lzma` static-links the floor, no dylib dep (#6978 0.1a)" {
+    # Full integration through the real CLI: the clib floor import resolves to the
+    # bundled archive, members are selected and merged, and the result has no
+    # liblzma dependency (otool -L shows only libSystem).
+    triple = llvm.get_default_triple();
+    if not (sys.platform == "darwin" and "arm64" in triple) {
+        return;
+    }
+    if _find_bundled("liblzma.a") is None {
+        return;
+    }
+    fixture = os.path.join(FIXTURES, "static_archive_crc32.na.jac");
+    d = tempfile.mkdtemp();
+    out = os.path.join(d, "crc32_cli");
+    comp = subprocess.run(
+        [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out],
+        capture_output=True,
+        text=True,
+        timeout=180
+    );
+    assert comp.returncode == 0 , f"nacompile failed: {comp.stderr[-600:]}";
+    assert "Static-linking" in comp.stdout , (
+        f"floor was not static-linked: {comp.stdout[-600:]}"
+    );
+
+    res = subprocess.run([out], capture_output=True, timeout=30);
+    assert res.returncode == 0 , f"exec exited {res.returncode}, stderr={res.stderr}";
+    assert b"3421780262" in res.stdout , f"unexpected output: {res.stdout}";
+
+    # The floor must be linked in, not a runtime dylib dependency.
+    deps = subprocess.run(
+        ["otool", "-L", out], capture_output=True, text=True, timeout=30
+    );
+    assert "lzma" not in deps.stdout , f"unexpected liblzma dep:\n{deps.stdout}";
+}
