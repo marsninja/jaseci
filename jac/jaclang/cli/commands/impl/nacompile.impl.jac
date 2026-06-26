@@ -35,7 +35,13 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     # ELF linker writes the merged .init_array's base + entry count into these two
     # globals; main loops over them and calls each constructor before jac_entry.
     # Count defaults to 0, so a binary with no constructors runs nothing extra.
-    initarr_ir = '@__jac_init_array = global ptr null\n' + '@__jac_init_count = global i64 0\n\n';
+    # Guard the globals like __jac_argc so a module that already declares them
+    # (or a re-injection) does not produce a duplicate-global IR error.
+    initarr_ir = ""
+        if "__jac_init_array" in llvm_ir_str
+        else (
+            '@__jac_init_array = global ptr null\n' + '@__jac_init_count = global i64 0\n\n'
+        );
     # Only declare exit() if sys.exit() didn't already declare it
     # llvmlite quotes the name as @"exit", so check both forms
     has_exit = "@exit" in llvm_ir_str or '@"exit"' in llvm_ir_str;
@@ -226,7 +232,12 @@ impl nacompile(
     # linux/elf target: emit an ELF binary via the pure-Jac ELF linker, letting a
     # macOS (or any) host cross-build for Linux. A bare alias maps to
     # x86_64-unknown-linux-gnu; a full triple is used verbatim.
-    is_linux_target = (target in ["linux", "elf"]) or ("linux" in target);
+    # Bare aliases or a GNU/musl Linux triple. Suffix-match `linux-gnu`/
+    # `linux-musl` rather than a bare `linux` substring so kernel-but-not-ELF-libc
+    # triples like `*-linux-android` do not accidentally route here.
+    is_linux_target = (target in ["linux", "elf"])
+    or ("linux-gnu" in target)
+    or ("linux-musl" in target);
     if is_linux_target {
         os.environ["JAC_NATIVE_TARGET"] = (
             target if "-" in target else "x86_64-unknown-linux-gnu"
