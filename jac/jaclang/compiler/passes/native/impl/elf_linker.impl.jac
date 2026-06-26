@@ -2692,7 +2692,17 @@ def _merge_crt_object(linker: ElfLinker, crt_bytes: bytes) -> bool {
             sym_idx_map[crt_sym_idx] = existing_idx;
         } else {
             new_idx = len(linker.symbols);
-            new_shndx = sec_idx_map.get(crt_sym.shndx, crt_sym.shndx);
+            # An undefined symbol must stay SHN_UNDEF. Remapping its shndx
+            # through sec_idx_map (where SHN_UNDEF==0 collides with the member's
+            # null section, which maps to a real merged index) would make a new
+            # extern reference (e.g. a member's libc call like getauxval) look
+            # defined, so it gets no PLT entry and resolves to 0. Only defined
+            # symbols carry a real section to remap. (#6978 Phase 0.1a, ELF)
+            if crt_sym.shndx == SHN_UNDEF {
+                new_shndx = SHN_UNDEF;
+            } else {
+                new_shndx = sec_idx_map.get(crt_sym.shndx, crt_sym.shndx);
+            }
             linker.symbols.append(
                 ElfSymbol(
                     name=crt_sym.name,
