@@ -10,8 +10,8 @@ def:pub app -> any {
     has isLoggedIn: bool = False,
         checkingAuth: bool = True,
         isSignup: bool = False,
-        username: str = "",
-        password: str = "",
+        authUsername: str = "",
+        authPassword: str = "",
         error: str = "",
         loading: bool = False,
         products: list = [],
@@ -304,12 +304,12 @@ def:pub app -> any {
     return
         <AuthForm
             isSignup={isSignup}
-            username={username}
-            password={password}
+            username={authUsername}
+            password={authPassword}
             error={error}
             loading={loading}
-            onUsernameChange={lambda e: any { username = e.target.value;}}
-            onPasswordChange={lambda e: any { password = e.target.value;}}
+            onUsernameChange={lambda e: any { authUsername = e.target.value;}}
+            onPasswordChange={lambda e: any { authPassword = e.target.value;}}
             onSubmit={handleSubmit}
             onToggleMode={lambda {
                 isSignup = not isSignup;
