@@ -31,7 +31,7 @@ def _ar_hdr(name: str, size: int) -> bytes {
 `a.o` (defines sym_a) and `b.o` (defines sym_b). Member payloads are not real
 objects, so the transitive scan finds no further deps -- selection is exactly
 the directly-referenced members. Returns (archive_bytes, off_a, off_b)."""
-def _mk_gnu_ar() -> tuple[bytes, int, int] {
+def _mk_gnu_ar -> tuple[bytes, int, int] {
     obj_a = b"AAAA";  # 4 bytes (even -> no padding)
     obj_b = b"BBBBBB";  # 6 bytes
     # Layout is fully determined, so the member offsets the index must point at
@@ -74,7 +74,7 @@ test "ar parse + symbol index + selection (synthetic GNU)" {
 
 
 """Locate a bundled libexpat.a from any pbs build, or None."""
-def _find_bundled_expat() -> (str | None) {
+def _find_bundled_expat -> (str | None) {
     jac_dir = Path(__file__).resolve().parents[4];
     hits = list(jac_dir.glob(".pbs-build/*/python/build/lib/libexpat.a"));
     return str(hits[0]) if hits else None;

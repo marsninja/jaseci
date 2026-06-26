@@ -648,6 +648,13 @@ impl `test(
 ) -> int {
     import os;
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    # Accept a single path string as well as a list (matches `check`/`lint`):
+    # programmatic callers pass `test("file.jac")` positionally, which would
+    # otherwise iterate the string character-by-character as if each char were a
+    # path.
+    if isinstance(paths, str) {
+        paths = [paths];
+    }
     # With neither an explicit file nor --directory, scope discovery to the
     # project's `[test] directory` (jac.toml) when configured -- pytest's
     # `testpaths`. This keeps `jac test` from walking the whole project and
@@ -706,7 +713,7 @@ impl `test(
         if run_pytest {
             pargs: list[str] = [];
             # One or more explicit paths, else the resolved directory (if any).
-            targets = paths if paths else ([directory] if directory else []);
+            targets = paths or ([directory] if directory else []);
             for target in targets {
                 pargs.append(target);
             }
@@ -760,7 +767,7 @@ impl `test(
     func_name = ('test_' + normalized_name) if normalized_name else None;
     # Native runner fallback (no pytest / JAC_TEST_NATIVE=1): run each path in
     # turn, or a single directory-scoped pass when no explicit paths were given.
-    run_targets = paths if paths else [""];
+    run_targets = paths or [""];
     failcount = 0;
     for fp in run_targets {
         failcount += Jac.run_test(
