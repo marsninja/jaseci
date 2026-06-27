@@ -239,8 +239,8 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
             return;
         }
 
-        # Resolve bun (bundled in the runtime; dev falls back to a contained
-        # .jac/bin copy). Absolute path, never placed on PATH.
+        # Resolve bun (bundled in the runtime; editable/source checkouts place
+        # it via `zig build fetch-bun`). Absolute path, never placed on PATH.
         bun = get_bun();
         if not bun {
             console.warning("Bun is required but could not be found or installed.");

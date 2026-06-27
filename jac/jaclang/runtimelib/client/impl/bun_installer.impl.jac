@@ -34,8 +34,17 @@ absolute-path override -- the contained equivalent of pointing at a custom
 binary, without ever consulting the user's PATH."""
 def _find_bundled_bun -> str | None {
     override = os.environ.get("JAC_BUN", None);
-    if override and os.path.isfile(override) {
-        return override;
+    if override {
+        if os.path.isfile(override) {
+            return override;
+        }
+        # An explicit override that points nowhere is a mistake worth surfacing,
+        # not silently papering over with the bundled copy.
+        console.warning(
+            f"JAC_BUN is set to '{override}' but no file exists there; "
+            "ignoring it and using the bundled bun.",
+            emoji=False
+        );
     }
     is_windows = platform.system() == "Windows";
     bun_name = "bun.exe" if is_windows else "bun";
@@ -77,7 +86,15 @@ def _ensure_executable(path: str) {
     # probing first (avoids a needless stat and any access-mode edge cases).
     try {
         os.chmod(path, 0o755);
-    } except OSError { }
+    } except OSError as e {
+        # A failure here (read-only cache, odd perms after an upgrade) would
+        # otherwise surface later as a cryptic EACCES when bun is spawned, so
+        # name the real cause now.
+        console.warning(
+            f"Could not set the executable bit on bundled bun at {path}: {e}",
+            emoji=False
+        );
+    }
 }
 
 
