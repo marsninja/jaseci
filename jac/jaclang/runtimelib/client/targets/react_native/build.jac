@@ -327,8 +327,9 @@ def lint_unmapped_tags(compiled_dir: Path) -> list[str] {
         console.print(
             "    These render as <View> with a red dashed border in dev. "
             "Replace with a React Native primitive (View/Text/Pressable/"
-            "TextInput/Image/ScrollView) or a .native.cl.jac override. See D10 in "
-            "docs/REACT_NATIVE_ARCHITECTURE.md.",
+            "TextInput/Image/ScrollView) or a .native.cl.jac override. See the "
+            "React Native target section of the jac-client reference "
+            "(docs/docs/reference/plugins/jac-client.md).",
             style="muted"
         );
     }

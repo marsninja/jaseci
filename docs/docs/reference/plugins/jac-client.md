@@ -1632,9 +1632,12 @@ Defaults to `"/"`. Can also be set to `"./"` for relative path resolution if nee
 | `jac start --client pwa` | Start PWA (builds then serves) |
 | `jac start --client desktop` | Start desktop app (see [jac-desktop](jac-desktop.md)) |
 | `jac start --client mobile` | Start mobile app on device/simulator |
+| `jac start --client react-native --dev` | Start React Native app with Fast Refresh |
 | `jac build` | Build for production (web) |
 | `jac build --client desktop` | Build desktop app (see [jac-desktop](jac-desktop.md)) |
 | `jac build --client mobile` | Build mobile app (Android/iOS) |
+| `jac build --client react-native` | Build React Native app (Android/iOS, native views) |
+| `jac setup react-native` | One-time React Native scaffold (`mobile-rn/`) |
 | `jac build --client pwa` | Build PWA with offline support |
 | `jac build --client static` | Build client-only app as a portable, self-contained page (opens from `file://`) |
 | `jac start --client static` | Serve a client-only app with a minimal static server |
@@ -1667,8 +1670,8 @@ jac build [filename] [--client TARGET] [-p PLATFORM]
 | Option | Description | Default |
 |--------|-------------|---------|
 | `filename` | Path to .jac file | `main.jac` |
-| `--client` | Build target (`web`, `pwa`, `static`, `desktop`, `mobile`) | `web` |
-| `-p, --platform` | Platform for **mobile** (`android`, `ios`) or **desktop sidecar naming** (`windows` selects `.exe`; no cross-compilation yet) | Current platform |
+| `--client` | Build target (`web`, `pwa`, `static`, `desktop`, `mobile`, `react-native`) | `web` |
+| `-p, --platform` | Platform for **mobile** / **react-native** (`android`, `ios`) or **desktop sidecar naming** (`windows` selects `.exe`; no cross-compilation yet) | Current platform |
 
 A project whose `jac.toml` declares `kind = "client"` is built with the
 `static` target automatically -- no `--client` flag needed (see [Client-only apps](#client-only-apps)).
@@ -1769,8 +1772,8 @@ jac setup <target> [-p PLATFORM]
 
 | Option | Description |
 |--------|-------------|
-| `target` | Target to setup (`desktop`, `mobile`, `pwa`) |
-| `-p, --platform` | Mobile setup platform (`android`, `ios`, `all`) |
+| `target` | Target to setup (`desktop`, `mobile`, `pwa`, `react-native`) |
+| `-p, --platform` | Mobile / React Native setup platform (`android`, `ios`, `all`) |
 
 **Examples:**
 
@@ -1783,6 +1786,9 @@ jac setup mobile --platform ios
 
 # Setup both mobile platforms (macOS only)
 jac setup mobile --platform all
+
+# Setup React Native target (scaffolds mobile-rn/ with Expo/Metro)
+jac setup react-native
 ```
 
 ### Extended Core Commands
@@ -1810,6 +1816,7 @@ jac-client supports building for multiple deployment targets from a single codeb
 | **Desktop** (native webview) | `jac build --client desktop` | Single binary under `.jac/client/desktop/` | No |
 | **CEF** (Chromium) | `jac build --client cef` | CEF bundle under `.jac/client/cef/` | No |
 | **Mobile** (Capacitor) | `jac build --client mobile --platform android` | Android APK / iOS build products | Yes |
+| **React Native** (beta) | `jac build --client react-native --platform android` | Android APK / iOS `.ipa` (native views) | Yes |
 | **PWA** | `jac build --client pwa` | Installable web app | No |
 
 ### Web Target (Default)
@@ -1908,6 +1915,152 @@ ios_destination = "platform=iOS Simulator,name=iPhone 16,OS=latest"
 - Native Capacitor plugins (camera, geolocation, etc.) can be added via `jac add --npm @capacitor/<plugin>` followed by `npx cap sync`.
 
 For a step-by-step tutorial, see [Building a Mobile App](../../tutorials/fullstack/mobile.md).
+
+### React Native Target (beta)
+
+Native mobile applications for Android and iOS using [React Native](https://reactnative.dev/). Unlike the [Capacitor mobile target](#mobile-target-capacitor) (which wraps a web bundle in a webview), the React Native target compiles your `cl` UI to **platform-native views** via Expo/Metro/Hermes, giving native gesture/scroll performance and access to the RN ecosystem.
+
+A React Native app is a **universal** project: one source tree that compiles to both web (via `react-native-web`) and native (Android/iOS). Universal projects use Jac's `@jac/ui` component vocabulary instead of HTML -- see [The `@jac/ui` vocabulary](#the-jacui-vocabulary) below.
+
+**Prerequisites:**
+
+- Node.js (or Bun)
+- **Android**: Java/JDK 21+, Android SDK ([Android Studio](https://developer.android.com/studio))
+- **iOS** (macOS only): Xcode, Xcode Command Line Tools, [CocoaPods](https://cocoapods.org/)
+
+**Setup & Build:**
+
+```bash
+# 1. One-time setup (scaffolds Expo/Metro project at mobile-rn/)
+jac setup react-native
+
+# 2. Development: Fast Refresh on device/emulator
+jac start main.jac --client react-native --dev                     # Android (default)
+jac start main.jac --client react-native --dev --platform ios      # iOS (macOS)
+
+# 3. Build for Android
+jac build --client react-native --platform android
+
+# 4. Build for iOS (macOS only; non-macOS points at EAS Build)
+jac build --client react-native --platform ios
+```
+
+**Output:**
+
+- Android: APK via `gradlew assembleDebug` (or EAS Build)
+- iOS: `.ipa` via `xcodebuild` on macOS (or EAS Build cloud)
+
+**Configuration** via `[plugins.client.react_native]` in `jac.toml`:
+
+```toml
+[plugins.client.react_native]
+project_dir = "mobile-rn"        # Expo project location
+release = false                  # true for release variants
+# EAS Update (OTA) is opt-in via config
+```
+
+**Opting in:** set `kind = "universal"` under `[project]` in `jac.toml` to mark the project as targeting React Native as well as the web:
+
+```toml
+[project]
+name = "myapp"
+version = "0.1.0"
+kind = "universal"
+```
+
+**Notes:**
+
+- `jac setup react-native` scaffolds an Expo project at `mobile-rn/` (configurable via `[plugins.client.react_native].project_dir`). Capacitor keeps `android/` + `ios/` -- both targets can coexist in one repo.
+- Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`); `adb reverse` is auto-attempted for Android. The dev API base URL is injected into `app.json` and restored on exit.
+- iOS device builds and App Store archives require Xcode signing. On non-macOS hosts, `--platform ios` errors out and points at EAS Build.
+- Release/debug variants via `[plugins.client.react_native].release = true`.
+- EAS Update integration for OTA updates is opt-in via config.
+
+#### Capacitor vs React Native
+
+Both targets produce mobile apps. They are **complementary**, not replacements:
+
+| | Capacitor (`mobile`) | React Native (`react-native`) |
+|--|---------------------|-------------------------------|
+| UI engine | WebView + React DOM | Native views |
+| Code reuse with web | ~100% bundle reuse | Partial (logic yes, UI via `@jac/ui`) |
+| Setup complexity | Lower | Higher |
+| Native feel | Moderate | High |
+| Web-only npm libs | Work | Break |
+| CLI | `jac setup mobile` | `jac setup react-native` |
+
+Authors choose per project -- or ship both targets from one repo while keeping selection in the build target (`--client`) layer.
+
+#### The `@jac/ui` vocabulary
+
+`@jac/ui` is Jac's UI standard library for universal projects -- a sealed, Jac-owned component vocabulary whose semantics are React Native's component/style model. It is **not** "re-exported React Native." Universal apps import **nothing** from `react-native` or `react` directly; the vocabulary is the entire authoring surface, and RN / `react-native-web` are swappable implementation backends behind it.
+
+| `@jac/ui` | Replaces HTML | Native backend (RN) | Web backend (RNW) |
+|-----------|---------------|---------------------|-------------------|
+| `View` | `div`, `section`, `main`, `article`, `header`, `footer`, `nav`, `aside` | `View` | RNW `View` |
+| `Text` | `span`, `p`, `h1`-`h6`, `label`, `strong`, `em`, `small` | `Text` | RNW `Text` |
+| `Pressable` / `Button` | `button`, `a` | `Pressable` | RNW `Pressable` |
+| `TextInput` | `input`, `textarea` | `TextInput` | RNW `TextInput` |
+| `Image` | `img` | `Image` | RNW `Image` |
+| `ScrollView` | `ul`, `ol`, scroll areas | `ScrollView` | RNW `ScrollView` |
+| `List` | (flat lists) | `FlatList` | RNW `FlatList` |
+| `StyleSheet` | CSS / `className` | `StyleSheet.create` | RNW `StyleSheet` |
+
+Styling is React Native's model only: `style={{...}}` objects over a flexbox subset, plus an optional design-token/theme object. No CSS files, no `className`, by construction rather than by lint.
+
+```jac
+cl {
+    import from "@jac/ui" {
+        View, Text, Pressable, TextInput, Image, ScrollView, StyleSheet
+    }
+
+    glob styles = StyleSheet.create({
+        card: {padding: 16, borderRadius: 16, backgroundColor: "#1b2030", gap: 12},
+        title: {fontSize: 22, fontWeight: "bold", color: "#f4f5fb"},
+    });
+
+    def:pub app -> JsxElement {
+        has name: str = "";
+        return
+            <ScrollView style={{flex: 1, backgroundColor: "#10131c"}}>
+                <View style={styles.card}>
+                    <Text style={styles.title}>Hello, {name or "stranger"}</Text>
+                    <Pressable onPress={lambda { name = "Jac"; }}>
+                        <Text>Tap me</Text>
+                    </Pressable>
+                </View>
+            </ScrollView>;
+    }
+}
+```
+
+#### Compile-time enforcement (E1105)
+
+In a universal project, raw HTML host tags in `.cl.jac` are **compile errors** with a fix-it pointing at the `@jac/ui` primitive to use instead. The guard (`JsxIntrinsicGuardPass`) resolves every tag name in the enclosing scope -- only **unresolved lowercase names** are treated as HTML host elements and rejected:
+
+```
+error[E1105]: JSX tag '<div>' is not in scope in a universal project; use View instead
+```
+
+- **Uppercase components** (`<Card>`, `<Image>`) are always allowed.
+- **Lowercase components that resolve to an in-scope symbol are allowed** (e.g. a local `counter` component used as `<counter .../>`).
+- Only unresolved lowercase names (`div`, `span`, ...) are rejected.
+
+See [`E1105`](../diagnostics.md#universal-project-jsx-host-tags) in the diagnostics reference. Web projects (`kind = "fullstack"` or unset) are unaffected -- HTML tags remain valid there.
+
+#### Platform divergence
+
+Platform differences are handled in priority order:
+
+1. **The vocabulary absorbs divergence** (primary). Components own their platform differences internally -- `ScrollView`, `Image`, and future additions present one API and branch inside `@jac/ui`. Authors see a single component.
+2. **`Platform` API** (rare). `Platform.os` / `Platform.select({...})` exported from `@jac/ui` for one-line conditional values.
+3. **`.native.cl.jac` platform files** (last resort). Reserved for wrapping platform-exclusive native modules. The compiler checks for a `.native.cl.jac` variant when `--client react-native` is selected and falls back to `.cl.jac` when not found.
+
+#### What carries over from web
+
+The React Native target reuses the same Jac -> JS compilation pipeline, the same `JacForm` / `useJacForm` form system (adapted to RN `TextInput`), the same auth helpers (`jacSignup`, `jacLogin`, `jacLogout` backed by `expo-secure-store`), and the same walker-call API (`jacSpawn`, `__jacCallFunction`). Routing is adapted to React Navigation: `Router` -> `NavigationContainer`, `Routes` + `Route` -> `Stack.Navigator` + `Stack.Screen`, `Link` -> `Pressable` with `useNavigate`.
+
+For a step-by-step tutorial, see [Building a Mobile App -- React Native target](../../tutorials/fullstack/mobile.md#react-native-target).
 
 ### PWA Target
 

@@ -32,8 +32,8 @@ Jac is also batteries-included -- it bundles LLVM, ships its own native linker, 
 | [In-browser native (wasm)](#in-browser-native-wasm) | | ● | ● | ● | | | -- |
 | [Desktop app](#desktop-app) | ● | ● | | ● | | desktop | WebKit² |
 | [Mobile app (webview)](#mobile-app-webview) | ◐ | ● | | | | mobile | Android SDK / Xcode |
+| [Mobile app (React Native)](#mobile-app-react-native) | ◐ | ● | | | | react-native | Android SDK / Xcode |
 | [Full-stack package](#on-the-roadmap) 🚧 | ● | ● | | | attach | | -- |
-| [Mobile app (React Native)](#on-the-roadmap) 🚧 | ◐ | SDK | | | | RN | Android SDK / Xcode |
 
 **Legend** -- ● uses this block · ◐ talks to a *remote* server (doesn't bundle one) · ×N replicated per service · 🚧 not yet wired end-to-end ([see roadmap](#on-the-roadmap)). Columns 2–7 are *composition* (what it's made of): **sv / cl / na** = which runtimes compile (`na` to a host binary, or to WebAssembly for [in-browser native](#in-browser-native-wasm)) · **served** = hosted by `jac start` (exposing any `sv` walkers/functions as a REST API) · **packaged** = produces a distributable artifact · **shell** = wrapped in a native desktop/mobile shell. The **requires** column is a different axis -- *setup cost*: toolchains you install yourself, excluding the `jac-scale` plugin (which installs through the Jac ecosystem) and the full-stack client/desktop framework (which ships with `jaclang` core).
 
@@ -489,6 +489,25 @@ Use `--platform ios` on macOS to produce an Xcode project. App name and id are s
 
 :octicons-arrow-right-24: Full tutorial: [Mobile App](../tutorials/fullstack/mobile.md)
 
+### Mobile app (React Native)
+
+Ship a **true native** mobile app (Android + iOS) using [React Native](https://reactnative.dev/), with platform-native views rather than a webview. This is the *frontend only* -- it talks to your Jac server over HTTP, so deploy the backend separately (e.g. as an [API service](#api-service)).
+
+A React Native app is a **universal** project: one source tree that compiles to both web (via `react-native-web`) and native (Android/iOS via Metro). Instead of HTML tags, universal projects use Jac's `@jac/ui` component vocabulary (`View`, `Text`, `Pressable`, `TextInput`, `Image`, `ScrollView`), which projects to every target. Raw HTML tags (`<div>`, `<span>`, ...) are compile errors in a universal project -- see [`E1105`](../reference/diagnostics.md#universal-project-jsx-host-tags).
+
+```bash
+# prerequisites: Node.js; Android: JDK + Android SDK; iOS (macOS): Xcode
+jac setup react-native              # one-time scaffold (mobile-rn/)
+
+jac start main.jac --client react-native --dev   # Fast Refresh on device/emulator
+jac build --client react-native --platform android
+jac build --client react-native --platform ios    # macOS only
+```
+
+Set `kind = "universal"` under `[project]` in `jac.toml` to opt in. The scaffold and build options live under `[plugins.client.react_native]`.
+
+:octicons-arrow-right-24: Full reference: [React Native target](../reference/plugins/jac-client.md#react-native-target-beta) · Tutorial: [Mobile App](../tutorials/fullstack/mobile.md#react-native-target)
+
 ---
 
 ## On the roadmap
@@ -496,7 +515,6 @@ Use `--platform ios` on macOS to produce an Xcode project. App name and id are s
 These aren't missing "kinds" -- they're **capability combinations that aren't wired end-to-end yet**. Here's the honest status and the closest thing you can do today.
 
 - **Full-stack package** (`sv` + `cl` + *attach*) -- An installable feature that brings its own routes, UI components, and data models into your app (think "drop in payments and get a checkout button + endpoints + models"). `sv import` composes *services* over HTTP, but there's no attachable in-process package yet. This needs a no-entry "package" artifact and conflict-resolution semantics across the three runtimes.
-- **Mobile app (React Native)** (a new RN *shell*) -- The mobile shell is Capacitor (webview) only. A true React Native shell would need a Jac → RN component path and a typed client SDK rather than the DOM/JSX bundle.
 
 !!! info "Want to follow the design?"
     The unified build/artifact work that would close these gaps is tracked in the Jac repo's `jac build` / `.jab` proposals.

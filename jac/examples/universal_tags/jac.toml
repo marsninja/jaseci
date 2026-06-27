@@ -11,7 +11,7 @@ entry-point = "main.jac"
 react = "^18.2.0"
 react-dom = "^18.2.0"
 # react-native-web backs the @jac/ui vocabulary on the web target; the native
-# target uses real react-native. See docs/REACT_NATIVE_ARCHITECTURE.md (v2).
+# target uses real react-native. See the jac-client reference (React Native target).
 react-native-web = "^0.19.13"
 react-router-dom = "^6.22.0"
 react-error-boundary = "^5.0.0"

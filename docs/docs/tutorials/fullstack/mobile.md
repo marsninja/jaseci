@@ -1,6 +1,9 @@
 # Building a Mobile App
 
-This tutorial walks you through shipping an existing Jac full-stack app as a native mobile app for Android and iOS. The mobile target uses [Capacitor](https://capacitorjs.com/) to wrap your web bundle in a native shell, producing an Android APK or an iOS app from the same codebase.
+This tutorial walks you through shipping an existing Jac full-stack app as a native mobile app for Android and iOS. Jac ships **two** mobile targets:
+
+- **Capacitor** (`--client mobile`) -- wraps your web bundle in a native webview. Covered in the first half of this page.
+- **React Native** (`--client react-native`, beta) -- compiles your `cl` UI to platform-native views. Covered in [React Native target](#react-native-target) below.
 
 > **Prerequisites**
 >
@@ -229,6 +232,112 @@ If mobile dev starts but the app does not load correctly:
    - `npx cap sync ios`
 6. For iOS signing or provisioning issues, open Xcode:
    - `npx cap open ios`
+
+---
+
+## React Native target
+
+The React Native target (`--client react-native`, beta) is the **native** mobile path: instead of wrapping a web bundle in a webview, it compiles your `cl` UI to platform-native views via Expo/Metro/Hermes. This gives native gesture/scroll performance and access to the React Native ecosystem, at the cost of a different rendering and styling model.
+
+### Universal projects and `@jac/ui`
+
+A React Native app is a **universal** project -- one source tree that compiles to both web (via `react-native-web`) and native (Android/iOS). Because React Native has no DOM, universal projects do not use HTML tags. Instead they use Jac's `@jac/ui` component vocabulary, which projects to every target:
+
+| `@jac/ui` | Replaces HTML |
+|-----------|---------------|
+| `View` | `div`, `section`, `main`, `header`, `footer`, `nav`, `aside` |
+| `Text` | `span`, `p`, `h1`-`h6`, `label`, `strong`, `em`, `small` |
+| `Pressable` / `Button` | `button`, `a` |
+| `TextInput` | `input`, `textarea` |
+| `Image` | `img` |
+| `ScrollView` | `ul`, `ol`, scroll areas |
+| `StyleSheet` | CSS / `className` |
+
+Styling is `style={{...}}` objects over a flexbox subset -- no CSS files, no `className`. In a universal project, raw HTML tags (`<div>`, `<span>`, ...) are **compile errors** (`E1105`) with a fix-it pointing at the `@jac/ui` primitive to use instead. See the [diagnostics reference](../../reference/diagnostics.md#universal-project-jsx-host-tags) for details.
+
+### One-time setup
+
+From your project root:
+
+```bash
+jac setup react-native
+```
+
+This scaffolds an Expo/Metro project at `mobile-rn/` (configurable via `[plugins.client.react_native].project_dir`), adds a `[plugins.client.react_native]` section to `jac.toml`, and prints next steps.
+
+Then opt in to the universal project kind in `jac.toml`:
+
+```toml
+[project]
+name = "myapp"
+version = "0.1.0"
+kind = "universal"
+```
+
+### Authoring UI with `@jac/ui`
+
+```jac
+cl {
+    import from "@jac/ui" {
+        View, Text, Pressable, TextInput, ScrollView, StyleSheet
+    }
+
+    glob styles = StyleSheet.create({
+        screen: {flex: 1, backgroundColor: "#10131c", padding: 24, gap: 16},
+        title: {fontSize: 22, fontWeight: "bold", color: "#f4f5fb"},
+        button: {padding: 12, borderRadius: 10, backgroundColor: "#6c5ce7", alignItems: "center"},
+    });
+
+    def:pub app -> JsxElement {
+        has name: str = "";
+        return
+            <ScrollView style={styles.screen}>
+                <Text style={styles.title}>Hello, {name or "stranger"}</Text>
+                <TextInput
+                    value={name}
+                    placeholder="Type your name"
+                    onChangeText={lambda t: str { name = t; }}
+                />
+                <Pressable style={styles.button} onPress={lambda { name = "Jac"; }}>
+                    <Text>Reset</Text>
+                </Pressable>
+            </ScrollView>;
+    }
+}
+```
+
+The same source builds for web (`jac build`) and native (`jac build --client react-native`).
+
+### Development
+
+```bash
+jac start main.jac --client react-native --dev                     # Android (default)
+jac start main.jac --client react-native --dev --platform ios      # iOS (macOS)
+```
+
+This launches the Jac backend, compiles `.cl.jac` to JS, and runs `npx expo start`. Editing a `.cl.jac` file recompiles and Metro Fast Refreshes the device. Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`); `adb reverse` is auto-attempted for Android.
+
+### Production build
+
+```bash
+# Android
+jac build --client react-native --platform android
+
+# iOS (macOS only; non-macOS points at EAS Build)
+jac build --client react-native --platform ios
+```
+
+Android produces an APK via `gradlew assembleDebug`. iOS produces an `.ipa` via `xcodebuild` on macOS; on other platforms the build errors out and points you at EAS Build. Release variants via `[plugins.client.react_native].release = true`.
+
+### Platform-specific files
+
+When you need platform-exclusive native modules, add a `.native.cl.jac` variant alongside a `.cl.jac` module. The compiler picks up the `.native.cl.jac` file when `--client react-native` is selected and falls back to `.cl.jac` otherwise. This is a last resort -- prefer the `@jac/ui` vocabulary and `Platform.select` for divergence.
+
+### What carries over
+
+The React Native target reuses the same Jac -> JS compilation pipeline, the same `JacForm` form system (adapted to RN `TextInput`), the same auth helpers (backed by `expo-secure-store`), and the same walker-call API. Routing is adapted to React Navigation: `Router` -> `NavigationContainer`, `Routes` + `Route` -> `Stack.Navigator` + `Stack.Screen`.
+
+For the full reference, see the [jac-client Reference -> React Native Target](../../reference/plugins/jac-client.md#react-native-target-beta).
 
 ---
 

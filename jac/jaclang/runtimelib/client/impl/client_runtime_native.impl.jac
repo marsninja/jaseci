@@ -751,8 +751,7 @@ impl __getLocalStorage(key: str) -> str {
     # On a cache miss this returns "" immediately and populates the cache
     # via a fire-and-forget promise; the *next* call returns the real value.
     # This produces a cold-start race for any synchronous caller (notably
-    # jacIsLoggedIn -> AuthGuard) until the cache is primed. See the
-    # "Known Limitations" section of docs/REACT_NATIVE_ARCHITECTURE.md and
+    # jacIsLoggedIn -> AuthGuard) until the cache is primed. See
     # __primeNativeTokenCache for the partial mitigation.
     if not globalThis.__jacNativeStorageCache__ {
         globalThis.__jacNativeStorageCache__ = {};
@@ -818,8 +817,7 @@ impl __primeNativeTokenCache -> None {
     # Partial mitigation for the __getLocalStorage cold-start race, scoped to
     # the auth token only. Because this is async, callers that don't await it
     # (e.g. __jacInstallErrorHandlers invoked at module top level in App.tsx)
-    # can still run the first render before the cache is populated. See the
-    # "Known Limitations" section of docs/REACT_NATIVE_ARCHITECTURE.md.
+    # can still run the first render before the cache is populated.
     try {
         token = await SecureStore.getItemAsync("jac_token");
         if not globalThis.__jacNativeStorageCache__ {

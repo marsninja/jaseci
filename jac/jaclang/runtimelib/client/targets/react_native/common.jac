@@ -15,7 +15,8 @@ import from jaclang.runtimelib.client.targets.react_native.config {
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-# Defaults mirror the documented React Native target decisions in docs/REACT_NATIVE_ARCHITECTURE.md. Pinned
+# Defaults mirror the documented React Native target decisions in the jac-client
+# reference (docs/docs/reference/plugins/jac-client.md). Pinned
 # versions guard against silent upstream drift breaking the scaffold; bump
 # explicitly with a smoke test, not implicitly via "@latest".
 glob DEFAULT_PROJECT_DIR_NAME = "mobile-rn",

@@ -60,7 +60,8 @@ jac build main.jac --client react-native   # Android/iOS bundle (Metro)
 ## Status
 
 `jac check` passes cleanly (0 E1105). The `@jac/ui` vocabulary and the E1105
-guard are the tag system under test here; see
-`docs/REACT_NATIVE_ARCHITECTURE.md` ("v2 Direction - Universal UI Vocabulary")
-for the full design, phasing, and the ownership rationale behind owning a thin
-vocabulary layer over raw React Native / `react-native-web`.
+guard are the tag system under test here; see the
+[jac-client Reference -> React Native Target](https://docs.jaseci.org/reference/plugins/jac-client/#react-native-target-beta)
+for the full component vocabulary, the HTML -> `@jac/ui` mapping, and the
+ownership rationale behind owning a thin vocabulary layer over raw React
+Native / `react-native-web`.
