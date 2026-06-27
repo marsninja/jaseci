@@ -203,7 +203,12 @@ impl NaIRGenPass._prim_ir_types -> dict {
         'i32': ir.IntType(32),
         'i16': ir.IntType(16),
         'i8': ir.IntType(8),
+        'u64': ir.IntType(64),
+        'u32': ir.IntType(32),
+        'u16': ir.IntType(16),
+        'u8': ir.IntType(8),
         'bool': ir.IntType(1),
+        'float': ir.DoubleType(),
         'f64': ir.DoubleType(),
         'f32': ir.FloatType(),
         'str': ir.IntType(8).as_pointer(),
@@ -326,6 +331,38 @@ impl NaIRGenPass._struct_name_of(expr: (uni.UniNode | None)) -> (str | None) {
         }
     }
     return None;
+}
+
+"""Name of the registered native struct a value points to, or None (#6707, #6708).
+Returns the struct name when `val` has type StructName* -- a pointer to one of the
+named structs in `struct_types` -- which is how a struct-typed param/local (e.g.
+`buf: Color`) is represented. List/dict/bytes internal structs are not registered
+in `struct_types`, so they return None and fall through to their own subscript
+paths."""
+impl NaIRGenPass._struct_ptr_pointee_name(val: ir.Value) -> (str | None) {
+    _vt = val.type;
+    if isinstance(_vt, ir.PointerType)
+    and isinstance(_vt.pointee, ir.IdentifiedStructType) {
+        _name = _vt.pointee.name;
+        if _name in self.struct_types and self.struct_types[_name] == _vt.pointee {
+            return _name;
+        }
+    }
+    return None;
+}
+
+"""Element StructName* for `buf[i]` on a struct array (#6707, #6708). `ptr` is a
+StructName* base; a single-index GEP (after widening idx to i64) advances by one
+whole struct, giving C array semantics. The returned element pointer aliases the
+buffer -- it is not a copy."""
+impl NaIRGenPass._struct_array_elem_ptr(ptr: ir.Value, idx_val: ir.Value) -> ir.Value {
+    _i64 = ir.IntType(64);
+    _wide_idx = (
+        idx_val
+            if idx_val.type == _i64
+            else self.builder.sext(idx_val, _i64, name="arr.idx.i64")
+    );
+    return self.builder.gep(ptr, [_wide_idx], name="ptr.elem.ptr");
 }
 
 """Return the lowered LLVM type of a checked list type's element, or None.
@@ -609,6 +646,32 @@ impl NaIRGenPass._resolve_primitive_name(
             return _fn_ty;
         }
         return ir.IntType(64);
+    }
+    # `T | None` (and general unions) peel to the first value (non-None)
+    # member. The generic kid-walk below returns the first kid that resolves to
+    # a type, but a bare `None` operand resolves to VoidType -- so for a member
+    # the primitive table does not know (an enum or user struct, e.g.
+    # `Color | None`, `Point | None`) the walk would reach the `None` and
+    # collapse the whole annotation to `void`. Skip the None operand(s) here and
+    # resolve the value member; returning None for a non-primitive member defers
+    # to _resolve_jac_type's struct/i64 fallback (so `Color | None` lands on the
+    # same i64 + enum-marshalling path as a plain `-> Color`). Mirrors the
+    # _lower_type union branch (the TypeBase path) so both resolvers agree.
+    if isinstance(expr, uni.BinaryExpr) and getattr(expr.op, "value", "") == "|" {
+        for _operand in (expr?.kid or []) {
+            if isinstance(_operand, uni.Null) {
+                continue;
+            }
+            if isinstance(_operand, uni.Name)
+            and _operand.value in ("None", "NoneType") {
+                continue;
+            }
+            _vr = self._resolve_primitive_name(_operand);
+            if _vr is not None {
+                return _vr;
+            }
+        }
+        return None;
     }
     # Fall back: walk sub-nodes for a nested Name (e.g. subscript base,
     # binary union operand). This handles `Callable[[int, int], None]`
