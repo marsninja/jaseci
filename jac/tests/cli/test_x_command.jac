@@ -114,8 +114,9 @@ test "_run_entry_point runs the tool, forwards argv, returns its exit code" {
         # The tool saw itself as argv[0] with the forwarded args after it.
         recorded = Path(argv_file).read_text();
         assert recorded == repr(["demo", "alpha", "beta"]);
-        # The caller's argv was restored.
+        # The caller's argv and sys.path were both restored (no tier leak).
         assert sys.argv == saved_argv;
+        assert sys.path == saved_path;
     } finally {
         cleanup_site(Path(tmp) / "site", ["demo_run_pkg"]);
         sys.path.clear();

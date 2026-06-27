@@ -933,20 +933,24 @@ sees itself as argv[0]. A SystemExit raised by the tool is captured into a retur
 code rather than terminating jac, so post-hooks still run.
 """
 def _run_entry_point(name: str, ep: object, site_dir: object, args: list) -> int {
+    # Snapshot sys.path/sys.argv so the chosen tier and the tool's argv are a
+    # localized, fully-reverted side effect — a later import (or a second
+    # `jac x` in the same process) must not resolve against this tier.
+    saved_path = list(sys.path);
+    saved_argv = sys.argv;
     site_str = str(site_dir);
     if site_str in sys.path {
         sys.path.remove(site_str);
     }
     sys.path.insert(0, site_str);
     try {
-        func = ep.load();
-    } except Exception as e {
-        console.error(f"Failed to load tool '{name}': {e}");
-        return 1;
-    }
-    saved_argv = sys.argv;
-    sys.argv = [name] + list(args);
-    try {
+        try {
+            func = ep.load();
+        } except Exception as e {
+            console.error(f"Failed to load tool '{name}': {e}");
+            return 1;
+        }
+        sys.argv = [name] + list(args);
         result = func();
         return result if isinstance(result, int) else 0;
     } except SystemExit as se {
@@ -960,6 +964,8 @@ def _run_entry_point(name: str, ep: object, site_dir: object, args: list) -> int
         return 1;
     } finally {
         sys.argv = saved_argv;
+        sys.path.clear();
+        sys.path.extend(saved_path);
     }
 }
 
