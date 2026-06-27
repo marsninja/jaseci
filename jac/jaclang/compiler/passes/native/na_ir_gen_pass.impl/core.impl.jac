@@ -500,12 +500,27 @@ impl NaIRGenPass._register_imported_struct_types -> None {
     entry_base = os.path.dirname(os.path.abspath(self.ir_in.loc.mod_path))
         if (self.ir_in?.loc)
         else os.getcwd();
+    # A whole-module import (`import hashlib`) only resolves to a bundled
+    # native stdlib module when THIS module actually compiles native code (a
+    # `.na.jac` or an `na {}` block). Without that gate an ordinary `.jac`
+    # module's plain Python `import os.path` / `import json` would be
+    # mis-resolved to the bundled `na_stdlib` module of the same name and
+    # recursively pulled in + compiled for every module in the program --
+    # exploding precompile memory (#6978). Selective `import from X { y }`
+    # imports are unaffected: they already only resolve for `.na.jac` targets.
+    _has_native_code: bool = any(
+        True
+        for _s in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
+    );
     wq: list = [];  # list of (module_name_str, base_dir)
     for imp in [
         s
         for s in ModuleCodegenPass.iter_context_stmts(self.ir_in)
         if isinstance(s, uni.Import)
     ] {
+        if (not imp.from_loc) and (not _has_native_code) {
+            continue;
+        }
         mod_name = self._extract_import_module_name(imp);
         if mod_name {
             wq.append((mod_name, entry_base));
