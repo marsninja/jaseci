@@ -226,7 +226,7 @@ def _build_metro_config(compiled_dir_rel: str) -> str {
         "config.resolver.extraNodeModules = {\n"
         "  ...(config.resolver.extraNodeModules || {}),\n"
         "  '@jac/runtime': path.resolve(projectRoot, 'jac-src', 'client_runtime.js'),\n"
-        "  // JacSX @jac/ui primitives. On native `react-native` is the real\n"
+        "  // mobUI @jac/ui primitives. On native `react-native` is the real\n"
         "  // package (no alias) so View/Text are RN components; only the web\n"
         "  // build rewrites react-native -> react-native-web.\n"
         "  '@jac/ui': path.resolve(projectRoot, 'jac-src', 'client_ui.js'),\n"

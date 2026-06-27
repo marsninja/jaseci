@@ -1,4 +1,4 @@
-"""JacSX portable UI primitives — the ``@jac/ui`` module.
+"""mobUI portable UI primitives — the ``@jac/ui`` module.
 
 Every primitive re-exports the React Native component unchanged ("keep
 everything the same as React Native"). The platform switch is the bundler's
@@ -13,10 +13,10 @@ job, NOT this module's:
 
 Apps import from the bare ``@jac/ui`` specifier, which the bundler aliases to
 the compiled ``client_ui.js`` (mirrors how ``@jac/runtime`` is wired). This is
-the *only* sanctioned UI import surface in JacSX mode — see the validation
+the *only* sanctioned UI import surface in mobUI mode — see the validation
 pass (rejects raw ``div``/``span``/etc.) for the enforcement half.
 
-Lowering table (see docs/jacsx/primitive-contract.md §3):
+Lowering table (see docs/mobui/primitive-contract.md §3):
     View       -> react-native View       / react-native-web View       (<div>)
     Text       -> react-native Text       / react-native-web Text       (<span>)
     Pressable  -> react-native Pressable  / react-native-web Pressable   (button)

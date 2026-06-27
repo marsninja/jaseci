@@ -64,7 +64,7 @@ class JacClientCompiler {
     ) -> tuple[str, list[str]];
 
     def compile_pwa_runtime(self: JacClientCompiler) -> tuple[str, list[str]];
-    """Compile the JacSX ``@jac/ui`` primitive module to ``compiled/client_ui.js``.
+    """Compile the mobUI ``@jac/ui`` primitive module to ``compiled/client_ui.js``.
 
     Unlike the runtime bundle, this is emitted as a plain ESM re-export module
     (imports + ``export { View, Text }``) so the bundler's ``@jac/ui`` alias

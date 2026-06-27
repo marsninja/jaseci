@@ -506,7 +506,7 @@ impl JacClientCompiler.compile_runtime_utils(
         dep_out.parent.mkdir(parents=True, exist_ok=True);
         dep_out.write_text(dep_js, encoding='utf-8');
     }
-    # Emit the JacSX ``@jac/ui`` primitive module alongside the runtime. Doing
+    # Emit the mobUI ``@jac/ui`` primitive module alongside the runtime. Doing
     # it here (rather than in ``compile()``) covers BOTH the web ViteCompiler
     # path — which calls ``compile_runtime_utils`` directly — and the native
     # path, so ``compiled/client_ui.js`` always exists for the ``@jac/ui`` alias.
@@ -538,7 +538,7 @@ impl JacClientCompiler.compile_pwa_runtime(
     return (pwa_js, all_exports);
 }
 
-"""Compile the JacSX ``@jac/ui`` primitive module to ``compiled/client_ui.js``.
+"""Compile the mobUI ``@jac/ui`` primitive module to ``compiled/client_ui.js``.
 
 Emitted as a plain ESM re-export module so the bundler's ``@jac/ui`` alias
 resolves to it directly. No-op if the source file is missing.

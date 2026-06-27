@@ -1,8 +1,8 @@
-"""JacSX primitives demo — one source, two platforms.
+"""mobUI primitives demo — one source, two platforms.
 
 Exercises every @jac/ui primitive (View, Text, Pressable, TextInput, Image,
 ScrollView) plus StyleSheet.create. There is no div/span/button here on
-purpose — JacSX apps import portable primitives from @jac/ui and never touch
+purpose — mobUI apps import portable primitives from @jac/ui and never touch
 raw HTML tags. The bundler aliases @jac/ui to the compiled client_ui.js and
 (on web only) rewrites react-native -> react-native-web.
 
@@ -80,7 +80,7 @@ cl {
         return
             <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
                 <View style={styles.card}>
-                    <Text style={styles.title}>JacSX primitives</Text>
+                    <Text style={styles.title}>mobUI primitives</Text>
                 </View>
                 <View style={styles.card}>
                     <Text style={styles.label}>Image</Text>
