@@ -443,23 +443,6 @@ impl ClassType.get_literal_value -> (str | int | bool | None) {
     return self.private.literal_value;
 }
 
-"""Check if this ClassType is a property class (@property or @cached_property)."""
-impl ClassType.is_property_class -> bool {
-    return self.private.is_property_class;
-}
-
-"""Get the return type of the property getter, or None if not a property."""
-impl ClassType.get_getter_type_from_property -> (TypeBase | None) {
-    if not self.private.is_property_class {
-        return None;
-    }
-    fget = self.private.fget_info;
-    if fget is None {
-        return None;
-    }
-    return fget.return_type;
-}
-
 """Return a string representation of the class type."""
 impl ClassType.__str__ -> str {
     # Display literal types as Literal[value]
@@ -517,11 +500,6 @@ impl TypeBase.is_instance -> bool {
 """Return whether the type is instantiable."""
 impl TypeBase.is_instantiable -> bool {
     return bool((self.flags & TypeFlags.Instantiable));
-}
-
-"""Return an instance of an unknown type."""
-impl TypeBase.unknown -> UnknownType {
-    return UnknownType();
 }
 
 """Returns the category of the type."""
@@ -612,11 +590,6 @@ impl TypeBase.is_any_type -> bool {
 """Return string representation of enum member (e.g., <Color.RED>)."""
 impl EnumMemberType.__str__ -> str {
     return f"<{self.enum_class.shared.class_name}.{self.member_info.member_name}>";
-}
-
-"""Return the member name as a string (e.g., "RED", "BLUE")."""
-impl EnumMemberType.get_name_as_str -> str {
-    return self.member_info.member_name;
 }
 
 """Get value type: check member's explicit type first, then enum's inherited type requirement."""
