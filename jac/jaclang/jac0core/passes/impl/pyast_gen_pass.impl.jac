@@ -3391,15 +3391,6 @@ impl PyastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
             nd.gen.py_ast = nd.target.gen.py_ast;
             return;
         }
-        # TODO: Primitive emitter dispatch hook.
-        # When type information is available, primitive method calls
-        # (e.g., mylist.append(x), s.upper()) and builtin function calls
-        # (e.g., len(x), print(x)) can be routed through the emitter
-        # infrastructure at jaclang.jac0core.passes.primitives_py.
-        # For the Python backend this is a pass-through (no behavior change),
-        # but wiring it in validates the dispatch mechanism.
-        # Integration point: check if nd.target is an AtomTrailer on a
-        # primitive type, then call PyListEmitter/PyStrEmitter/etc.
         func = self.py_ast_val(nd.target);
         (args, keywords) = self.gen_call_args(nd);
         nd.gen.py_ast = [
