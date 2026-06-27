@@ -321,6 +321,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _bytes_struct_type: (object | None) = None,
         # #6749: memoized __jac_bytes_repr helper (one per module).
         _bytes_repr_function: (object | None) = None,
+        # #6978 0.3: memoized __jac_float_repr helper (one per module).
+        _float_repr_function: (object | None) = None,
         # Iterator protocol (#6403): boxed JacIter + per-kind state structs.
         _jac_iter_type: (object | None) = None,
         _iter_structs_registered: bool = False,
@@ -464,6 +466,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _list_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     # Native struct name from a checked instance type (handles T | None).
     def _struct_name_of(expr: (uni.UniNode | None)) -> (str | None);
+    # Name of the registered native struct a value points to (StructName*),
+    # or None (#6707, #6708). Identifies a struct-array base for buf[i].
+    def _struct_ptr_pointee_name(val: ir.Value) -> (str | None);
+    # Element StructName* for buf[i] on a struct array (#6707, #6708): sext(idx)
+    # -> i64, then a single-index GEP that advances one whole struct (array
+    # semantics). Shared by the read (expr) and write (stmt) paths; the returned
+    # element pointer aliases the buffer (not a copy).
+    def _struct_array_elem_ptr(ptr: ir.Value, idx_val: ir.Value) -> ir.Value;
     # Lowered LLVM type of a checked list type's element.
     def _list_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);
     # Lowered LLVM element type of a checked Iterator[T] expression (#6403).
@@ -802,6 +812,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_bytes_cmp(left: ir.Value, right: ir.Value, op_sym: str) -> ir.Value;
     def _emit_bytes_repr(bv: ir.Value) -> ir.Value;
     def _bytes_repr_fn -> ir.Function;
+    def _emit_float_repr(fv: ir.Value) -> ir.Value;
+    def _float_repr_fn -> ir.Function;
     def _make_bytes_iter(bytes_val: ir.Value) -> ir.Value;
     def _bytes_iter_next_fn -> ir.Function;
     # Phase 8: Entry Block

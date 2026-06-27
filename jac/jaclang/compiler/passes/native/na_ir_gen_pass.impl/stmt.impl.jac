@@ -845,15 +845,44 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                 _idx_stored = True;
                             }
                         } else {
-                            # List assignment: list[idx] = value
+                            # List / named-struct-array assignment.
                             elem_type_name: (str | None) = (
                                 self._infer_list_elem_type(target_val)
+                            );
+                            # Named struct pointer array write: buf[i] = c (#6707).
+                            # A struct-typed param/local (`buf: Color`) lowers to a
+                            # StructName*, so GEP on it -- one index per whole
+                            # struct -- and copy the struct value into the element.
+                            _wr_sname: (str | None) = (
+                                self._struct_ptr_pointee_name(target_val)
                             );
                             if elem_type_name is not None {
                                 self._codegen_index_set(
                                     target_val, idx_val, value, elem_type_name
                                 );
                                 _idx_stored = True;
+                            } elif _wr_sname is not None {
+                                _struct_t = self.struct_types[_wr_sname];
+                                elem_ptr = self._struct_array_elem_ptr(
+                                    target_val, idx_val
+                                );
+                                if isinstance(value.type, ir.IdentifiedStructType)
+                                and value.type == _struct_t {
+                                    self.builder.store(value, elem_ptr);
+                                    _idx_stored = True;
+                                } elif (
+                                    isinstance(value.type, ir.PointerType)
+                                    and value.type.pointee == _struct_t
+                                ) {
+                                    # value is a StructName* (the usual struct-value
+                                    # representation, e.g. `c = Color(...)`): copy the
+                                    # struct contents into the element (C array store).
+                                    self.builder.store(
+                                        self.builder.load(value, name="arr.val.struct"),
+                                        elem_ptr
+                                    );
+                                    _idx_stored = True;
+                                }
                             }
                         }
                     }
@@ -1527,6 +1556,20 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     var_type = self._resolve_jac_type(tag_node);
                     value = self._coerce_type(value, var_type);
                 }
+            }
+            if isinstance(var_type, ir.VoidType) {
+                # A void-typed RHS (a None-returning / void call result) has no
+                # storage; binding it to a variable cannot lower. Surface E5090
+                # so the enclosing ability demotes to Python rather than
+                # asserting in _entry_alloca -> PointerType.as_pointer() on a
+                # void pointee.
+                self.emit(
+                    E5090,
+                    node_override=nd,
+                    kind="binding a void-typed value to variable",
+                    name=var_name
+                );
+                return;
             }
             alloca = self._entry_alloca(var_type, var_name);
             # RC loop-local init: for pointer-typed locals, null-initialize the alloca

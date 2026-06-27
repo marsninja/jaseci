@@ -366,6 +366,29 @@ test "enums loops ternary" {
     assert f(0) == -10;
 }
 
+# Regression for #6987: a ternary whose two branches need a numeric coercion
+# (int<->float, or differing int widths) used to emit the cast into the merge
+# block ahead of the phi, so the LLVM verifier rejected the module with "PHI
+# nodes not grouped at top of basic block" and native compilation failed. The
+# cast now lands in the predecessor block before its branch, leaving the phi at
+# the top of the merge block. If the fix regresses, compile_native here fails
+# (no native engine) rather than asserting a wrong value.
+test "mixed-type ternary coerces in predecessor block (#6987)" {
+    (eng, _) = compile_native("enums_loops.na.jac");
+    # float "then" + int "else": int branch promoted to double.
+    f1 = get_func(eng, "ternary_int_float_test", ctypes.c_double, ctypes.c_int64);
+    assert f1(1) == 1.5;
+    assert f1(0) == 2.0;
+    # int "then" + float "else": the other predecessor side.
+    f2 = get_func(eng, "ternary_float_int_test", ctypes.c_double, ctypes.c_int64);
+    assert f2(1) == 2.0;
+    assert f2(0) == 1.5;
+    # bool "then" (i1) + int "else" (i64): the int-width zext path.
+    f3 = get_func(eng, "ternary_widen_test", ctypes.c_int64, ctypes.c_int64);
+    assert f3(1) == 1;
+    assert f3(0) == 5;
+}
+
 # --- TestNativeStrings ---
 test "strings greet" {
     (eng, _) = compile_native("strings.na.jac");
@@ -393,6 +416,55 @@ test "strings simple escapes still decode" {
     (eng, _) = compile_native("strings.na.jac");
     f = get_func(eng, "escapes_simple", ctypes.c_char_p);
     assert f() == b"p\tq\nr";
+}
+
+# str(float) must be CPython's shortest round-trip repr, not %g (#6978 0.3).
+# Every value below is compared byte-for-byte against Python's own repr(), so
+# fixed vs. exponential notation, the trailing `.0`, -0.0, and inf/nan spelling
+# are all held to sv parity.
+test "float repr shortest round-trip matches CPython (na == sv) (#6978 0.3)" {
+    (eng, _) = compile_native("float_repr.na.jac");
+    f = get_func(eng, "frepr", ctypes.c_char_p, ctypes.c_double);
+    cases = [
+        0.0,
+        1.0,
+        -0.0,
+        -1.0,
+        0.1,
+        0.2,
+        0.3,
+        1.1,
+        3.14,
+        2.5,
+        0.5,
+        -2.75,
+        100.0,
+        1234.5,
+        100000.0,
+        0.001,
+        0.0001,
+        0.000123,
+        1234567890123456.0,
+        123456789.123456789,
+        0.1 + 0.2,
+        1e16,
+        1.5e16,
+        1e-5,
+        1e-10,
+        1e100,
+        1e-100,
+        1.7976931348623157e308,
+        2.2250738585072014e-308,
+        5e-324,
+        float("inf"),
+        float("-inf"),
+        float("nan")
+    ];
+    for v in cases {
+        assert f(v) == repr(v).encode("utf-8") , (
+            f"str({v!r}): na={f(v)!r} sv={repr(v).encode('utf-8')!r}"
+        );
+    }
 }
 
 test "strings str equal" {
@@ -4840,4 +4912,27 @@ test "isinstance mixed tuple unsupported type errors" {
     assert "E5090" in codes , (
         f"expected E5090 for mixed-tuple isinstance, got {codes}"
     );
+}
+
+# ─── FIX: clib struct pointer subscript read/write (#6707, #6708) ─────────────
+# Before the fix, buf[i] on a clib struct pointer emitted E5090.
+# Fix: a struct-typed param/local (`buf: Color`) lowers to a StructName*, so
+# NaIRGenPass emits a single-index GEP (one index advances a whole struct) for
+# buf[i], and a struct load + store into the element pointer for buf[i] = val.
+test "ptr subscript read/write: no E5090 and correct GEP IR (#6707, #6708)" {
+    prog = JacProgram();
+    ir = prog.compile(str(os.path.join(FIXTURES, "ptr_subscript.na.jac")));
+    e5090 = [
+        e.code.code
+        for e in (prog.errors_had or [])
+        if e.code and e.code.code == "E5090"
+    ];
+    assert not e5090 , f"Unexpected E5090 errors: {e5090}";
+    assert ir.gen.llvm_ir is not None , "No LLVM IR generated";
+    s = str(ir.gen.llvm_ir);
+    # Read path (#6708): single-index GEP on the StructName* base yields the
+    # element pointer, which is returned as-is (aliases the buffer, no copy).
+    assert "ptr.elem.ptr" in s , "Expected array-element GEP (ptr.elem.ptr)";
+    # Write path (#6707): GEP the element, load the source struct value, store.
+    assert "arr.val.struct" in s , "Expected struct load for write (arr.val.struct)";
 }

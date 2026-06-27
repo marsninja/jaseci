@@ -792,7 +792,14 @@ impl ElfLinker.build_executable -> bytes {
                 if sym.name {
                     local_sym_map[sym.name] = (placement[0], placement[1] + sym.value);
                 }
-                sym_idx_placement[sym_i] = (placement[0], placement[1]);
+                # Index-keyed placement must add sym.value too. A section symbol
+                # (empty name) from a merged archive member carries the member's
+                # offset within the coalesced section in sym.value, and
+                # section-relative relocs (e.g. `R_X86_64_PC32 .bss-4`) resolve
+                # through here; dropping it pointed every such ref at the section
+                # base, corrupting e.g. liblzma's .bss crc32 dispatch pointer.
+                # (#6978 Phase 0.1a, ELF)
+                sym_idx_placement[sym_i] = (placement[0], placement[1] + sym.value);
             }
         }
         sym_i += 1;
@@ -885,6 +892,13 @@ impl ElfLinker.build_executable -> bytes {
         dyn_entries.append((DT_RELASZ, len(extern_data_syms) * 24));
         dyn_entries.append((DT_RELAENT, 24));
     }
+    # A merged static-archive member may ship a load-time .init_array
+    # constructor (e.g. liblzma crc32 sets its .bss dispatch pointer there).
+    # The bespoke _start bypasses libc startup and ld.so does not run an
+    # ET_EXEC's own DT_INIT_ARRAY, so emitting it would be a no-op. Instead the
+    # injected `main` iterates the array itself; the linker writes its base +
+    # count into the __jac_init_array / __jac_init_count globals below.
+    # (#6978 Phase 0.1a, ELF)
     dyn_entries.append((DT_DEBUG, 0));
     dyn_entries.append((DT_NULL, 0));
     dynamic_data = bytearray();
@@ -1129,6 +1143,25 @@ impl ElfLinker.build_executable -> bytes {
                 f"an unrelocated reference."
             );
         }
+    }
+
+    # ── Run-time init-array bridge (#6978 0.1a) ───────────────────
+    # Point the injected main's constructor loop at the merged .init_array (the
+    # load-time constructors a static-archive floor member ships). The bespoke
+    # _start bypasses libc startup and ld.so does not run an ET_EXEC's own
+    # DT_INIT_ARRAY, so main iterates the array itself: write its base vaddr and
+    # entry count into the __jac_init_array / __jac_init_count globals. The slot
+    # contents (constructor pointers) were already applied by the reloc loop.
+    _ia = data_sections.get(".init_array");
+    _ia_vaddr = (data_vaddr + _ia[0]) if _ia is not None else 0;
+    _ia_count = (_ia[1] // 8) if _ia is not None else 0;
+    _ia_sym = local_sym_map.get("__jac_init_array");
+    _ic_sym = local_sym_map.get("__jac_init_count");
+    if _ia_sym is not None and _ia_sym[0] == "data" {
+        struct.pack_into("<Q", data_bytes, _ia_sym[1], _ia_vaddr);
+    }
+    if _ic_sym is not None and _ic_sym[0] == "data" {
+        struct.pack_into("<Q", data_bytes, _ic_sym[1], _ia_count);
     }
 
     # ── Find entry point ──────────────────────────────────────────
@@ -1763,7 +1796,14 @@ impl ElfLinker.build_shared_object -> bytes {
                 if sym.name {
                     local_sym_map[sym.name] = (placement[0], placement[1] + sym.value);
                 }
-                sym_idx_placement[sym_i] = (placement[0], placement[1]);
+                # Index-keyed placement must add sym.value too. A section symbol
+                # (empty name) from a merged archive member carries the member's
+                # offset within the coalesced section in sym.value, and
+                # section-relative relocs (e.g. `R_X86_64_PC32 .bss-4`) resolve
+                # through here; dropping it pointed every such ref at the section
+                # base, corrupting e.g. liblzma's .bss crc32 dispatch pointer.
+                # (#6978 Phase 0.1a, ELF)
+                sym_idx_placement[sym_i] = (placement[0], placement[1] + sym.value);
             }
         }
         sym_i += 1;
@@ -2709,7 +2749,17 @@ def _merge_crt_object(linker: ElfLinker, crt_bytes: bytes) -> bool {
             sym_idx_map[crt_sym_idx] = existing_idx;
         } else {
             new_idx = len(linker.symbols);
-            new_shndx = sec_idx_map.get(crt_sym.shndx, crt_sym.shndx);
+            # An undefined symbol must stay SHN_UNDEF. Remapping its shndx
+            # through sec_idx_map (where SHN_UNDEF==0 collides with the member's
+            # null section, which maps to a real merged index) would make a new
+            # extern reference (e.g. a member's libc call like getauxval) look
+            # defined, so it gets no PLT entry and resolves to 0. Only defined
+            # symbols carry a real section to remap. (#6978 Phase 0.1a, ELF)
+            if crt_sym.shndx == SHN_UNDEF {
+                new_shndx = SHN_UNDEF;
+            } else {
+                new_shndx = sec_idx_map.get(crt_sym.shndx, crt_sym.shndx);
+            }
             linker.symbols.append(
                 ElfSymbol(
                     name=crt_sym.name,
@@ -2770,7 +2820,8 @@ impl ElfLinker.link(
     shared: bool = False,
     export_symbols: list[str] = [],
     init_funcs: list[str] = [],
-    soname: str = ""
+    soname: str = "",
+    archive_members: list[bytes] = []
 ) -> bool {
     linker = ElfLinker(
         obj_data=obj_bytes,
@@ -2790,6 +2841,20 @@ impl ElfLinker.link(
     # Merge CRT objects (e.g. crt1.o) into the main object
     for crt_bytes in crt_objects {
         if not _merge_crt_object(linker, crt_bytes) {
+            return False;
+        }
+    }
+
+    # Merge selected static-archive members (#6978 Phase 0.1a). An ar member is
+    # just a relocatable object, so it folds in through the same path as a CRT
+    # object: _merge_crt_object upgrades a currently-undefined symbol to its
+    # in-member definition in place, so a member symbol referenced by the main
+    # object (or an earlier member) resolves locally instead of being emitted as
+    # a libc.so dynamic import. This is why ELF needs no separate crossref pass
+    # like Mach-O's _resolve_crossrefs -- build_executable only imports symbols
+    # still left at SHN_UNDEF after all merges.
+    for member in archive_members {
+        if not _merge_crt_object(linker, member) {
             return False;
         }
     }
