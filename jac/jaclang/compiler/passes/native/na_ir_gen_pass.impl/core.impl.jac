@@ -488,7 +488,10 @@ and access their fields.
 """
 impl NaIRGenPass._register_imported_struct_types -> None {
     import os;
-    import from jaclang.jac0core.codeinfo { resolve_native_module }
+    import from jaclang.jac0core.codeinfo {
+        resolve_native_module,
+        is_bundled_native_module
+    }
     # ── DFS work queue: collect ALL transitive .na.jac imports ───────────────
     # Uses the shared resolve_native_module() from codeinfo to resolve paths,
     # ensuring consistency with InteropAnalysisPass.
@@ -500,14 +503,17 @@ impl NaIRGenPass._register_imported_struct_types -> None {
     entry_base = os.path.dirname(os.path.abspath(self.ir_in.loc.mod_path))
         if (self.ir_in?.loc)
         else os.getcwd();
-    # A whole-module import (`import hashlib`) only resolves to a bundled
-    # native stdlib module when THIS module actually compiles native code (a
-    # `.na.jac` or an `na {}` block). Without that gate an ordinary `.jac`
-    # module's plain Python `import os.path` / `import json` would be
-    # mis-resolved to the bundled `na_stdlib` module of the same name and
-    # recursively pulled in + compiled for every module in the program --
-    # exploding precompile memory (#6978). Selective `import from X { y }`
-    # imports are unaffected: they already only resolve for `.na.jac` targets.
+    # A whole-module import (`import hashlib`) is a native-import candidate only
+    # when (a) THIS module actually compiles native code (a `.na.jac` or `na {}`
+    # block) AND (b) the name is an actual bundled `na_stdlib` module. Without
+    # (a), an ordinary `.jac` module's plain Python `import os.path` / `import
+    # json` would be mis-resolved to the bundled module of the same name and
+    # recursively pulled in for every module in the program -- exploding
+    # precompile memory. Without (b), a non-bundled `import ast` / `import
+    # collections` in a native module is needlessly fed to the DFS (it resolves
+    # to nothing, but perturbs the emitted module enough to break JIT symbol
+    # resolution). Selective `import from X { y }` imports are unaffected: they
+    # already only resolve for `.na.jac` targets (#6978).
     _has_native_code: bool = any(
         True
         for _s in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
@@ -518,13 +524,15 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         for s in ModuleCodegenPass.iter_context_stmts(self.ir_in)
         if isinstance(s, uni.Import)
     ] {
-        if (not imp.from_loc) and (not _has_native_code) {
+        mod_name = self._extract_import_module_name(imp);
+        if not mod_name {
             continue;
         }
-        mod_name = self._extract_import_module_name(imp);
-        if mod_name {
-            wq.append((mod_name, entry_base));
+        if (not imp.from_loc)
+        and ((not _has_native_code) or (not is_bundled_native_module(mod_name))) {
+            continue;
         }
+        wq.append((mod_name, entry_base));
     }
 
     qi = 0;

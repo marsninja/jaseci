@@ -74,14 +74,13 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     # main object: a real `atexit` forwarding to `__cxa_atexit` (exported by
     # libc.so; cleanup still runs via __cxa_finalize at exit) and a `__dso_handle`
     # the floor's own __cxa_atexit calls bind to. (#6978 Phase 1)
-    dso_def = "" if "@__dso_handle" in llvm_ir_str else '@__dso_handle = global i8 0\n\n';
+    dso_def = ""
+        if "@__dso_handle" in llvm_ir_str
+        else '@__dso_handle = global i8 0\n\n';
     atexit_def = ""
         if ("@atexit(" in llvm_ir_str or '@"atexit"' in llvm_ir_str)
         else (
-            'declare i32 @__cxa_atexit(ptr, ptr, ptr)\n'
-            + 'define i32 @atexit(ptr %atx_fn) {\nentry:\n'
-            + '    %atx_r = call i32 @__cxa_atexit(ptr %atx_fn, ptr null, ptr @__dso_handle)\n'
-            + '    ret i32 %atx_r\n}\n\n'
+            'declare i32 @__cxa_atexit(ptr, ptr, ptr)\n' + 'define i32 @atexit(ptr %atx_fn) {\nentry:\n' + '    %atx_r = call i32 @__cxa_atexit(ptr %atx_fn, ptr null, ptr @__dso_handle)\n' + '    ret i32 %atx_r\n}\n\n'
         );
     ir = (
         '\n; --- injected entry point ---\n' + globals_ir + initarr_ir + exit_decl + lsm_decl + dso_def + atexit_def + 'declare ptr @llvm.stacksave()\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    %ia = load ptr, ptr @__jac_init_array\n' + '    %ic = load i64, ptr @__jac_init_count\n' + '    br label %ia.cond\n' + 'ia.cond:\n' + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n' + '    %more = icmp ult i64 %i, %ic\n' + '    br i1 %more, label %ia.body, label %ia.done\n' + 'ia.body:\n' + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n' + '    %fn = load ptr, ptr %slot\n' + '    call void %fn()\n' + '    %inext = add i64 %i, 1\n' + '    br label %ia.cond\n' + 'ia.done:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() naked noreturn {\n' + 'entry:\n' + '    %sp = call ptr @llvm.stacksave()\n' + '    %argc = load i32, ptr %sp\n' + '    %argv = getelementptr i8, ptr %sp, i64 8\n' + '    call void @_jac_boot(i32 %argc, ptr %argv, ptr %sp)\n' + '    unreachable\n' + '}\n\n' + '; A NORMAL (non-naked) shim makes the hand-off to __libc_start_main. The naked\n' + '; _start cannot align the stack for __libc_start_main\'s 7th argument\n' + '; (stack_end), which x86-64 passes on the stack: a misaligned call leaves the\n' + '; whole program 8 bytes off, faulting any AVX `vmovdqa` (e.g. OpenSSL sha512).\n' + '; Routing through a framed function lets the backend align the call correctly.\n' + '; (#6978 Phase 1)\n' + 'define internal void @_jac_boot(i32 %bargc, ptr %bargv, ptr %bstack) noreturn {\n' + 'entry:\n' + '    %r = call i32 @__libc_start_main(ptr @main, i32 %bargc, ptr %bargv, ptr null, ptr null, ptr null, ptr %bstack)\n' + '    unreachable\n' + '}\n'

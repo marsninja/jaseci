@@ -790,9 +790,9 @@ impl ElfLinker.build_executable -> bytes {
     sym_i = 0;
     for sym in self.symbols {
         if sym.shndx == SHN_UNDEF
-            and sym.name
-            and sym.bind >= STB_GLOBAL
-            and sym.name not in defined_names {
+        and sym.name
+        and sym.bind >= STB_GLOBAL
+        and sym.name not in defined_names {
             is_data = sym.typ == STT_OBJECT
             or (sym.typ == STT_NOTYPE and sym.name in known_data_syms);
             if is_data {
@@ -843,11 +843,11 @@ impl ElfLinker.build_executable -> bytes {
     local_got_seen: set[str] = set();
     for rela in self.relocations {
         if rela.rtype in arch.gotpcrel_rtypes
-            and rela.sym_name
-            and rela.sym_name not in extern_func_syms
-            and rela.sym_name not in extern_data_syms
-            and rela.sym_name in local_sym_map
-            and rela.sym_name not in local_got_seen {
+        and rela.sym_name
+        and rela.sym_name not in extern_func_syms
+        and rela.sym_name not in extern_data_syms
+        and rela.sym_name in local_sym_map
+        and rela.sym_name not in local_got_seen {
             local_got_syms.append(rela.sym_name);
             local_got_seen.add(rela.sym_name);
         }
@@ -2768,9 +2768,7 @@ When a CRT section has the same name as an existing section (e.g. .text),
 the CRT data is appended to the existing section. Symbol values and
 relocation offsets are adjusted by the merge offset.
 """
-def _merge_crt_object(
-    linker: ElfLinker, crt_bytes: bytes, merge_ns: int = 0
-) -> bool {
+def _merge_crt_object(linker: ElfLinker, crt_bytes: bytes, merge_ns: int = 0) -> bool {
     crt = ElfLinker(
         obj_data=crt_bytes, sections=[], symbols=[], relocations=[], needed_libs=[]
     );
