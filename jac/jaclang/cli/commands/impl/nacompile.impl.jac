@@ -16,11 +16,27 @@ import from jaclang.cli.console { console }
 
 """Inject main() and _start into the LLVM IR for ELF (Linux).
 
-main() stores argc/argv into globals, calls jac_entry(), and returns 0.
-_start is the ELF entry point. It uses the naked attribute with
-@llvm.stacksave() to read the raw stack pointer without a prologue,
-then loads argc and argv from the kernel-placed stack layout:
-[sp]=argc, [sp+8..]=argv array. No inline assembly needed.
+main() stores argc/argv into globals, runs the merged .init_array constructors
+(the #6978 0.1a bridge), calls jac_entry(), and returns 0.
+
+_start is the ELF entry point. It uses the naked attribute with @llvm.stacksave()
+to read the raw stack pointer without a prologue (no inline assembly), then loads
+argc and argv from the kernel-placed stack layout ([sp]=argc, [sp+8..]=argv) and
+hands off to glibc's `__libc_start_main(main, argc, argv, NULL, NULL, NULL,
+stack_end)`. Routing through `__libc_start_main` (rather than calling main
+directly) is what initialises the main thread's TLS + pthread descriptor before
+any user/library code runs (#6978 Phase 1): a static C floor like OpenSSL's
+libcrypto uses `pthread_once`/`CRYPTO_THREAD_run_once` for lazy init, which
+deadlocks on a futex if the thread runtime was never brought up. TLS-free floors
+(libz, liblzma) ran fine under the old direct-call `_start`; libcrypto is the
+first that needs the real C-runtime bring-up. `__libc_start_main` calls main and
+`exit`s with its return, so _start never returns. The .init_array bridge stays in
+main (run after libc init, so pthread-using constructors work); init/fini are
+NULL because the merged constructors are driven by the bridge, not glibc.
+
+stack_end is the entry %rsp (where argc sits) — what crt1 passes; the ABI
+guarantees that pointer is 16-byte aligned at process entry, so the single `call`
+lands `__libc_start_main` on an ABI-aligned stack with no manual realignment.
 """
 def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     # Declare __jac_argc/__jac_argv only if the IR gen pass didn't already
@@ -46,8 +62,29 @@ def _inject_entry_elf(llvm_ir_str: str, triple: str = "") -> str {
     # llvmlite quotes the name as @"exit", so check both forms
     has_exit = "@exit" in llvm_ir_str or '@"exit"' in llvm_ir_str;
     exit_decl = "" if has_exit else 'declare void @exit(i32) noreturn\n\n';
+    # glibc's process bring-up entry: brings up TLS + the main thread's pthread
+    # descriptor, then calls main and exits with its return. Guarded against a
+    # duplicate declaration like the others.
+    lsm_decl = ""
+        if "@__libc_start_main" in llvm_ir_str
+        else 'declare i32 @__libc_start_main(ptr, i32, ptr, ptr, ptr, ptr, ptr)\n\n';
+    # `atexit` and `__dso_handle` live in glibc's libc_nonshared.a / the CRT, NOT
+    # in libc.so, so a static C floor that registers exit cleanup (e.g. OpenSSL's
+    # OPENSSL_cleanup) would fail to dynamically resolve them. Provide them in the
+    # main object: a real `atexit` forwarding to `__cxa_atexit` (exported by
+    # libc.so; cleanup still runs via __cxa_finalize at exit) and a `__dso_handle`
+    # the floor's own __cxa_atexit calls bind to. (#6978 Phase 1)
+    dso_def = "" if "@__dso_handle" in llvm_ir_str else '@__dso_handle = global i8 0\n\n';
+    atexit_def = ""
+        if ("@atexit(" in llvm_ir_str or '@"atexit"' in llvm_ir_str)
+        else (
+            'declare i32 @__cxa_atexit(ptr, ptr, ptr)\n'
+            + 'define i32 @atexit(ptr %atx_fn) {\nentry:\n'
+            + '    %atx_r = call i32 @__cxa_atexit(ptr %atx_fn, ptr null, ptr @__dso_handle)\n'
+            + '    ret i32 %atx_r\n}\n\n'
+        );
     ir = (
-        '\n; --- injected entry point ---\n' + globals_ir + initarr_ir + exit_decl + 'declare ptr @llvm.stacksave()\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    %ia = load ptr, ptr @__jac_init_array\n' + '    %ic = load i64, ptr @__jac_init_count\n' + '    br label %ia.cond\n' + 'ia.cond:\n' + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n' + '    %more = icmp ult i64 %i, %ic\n' + '    br i1 %more, label %ia.body, label %ia.done\n' + 'ia.body:\n' + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n' + '    %fn = load ptr, ptr %slot\n' + '    call void %fn()\n' + '    %inext = add i64 %i, 1\n' + '    br label %ia.cond\n' + 'ia.done:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() naked noreturn {\n' + 'entry:\n' + '    %sp = call ptr @llvm.stacksave()\n' + '    %argc = load i32, ptr %sp\n' + '    %argv = getelementptr i8, ptr %sp, i64 8\n' + '    %ret = call i32 @main(i32 %argc, ptr %argv)\n' + '    call void @exit(i32 %ret)\n' + '    unreachable\n' + '}\n'
+        '\n; --- injected entry point ---\n' + globals_ir + initarr_ir + exit_decl + lsm_decl + dso_def + atexit_def + 'declare ptr @llvm.stacksave()\n\n' + 'define i32 @main(i32 %argc, ptr %argv) {\n' + 'entry:\n' + '    store i32 %argc, ptr @__jac_argc\n' + '    store ptr %argv, ptr @__jac_argv\n' + '    %ia = load ptr, ptr @__jac_init_array\n' + '    %ic = load i64, ptr @__jac_init_count\n' + '    br label %ia.cond\n' + 'ia.cond:\n' + '    %i = phi i64 [ 0, %entry ], [ %inext, %ia.body ]\n' + '    %more = icmp ult i64 %i, %ic\n' + '    br i1 %more, label %ia.body, label %ia.done\n' + 'ia.body:\n' + '    %slot = getelementptr ptr, ptr %ia, i64 %i\n' + '    %fn = load ptr, ptr %slot\n' + '    call void %fn()\n' + '    %inext = add i64 %i, 1\n' + '    br label %ia.cond\n' + 'ia.done:\n' + '    call void @jac_entry()\n' + '    ret i32 0\n' + '}\n\n' + 'define void @_start() naked noreturn {\n' + 'entry:\n' + '    %sp = call ptr @llvm.stacksave()\n' + '    %argc = load i32, ptr %sp\n' + '    %argv = getelementptr i8, ptr %sp, i64 8\n' + '    call void @_jac_boot(i32 %argc, ptr %argv, ptr %sp)\n' + '    unreachable\n' + '}\n\n' + '; A NORMAL (non-naked) shim makes the hand-off to __libc_start_main. The naked\n' + '; _start cannot align the stack for __libc_start_main\'s 7th argument\n' + '; (stack_end), which x86-64 passes on the stack: a misaligned call leaves the\n' + '; whole program 8 bytes off, faulting any AVX `vmovdqa` (e.g. OpenSSL sha512).\n' + '; Routing through a framed function lets the backend align the call correctly.\n' + '; (#6978 Phase 1)\n' + 'define internal void @_jac_boot(i32 %bargc, ptr %bargv, ptr %bstack) noreturn {\n' + 'entry:\n' + '    %r = call i32 @__libc_start_main(ptr @main, i32 %bargc, ptr %bargv, ptr null, ptr null, ptr null, ptr %bstack)\n' + '    unreachable\n' + '}\n'
     );
     return llvm_ir_str + ir;
 }

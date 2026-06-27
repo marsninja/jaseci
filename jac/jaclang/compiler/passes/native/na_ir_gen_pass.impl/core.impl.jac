@@ -617,7 +617,22 @@ impl NaIRGenPass._register_imported_struct_types -> None {
 
 Skips clib imports (from "libname") and non-module imports."""
 impl NaIRGenPass._extract_import_module_name(imp: uni.Import) -> (str | None) {
+    if imp.clib_decls {
+        return None;
+    }
     if not imp.from_loc or not isinstance(imp.from_loc, uni.ModulePath) {
+        # Whole-module form (`import hashlib;`): the imported module lives in
+        # imp.items as a ModulePath. Return its dotted name so the DFS in
+        # _register_imported_struct_types pulls it in (resolve_native_module
+        # then filters to bundled/.na.jac modules; non-native names miss and
+        # are skipped) (issue #6978).
+        if imp.items {
+            for it in imp.items {
+                if isinstance(it, uni.ModulePath) and it.path {
+                    return '.'.join(getattr(p, 'value', str(p)) for p in it.path);
+                }
+            }
+        }
         return None;
     }
     # A native C-FFI import (`import from raylib { def ...; }`) is a shared
@@ -908,9 +923,17 @@ impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
                     import from jaclang.compiler.passes.main.capability_check_pass {
                         classify_native_import
                     }
+                    import from jaclang.jac0core.codeinfo { is_bundled_native_module }
                     (mod_name, _supported) = classify_native_import(item);
                     if _supported {
                         self._native_stdlib_modules.add(mod_name);
+                    } elif mod_name is not None
+                    and is_bundled_native_module(mod_name) {
+                        # Whole-module import of a bundled `.na.jac` (e.g.
+                        # `import hashlib;`): a module-qualified call on this name
+                        # routes to the shared cross-module free-function path
+                        # (issue #6978).
+                        self._native_module_imports.add(mod_name);
                     }
                 }
             }
