@@ -1931,6 +1931,93 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     return result;
 }
 
+"""Stringify a user-object value via its `__str__` method (#7003).
+
+Returns a freshly-owned `i8*` string when `val` is a user struct pointer:
+either the result of dispatching to a user `__str__` (along the MRO, through the
+vtable so a base-typed receiver resolves the runtime subclass's override), or a
+`<TypeName object at 0x...>` default when no `__str__` is defined. Returns None
+when `val` is not a user struct, so the callers (str()/print()/f-strings) keep
+their existing scalar/string handling.
+
+The receiver is *borrowed*: `__str__` does not consume `self`, and the value's
+producer owns its release (str()'s builtin-arg release in calls.impl, or the
+print/f-string source-object release). Ownership is hidden across the dispatch
+so the vtable path's owned-arg release leaves the receiver alone, then restored
+so that producer can still release it once."""
+impl NaIRGenPass._emit_obj_str(val: ir.Value) -> (ir.Value | None) {
+    type_name = self._infer_type_name(val);
+    if type_name is None {
+        return None;
+    }
+    # Resolve a user __str__ along the MRO (mirrors _codegen_method_call).
+    func = None;
+    for check_name in self._mro_of(type_name) {
+        cand = f"{check_name}.__str__";
+        if cand in self.method_funcs {
+            func = self.method_funcs[cand];
+            break;
+        }
+    }
+    if func is None {
+        return self._emit_default_obj_repr(val, type_name);
+    }
+    was_owned = self._is_owned(val);
+    if was_owned {
+        val.is_owned = False;
+    }
+    result = None;
+    # Virtual dispatch resolves the runtime subclass's __str__; falls back to a
+    # direct call for non-vtable (standalone) types.
+    if self._arch_has_vtable(type_name) {
+        result = self._codegen_virtual_call(val, "__str__", [val], type_name);
+    }
+    if result is None {
+        coerced = [self._coerce_type(val, func.args[0].type)];
+        result = self.builder.call(func, coerced, name="call.__str__");
+    }
+    if was_owned {
+        val.is_owned = True;
+    }
+    # The produced string is a fresh rc=1 value the caller now owns.
+    return self._mark_owned(result);
+}
+
+"""Default object stringification when no `__str__` is defined (#7003).
+
+Renders `<TypeName object at 0x...>` into a fresh RC-managed `str` buffer,
+mirroring CPython's default `object.__repr__` shape instead of leaking the raw
+struct pointer as garbage. The receiver is only read (ptrtoint), never consumed."""
+impl NaIRGenPass._emit_default_obj_repr(val: ir.Value, type_name: str) -> ir.Value {
+    b = self.builder;
+    i8p = ir.IntType(8).as_pointer();
+    i64 = ir.IntType(64);
+    # "<" + name + " object at 0x" + up to 16 hex digits + ">" + NUL; pad.
+    buf_len = len(type_name) + 48;
+    buf = self._rc_call_with_ctx(
+        self.rc_alloc_fn,
+        [ir.Constant(i64, buf_len)],
+        op="obj_repr",
+        loc="",
+        name="obj.repr.buf"
+    );
+    self._emit_set_type_tag(b, buf, "str");
+    snprintf = self._get_or_declare_extern(
+        "snprintf", ir.IntType(32), [i8p, i64, i8p], var_arg=True
+    );
+    fmt = self._make_global_string(
+        "<%s object at 0x%llx>", name_prefix=".obj.repr.fmt"
+    );
+    name_g = self._make_global_string(type_name, name_prefix=".obj.repr.name");
+    addr = b.ptrtoint(val, i64, name="obj.repr.addr");
+    b.call(
+        snprintf,
+        [buf, ir.Constant(i64, buf_len), fmt, name_g, addr],
+        name="obj.repr.snprintf"
+    );
+    return self._mark_owned(buf);
+}
+
 """Generate field access: GEP into struct + load (with AttributeError null check)."""
 impl NaIRGenPass._codegen_field_access(
     obj_val: ir.Value, field_name: str, type_name: str

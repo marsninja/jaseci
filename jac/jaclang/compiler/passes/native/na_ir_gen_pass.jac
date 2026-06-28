@@ -652,6 +652,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _is_walker_arch(name: str) -> bool;
     def _codegen_instantiation(nd: (uni.FuncCall | uni.Name)) -> (ir.Value | None);
     def _codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None);
+    # Object stringification (#7003): dispatch str()/print()/f"{}" to __str__.
+    def _emit_obj_str(val: ir.Value) -> (ir.Value | None);
+    def _emit_default_obj_repr(val: ir.Value, type_name: str) -> ir.Value;
     def _codegen_field_access(
         obj_val: ir.Value, field_name: str, type_name: str
     ) -> (ir.Value | None);

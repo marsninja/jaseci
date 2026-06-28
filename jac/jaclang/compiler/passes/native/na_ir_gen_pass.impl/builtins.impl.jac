@@ -75,6 +75,16 @@ impl NaIRGenPass._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
             fmt_parts.append("%s");
             args.append(self._emit_float_repr(val));
         } elif isinstance(val.type, ir.PointerType) {
+            # print(obj): stringify user objects via __str__ (#7003). The source
+            # object temp is consumed here; the produced string is owned and is
+            # released by the loop below alongside other owned temporaries.
+            obj_s = self._emit_obj_str(val);
+            if obj_s is not None {
+                if self._is_owned(val) {
+                    self._emit_rc_release_typed(val, op="print_obj_src", loc="");
+                }
+                val = obj_s;
+            }
             fmt_parts.append("%s");
             args.append(val);
         }
@@ -232,6 +242,9 @@ impl NaIRGenPass._codegen_string(nd: uni.String) -> (ir.Value | None) {
 impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
     fmt_parts: list[str] = [];
     args: list[ir.Value] = [];
+    # Strings produced by object __str__ dispatch (#7003): owned temporaries that
+    # must be released once the snprintf below has consumed them.
+    obj_strs: list[ir.Value] = [];
     for part in nd.parts {
         if isinstance(part, uni.String) {
             # Literal text portion — `lit_value` decodes escapes the same way
@@ -257,6 +270,19 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 fmt_parts.append("%s");
                 args.append(self._emit_float_repr(val));
             } elif isinstance(val.type, ir.PointerType) {
+                # f"{obj}": stringify user objects via __str__ (#7003). Consume
+                # the source object temp now; the produced string is owned and is
+                # released after the snprintf that reads it.
+                obj_s = self._emit_obj_str(val);
+                if obj_s is not None {
+                    if self._is_owned(val) {
+                        self._emit_rc_release_typed(
+                            val, op="fstr_obj_src", loc=""
+                        );
+                    }
+                    val = obj_s;
+                    obj_strs.append(obj_s);
+                }
                 fmt_parts.append("%s");
                 args.append(val);
             }
@@ -285,6 +311,11 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
         call_args.append(a);
     }
     self.builder.call(snprintf_fn, call_args, name="fstr.len");
+    # RC: release the per-object __str__ strings now that snprintf copied them
+    # into the f-string buffer (#7003).
+    for _obj_s in obj_strs {
+        self._emit_rc_release_typed(_obj_s, op="fstr_obj_tmp", loc="");
+    }
     # RC: caller owns this freshly-allocated fstring buffer (rc=1 from malloc).
     # Mark it so the assign handler skips the extra RETAIN (avoiding rc=2 leak).
     self._mark_owned(buf);
