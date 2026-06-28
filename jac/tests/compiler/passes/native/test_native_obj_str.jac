@@ -53,10 +53,12 @@ def capture_stdout(fn: object) -> bytes {
     } finally {
         os.dup2(saved, 1);
         os.close(saved);
+        # Close the write-end to signal EOF, then drain and close the read-end.
+        # Kept in `finally` so a raising fn() never leaks the pipe fds.
         os.close(w);
+        data = os.read(r, 65536);
+        os.close(r);
     }
-    data = os.read(r, 65536);
-    os.close(r);
     return data;
 }
 
@@ -100,6 +102,14 @@ test "str(obj) on a base instance uses the base __str__" {
     (eng, _) = compile_native("obj_str.na.jac");
     f = get_func(eng, "base_str", ctypes.c_char_p);
     assert f() == b"Animal:generic";
+}
+
+# --- null receiver (T | None) ---
+test "str(obj) on a null (None) struct pointer renders \"None\", not a crash" {
+    (eng, _) = compile_native("obj_str.na.jac");
+    f = get_func(eng, "maybe_str", ctypes.c_char_p, ctypes.c_int64);
+    assert f(1) == b"set";
+    assert f(0) == b"None";
 }
 
 # --- print(obj) ---

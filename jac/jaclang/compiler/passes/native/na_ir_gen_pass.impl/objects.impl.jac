@@ -1959,28 +1959,63 @@ impl NaIRGenPass._emit_obj_str(val: ir.Value) -> (ir.Value | None) {
             break;
         }
     }
+    # Null guard: a null struct pointer is the native form of a `T | None` value
+    # that is None. Dispatching would deref-crash on the vtable GEP (as
+    # _codegen_method_call guards too), so short-circuit to "None" -- matching
+    # str(None) / print(None) / f"{None}" on the sv pathway.
+    i8p = ir.IntType(8).as_pointer();
+    is_null = self.builder.icmp_unsigned(
+        "==", val, ir.Constant(val.type, None), name="objstr.isnull"
+    );
+    fn = self.builder.basic_block.function;
+    null_bb = fn.append_basic_block(name="objstr.null");
+    live_bb = fn.append_basic_block(name="objstr.live");
+    cont_bb = fn.append_basic_block(name="objstr.cont");
+    self.builder.cbranch(is_null, null_bb, live_bb);
+    # None path.
+    self.builder.position_at_end(null_bb);
+    none_s = self._make_global_string("None", name_prefix=".objstr.none");
+    null_end = self.builder.basic_block;
+    self.builder.branch(cont_bb);
+    # Live (non-null) path: dispatch __str__, or fall back to the default repr.
+    self.builder.position_at_end(live_bb);
     if func is None {
-        return self._emit_default_obj_repr(val, type_name);
+        live_res = self._emit_default_obj_repr(val, type_name);
+    } else {
+        # The receiver is borrowed: __str__ does not consume self, and the
+        # value's producer owns its release (str()'s builtin-arg release in
+        # calls.impl, or the print/f-string source-object release). Hide
+        # ownership across the dispatch so the vtable path's owned-arg release
+        # leaves the receiver alone, then restore it.
+        was_owned = self._is_owned(val);
+        if was_owned {
+            val.is_owned = False;
+        }
+        result = None;
+        # Virtual dispatch resolves the runtime subclass's __str__; falls back
+        # to a direct call for non-vtable (standalone) types.
+        if self._arch_has_vtable(type_name) {
+            result = self._codegen_virtual_call(val, "__str__", [val], type_name);
+        }
+        if result is None {
+            coerced = [self._coerce_type(val, func.args[0].type)];
+            result = self.builder.call(func, coerced, name="call.__str__");
+        }
+        if was_owned {
+            val.is_owned = True;
+        }
+        live_res = result;
     }
-    was_owned = self._is_owned(val);
-    if was_owned {
-        val.is_owned = False;
-    }
-    result = None;
-    # Virtual dispatch resolves the runtime subclass's __str__; falls back to a
-    # direct call for non-vtable (standalone) types.
-    if self._arch_has_vtable(type_name) {
-        result = self._codegen_virtual_call(val, "__str__", [val], type_name);
-    }
-    if result is None {
-        coerced = [self._coerce_type(val, func.args[0].type)];
-        result = self.builder.call(func, coerced, name="call.__str__");
-    }
-    if was_owned {
-        val.is_owned = True;
-    }
+    live_res = self._coerce_type(live_res, i8p);
+    live_end = self.builder.basic_block;
+    self.builder.branch(cont_bb);
+    # Merge the None and dispatch paths.
+    self.builder.position_at_end(cont_bb);
+    phi = self.builder.phi(i8p, name="objstr.result");
+    phi.add_incoming(none_s, null_end);
+    phi.add_incoming(live_res, live_end);
     # The produced string is a fresh rc=1 value the caller now owns.
-    return self._mark_owned(result);
+    return self._mark_owned(phi);
 }
 
 """Default object stringification when no `__str__` is defined (#7003).

@@ -276,9 +276,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 obj_s = self._emit_obj_str(val);
                 if obj_s is not None {
                     if self._is_owned(val) {
-                        self._emit_rc_release_typed(
-                            val, op="fstr_obj_src", loc=""
-                        );
+                        self._emit_rc_release_typed(val, op="fstr_obj_src", loc="");
                     }
                     val = obj_s;
                     obj_strs.append(obj_s);
