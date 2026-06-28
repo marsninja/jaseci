@@ -384,6 +384,78 @@ impl ExecutionManager._finalize_call_response(
     return envelope;
 }
 
+"""Shared OCC retry scaffold for `execute_function_sync` / `execute_function_async`.
+
+The two surfaces differ only in their per-attempt body -- a `to_thread` hop +
+coroutine-unwrap for sync user code vs a direct `await` for async user code.
+That body is supplied as `run_attempt`, an async closure taking the live
+`CallState`; everything else is reproduced here verbatim so both share one copy:
+the root_id fetch + 'User not found' guard, the request-context begin/reset
+try/finally, arg deserialization + `_occ_policy` read inside the try, the
+`attempt < max_attempts` replay loop, the WriteConflict abort +
+pending_effects/read_versions/diagnostics clear + 409-or-backoff-or-reload
+handler, the abort-on-error Exception handler, the per-attempt `call_state.reset`,
+and the retries-exhausted 409 tail.
+"""
+async def _run_function_with_occ(
+    mgr: ExecutionManager, args: dict[(str, Any)], username: str, run_attempt: Callable
+) -> dict[str, JsonValue] | Generator | AsyncGenerator {
+    root_id = await mgr.user_manager.aget_root_id(username);
+    if not root_id {
+        return {'error': 'User not found'};
+    }
+    (ctx, req_token) = await _begin_request_context(root_id);
+    try {
+        _deserialize_wire_args(args);
+        (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
+        max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
+        attempt = 0;
+        while attempt < max_attempts {
+            attempt += 1;
+            call_token = ctx.call_state.set(CallState());
+            call_state = ctx.call_state.get();
+            try {
+                return await run_attempt(call_state);
+            } except WriteConflict as wc {
+                ctx.mem.abort();
+                ctx.pending_effects.clear();
+                ctx.read_versions.clear();
+                # Drop diagnostics accrued by the aborted attempt (e.g. a
+                # PermissionDenied raised during the walker body or the collect
+                # pass) so a converged replay's 200 response doesn't surface
+                # stale warnings from a unit of work that never committed.
+                ctx.diagnostics.clear();
+                if attempt >= max_attempts {
+                    return {
+                        'error': wc.message(),
+                        'error_code': 'write_conflict',
+                        'http_status': 409
+                    };
+                }
+                if occ_backoff_ms > 0 {
+                    await asyncio.sleep(occ_backoff_ms * attempt / 1000.0);
+                }
+                await ctx.aset_user_root(root_id);
+            } except Exception as e {
+                # Abort-on-error: a failed call must not half-mutate the graph.
+                # Discard its uncommitted unit of work instead of leaving it in
+                # the shared working set for the next commit to flush (#6619).
+                ctx.mem.abort();
+                return {'error': str(e)};
+            } finally {
+                ctx.call_state.reset(call_token);
+            }
+        }
+        return {
+            'error': 'write_conflict: retries exhausted',
+            'error_code': 'write_conflict',
+            'http_status': 409
+        };
+    } finally {
+        Jac.reset_request_context(req_token);
+    }
+}
+
 """Dispatcher: pick sync/async variant based on function kind.
 
 Kept for backwards compatibility with external callers (jac-scale, etc).
@@ -409,72 +481,22 @@ context setup, report collection, and commit stay on the event loop.
 impl ExecutionManager.execute_function_sync(
     func: Callable[(..., Any)], args: dict[(str, Any)], username: str
 ) -> dict[str, JsonValue] {
-    root_id = await self.user_manager.aget_root_id(username);
-    if not root_id {
-        return {'error': 'User not found'};
-    }
-    (ctx, req_token) = await _begin_request_context(root_id);
     # OCC replay (parity with spawn_walker_*): a function that loses a
     # check-then-create race converges via abort + reload + replay instead of
-    # surfacing the WriteConflict as a 500. Arg deserialization + policy read
-    # stay inside the try so the finally always resets the request context.
-    try {
-        _deserialize_wire_args(args);
-        (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
-        max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
-        attempt = 0;
-        while attempt < max_attempts {
-            attempt += 1;
-            call_token = ctx.call_state.set(CallState());
-            call_state = ctx.call_state.get();
-            try {
-                result = await asyncio.to_thread(func, **args);
-                # Preserve legacy behavior: a plain-sync wrapper may return a
-                # coroutine (e.g. `def wrap(): return some_async()`). Unwrap it
-                # back on the event loop so callers see the awaited value, not
-                # the coroutine object.
-                if iscoroutine(result) {
-                    result = await result;
-                }
-                return await self._finalize_call_response(call_state, result);
-            } except WriteConflict as wc {
-                ctx.mem.abort();
-                ctx.pending_effects.clear();
-                ctx.read_versions.clear();
-                # Drop diagnostics accrued by the aborted attempt (e.g. a
-                # PermissionDenied raised during the walker body or the collect
-                # pass) so a converged replay's 200 response doesn't surface
-                # stale warnings from a unit of work that never committed.
-                ctx.diagnostics.clear();
-                if attempt >= max_attempts {
-                    return {
-                        'error': wc.message(),
-                        'error_code': 'write_conflict',
-                        'http_status': 409
-                    };
-                }
-                if occ_backoff_ms > 0 {
-                    await asyncio.sleep(occ_backoff_ms * attempt / 1000.0);
-                }
-                await ctx.aset_user_root(root_id);
-            } except Exception as e {
-                # Abort-on-error: a failed call must not half-mutate the graph.
-                # Discard its uncommitted unit of work instead of leaving it in
-                # the shared working set for the next commit to flush (#6619).
-                ctx.mem.abort();
-                return {'error': str(e)};
-            } finally {
-                ctx.call_state.reset(call_token);
-            }
+    # surfacing the WriteConflict as a 500. The shared scaffold lives in
+    # `_run_function_with_occ`; the per-attempt body is the closure below.
+    async def run_attempt(call_state: CallState) {
+        result = await asyncio.to_thread(func, **args);
+        # Preserve legacy behavior: a plain-sync wrapper may return a
+        # coroutine (e.g. `def wrap(): return some_async()`). Unwrap it
+        # back on the event loop so callers see the awaited value, not
+        # the coroutine object.
+        if iscoroutine(result) {
+            result = await result;
         }
-        return {
-            'error': 'write_conflict: retries exhausted',
-            'error_code': 'write_conflict',
-            'http_status': 409
-        };
-    } finally {
-        Jac.reset_request_context(req_token);
+        return await self._finalize_call_response(call_state, result);
     }
+    return await _run_function_with_occ(self, args, username, run_attempt);
 }
 
 """Execute an async function in user's context.
@@ -484,64 +506,14 @@ User coroutine is awaited directly on the event loop.
 impl ExecutionManager.execute_function_async(
     func: Callable[(..., Any)], args: dict[(str, Any)], username: str
 ) -> dict[str, JsonValue] {
-    root_id = await self.user_manager.aget_root_id(username);
-    if not root_id {
-        return {'error': 'User not found'};
-    }
-    (ctx, req_token) = await _begin_request_context(root_id);
     # OCC replay (parity with spawn_walker_*): converge a lost check-then-create
-    # race instead of surfacing the WriteConflict as a 500. Arg deserialization
-    # + policy read stay inside the try so the finally always resets the context.
-    try {
-        _deserialize_wire_args(args);
-        (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
-        max_attempts = 1 if occ_mode == "fail" else max(1, occ_max);
-        attempt = 0;
-        while attempt < max_attempts {
-            attempt += 1;
-            call_token = ctx.call_state.set(CallState());
-            call_state = ctx.call_state.get();
-            try {
-                result = await func(**args);
-                return await self._finalize_call_response(call_state, result);
-            } except WriteConflict as wc {
-                ctx.mem.abort();
-                ctx.pending_effects.clear();
-                ctx.read_versions.clear();
-                # Drop diagnostics accrued by the aborted attempt (e.g. a
-                # PermissionDenied raised during the walker body or the collect
-                # pass) so a converged replay's 200 response doesn't surface
-                # stale warnings from a unit of work that never committed.
-                ctx.diagnostics.clear();
-                if attempt >= max_attempts {
-                    return {
-                        'error': wc.message(),
-                        'error_code': 'write_conflict',
-                        'http_status': 409
-                    };
-                }
-                if occ_backoff_ms > 0 {
-                    await asyncio.sleep(occ_backoff_ms * attempt / 1000.0);
-                }
-                await ctx.aset_user_root(root_id);
-            } except Exception as e {
-                # Abort-on-error: a failed call must not half-mutate the graph.
-                # Discard its uncommitted unit of work instead of leaving it in
-                # the shared working set for the next commit to flush (#6619).
-                ctx.mem.abort();
-                return {'error': str(e)};
-            } finally {
-                ctx.call_state.reset(call_token);
-            }
-        }
-        return {
-            'error': 'write_conflict: retries exhausted',
-            'error_code': 'write_conflict',
-            'http_status': 409
-        };
-    } finally {
-        Jac.reset_request_context(req_token);
+    # race instead of surfacing the WriteConflict as a 500. The shared scaffold
+    # lives in `_run_function_with_occ`; the per-attempt body is the closure below.
+    async def run_attempt(call_state: CallState) {
+        result = await func(**args);
+        return await self._finalize_call_response(call_state, result);
     }
+    return await _run_function_with_occ(self, args, username, run_attempt);
 }
 
 """Dispatcher: pick sync/async variant based on walker metadata.
