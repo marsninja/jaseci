@@ -194,8 +194,9 @@ the launcher pins `sys.executable` to it, so it is the one true source of the
 fused runtime at desktop-build time. We slice its `[payload][trailer]` suffix
 verbatim (the trailer's hash is over the unchanged payload, so a verbatim copy
 stays valid) and append it to the nacompiled host. At first launch the host's
-jac_engine_boot() reads its own /proc/self/exe trailer and materializes into the
-shared rt/<hash> cache -- the SAME tree the CLI uses (identical payload hash)."""
+jac_engine_boot() reads its own /proc/self/exe trailer and materializes into its
+own rt/<hash16>-<pathhash> cache -- same payload as the CLI, but the path-fold
+gives each binary its own tree (runtime.zig rtKey / issue #7012)."""
 def _bundle_runtime(host_binary: Path) {
     jac_bin = Path(os.path.realpath(os.sys.executable));
     data = jac_bin.read_bytes();
