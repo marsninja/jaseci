@@ -2847,14 +2847,22 @@ impl JacAutoLintPass._strip_docstrings(start: uni.UniNode) -> None {
     }
 }
 
-"""Recursively collect AstDocNode nodes that carry a docstring."""
+"""Collect AstDocNode nodes that carry a docstring.
+
+Iterative (explicit stack) rather than recursive so a deeply nested or
+auto-generated module can't blow Python's recursion limit while deslopping.
+"""
 impl JacAutoLintPass._collect_doc_nodes(`node: uni.UniNode, results: list) -> None {
-    if isinstance(`node, uni.AstDocNode) and `node.doc is not None {
-        results.append(`node);
-    }
-    for kid in `node.kid {
-        if kid is not None {
-            self._collect_doc_nodes(kid, results);
+    stack: list[uni.UniNode] = [`node];
+    while stack {
+        current = stack.pop();
+        if isinstance(current, uni.AstDocNode) and current.doc is not None {
+            results.append(current);
+        }
+        for kid in current.kid {
+            if kid is not None {
+                stack.append(kid);
+            }
         }
     }
 }

@@ -657,6 +657,15 @@ impl precommit(
     targets: list[str] = [];
     if staged {
         try {
+            # git reports staged paths relative to the repo root, so resolve them
+            # against the worktree root (not cwd) — otherwise running from a
+            # subdirectory drops every staged file and falsely "passes".
+            git_root = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=True
+            ).stdout.strip();
             completed = subprocess.run(
                 ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
                 capture_output=True,
@@ -669,8 +678,12 @@ impl precommit(
         }
         for line in completed.stdout.splitlines() {
             candidate = line.strip();
-            if candidate.endswith(".jac") and os.path.exists(candidate) {
-                targets.append(candidate);
+            if not candidate.endswith(".jac") {
+                continue;
+            }
+            abs_candidate = os.path.join(git_root, candidate);
+            if os.path.exists(abs_candidate) {
+                targets.append(abs_candidate);
             }
         }
         if not targets {
@@ -687,11 +700,22 @@ impl precommit(
     fmt_ret = format(targets, to_screen=False, lintfix=True, check=verify);
     console.print("[precommit] Running check...");
     check_ret = check(targets);
+    if not verify and check_ret == 0 and fmt_ret != 0 {
+        # Files were reformatted/auto-fixed but type-checking is clean: this is a
+        # successful fix, not a failure. Still exit non-zero so a hook blocks the
+        # commit until the developer reviews and re-stages the changes.
+        console.warning(
+            "Pre-commit applied formatting/lint fixes — review the changes, "
+            "re-stage them, and commit again."
+        );
+        return 1;
+    }
     if fmt_ret != 0 or check_ret != 0 {
         console.error("Pre-commit checks failed.");
         if verify and fmt_ret != 0 {
             console.error(
-                "Run 'jac precommit' (without --verify) to apply formatting fixes."
+                "Run 'jac precommit' (without --verify) to apply formatting "
+                "fixes, then re-stage."
             );
         }
         return 1;
