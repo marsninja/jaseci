@@ -384,25 +384,28 @@ jobs:
       - name: Install Jaseci scale package (global, importable from jac-scale/)
         run: jac install -e jac-scale --extras deploy --global
 
-      - name: Write kind config
-        run: |
-          cat <<EOF > /tmp/kind-config.yaml
-          kind: Cluster
-          apiVersion: kind.x-k8s.io/v1alpha4
-          nodes:
-          - role: control-plane
-            extraPortMappings:
-            - containerPort: 30080
-              hostPort: 30080
-              protocol: TCP
-          EOF
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
 
-      - name: Create kind cluster
-        uses: helm/kind-action@v1
-        with:
-          cluster_name: jaseci-test
-          wait: 120s
-          config: /tmp/kind-config.yaml
+      # MicroK8s instead of kind: its hostpath-storage provisioner binds
+      # ReadWriteMany PVCs (kind's default local-path only does ReadWriteOnce),
+      # which the bundle-injection path requires. Single node, so the loader and
+      # app pods share the RWX bundle PVC on one host.
+      - name: Set up MicroK8s (RWX-capable hostpath storage)
+        run: |
+          set -euxo pipefail
+          sudo snap install microk8s --classic --channel=1.31/stable
+          sudo microk8s status --wait-ready
+          sudo microk8s enable hostpath-storage dns
+          sudo microk8s kubectl -n kube-system rollout status deploy/coredns --timeout=180s
+          sudo microk8s kubectl -n kube-system rollout status deploy/hostpath-provisioner --timeout=180s || true
+          # Admin kubeconfig for the python kubernetes client + kubectl binary
+          mkdir -p "$HOME/.kube"
+          sudo microk8s config > "$HOME/.kube/config"
+          sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          kubectl get storageclass
+          kubectl get nodes -o wide
 
       - name: Run K8 tests (deploy-core)
         if: matrix.group == 'deploy-core'
