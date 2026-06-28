@@ -18,18 +18,22 @@ import from jac_scale.injector.bundle {
     JAC_ZIG_VERSION,
     JAC_HOME,
     APP_VOLUME_NAME,
-    APP_MOUNT_PATH
+    APP_MOUNT_PATH,
+    TOOLCHAIN_SUBDIR
 }
 import from jac_scale.deploy.target.kubernetes.kubernetes_config { KubernetesConfig }
 
 
 """The canonical INSTALL command sequence (no app launch). apt base packages +
-Bun + the jac binary and plugins, or - in experimental mode - a git clone and
-`zig build` of the jaclang checkout. Returns a list of shell command strings to
-join with ` && `; the caller appends the target-specific run tail. `experimental`
-selects the git-clone + zig-build path over the released binary."""
+Bun, then jac + plugins by one of three modes: `ship_binary` drops a prebuilt
+release binary (shipped by BinaryInjector under APP_MOUNT_PATH/TOOLCHAIN_SUBDIR)
+on PATH and installs the shipped plugin source editable - no build; `experimental`
+git-clones and `zig build`s the jaclang checkout; otherwise the released installer
+fetches the binary from GitHub Releases. Returns shell command strings to join
+with ` && `; the caller appends the target-specific run tail. ship_binary wins
+when set (it implies a host-built toolchain is already in the pod)."""
 def build_runtime_install_commands(
-    k8s_config: KubernetesConfig, experimental: bool
+    k8s_config: KubernetesConfig, experimental: bool, ship_binary: bool = False
 ) -> list[str] {
     config = k8s_config;
     commands: list[str] = [];
@@ -85,7 +89,36 @@ def build_runtime_install_commands(
     commands.append('export BUN_INSTALL="$HOME/.bun"');
     commands.append('export PATH="$BUN_INSTALL/bin:$PATH"');
 
-    if experimental {
+    if ship_binary {
+        # BinaryInjector's unpack init container dropped a prebuilt release binary
+        # + plugin source under APP_MOUNT_PATH/TOOLCHAIN_SUBDIR. Put the binary on
+        # the same $HOME/.local/bin PATH the released installer uses, then install
+        # the plugins editable from the shipped source (pip, no compile) - no apt
+        # build deps, no clone, no zig build, ~no build memory: the toolchain is
+        # already built on the host.
+        tc = f"{APP_MOUNT_PATH}/{TOOLCHAIN_SUBDIR}";
+        commands.append(f'install -m 0755 "{tc}/bin/jac" "$HOME/.local/bin/jac"');
+        commands.append('export PATH="$HOME/.local/bin:$PATH"');
+        # Fail loud + actionable: a shipped binary that will not exec (its host
+        # arch does not match the node, or the unpack was incomplete) would
+        # otherwise surface as a bare `jac: command not found` 127 deep here.
+        commands.append(
+            'if ! command -v jac >/dev/null 2>&1; then echo "[jac-scale] FATAL: '
+            'shipped jac binary did not run (toolchain unpack failed or the host '
+            'binary arch does not match the node). Deploy with --experimental to '
+            'build jac in-pod instead." >&2; exit 1; fi'
+        );
+        # --global: plugins land in the binary's own site (under $HOME=JAC_HOME on
+        # the shared volume) so the app container resolves them too. jac-scale is
+        # required; byllm/mcp ride along when the fork ships them.
+        commands.append(f'jac install -e "{tc}/jac-scale" --extras all --global');
+        commands.append(
+            f'[ ! -d "{tc}/jac-byllm" ] || jac install -e "{tc}/jac-byllm" --global'
+        );
+        commands.append(
+            f'[ ! -d "{tc}/jac-mcp" ] || jac install -e "{tc}/jac-mcp" --global'
+        );
+    } elif experimental {
         # Clone + build under $HOME (on the shared volume) so the built binary
         # and its plugin site persist into the app container.
         commands.append('cd "$HOME"');
@@ -260,9 +293,12 @@ app-container restart re-runs the app command but NOT completed init containers,
 so the toolchain on the shared volume is reused instead of rebuilt from scratch.
 Needs a writable root + apt caps to install packages."""
 def build_bootstrap_init_container(
-    k8s_config: KubernetesConfig, experimental: bool, base_image: str
+    k8s_config: KubernetesConfig,
+    experimental: bool,
+    base_image: str,
+    ship_binary: bool = False
 ) -> dict[str, any] {
-    commands = build_runtime_install_commands(k8s_config, experimental);
+    commands = build_runtime_install_commands(k8s_config, experimental, ship_binary);
     commands.append(f'cd {APP_MOUNT_PATH}');
     commands.append('jac install');
     script = ' && '.join(commands);

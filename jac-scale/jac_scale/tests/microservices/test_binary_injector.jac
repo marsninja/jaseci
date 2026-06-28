@@ -1,0 +1,93 @@
+"""Tests for binary-shipping code injection: the parts that break in non-obvious
+ways - the ship_binary bootstrap command (must NOT build in-pod), the toolchain
+packing layout, and the BinaryInjector pod-spec wiring. The host release build
+(zig) and cluster seed are exercised end-to-end by the k8s e2e, not here."""
+
+import os;
+import io;
+import tarfile;
+import tempfile;
+import from pathlib { Path }
+import from jac_scale.injector.binary { pack_toolchain }
+import from jac_scale.injector.binary_injector { BinaryInjector }
+import from jac_scale.injector.bundle { TOOLCHAIN_SUBDIR }
+import from jac_scale.deploy.target.kubernetes.runtime_bootstrap {
+    build_runtime_install_commands
+}
+import from jac_scale.deploy.target.kubernetes.kubernetes_config { KubernetesConfig }
+
+
+test "ship_binary bootstrap installs the shipped binary, never builds in-pod" {
+    cmds = build_runtime_install_commands(KubernetesConfig(), False, True);
+    joined = " && ".join(cmds);
+    # Uses the shipped toolchain: drops the binary on PATH, installs plugins
+    # editable from the shipped source.
+    assert f"{TOOLCHAIN_SUBDIR}/bin/jac" in joined;
+    assert "jac install -e" in joined;
+    assert "jac-scale" in joined;
+    # The whole point: NONE of the in-pod build path. A regression that lets any
+    # of these back in resurrects the multi-minute, OOM-prone per-pod compile.
+    assert "zig build" not in joined;
+    assert "git clone" not in joined;
+    assert "build-essential" not in joined;
+    assert "install.sh" not in joined;
+}
+
+
+test "experimental still builds in-pod (ship_binary defaults off, no regression)" {
+    cmds = build_runtime_install_commands(KubernetesConfig(), True);
+    joined = " && ".join(cmds);
+    assert "zig build" in joined;
+    assert f"{TOOLCHAIN_SUBDIR}/bin/jac" not in joined;
+}
+
+
+test "pack_toolchain ships the binary + plugin source, drops build artifacts" {
+    with tempfile.TemporaryDirectory() as repo {
+        os.makedirs(os.path.join(repo, "jac", ".ship-out", "bin"));
+        binary = os.path.join(repo, "jac", ".ship-out", "bin", "jac");
+        with open(binary, "wb") as handle {
+            handle.write(b"ELF-binary");
+        }
+        os.makedirs(os.path.join(repo, "jac-scale", "jac_scale"));
+        with open(
+            os.path.join(repo, "jac-scale", "jac_scale", "x.py"), "w"
+        ) as handle {
+            handle.write("x = 1");
+        }
+        # A build artifact that must be excluded (same rules as the source bundle).
+        os.makedirs(os.path.join(repo, "jac-scale", "node_modules"));
+        with open(
+            os.path.join(repo, "jac-scale", "node_modules", "junk.js"), "w"
+        ) as handle {
+            handle.write("junk");
+        }
+        raw = pack_toolchain(Path(repo), Path(binary));
+        names: list[str] = [];
+        with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar {
+            names = tar.getnames();
+        }
+        # Binary + plugin source land under the toolchain dir.
+        assert f"{TOOLCHAIN_SUBDIR}/bin/jac" in names;
+        assert f"{TOOLCHAIN_SUBDIR}/jac-scale/jac_scale/x.py" in names;
+        # Build artifacts never shipped.
+        assert not any(["node_modules" in name for name in names]);
+    }
+}
+
+
+test "BinaryInjector unpacks AND seeds both the source and the toolchain bundle" {
+    injector = BinaryInjector();
+    injector._object_key = "bundles/orders/aaa.tar.gz";
+    injector._toolchain_object_key = "toolchain/orders/bbb.tar.gz";
+    injector._bundle_bytes = b"src";
+    injector._toolchain_bytes = b"tool";
+
+    paths = injector._unpack_bundle_paths();
+    assert any(["aaa.tar.gz" in path for path in paths]);
+    assert any(["bbb.tar.gz" in path for path in paths]);
+
+    keys = [key for (key, _) in injector._seed_artifacts()];
+    assert "bundles/orders/aaa.tar.gz" in keys;
+    assert "toolchain/orders/bbb.tar.gz" in keys;
+}

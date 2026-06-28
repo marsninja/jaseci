@@ -66,12 +66,16 @@ def build_bundle_pvc(
 }
 
 
-"""Init container that unpacks the bundle from the mounted PVC onto the shared app
-volume. Code delivery ONLY: installing jac + deps (the binary, Bun, plugins) is
-the shared runtime bootstrap's job, run in the app container so the monolith and
-microservice cells install identically."""
-def build_pvc_init_container(base_image: str, bundle_path: str) -> dict[str, any] {
-    script = "set -eu; " + f"tar xzf {bundle_path} -C {APP_MOUNT_PATH}; " + ensure_jac_toml_cmd();
+"""Init container that unpacks one or more bundles from the mounted PVC onto the
+shared app volume. Code delivery ONLY: installing jac + deps (the binary, Bun,
+plugins) is the shared runtime bootstrap's job, run in the jac-bootstrap init
+container so the monolith and microservice cells install identically. Multiple
+paths let a subclass (BinaryInjector) untar a toolchain bundle beside the source."""
+def build_pvc_init_container(
+    base_image: str, bundle_paths: list[str]
+) -> dict[str, any] {
+    untars = "".join([f"tar xzf {p} -C {APP_MOUNT_PATH}; " for p in bundle_paths]);
+    script = "set -eu; " + untars + ensure_jac_toml_cmd();
     return {
         "name": "jac-pvc-bootstrap",
         "image": base_image,
@@ -113,6 +117,20 @@ obj PvcInjector(Injector) {
         _object_key: str = "",
         _bundle_bytes: bytes = b"";
 
+    """(object_key, bytes) artifacts to publish onto the bundle PVC. PvcInjector
+    publishes just the app source bundle; BinaryInjector extends this to also
+    publish the toolchain bundle in the same loader-pod session."""
+    def _seed_artifacts -> list[tuple[str, bytes]] {
+        return [(self._object_key, self._bundle_bytes)];
+    }
+
+    """On-PVC bundle paths the unpack init container untars onto the app volume.
+    PvcInjector unpacks just the app source bundle; BinaryInjector adds the
+    toolchain bundle path so the shipped binary + plugin source land beside it."""
+    def _unpack_bundle_paths -> list[str] {
+        return [bundle_pvc_path(self._object_key)];
+    }
+
     """Pack the project and content-address it, recording the object key (for
     mutate_pod_spec) and the packed bytes (for seed). Build-time and free of
     cluster I/O so it can run during manifest generation, before the PVC exists."""
@@ -151,8 +169,6 @@ obj PvcInjector(Injector) {
         core_v1 = client.CoreV1Api();
         pvc_name = bundle_pvc_name(app_name);
         loader_pod = f"{app_name}-bundle-loader";
-        bundle_path = bundle_pvc_path(self._object_key);
-        parent_dir = str(Path(bundle_path).parent);
 
         pod_body = {
             "apiVersion": "v1",
@@ -212,33 +228,52 @@ obj PvcInjector(Injector) {
         # storage class on a multi-node cluster); the timeout surfaces it.
         wait_for_pod_phase(core_v1, namespace, loader_pod, {"Running"});
 
-        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp {
-            tmp.write(self._bundle_bytes);
-            tmp_path = Path(tmp.name);
-        }
         try {
-            run_kubectl_command(
-                [
-                    "exec",
-                    "-n",
-                    namespace,
-                    loader_pod,
-                    "--",
-                    "sh",
-                    "-c",
-                    f"mkdir -p '{parent_dir}'"
-                ]
-            );
-            run_kubectl_command(
-                ["cp", "-n", namespace, tmp_path.name, f"{loader_pod}:{bundle_path}"],
-                cwd=tmp_path.parent
-            );
-            logger.info(
-                f"pvc-injector: seeded {len(self._bundle_bytes)} bytes to "
-                f"{pvc_name} at {bundle_path}"
-            );
+            # One loader pod, every artifact (app bundle + any toolchain bundle):
+            # mkdir the content-addressed parent, then kubectl-cp the bytes onto
+            # the PVC. The on-PVC path is content-addressed, so re-seeding the same
+            # bytes just overwrites the same file (idempotent).
+            for (object_key, raw) in self._seed_artifacts() {
+                bundle_path = bundle_pvc_path(object_key);
+                parent_dir = str(Path(bundle_path).parent);
+                with tempfile.NamedTemporaryFile(
+                    suffix=".tar.gz", delete=False
+                ) as tmp {
+                    tmp.write(raw);
+                    tmp_path = Path(tmp.name);
+                }
+                try {
+                    run_kubectl_command(
+                        [
+                            "exec",
+                            "-n",
+                            namespace,
+                            loader_pod,
+                            "--",
+                            "sh",
+                            "-c",
+                            f"mkdir -p '{parent_dir}'"
+                        ]
+                    );
+                    run_kubectl_command(
+                        [
+                            "cp",
+                            "-n",
+                            namespace,
+                            tmp_path.name,
+                            f"{loader_pod}:{bundle_path}"
+                        ],
+                        cwd=tmp_path.parent
+                    );
+                    logger.info(
+                        f"pvc-injector: seeded {len(raw)} bytes to "
+                        f"{pvc_name} at {bundle_path}"
+                    );
+                } finally {
+                    tmp_path.unlink(missing_ok=True);
+                }
+            }
         } finally {
-            tmp_path.unlink(missing_ok=True);
             try {
                 core_v1.delete_namespaced_pod(loader_pod, namespace);
                 wait_for_pod_deletion(core_v1, namespace, loader_pod);
@@ -277,11 +312,12 @@ obj PvcInjector(Injector) {
             }
         );
 
-        bundle_path = bundle_pvc_path(self._object_key);
         init_containers: list[dict[str, any]] = list(
             pod_spec.get("initContainers", [])
         );
-        init_containers.append(build_pvc_init_container(base_image, bundle_path));
+        init_containers.append(
+            build_pvc_init_container(base_image, self._unpack_bundle_paths())
+        );
         pod_spec["initContainers"] = init_containers;
 
         for container in pod_spec.get("containers", []) {

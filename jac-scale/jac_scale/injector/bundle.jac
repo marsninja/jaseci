@@ -18,10 +18,14 @@ import from pathlib { Path }
 # (in a dedicated init container) installs jac under JAC_HOME, which lives on the
 # same shared volume so the built/installed toolchain survives into the app
 # container. JAC_ZIG_VERSION tracks jac/build.zig.zon's minimum_zig_version
-# (single source of truth for the experimental zig fetch).
+# (single source of truth for the experimental zig fetch). TOOLCHAIN_SUBDIR is
+# where the BinaryInjector unpacks the shipped release binary + plugin source
+# (relative to APP_MOUNT_PATH), kept dot-prefixed so it never collides with app
+# source and the binary bootstrap knows where to find the toolchain.
 glob APP_VOLUME_NAME: str = "jac-app",
      APP_MOUNT_PATH: str = "/app",
      JAC_HOME: str = "/app/.jachome",
+     TOOLCHAIN_SUBDIR: str = ".jactoolchain",
      JAC_ZIG_VERSION: str = "0.16.0";
 
 # Directories never shipped into the cluster: build output, caches, vendored

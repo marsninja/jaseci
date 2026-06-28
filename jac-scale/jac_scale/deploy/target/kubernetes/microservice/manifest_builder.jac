@@ -42,6 +42,11 @@ obj MicroserviceManifestBuilder {
         experimental: bool = False,
         project_dir: str = "",
         _bundle_object_key: str = "",
+        # Set by _prepare_injector when binary-shipping is selected: the toolchain
+        # bundle's object key (for mutate's BinaryInjector reconstruction) and the
+        # flag that switches the jac-bootstrap init container to ship_binary mode.
+        _toolchain_object_key: str = "",
+        _ship_binary: bool = False,
         # The app's [plugins.scale.microservices] config. When set (e.g. a
         # platform deploying a different app's fleet), it's used instead of the
         # deploying process's own jac.toml via get_scale_config().
@@ -66,6 +71,40 @@ obj MicroserviceManifestBuilder {
         return self._bundle_object_key;
     }
 
+    """Select + prepare the code injector. Prefer binary-shipping (a host-built
+    release jac binary shipped into the pod - seconds to start instead of a
+    multi-minute, multi-GB in-pod build a small node cannot sustain) when not in
+    explicit --experimental mode and the host can build a release binary. Any
+    failure (no zig, build error) falls back to the source-only PvcInjector + the
+    in-pod install. Records the toolchain key + ship_binary flag so mutate_pod_spec
+    and the jac-bootstrap init container pick binary mode. Build-time and free of
+    cluster I/O (the host build is local), per the injector contract."""
+    def _prepare_injector(app_config: AppConfig) -> PvcInjector {
+        import from jac_scale.injector.pvc_injector { PvcInjector }
+        app = k8s_safe_name(self.k8s_config.app_name);
+        project = self.project_dir or app_config.code_folder;
+        storage = self.k8s_config.bundle_storage_class;
+        if not self.experimental {
+            try {
+                import from jac_scale.injector.binary_injector { BinaryInjector }
+                binary_injector = BinaryInjector(storage_class=storage);
+                binary_injector.prepare(app, self.k8s_config.namespace, project);
+                self._ship_binary = True;
+                self._toolchain_object_key = binary_injector._toolchain_object_key;
+                return binary_injector;
+            } except Exception as exc {
+                import logging;
+                logging.getLogger(__name__).warning(
+                    f"binary-ship unavailable ({exc}); falling back to in-pod "
+                    "install. Pass --experimental to build jac in-pod on purpose."
+                );
+            }
+        }
+        injector = PvcInjector(storage_class=storage);
+        injector.prepare(app, self.k8s_config.namespace, project);
+        return injector;
+    }
+
     """Lift pod-specs into full Deployment + Service + HPA + PDB
     bundle. Returns `{deployments, services, autoscalers, pdbs, pod_specs}`,
     plus optional `pvcs`, `user_secret`, `ingress`."""
@@ -76,13 +115,7 @@ obj MicroserviceManifestBuilder {
         # before generate_service_pod_specs() below - otherwise pods unpack an
         # empty path and CrashLoop. seed() (the deploy-time publish) happens later
         # in apply_manifests, once the PVC from extra_manifests() exists.
-        import from jac_scale.injector.pvc_injector { PvcInjector }
-        injector = PvcInjector(storage_class=self.k8s_config.bundle_storage_class);
-        injector.prepare(
-            k8s_safe_name(self.k8s_config.app_name),
-            self.k8s_config.namespace,
-            self.project_dir or app_config.code_folder
-        );
+        injector = self._prepare_injector(app_config);
         self._bundle_object_key = injector._object_key;
 
         pod_specs = self.generate_service_pod_specs(app_config, image);
@@ -928,9 +961,23 @@ obj MicroserviceManifestBuilder {
         spec["volumes"] = list(shared_vols);
         spec["initContainers"] = list(self.deploy_context.init_containers);
         # Delegate volume + unpack-init-container wiring to the injector so the
-        # source is mounted at APP_MOUNT_PATH before anything runs.
+        # source is mounted at APP_MOUNT_PATH before anything runs. Reconstruct the
+        # injector that prepare() selected: BinaryInjector (with the toolchain key,
+        # so its unpack container also drops the shipped binary) when shipping a
+        # binary, else the source-only PvcInjector. Typed as the PvcInjector base
+        # so the BinaryInjector subtype assigns cleanly.
         import from jac_scale.injector.pvc_injector { PvcInjector }
-        injector = PvcInjector(storage_class=self.k8s_config.bundle_storage_class);
+        injector: PvcInjector = PvcInjector(
+            storage_class=self.k8s_config.bundle_storage_class
+        );
+        if self._ship_binary {
+            import from jac_scale.injector.binary_injector { BinaryInjector }
+            bin_inj = BinaryInjector(
+                storage_class=self.k8s_config.bundle_storage_class
+            );
+            bin_inj._toolchain_object_key = self._toolchain_object_key;
+            injector = bin_inj;
+        }
         injector._object_key = self._injector_object_key();
         spec["_jac_meta"] = {
             "app_name": k8s_safe_name(self.k8s_config.app_name),
@@ -947,7 +994,10 @@ obj MicroserviceManifestBuilder {
         }
         spec["initContainers"].append(
             build_bootstrap_init_container(
-                self.k8s_config, self.experimental, self.k8s_config.python_image
+                self.k8s_config,
+                self.experimental,
+                self.k8s_config.python_image,
+                self._ship_binary
             )
         );
         return spec;
