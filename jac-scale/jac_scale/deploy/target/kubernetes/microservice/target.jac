@@ -178,6 +178,7 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
     def _wait_for_fleet_rollout(bundle: dict[str, any], timeout: int = 1200) -> None {
         import time;
         import from kubernetes { client }
+        import from jaclang.cli.console { console }
         names: list[str] = [];
         for dep in bundle.get("deployments", {}).values() {
             names.append(dep["metadata"]["name"]);
@@ -189,51 +190,69 @@ obj KubernetesMicroserviceTarget(KubernetesTarget) {
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
         ns = self.k8s_config.namespace;
+        total = len(names);
         elapsed = 0;
         ready = 0;
-        while elapsed < timeout {
-            ready = 0;
-            for name in names {
+        # A live spinner with per-pod status: this wait can run minutes (pods pull
+        # the image, run init containers, install jac, start the app), and a silent
+        # block reads as a hang. status() updates in place so the user sees motion.
+        with console.status(f"Rolling out fleet: 0/{total} services ready...") as st {
+            while elapsed < timeout {
+                ready = 0;
+                for name in names {
+                    try {
+                        d = apps_v1.read_namespaced_deployment(name=name, namespace=ns);
+                        if (d.status.ready_replicas or 0) >= 1 {
+                            ready += 1;
+                        }
+                    } except Exception {
+                        _ = 0;
+                    }
+                }
+                if ready == total {
+                    if self.logger {
+                        self.logger.info(
+                            f"Fleet ready: {ready}/{total} deployments serving"
+                        );
+                    }
+                    return;
+                }
+                # Crash detection + a per-pod phase summary in one pass over pods.
+                crash = "";
+                phases: list[str] = [];
                 try {
-                    d = apps_v1.read_namespaced_deployment(name=name, namespace=ns);
-                    if (d.status.ready_replicas or 0) >= 1 {
-                        ready += 1;
+                    for p in core_v1.list_namespaced_pod(namespace=ns).items {
+                        for cs in (p.status.container_statuses or []) {
+                            if (cs.restart_count or 0) >= 3 {
+                                crash = (
+                                    f"pod '{p.metadata.name}' crash-looping "
+                                    f"({cs.restart_count} restarts)"
+                                );
+                            }
+                        }
+                        labels = p.metadata.labels or {};
+                        app = str(labels.get("app", ""));
+                        if app {
+                            phases.append(f"{app}={p.status.phase or '?'}");
+                        }
                     }
                 } except Exception {
                     _ = 0;
                 }
-            }
-            if ready == len(names) {
-                if self.logger {
-                    self.logger.info(
-                        f"Fleet ready: {ready}/{len(names)} deployments serving"
-                    );
+                if crash {
+                    raise Exception(crash);
                 }
-                return;
+                detail = ", ".join(phases) if phases else "scheduling pods";
+                st.update(
+                    f"Rolling out fleet: {ready}/{total} ready - {elapsed}s "
+                    f"elapsed ({detail}) - pods install jac + start the app"
+                );
+                time.sleep(10);
+                elapsed += 10;
             }
-            crash = "";
-            try {
-                for p in core_v1.list_namespaced_pod(namespace=ns).items {
-                    for cs in (p.status.container_statuses or []) {
-                        if (cs.restart_count or 0) >= 3 {
-                            crash = (
-                                f"pod '{p.metadata.name}' crash-looping "
-                                f"({cs.restart_count} restarts)"
-                            );
-                        }
-                    }
-                }
-            } except Exception {
-                _ = 0;
-            }
-            if crash {
-                raise Exception(crash);
-            }
-            time.sleep(10);
-            elapsed += 10;
         }
         raise Exception(
-            f"timed out after {timeout}s ({ready}/{len(names)} deployments ready)"
+            f"timed out after {timeout}s ({ready}/{total} deployments ready)"
         );
     }
 
