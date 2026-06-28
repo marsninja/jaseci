@@ -38,7 +38,8 @@ import from 'react-native' {
     ScrollView as RNScrollView,
     StyleSheet as RNStyleSheet,
     Animated as RNAnimated,
-    Easing as RNEasing
+    Easing as RNEasing,
+    useWindowDimensions as RNuseWindowDimensions
 }
 
 
@@ -50,4 +51,5 @@ glob:pub View = RNView,
      ScrollView = RNScrollView,
      StyleSheet = RNStyleSheet,
      Animated = RNAnimated,
-     Easing = RNEasing;
+     Easing = RNEasing,
+     useWindowDimensions = RNuseWindowDimensions;
