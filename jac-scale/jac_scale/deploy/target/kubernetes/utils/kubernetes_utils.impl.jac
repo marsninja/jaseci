@@ -184,6 +184,7 @@ impl describe_pod_status(
     core_v1: client.CoreV1Api, namespace: str, pod_name: str, pod: any = None
 ) -> str {
     lines: list[str] = [];
+    object_names = [pod_name];
     try {
         if pod is None {
             pod = core_v1.read_namespaced_pod(pod_name, namespace);
@@ -209,15 +210,40 @@ impl describe_pod_status(
                 );
             }
         }
+        for vol in ((pod.spec.volumes if pod.spec else None) or []) {
+            claim = vol.persistent_volume_claim;
+            if not claim {
+                continue;
+            }
+            claim_name = claim.claim_name;
+            object_names.append(claim_name);
+            try {
+                pvc = core_v1.read_namespaced_persistent_volume_claim(
+                    claim_name, namespace
+                );
+                modes = ",".join(pvc.spec.access_modes or []);
+                lines.append(
+                    f"pvc '{claim_name}' phase={(pvc.status.phase or '?')} "
+                    f"accessModes=[{modes}] storageClass={pvc.spec.storage_class_name
+                    or '(default)'}"
+                );
+            } except Exception as exc {
+                lines.append(f"(could not read pvc '{claim_name}': {exc})");
+            }
+        }
     } except Exception as exc {
         lines.append(f"(could not read pod: {exc})");
     }
     try {
-        events = core_v1.list_namespaced_event(
-            namespace, field_selector=f"involvedObject.name={pod_name}"
-        );
-        for ev in (events.items or []) {
-            lines.append(f"event [{ev.reason or '?'}] {ev.message or ''}");
+        for obj_name in object_names {
+            events = core_v1.list_namespaced_event(
+                namespace, field_selector=f"involvedObject.name={obj_name}"
+            );
+            for ev in (events.items or []) {
+                lines.append(
+                    f"event [{obj_name}/{ev.reason or '?'}] {ev.message or ''}"
+                );
+            }
         }
     } except Exception as exc {
         lines.append(f"(could not read events: {exc})");
