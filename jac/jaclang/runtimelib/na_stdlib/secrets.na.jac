@@ -95,17 +95,20 @@ def:pub randbelow(exclusive_upper_bound: int) -> int {
     }
     nbytes: int = (bits + 7) // 8;
     mask: int = (1 << bits) - 1;
-    while True {
+    # Seed `r` at the bound so the rejection loop runs at least once; each pass
+    # draws `nbytes` CSPRNG bytes, keeps the low `bits` bits, and retries while
+    # the value is still >= the bound. (A condition-driven loop rather than
+    # `while True` so the checker can see the function always returns.)
+    r: int = exclusive_upper_bound;
+    while r >= exclusive_upper_bound {
         data = csprng_bytes(nbytes);
-        r: int = 0;
+        r = 0;
         i: int = 0;
         while i < nbytes {
             r = (r << 8) | data[i];
             i += 1;
         }
         r = r & mask;
-        if r < exclusive_upper_bound {
-            return r;
-        }
     }
+    return r;
 }
