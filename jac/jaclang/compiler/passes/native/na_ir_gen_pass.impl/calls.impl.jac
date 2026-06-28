@@ -745,9 +745,19 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             phi.add_incoming(result_ptr, ok_bb_end);
             return phi;
         }
-        # Handle open() builtin for file I/O
+        # Handle open() builtin for file I/O. _emit_open returns None when the
+        # call doesn't match Python's open(path, mode_str) shape (e.g. a POSIX
+        # open(path, flags_int) whose libc extern lives in a sibling module and
+        # isn't in scope for a standalone precompile). Surface the same clean
+        # E5090 every other undeclared native function gets rather than letting
+        # the fopen lowering raise a raw TypeError from the IR builder (#7010).
         if func_name == "open" {
-            return self._emit_open(nd);
+            _open_result = self._emit_open(nd);
+            if _open_result is not None {
+                return _open_result;
+            }
+            self.emit(E5090, node_override=nd, kind="function", name=func_name);
+            return None;
         }
     }
     # Handle object instantiation: ClassName(args)

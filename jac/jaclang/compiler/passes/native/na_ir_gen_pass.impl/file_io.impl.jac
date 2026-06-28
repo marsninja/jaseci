@@ -350,6 +350,24 @@ impl NaIRGenPass._emit_open(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
     }
+    # Codegen the mode argument up front so its type can gate the builtin. The
+    # call_kind classifier tags `open` as a builtin only when no `open` symbol
+    # is in scope; a non-string mode (e.g. the POSIX `open(path, flags_int)`
+    # syscall, which callers import as a libc extern) is therefore not this
+    # file-open builtin. Routing it through fopen(i8*, i8*) would raise a raw
+    # TypeError from the IR builder ("Type of #2 arg mismatch: i8* != i64");
+    # return None so the caller surfaces the same clean E5090 every other
+    # undeclared native function gets (#7010 Error 2).
+    mode_val: (ir.Value | None) = None;
+    if len(params) >= 2 {
+        mode_val = self._codegen_expr(params[1]);
+        if mode_val is not None and mode_val.type != i8p {
+            return None;
+        }
+    }
+    if mode_val is None {
+        mode_val = self._make_global_string("r", name_prefix=".file.mode");
+    }
     is_binary = mode_literal is not None and "b" in mode_literal;
     if is_binary {
         struct_type = self._get_binary_file_struct_type();
@@ -359,13 +377,6 @@ impl NaIRGenPass._emit_open(nd: uni.FuncCall) -> (ir.Value | None) {
         self._emit_file_helpers();
     }
     file_ptr_type = struct_type.as_pointer();
-    mode_val: (ir.Value | None) = None;
-    if len(params) >= 2 {
-        mode_val = self._codegen_expr(params[1]);
-    }
-    if mode_val is None {
-        mode_val = self._make_global_string("r", name_prefix=".file.mode");
-    }
     fopen_fn = self._get_or_declare_extern("fopen", i8p, [i8p, i8p]);
     file_handle = self.builder.call(
         fopen_fn, [path_val, mode_val], name="fopen.result"
