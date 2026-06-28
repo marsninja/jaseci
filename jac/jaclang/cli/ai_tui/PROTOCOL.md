@@ -1,13 +1,16 @@
 # `jac ai --tui` Renderer Protocol
 
 This is the wire contract between the Jac/Python **control plane**
-(`jaclang.cli.ai_agent` + `jaclang.cli.ai_tui.run_tui_session`) and a renderer
-**sidecar** (the `na` native renderer).
+(`jaclang.cli.ai_agent`) and the **NA renderer**. The frame/command grammar is
+unchanged by the move to the embed host (`BACKENDS.md`): the embedded interpreter
+imports the same `_frame_blob` / `_dispatch_cmd` encoder/dispatcher from
+`tui_shared.jac`, so this document still defines the bytes exchanged. **Do not
+change it casually**; behavior is defined against this document.
 
-It is derived from the live implementation in
-`jaclang/cli/ai_tui/impl/run_tui_session.impl.jac`. Any sidecar that speaks
-this protocol is interchangeable. **Do not change it casually**; behavior is
-defined against this document.
+> **Note.** The *transport* sections below (subprocess pipes / in-process ctypes,
+> and the `JAC_AI_TUI_BACKEND` selector) are retired -- the embed host runs the
+> renderer in the same process as the agent. The logical protocol (frame fields,
+> command set, escaping, upsert-by-id invariants) is what remains authoritative.
 
 ## Transport
 

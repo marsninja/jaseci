@@ -1,37 +1,33 @@
-"""Shared helpers for both `jac ai --tui` backends.
+"""Shared helpers for the `jac ai --tui` embed host launch + NA renderer.
 
-The frame/command grammar (ai_tui/PROTOCOL.md) is identical across the subprocess
-and in-process transports; only the carrier differs. These helpers are the one
-copy of the wire grammar + command dispatcher + project-file/tty plumbing that
-`run_tui_session` (subprocess) and `run_tui_in_process` (in-process) both import,
-so the two backends can never drift on the protocol.
+The frame/command grammar (ai_tui/PROTOCOL.md) is single-sourced here: the embed
+host (`ai_tui_na/host_embed.na.jac`) imports `_frame_blob` + `_dispatch_cmd` into
+its embedded interpreter VERBATIM, so the wire grammar can never drift from the
+launcher side. The same helpers back the NA renderer test harness
+(`tests/cli/test_ai_tui_host.jac`, which drives `bin/libtui.so` -- the in-process
+carrier for the *same* renderer the embed host links).
 
-`_frame_blob` is the body of the old `_write_frame` (it joins the same KEY:VALUE
-lines, just returns the string instead of flushing it to a pipe). `_dispatch_cmd`
-is the shared command dispatcher: it takes an optional `proc` so the subprocess
-backend can still `terminate()` on QUIT while the in-process backend passes
-`None` (quit there flows through `stop_evt` + the native `tui_quit_requested`).
+`_frame_blob` joins the KEY:VALUE PROTOCOL.md lines into one string. `_dispatch_cmd`
+maps a command line (SEND/STOP/RESET/QUIT/APPLY) onto the agent UI API; it takes
+an optional `proc` (terminated on QUIT when present, `None` from the embed host
+where quit flows through `stop_evt` + the native `tui_quit_requested`).
 
 `_configure_ui_env` is the one copy of the JAC_AI_UI_* env contract
-(PROJECT/MODEL/NCTX/FILES/MODEL_PRESETS plus the JAC_AI_UI_ACTIVE=1 capture
-gate). Both backends set this exact block before `ui_configure()`; the helper
-returns the computed project/files/presets (the in-process backend hands them to
-`host.start`) and a zero-arg `restore` closure that unwinds every mutated
-JAC_AI_UI_* key to its prior value, so the two backends cannot drift on the env
-contract and in-process runs do not leak global process state.
+(PROJECT/MODEL/NCTX/FILES/MODEL_PRESETS plus the JAC_AI_UI_ACTIVE=1 capture gate)
+the embed host + its embedded agent read on `ui_configure()`. `run_tui_embed`
+sets this block (then `execve`s the host); the returned `restore` closure is moot
+across an exec but kept so the same helper is testable and reusable in-process.
 
-`_ensure_na_artifact` is the one copy of the NA build-artifact ensure logic
-(compile `bin/jac-na-tui` / `bin/libtui.so` from `*.na.jac` on first launch);
-both backends' `_ensure_tui_binary` / `_ensure_tui_lib` delegate to it so the
-build contract cannot drift between them. Auto-build passes an explicit `JAC_BIN`
-when `$JAC_BIN` or the repo zig-out binary is available; otherwise `build.sh` /
-`build.ps1` may use the repo `.venv` editable — never a stale global on PATH.
+`_ensure_embed_host` ensures `bin/jac-ai-tui` (compile via `build_embed.sh` on a
+dev tree; trust the prebuilt payload artifact otherwise). `_embed_byllm_seams`
+locates byLLM + its LLM-stack deps by `find_spec` (never importing them) for the
+host's runtime sys.path seams. `_ensure_na_artifact` is the legacy NA-artifact
+ensure (compile `bin/jac-na-tui` / `bin/libtui.so` from `*.na.jac`) still used by
+the renderer test harness; auto-build passes an explicit `JAC_BIN` when available.
 
-`_probe_tty` is the single TTY probe: it calls `_first_tty_stream` once and
-returns `{"available": bool, "device": str}` — `device` is the /dev path on
-POSIX or "" on Windows. `_require_tty` wraps it with the user-facing error and
-the `None`-on-failure contract; both backends call `_require_tty` so that
-message and contract cannot drift between them.
+`_probe_tty` is the single TTY probe: `_first_tty_stream` once, returning
+`{"available": bool, "device": str}` (device = /dev path on POSIX, "" on Windows).
+`_require_tty` wraps it with the user-facing error + `None`-on-failure contract.
 """
 
 def _debug_log(msg: str) -> None {
@@ -159,7 +155,7 @@ def _list_project_files(project: str) -> str {
 
 
 def _first_tty_stream -> object {
-    # stderr first — matches historical probe order.
+    # stderr first -- matches historical probe order.
     import sys;
 
     for stream in (sys.stderr, sys.stdin, sys.stdout) {
@@ -232,11 +228,18 @@ def _configure_ui_env(r: any) -> dict {
     # restores the env on every exit path without duplicating the save/restore
     # dance. One copy here = the two backends cannot drift on the env contract.
     import os;
-    import from jaclang.cli.ai_agent { _MODEL_PRESETS }
 
     project = os.path.normpath(str(r?.cwd or os.getcwd()));
     files_env = _list_project_files(project);
-    presets_env = "\n".join(_MODEL_PRESETS);
+    # Model presets feed the host's model picker. byLLM may be absent in THIS
+    # interpreter (the embed launcher can run on a fused `jac` that doesn't bundle
+    # byLLM -- the embedded interpreter resolves it via the runtime seams instead),
+    # so a missing import degrades to no presets rather than failing the launch.
+    presets_env = "";
+    try {
+        import from jaclang.cli.ai_agent { _MODEL_PRESETS }
+        presets_env = "\n".join(_MODEL_PRESETS);
+    } except Exception { }
 
     old_project = os.environ.get("JAC_AI_UI_PROJECT", None);
     old_model = os.environ.get("JAC_AI_UI_MODEL", None);
@@ -357,7 +360,7 @@ def _dispatch_cmd(line: str, stop_evt: any, proc: any) {
 def _resolve_jac_build_bin(pkg_root: any) -> str | None {
     # Resolve an explicit jac binary for NA auto-build subprocesses. Only $JAC_BIN
     # or the repo zig-out binary qualify here; repo .venv editable is left to
-    # build.sh / build.ps1. Never fall back to PATH — stale globals are a common
+    # build.sh / build.ps1. Never fall back to PATH -- stale globals are a common
     # footgun in dev trees.
     import os;
     import sys;
@@ -373,6 +376,174 @@ def _resolve_jac_build_bin(pkg_root: any) -> str | None {
         return repo_jac;
     }
     return None;
+}
+
+
+def _embed_module_dir(name: str) -> str | None {
+    # The directory CONTAINING top-level module/package `name`, located WITHOUT
+    # importing it (find_spec only) -- so this works even where `name` cannot be
+    # imported into *this* interpreter. For a package, that is the parent of its
+    # package dir; for a single-file module, the parent of its origin file.
+    import os;
+    import from importlib { util }
+
+    try {
+        spec = util.find_spec(name);
+    } except Exception {
+        return None;
+    }
+    if spec is None {
+        return None;
+    }
+    locs = spec?.submodule_search_locations;
+    if locs {
+        for loc in locs {
+            if loc {
+                return os.path.dirname(str(loc));
+            }
+        }
+    }
+    origin = spec?.origin;
+    if origin and origin not in ("built-in", "frozen") {
+        return os.path.dirname(str(origin));
+    }
+    return None;
+}
+
+
+def _embed_byllm_seams -> dict {
+    # Locate byLLM + its LLM-stack deps for the embed TUI host's runtime sys.path
+    # seams (host_embed.na.jac's _byllm_runtime_hook_py): the fused payload that
+    # host carries is jaclang-only, so its embedded interpreter resolves byLLM at
+    # launch from these env dirs. Computed by find_spec (never import) so it works
+    # from a fused parent where byLLM itself isn't importable. Returns
+    # {"src": <dir containing byllm/>, "deps": <os.pathsep-joined dep dirs>}; keys
+    # absent when nothing is found (the host then surfaces its own clean hint).
+    import os;
+
+    out: dict = {};
+    src = _embed_module_dir("byllm");
+    if src {
+        out["src"] = src;
+    }
+
+    dep_dirs: list = [];
+    for mod in [
+        "litellm",
+        "openai",
+        "pydantic",
+        "pydantic_core",
+        "tokenizers",
+        "httpx",
+        "tiktoken"
+    ] {
+        d = _embed_module_dir(mod);
+        if d and d not in dep_dirs {
+            dep_dirs.append(d);
+        }
+    }
+    if dep_dirs {
+        out["deps"] = os.pathsep.join(dep_dirs);
+    }
+    return out;
+}
+
+
+def _ensure_embed_host(cli_root: any) -> dict {
+    # Ensure the self-hosting embed TUI host (bin/jac-ai-tui) exists -- the sole
+    # `jac ai --tui` backend. Installed payloads ship it prebuilt (trailerless,
+    # runtime-borrowing); a dev tree compiles the self-contained (trailered) build
+    # on first launch via build_embed.sh, mirroring _ensure_na_artifact. Returns
+    # {"ok", "path", "error", "hint"}. JAC_AI_TUI_REBUILD=1 forces a rebuild.
+    import os;
+    import subprocess;
+    import from jaclang.cli.console { console }
+
+    na_dir = str(cli_root / "ai_tui_na");
+    artifact = os.path.join(na_dir, "bin", "jac-ai-tui");
+    source = os.path.join(na_dir, "host_embed.na.jac");
+    build_sh = os.path.join(na_dir, "build_embed.sh");
+    manual_hint = f"bash {build_sh}";
+
+    force = os.environ.get("JAC_AI_TUI_REBUILD", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on"
+    );
+    exists = os.path.exists(artifact);
+    if exists and not force {
+        return {"ok": True, "path": artifact, "error": "", "hint": ""};
+    }
+    if not os.path.isfile(source) or not os.path.isfile(build_sh) {
+        # Installed payload: no sources to (re)build from -- trust the prebuilt
+        # artifact if present, only fail when there is nothing to launch.
+        if exists {
+            return {"ok": True, "path": artifact, "error": "", "hint": ""};
+        }
+        return {
+            "ok": False,
+            "path": artifact,
+            "error": f"embed TUI host not found at {artifact}",
+            "hint": f"Build it with: {manual_hint}",
+
+        };
+    }
+    if force and exists {
+        console.print(
+            "[tui] JAC_AI_TUI_REBUILD set; rebuilding embed host ...", style="dim"
+        );
+    } else {
+        console.print(
+            "[tui] embed host missing; compiling (first run, ~1-2 min) ...", style="dim"
+        );
+    }
+    build_env = dict(os.environ);
+    jac_bin = _resolve_jac_build_bin(cli_root);
+    if jac_bin {
+        build_env["JAC_BIN"] = jac_bin;
+    }
+    try {
+        res = subprocess.run(
+            ["bash", build_sh],
+            cwd=na_dir,
+            env=build_env,
+            capture_output=True,
+            text=True,
+            timeout=900,
+        );
+        if res.returncode != 0 {
+            detail = (res.stderr or res.stdout or "").strip();
+            if detail {
+                console.error(detail);
+            }
+            return {
+                "ok": False,
+                "path": artifact,
+                "error": "embed TUI host compile failed",
+                "hint": f"Run manually: {manual_hint}",
+
+            };
+        }
+    } except Exception as e {
+        return {
+            "ok": False,
+            "path": artifact,
+            "error": f"embed TUI host compile failed: {e}",
+            "hint": f"Run manually: {manual_hint}",
+
+        };
+    }
+    if not os.path.exists(artifact) {
+        return {
+            "ok": False,
+            "path": artifact,
+            "error": f"embed TUI host not found at {artifact} after compile",
+            "hint": f"Run manually: {manual_hint}",
+
+        };
+    }
+    return {"ok": True, "path": artifact, "error": "", "hint": ""};
 }
 
 

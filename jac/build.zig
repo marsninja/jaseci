@@ -249,6 +249,24 @@ pub fn build(b: *std.Build) void {
             );
         }
 
+        // Bundle byLLM + its LLM stack into the payload so the shipped
+        // `jac ai --tui` runs the real agent fully offline -- no runtime
+        // JAC_AI_TUI_BYLLM_SRC / JAC_AI_TUI_DEPS seams. Default ON for a normal
+        // release build (the embedded TUI host is useless without an agent
+        // backend); -Dskip-byllm opts out for faster iteration (the TUI then
+        // needs the seams at runtime). Skipped in linked-source/dev mode: there
+        // is no bundled site to install into. byLLM lives in the sibling
+        // jac-byllm checkout (../jac-byllm); -Dbyllm-dir overrides. (Options are
+        // registered unconditionally so they appear in --help and never error in
+        // dev mode.) The ~200 MB dep closure isn't content-tracked -- it is an
+        // external sibling dir LazyPath can't escape to; the --bundle-byllm path
+        // is the cache key, and -Dpayload-progress disables caching for iteration.
+        const skip_byllm = b.option(bool, "skip-byllm", "mkpayload: skip bundling byLLM + its LLM deps (jac ai --tui then needs runtime byllm seams)") orelse false;
+        const byllm_dir = b.option([]const u8, "byllm-dir", "Bundle byLLM from this dir (containing byllm/ + jac.toml) instead of ../jac-byllm") orelse b.pathFromRoot("../jac-byllm");
+        if (link_dir == null and !skip_byllm) {
+            mk.addArg(b.fmt("--bundle-byllm={s}", .{byllm_dir}));
+        }
+
         // Track the payload's real inputs so it repacks when any source changes.
         // NOTE: addDirectoryArg hashes only the directory PATH (Zig 0.16
         // Run.zig), not its contents -- a bare dir arg silently never

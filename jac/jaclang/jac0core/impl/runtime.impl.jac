@@ -642,37 +642,21 @@ impl JacCmd.create_cmd -> None { }
 
 """Run the `jac ai` coding agent -- the built-in implementation.
 
-This is the default hook implementation. With `--tui` it launches the bundled
-native terminal UI (`jaclang.cli.ai_tui`); otherwise it lazily imports the
-byLLM-powered REPL agent so the core CLI keeps no hard dependency on byLLM. A
-plugin that registers its own `run_ai_agent` hook outranks this one and
-replaces the agent entirely.
+This is the default hook implementation. With `--tui` it launches the
+self-hosting embed terminal UI (`jac-ai-tui`, the sole TUI backend); otherwise it
+lazily imports the byLLM-powered REPL agent so the core CLI keeps no hard
+dependency on byLLM. A plugin that registers its own `run_ai_agent` hook outranks
+this one and replaces the agent entirely.
 
-`--tui` backend (`JAC_AI_TUI_BACKEND`): unset/`inprocess` (default) drives
-`libtui.so` in-process via ctypes; `subprocess` spawns the `jac-na-tui` sidecar
-over pipes (crash-isolated fallback, not supported on Windows yet).
+`--tui` execs the fused `jac-ai-tui` host: its renderer is linked Jac and its
+agent runs in an embedded CPython (`libjacpyembed`). See
+`jaclang.cli.ai_tui.run_tui_embed`.
 """
 impl JacCmd.run_ai_agent(req: object) -> int {
-    import os;
     r: any = req;
     if bool(r?.tui) {
-        backend = os.environ.get("JAC_AI_TUI_BACKEND", "").strip().lower();
-        if backend == "subprocess" {
-            import sys;
-            if sys.platform == "win32" {
-                import from jaclang.cli.console { console }
-                console.error(
-                    "JAC_AI_TUI_BACKEND=subprocess is not supported on Windows "
-                    "(IPC stdio remap is not yet wired). "
-                    "Unset JAC_AI_TUI_BACKEND to use the default in-process backend."
-                );
-                return 1;
-            }
-            import from jaclang.cli.ai_tui.run_tui_session { run_tui_session }
-            return run_tui_session(req);
-        }
-        import from jaclang.cli.ai_tui.run_tui_in_process { run_tui_in_process }
-        return run_tui_in_process(req);
+        import from jaclang.cli.ai_tui.run_tui_embed { run_tui_embed }
+        return run_tui_embed(req);
     }
     try {
         import from jaclang.cli.ai_agent { run_agent }
@@ -1152,7 +1136,7 @@ impl JacTest.run_test(
         current_dir = directory or os.getcwd();
         for (root_dir, dirs, files) in os.walk(current_dir, topdown=True) {
             # Prune hidden / build-cache / pycache directories in place so the
-            # walk never descends into them — e.g. the per-project ".jac" build
+            # walk never descends into them -- e.g. the per-project ".jac" build
             # cache, which holds generated artifacts that are not test sources.
             # Mutating the list in place is required: os.walk in topdown mode
             # only honors pruning of the same list object it yields.
@@ -1289,7 +1273,7 @@ impl JacGraph.refs(
     # Per-hop resolver. Walks the hop chain as a uniform fold where every
     # hop locally picks index narrowing or anchor walk, so a single
     # awkward hop never forfeits index narrowing on the rest of the chain.
-    # `resolve_path_anchors` always returns a list — no slow-loop fallback.
+    # `resolve_path_anchors` always returns a list -- no slow-loop fallback.
     import from jaclang.runtimelib.resolver { resolve_path_anchors }
     if not path.edge_only {
         planned = resolve_path_anchors(ctx.mem, path, slc);
@@ -2009,7 +1993,7 @@ impl JacServe.send_css(handler: BaseHTTPRequestHandler, css_code: str) -> None {
     ResponseBuilder.send_css(handler, css_code);
 }
 
-"""Send static file response (images, fonts, etc.) — built-in client framework."""
+"""Send static file response (images, fonts, etc.) -- built-in client framework."""
 impl JacServe.send_static_file(
     handler: BaseHTTPRequestHandler, file_path: Path, content_type: (str | None) = None
 ) -> None {

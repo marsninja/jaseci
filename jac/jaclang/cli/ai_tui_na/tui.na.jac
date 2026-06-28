@@ -1,4 +1,4 @@
-"""NA-native TUI binary — pure libc FFI, no custom C.
+"""NA-native TUI binary -- pure libc FFI, no custom C.
 
 IPC contract (see ipc.na.jac):
   stdin  <- Python: key:value frames terminated by "---"
@@ -70,10 +70,10 @@ glob state: TuiState = TuiState(),
 glob proj = os.getenv("JAC_AI_UI_PROJECT");
 
 # Project file list for the file picker. The control plane computes it and
-# passes a newline-separated JAC_AI_UI_FILES env var (see
-# run_tui_session.impl.jac `_list_project_files`), so the sidecar needs no
-# filesystem FFI -- which also sidesteps the NA `str = calloc(...)` refcount
-# double-free that bites any in-binary file read.
+# passes a newline-separated JAC_AI_UI_FILES env var (tui_shared.jac
+# `_list_project_files`), so the renderer needs no filesystem FFI -- which also
+# sidesteps the NA `str = calloc(...)` refcount double-free that bites any
+# in-binary file read.
 glob files_env = os.getenv("JAC_AI_UI_FILES");
 
 # Quick-pick model names for the model picker. The control plane copies

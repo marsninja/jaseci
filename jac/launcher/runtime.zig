@@ -227,8 +227,14 @@ fn extractPayload(
 
         var src = Io.Reader.fixed(zbuf);
         var dz = flate.Decompress.init(&src, .gzip, window);
+        // executable_bit_only (not .ignore): the payload now carries an executable
+        // -- the embed TUI host (cli/ai_tui_na/bin/jac-ai-tui) the `jac ai --tui`
+        // dispatch execve's. Honoring the tar's exec bit restores its +x; without
+        // it the host materializes 0o644 and execve fails EACCES. Safe because the
+        // payload is sha256-verified before extraction, and this grants only +x
+        // (never setuid/setgid). Mirrors mkpayload's own fetch-pbs extract.
         try std.tar.extract(io, dest, &dz.reader, .{
-            .mode_mode = .ignore,
+            .mode_mode = .executable_bit_only,
             .strip_components = 0,
         });
 
@@ -263,7 +269,7 @@ fn gcStale(io: Io, root: []const u8, keep_hash16: *const [16]u8) void {
 }
 
 /// True if `<dir>/<name>` exists and is openable.
-fn pathExists(io: Io, dir: []const u8, name: []const u8) bool {
+pub fn pathExists(io: Io, dir: []const u8, name: []const u8) bool {
     var buf: [MAX_PATH]u8 = undefined;
     const p = std.fmt.bufPrint(&buf, "{s}/{s}", .{ dir, name }) catch return false;
     const f = Io.Dir.cwd().openFile(io, p, .{}) catch return false;

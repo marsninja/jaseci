@@ -1,4 +1,11 @@
-"""Regression tests for the `jac ai --tui` sidecar command bridge."""
+"""Regression tests for the `jac ai --tui` command bridge + shared helpers.
+
+The command dispatcher (`_dispatch_cmd`) and the env/tty/project helpers live in
+`tui_shared` and are imported VERBATIM by the embed host's embedded interpreter
+(`ai_tui_na/host_embed.na.jac`), so these tests guard the one wire/env contract
+that host runs. The trailing block covers the byLLM provider-error capture in
+`ai_agent`, independent of any TUI transport.
+"""
 
 import importlib;
 import os;
@@ -29,37 +36,9 @@ obj DummyStopEvt {
 }
 
 
-obj DummyPipe {
-    def write(_text: str) { }
-    def flush { }
-    def close { }
-}
-
-
-obj DummySpawnedProc {
-    has pid: int = 1234,
-        returncode: int = 0,
-        stdin: DummyPipe = DummyPipe(),
-        stdout: list[str] = [];
-
-    def poll -> int {
-        return 0;
-    }
-
-    def wait -> int {
-        self.returncode = 0;
-        return 0;
-    }
-
-    def terminate {
-        self.returncode = 0;
-    }
-}
-
-
 test "SEND dispatch resolves the UI bridge in dispatcher scope" {
     seen: list[str] = [];
-    tui_mod = importlib.import_module("jaclang.cli.ai_tui.run_tui_session");
+    tui_mod = importlib.import_module("jaclang.cli.ai_tui.tui_shared");
     dispatch = getattr(tui_mod, "_dispatch_cmd");
     old_send = getattr(ai_mod, "ui_send");
 
@@ -79,9 +58,9 @@ test "SEND dispatch resolves the UI bridge in dispatcher scope" {
 }
 
 
-test "QUIT dispatch resolves ui_stop and tears down the sidecar" {
+test "QUIT dispatch resolves ui_stop and tears down a present proc" {
     seen: list[str] = [];
-    tui_mod = importlib.import_module("jaclang.cli.ai_tui.run_tui_session");
+    tui_mod = importlib.import_module("jaclang.cli.ai_tui.tui_shared");
     dispatch = getattr(tui_mod, "_dispatch_cmd");
     old_stop = getattr(ai_mod, "ui_stop");
 
@@ -103,25 +82,6 @@ test "QUIT dispatch resolves ui_stop and tears down the sidecar" {
     }
 
     assert seen == ["stop"] , f"expected QUIT to call ui_stop exactly once; seen={seen!r}";
-}
-
-
-test "command resolution reports missing binary and threads seed prompt" {
-    tui_mod = importlib.import_module("jaclang.cli.ai_tui.run_tui_session");
-    resolve_cmd = getattr(tui_mod, "_resolve_tui_command");
-    # run_tui_session lives in jaclang/cli/ai_tui/; the sidecar is in
-    # jaclang/cli/ai_tui_na/, so pkg_root is jaclang/cli/ (mirrors the launcher's own
-    # `Path(__file__).resolve().parent.parent`).
-    pkg_root = Path(tui_mod.__file__).resolve().parent.parent;
-
-    na = resolve_cmd(pkg_root, "seed prompt");
-    if na["ok"] {
-        assert na["cmd_args"][-1] == "seed prompt" , "initial prompt must be last arg";
-        assert na["cmd_args"][0].endswith("jac-na-tui") , "spawn must use jac-na-tui binary";
-    } else {
-        assert "jac-na-tui not found" in na["error"];
-        assert "build.sh" in na["hint"];
-    }
 }
 
 
@@ -379,81 +339,6 @@ test "_probe_tty on posix falls back to empty device when ttyname raises" {
             }
         }
     }
-}
-
-
-test "run_tui_session suppresses terminal prints only for the session lifetime" {
-    tui_mod = importlib.import_module("jaclang.cli.ai_tui.run_tui_session");
-    runner = getattr(tui_mod, "run_tui_session");
-    old_ensure = getattr(tui_mod, "_ensure_tui_binary");
-    old_resolve = getattr(tui_mod, "_resolve_tui_command");
-    old_spawn = getattr(tui_mod, "_spawn_tui_backend");
-    old_require_tty = getattr(tui_mod, "_require_tty");
-    old_configure = getattr(ai_mod, "ui_configure");
-    old_stream = getattr(ai_mod, "ui_stream");
-    old_stop = getattr(ai_mod, "ui_stop");
-    prior = os.environ.get("JAC_AI_UI_ACTIVE");
-    seen: list[str] = [];
-
-    def fake_ensure(_pkg_root: any) -> dict {
-        return {"ok": True, "error": "", "hint": ""};
-    }
-
-    def fake_resolve(_pkg_root: any, _initial: str) -> dict {
-        return {"ok": True, "cmd_args": ["dummy"], "error": "", "hint": ""};
-    }
-
-    def fake_spawn(_cmd_args: list) -> DummySpawnedProc {
-        return DummySpawnedProc();
-    }
-
-    def fake_require_tty -> str {
-        # Patch the gate directly: _probe_tty lives in tui_shared and is not
-        # reachable via tui_mod, so patching tui_mod._require_tty (which IS in
-        # tui_mod's namespace) is the stable bypass for headless CI.
-        return "/dev/pts/99";
-    }
-
-    def fake_configure {
-        seen.append(os.environ.get("JAC_AI_UI_ACTIVE", ""));
-    }
-
-    def fake_stream -> any {
-        for item in [] {
-            yield item;
-        }
-    }
-
-    def fake_stop { }
-
-    setattr(tui_mod, "_ensure_tui_binary", fake_ensure);
-    setattr(tui_mod, "_resolve_tui_command", fake_resolve);
-    setattr(tui_mod, "_spawn_tui_backend", fake_spawn);
-    setattr(tui_mod, "_require_tty", fake_require_tty);
-    setattr(ai_mod, "ui_configure", fake_configure);
-    setattr(ai_mod, "ui_stream", fake_stream);
-    setattr(ai_mod, "ui_stop", fake_stop);
-    try {
-        os.environ.pop("JAC_AI_UI_ACTIVE", None);
-        rc = runner(AgentRequest(tui=True, cwd=os.getcwd()));
-    } finally {
-        setattr(tui_mod, "_ensure_tui_binary", old_ensure);
-        setattr(tui_mod, "_resolve_tui_command", old_resolve);
-        setattr(tui_mod, "_spawn_tui_backend", old_spawn);
-        setattr(tui_mod, "_require_tty", old_require_tty);
-        setattr(ai_mod, "ui_configure", old_configure);
-        setattr(ai_mod, "ui_stream", old_stream);
-        setattr(ai_mod, "ui_stop", old_stop);
-        if prior is None {
-            os.environ.pop("JAC_AI_UI_ACTIVE", None);
-        } else {
-            os.environ["JAC_AI_UI_ACTIVE"] = prior;
-        }
-    }
-
-    assert rc == 0 , rc;
-    assert seen == ["1"] , seen;
-    assert os.environ.get("JAC_AI_UI_ACTIVE") is None;
 }
 
 

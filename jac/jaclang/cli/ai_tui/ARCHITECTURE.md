@@ -1,9 +1,19 @@
-# `jac ai --tui` - Architecture (current)
+# `jac ai --tui` - Architecture
 
-Terminal UI for the Jac coding agent. The agent runs in the `jac ai` CLI;
-rendering and keyboard handling run in a native NA renderer. The two halves are
-separated by one frozen text protocol (`PROTOCOL.md`) and the renderer can run
-behind that seam in **either** of two transports:
+> **Status (superseded transport sections).** `jac ai --tui` now has a single
+> backend: the self-hosting **embed host** (`bin/jac-ai-tui`), which runs the
+> byLLM agent *and* the NA renderer together in one embedded CPython. See
+> `BACKENDS.md` for the current process/launch model. The in-process and
+> subprocess transports described below -- and the `JAC_AI_TUI_BACKEND` selector --
+> are **retired**; the renderer module stack, wire protocol, and the NA mechanics
+> in the rest of this document remain accurate (the embed host links the same
+> renderer), but the two-process / ctypes-seam framing no longer reflects how the
+> TUI is launched.
+
+Terminal UI for the Jac coding agent. Rendering and keyboard handling run in a
+native NA renderer, separated from the agent by one frozen text protocol
+(`PROTOCOL.md`). Historically the renderer ran behind that seam in either of two
+transports (both now retired in favor of the embed host):
 
 - **In-process (default)** - the renderer is loaded into the agent process as
   `libtui.so` via ctypes; the same protocol bytes cross via function calls + a
@@ -259,8 +269,8 @@ Full spec: `PROTOCOL.md`.
 
 | Layer | Location |
 | ----- | -------- |
-| Protocol + resolver + stdout gating (subprocess) | `jac/tests/cli/test_ai_tui_bridge.jac` |
-| In-process `TuiHost` binding + real-PTY input→command (in-process) | `jac/tests/cli/test_ai_tui_host.jac` |
+| Command dispatch + env/tty/project helpers + byLLM capture | `jac/tests/cli/test_ai_tui_bridge.jac` |
+| NA renderer harness: `TuiHost` binding + real-PTY input→command | `jac/tests/cli/test_ai_tui_host.jac` |
 | Native host gate: load `libtui.so`, parse+render headless | `ai_tui_na/test_host.py` (in `build.sh`) |
 | Picker / overlay logic (headless) | `ai_tui_na/test_pickers.na.jac` (in `build.sh`) |
 | Libc tty smoke | `ai_tui_na/proto/no_c_*.na.jac` (needs real TTY) |

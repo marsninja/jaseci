@@ -113,6 +113,11 @@ export fn jac_engine_boot() c_int {
         envOpt("TMPDIR"),
         @intCast(std.c.getuid()),
         @intCast(std.c.getpid()),
+        // JAC_RT_DIR: set by the `jac ai --tui` dispatch when IT runs on a fused
+        // runtime, so this (trailerless, payload-baked) host reuses the CLI's
+        // already-materialized rt instead of self-booting a trailer it lacks.
+        // Unset in dev, where this host is the self-contained trailered build.
+        envOpt("JAC_RT_DIR"),
         &rt_buf,
     ) catch return fail("runtime bring-up failed (trailer payload not materialized?)");
 

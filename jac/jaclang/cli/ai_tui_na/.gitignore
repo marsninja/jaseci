@@ -1,3 +1,5 @@
 .jac_ir/
 bin/
 libc_tty.na.jac
+libjacpyembed.so
+libjacpyembed.dylib
