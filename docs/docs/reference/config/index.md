@@ -330,7 +330,7 @@ Diagnostic codes can be suppressed inline with `# jac:ignore[CODE]` comments. Se
 
 **Opt-in (deslop) rules:**
 
-`strip-comments` and `strip-docstrings` are destructive "deslop" rules: they delete content rather than restructure it. Unlike every other rule, they are **never** activated by `select = ["all"]` or `select = ["default"]` — they fire only when named explicitly. A project that wants them on by default lists them alongside its other selections:
+`strip-comments` and `strip-docstrings` are destructive "deslop" rules: they delete content rather than restructure it. Unlike every other rule, they are **never** activated by `select = ["all"]` or `select = ["default"]`; they fire only when named explicitly. A project that wants them on by default lists them alongside its other selections:
 
 ```toml
 [check.lint]

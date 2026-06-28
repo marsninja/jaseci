@@ -367,7 +367,7 @@ Emitted by `jac lint`. Rules can be configured in [`jac.toml`](config/index.md#c
 | `W3050` | `strip-comments` | Comment can be removed | opt-in |
 | `W3051` | `strip-docstrings` | Docstring can be removed | opt-in |
 
-> **opt-in group**: `strip-comments` and `strip-docstrings` are destructive "deslop" rules. They are **never** activated by `select = ["all"]` or `["default"]` — they fire only when named explicitly in [`[check.lint]`](config/index.md#checklint). See the config reference for details.
+> **opt-in group**: `strip-comments` and `strip-docstrings` are destructive "deslop" rules. They are **never** activated by `select = ["all"]` or `["default"]`; they fire only when named explicitly in [`[check.lint]`](config/index.md#checklint). See the config reference for details.
 
 ---
 
