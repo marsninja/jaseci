@@ -501,18 +501,6 @@ impl PyastGenPass.needs_enum_kind(kind: str) -> None {
     );
 }
 
-"""Ensure concurrent Future is imported only once."""
-impl PyastGenPass.needs_future -> None {
-    self._add_preamble_once(
-        self.needs_future.__name__,
-        ast3.ImportFrom(
-            module='concurrent.futures',
-            names=[self.sync(ast3.alias(name='Future', asname=None))],
-            level=0
-        )
-    );
-}
-
 """Generate a deterministic temporary name for synthesized definitions."""
 impl PyastGenPass._next_temp_name(prefix: str) -> str {
     self._temp_name_counter += 1;

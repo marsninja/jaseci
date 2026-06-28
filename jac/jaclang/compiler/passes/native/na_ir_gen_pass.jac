@@ -747,7 +747,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
         target_val: ir.Value, index_val: ir.Value
     ) -> (ir.Value | None);
 
-    def _codegen_str_strip(str_val: ir.Value) -> (ir.Value | None);
     def _emit_is_strip_char(ch: ir.Value, charset: (ir.Value | None)) -> ir.Value;
     def _codegen_str_strip_chars(
         str_val: ir.Value, charset: (ir.Value | None), do_left: bool, do_right: bool

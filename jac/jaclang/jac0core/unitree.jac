@@ -357,7 +357,6 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
     has sym: (Symbol | None) { getter; setter(sym: Symbol); }
     has sym_name: str { getter; }
     has sym_category: SymbolType { getter; }
-    has binds_new_var: bool { getter; }
 
     def create_symbol(
         access: SymbolAccess,
@@ -557,7 +556,6 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
 
     def postinit -> None;
 
-    has is_py: bool { getter; }
     has is_jac: bool { getter; }
     has __jac_detected: bool { getter; }
 }
@@ -1987,9 +1985,6 @@ obj CommentToken(Token) {
         kid: Sequence[UniNode],
         is_inline: bool = False
     ) -> None;
-
-    has left_node: (UniNode | None) { getter; }
-    has right_node: (UniNode | None) { getter; }
 }
 
 """SourceString node type for Jac Ast."""

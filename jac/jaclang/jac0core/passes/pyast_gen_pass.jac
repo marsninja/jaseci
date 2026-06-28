@@ -212,9 +212,6 @@ needs_enum)
     """Ensure a specific enum kind (IntEnum, StrEnum, ...) is imported once."""
     def needs_enum_kind(kind: str) -> None;
 
-    """Ensure concurrent Future is imported only once."""
-    def needs_future -> None;
-
     """Generate a deterministic temporary name for synthesized definitions."""
     def _next_temp_name(prefix: str) -> str;
 

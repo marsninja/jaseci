@@ -40,13 +40,6 @@ def register_test_client(module_name: str, client: any) {
     _test_clients[module_name] = client;
 }
 
-"""Remove a TestClient registration."""
-def unregister_test_client(module_name: str) {
-    if module_name in _test_clients {
-        del _test_clients[module_name];
-    }
-}
-
 """Clear all TestClient registrations (between tests)."""
 def clear_test_clients {
     _test_clients.clear();

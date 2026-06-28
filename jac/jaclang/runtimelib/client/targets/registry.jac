@@ -93,8 +93,7 @@ This is a singleton that collects all build targets registered by plugins.
 The CLI uses this registry to delegate build operations to the appropriate target.
 """
 obj TargetRegistry {
-    has _targets: dict[str, ClientTarget] = {},
-        _default_target: Optional[str] = None;
+    has _targets: dict[str, ClientTarget] = {};
 
     """Register a new build target."""
     def register(target: ClientTarget) -> None;
@@ -102,20 +101,8 @@ obj TargetRegistry {
     """Get a target by name."""
     def get(name: str) -> Optional[ClientTarget];
 
-    """Get the default target."""
-    def get_default -> Optional[ClientTarget];
-
     """Get all registered targets."""
     def get_all -> list[ClientTarget];
-
-    """Check if a target is registered."""
-    def `has(name: str) -> bool;
-
-    """Set the default target."""
-    def set_default(name: str) -> None;
-
-    """Clear all registered targets (for testing)."""
-    def clear -> None;
 }
 
 """Factory for creating target instances with lazy loading.
@@ -124,26 +111,11 @@ This singleton factory creates target instances on demand.
 WebTarget is always available (default), Desktop/PWA are lazy-loaded.
 """
 obj TargetFactory {
-    has _web_target: Optional[ClientTarget] = None,
-        _cached_targets: dict[str, ClientTarget] = {};
-
     """Create a target by name string (lazy loading for non-web targets)."""
     def create(name: str, project_dir: Path) -> ClientTarget;
 
-    """Create a target by TargetType enum (preferred)."""
-    def create_by_type(target_type: TargetType, project_dir: Path) -> ClientTarget;
-
-    """Get the default (web) target, cached for fast access."""
-    def get_default(project_dir: Path) -> ClientTarget;
-
-    """Get list of available target types."""
-    def get_available_targets -> list[TargetType];
-
     """Get list of available target names as strings."""
     def get_available_target_names -> list[str];
-
-    """Clear cached targets (for testing)."""
-    def clear_cache -> None;
 }
 
 # Global singleton instances

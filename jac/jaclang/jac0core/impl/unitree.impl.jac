@@ -897,16 +897,6 @@ impl NameAtom.sym_category.getter -> SymbolType {
     return self._sym_category;
 }
 
-"""True when this name is the first binding of its symbol in scope.
-
-Derived from `Symbol.defn` ordering (JIR-serialized), so it survives cache
-loads without recomputation. Note: this is the Python-function-scope answer;
-ES block-scope `let` placement still needs the active-scope stack (#5930).
-"""
-impl NameAtom.binds_new_var.getter -> bool {
-    return (self.sym is not None) and (self.sym.decl is self);
-}
-
 """Create symbol."""
 impl NameAtom.create_symbol(
     access: SymbolAccess,
@@ -1177,18 +1167,6 @@ impl Import.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
     ContextAwareNode.postinit(self);
-}
-
-
-"""Check if import is python."""
-impl Import.is_py.getter -> bool {
-    if (self.hint and (self.hint.tag.value == 'py')) {
-        return True;
-    }
-    if not self.hint {
-        return not self.__jac_detected;
-    }
-    return False;
 }
 
 """Check if import is jac."""
@@ -2737,23 +2715,6 @@ impl CommentToken.init(
     );
     self.kid = [x.set_parent(self) for x in kid];
     self.loc = CodeLocInfo(*self.resolve_tok_range());
-}
-
-impl CommentToken.left_node.getter -> (UniNode | None) {
-    if (self.parent and ((idx := self.parent.kid.index(self)) > 0)) {
-        return self.parent.kid[(idx - 1)];
-    }
-    return None;
-}
-
-impl CommentToken.right_node.getter -> (UniNode | None) {
-    if (
-        self.parent
-        and ((idx := self.parent.kid.index(self)) < (len(self.parent.kid) - 1))
-    ) {
-        return self.parent.kid[(idx + 1)];
-    }
-    return None;
 }
 
 impl Source.init(source: str, mod_path: str) -> None {

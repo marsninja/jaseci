@@ -459,11 +459,6 @@ impl NaIRGenPass._emit_is_strip_char(
     );
 }
 
-"""String strip: remove leading/trailing whitespace (no-arg form)."""
-impl NaIRGenPass._codegen_str_strip(str_val: ir.Value) -> (ir.Value | None) {
-    return self._codegen_str_strip_chars(str_val, None, True, True);
-}
-
 """General string strip backing strip()/lstrip()/rstrip(), with or without a
 character set. `charset` is None for the whitespace form or an i8* for the
 set form; `do_left`/`do_right` select which ends are trimmed. A single
