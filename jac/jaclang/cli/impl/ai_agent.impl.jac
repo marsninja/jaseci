@@ -1279,12 +1279,10 @@ impl reset_session{
     agent.ledger = Ledger();
 }
 
-# ---------------------------------------------------------------------------
 # Session store -- persistent `jac ai` conversations (issue #6706).
 # One session = one JSON file under the cache dir; see SessionStore in
 # ai_agent.jac. The dir follows browser_engine's cache precedent: an env
 # override (JAC_AI_CACHE) wins, else the centralized platform default.
-# ---------------------------------------------------------------------------
 """The cache dir for `jac ai` sessions, as a string path.
 
 Delegates the platform default to the centralized resolver
@@ -1474,13 +1472,11 @@ impl SessionStore.resolve_by_name(cwd: str, name: str) -> dict | None {
     return None;
 }
 
-# ---------------------------------------------------------------------------
 # Session lifecycle -- resolve/restore/save between the record dict and the
 # live `agent` glob (ledger, cfg, cwd). The record is the on-disk snapshot;
 # the glob is the in-memory truth during a run. These helpers bridge them so
 # `run_agent` (resolve on entry) and `run_turn` (save after each turn) stay
 # small. See issue #6706.
-# ---------------------------------------------------------------------------
 # The AgentConfig fields worth persisting across a restart: the live display
 # toggles (/stats, /verbose, /feedback) and the model knobs. api_key/base_url
 # are UI-only and an API key has no business on disk in plaintext, so they are
@@ -1703,11 +1699,9 @@ def _restore_session_state(record: dict) {
     }
 }
 
-# ---------------------------------------------------------------------------
 # REPL session-management commands (/sessions, /resume, /name, /forget, /cost).
 # Each reads/mutates the module `_session_*` globals; the REPL loop dispatches
 # to them. `/clear`'s session semantics live inline in the loop (wipe-and-stay).
-# ---------------------------------------------------------------------------
 """`/sessions` -- list this project's sessions, marking the current one."""
 def cmd_sessions {
     if _session_store is None {
@@ -1860,9 +1854,7 @@ def cmd_cost {
     );
 }
 
-# ---------------------------------------------------------------------------
 # Event bus -- structured milestones for the `--ui` web view.
-# ---------------------------------------------------------------------------
 """Append one event (kind + fields), stamping a monotonic id; thread-safe."""
 impl AgentEventBus.emit(kind: str, fields: dict) -> None {
     if not self.active_feed {
@@ -3591,9 +3583,7 @@ impl run_agent(req: AgentRequest) -> int {
     return 0;
 }
 
-# ---------------------------------------------------------------------------
 # UI provider output capture (loguru + litellm) — installed from ui_configure.
-# ---------------------------------------------------------------------------
 glob _ui_recent_errors: dict = {},
      _ui_output_capture_installed = False,
      _ui_emit_tls = threading.local(),
@@ -3712,9 +3702,7 @@ impl _install_ui_provider_capture(target_bus: any = None) -> None {
     _ui_output_capture_installed = True;
 }
 
-# ---------------------------------------------------------------------------
 # Web UI bridge -- backend the bundled `ai_ui` server endpoints call.
-# ---------------------------------------------------------------------------
 """Emit prior turns as historical events on the bus so the TUI displays them.
 
 Called on resume inside `ui_configure`. One `user` + `answer` event pair per

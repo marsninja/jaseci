@@ -26,7 +26,7 @@ import from .theme {
     TH_DIM
 }
 
-# ── Palette (hardcoded SGR strings — avoids calling functions at glob-init) ───
+# Palette (hardcoded SGR strings — avoids calling functions at glob-init)
 # Format: ESC[0[;attrs];38;2;R;G;Bm;48;2;R;G;Bm   bg=(18,18,28)
 # _SB border/chrome, _ST title bold, _SC cwd cyan, _SM model dim, _SR reset
 glob _SB: str = "\033[0;38;2;70;70;100;48;2;18;18;28m",
@@ -105,7 +105,7 @@ def _kind_sgr(kind: str) -> str {
     return ansi_sgr(200, 200, 200, TH_BG_R, TH_BG_G, TH_BG_B, 0);
 }
 
-# ── Row builders ─────────────────────────────────────────────────────────────
+# Row builders
 def _status_footer_row(state: TuiState, cols: int) -> str {
     # Bottom row: │ [active] ──── ~/cwd ──── model │
     # The status pill (○ idle / ● running / ✓ done / ○ stopping) was removed;
@@ -441,7 +441,7 @@ def _editor_height(ed: EditorState, cols: int, rows: int) -> int {
     return max_h;
 }
 
-# ── Main render entry ─────────────────────────────────────────────────────────
+# Main render entry
 def screen_render(state: TuiState, cols: int, rows: int) -> list[str] {
     # Return one row string per terminal row. Called every dirty cycle.
     out: list[str] = [];

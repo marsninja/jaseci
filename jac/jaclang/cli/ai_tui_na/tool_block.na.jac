@@ -17,23 +17,18 @@ import from .state { DisplayRow }
 glob _TC_R: int = 204,
      _TC_G: int = 119,
      _TC_B: int = 255;
-# Result success: green
 glob _TR_OK_R: int = 80,
      _TR_OK_G: int = 200,
      _TR_OK_B: int = 80;
-# Result error: red
 glob _TR_ERR_R: int = 255,
      _TR_ERR_G: int = 80,
      _TR_ERR_B: int = 80;
-# Dim args/continuation: gray
 glob _TC_ARG_R: int = 160,
      _TC_ARG_G: int = 160,
      _TC_ARG_B: int = 160;
-# Base background
 glob _TB_BG_R: int = 18,
      _TB_BG_G: int = 18,
      _TB_BG_B: int = 28;
-# SGR attribute bitmasks
 glob _TB_BOLD: int = 1,
      _TB_DIM: int = 2;
 

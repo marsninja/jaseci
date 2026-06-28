@@ -23,7 +23,7 @@ Key bindings wired in input.na.jac:
 
 import from .state { EditorState }
 
-# ── Integer helpers ──────────────────────────────────────────────────────────
+# Integer helpers
 def _idiv(a: int, b: int) -> int {
     # Integer (floor) division. Safe for positive a, b.
     if b <= 0 {
@@ -38,7 +38,7 @@ def _idiv(a: int, b: int) -> int {
     return result;
 }
 
-# ── Visual-line helpers (ASCII: 1 char = 1 column) ──────────────────────────
+# Visual-line helpers (ASCII: 1 char = 1 column)
 def _vl_count(line_len: int, width: int) -> int {
     # Number of visual lines for a logical line of this length.
     if width <= 0 {
@@ -71,7 +71,7 @@ def _total_vlines(lines: list[str], width: int) -> int {
     return _total_vlines_before(lines, len(lines), width);
 }
 
-# ── Scroll tracking ──────────────────────────────────────────────────────────
+# Scroll tracking
 def editor_update_scroll(ed: EditorState, width: int, max_rows: int) {
     # Adjust scroll_offset so the cursor visual line is visible.
     if max_rows <= 0 {
@@ -97,7 +97,7 @@ def editor_update_scroll(ed: EditorState, width: int, max_rows: int) {
     }
 }
 
-# ── Boundary queries ─────────────────────────────────────────────────────────
+# Boundary queries
 def editor_is_on_first_vline(ed: EditorState, width: int) -> bool {
     # True if cursor is on the very first visual line of the whole editor.
     if ed.cursor_line > 0 {
@@ -125,12 +125,12 @@ def editor_is_on_last_vline(ed: EditorState, width: int) -> bool {
     return cur_vsubline >= last_vsubline;
 }
 
-# ── Text access ──────────────────────────────────────────────────────────────
+# Text access
 def editor_get_text(ed: EditorState) -> str {
     return ed.get_text();
 }
 
-# ── Basic insert / delete ────────────────────────────────────────────────────
+# Basic insert / delete
 def editor_insert(ed: EditorState, ch: str) {
     line = ed.lines[ed.cursor_line];
     before = line[:ed.cursor_col];
@@ -279,7 +279,7 @@ def editor_newline(ed: EditorState) {
     ed.cursor_col = 0;
 }
 
-# ── Cursor movement ──────────────────────────────────────────────────────────
+# Cursor movement
 def editor_move_left(ed: EditorState) {
     if ed.cursor_col > 0 {
         ed.cursor_col = ed.cursor_col - 1;
@@ -379,7 +379,7 @@ def editor_move_line_end(ed: EditorState) {
     ed.cursor_col = len(ed.lines[ed.cursor_line]);
 }
 
-# ── Line-level delete (Ctrl+K / Ctrl+U) ─────────────────────────────────────
+# Line-level delete (Ctrl+K / Ctrl+U)
 def editor_delete_to_line_end(ed: EditorState) {
     line = ed.lines[ed.cursor_line];
     col = ed.cursor_col;
@@ -462,7 +462,7 @@ def editor_delete_to_line_start(ed: EditorState) {
     ed.cursor_col = len(prev_line);
 }
 
-# ── Word operations ──────────────────────────────────────────────────────────
+# Word operations
 def editor_word_left(ed: EditorState) {
     line = ed.lines[ed.cursor_line];
     col = ed.cursor_col;
@@ -515,7 +515,7 @@ def editor_delete_word_back(ed: EditorState) {
     ed.lines = new_lines;
 }
 
-# ── History navigation ───────────────────────────────────────────────────────
+# History navigation
 def _ed_set_text(ed: EditorState, text: str) {
     # Replace editor content with text, cursor at end.
     if len(text) == 0 {

@@ -146,7 +146,7 @@ def run_tests -> int {
     sl3.reset_items(empty);
     fails += check("current() is None when empty", sl3.current() is None);
 
-    # ── Autocomplete: fuzzy_score ───────────────────────────────────────────────
+    # Autocomplete: fuzzy_score
     fails += check("fuzzy empty query -> 0", fuzzy_score("", "model") == 0);
     fails += check("fuzzy no match -> -9999", fuzzy_score("xyz", "model") == -9999);
     fails += check(
@@ -161,7 +161,7 @@ def run_tests -> int {
         fuzzy_score("mo", "model") < fuzzy_score("mo", "macro")
     );
 
-    # ── Autocomplete: ac_update slash trigger ────────────────────────────────────
+    # Autocomplete: ac_update slash trigger
     ac_s = TuiState();
     ac_s.files = ["src/app.jac", "src/util.jac", "README.md", "docs/api.md"];
     ac_s.model_presets = ["anthropic/claude-sonnet-4-6"];
@@ -203,7 +203,7 @@ def run_tests -> int {
     ac_update(ac_s3);
     fails += check("ac: /zzz -> dismissed", not ac_s3.ac.active);
 
-    # ── Autocomplete: at_file trigger ────────────────────────────────────────────
+    # Autocomplete: at_file trigger
     ac_f = TuiState();
     ac_f.files = ["src/app.jac", "src/util.jac", "README.md"];
     ac_f.editor.lines = ["look at @src"];
@@ -221,7 +221,7 @@ def run_tests -> int {
     ac_update(ac_f2);
     fails += check("ac: @zzz no files -> inactive", not ac_f2.ac.active);
 
-    # ── Autocomplete: navigation ─────────────────────────────────────────────────
+    # Autocomplete: navigation
     ac_n = TuiState();
     ac_n.files = [];
     ac_n.editor.lines = ["/"];
@@ -236,7 +236,7 @@ def run_tests -> int {
     ac_n.ac.dismiss();
     fails += check("ac nav: dismiss clears active", not ac_n.ac.active);
 
-    # ── Autocomplete: ac_apply slash ─────────────────────────────────────────────
+    # Autocomplete: ac_apply slash
     ac_ap = TuiState();
     ac_ap.files = [];
     ac_ap.editor.lines = ["/mo"];
@@ -249,7 +249,7 @@ def run_tests -> int {
     fails += check("ac apply: cursor after insertion", ac_ap.editor.cursor_col == 7);
     fails += check("ac apply: ac dismissed", not ac_ap.ac.active);
 
-    # ── Autocomplete: ac_apply at_file ───────────────────────────────────────────
+    # Autocomplete: ac_apply at_file
     ac_af = TuiState();
     ac_af.files = ["src/app.jac", "src/util.jac"];
     ac_af.editor.lines = ["check @app"];

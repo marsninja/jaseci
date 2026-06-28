@@ -10,7 +10,7 @@ Port of pi packages/tui/src/fuzzy.ts (matchQuery) and autocomplete.ts logic.
 import from .state { TuiState, AcItem, EditorState }
 import from .commands { slash_ac_catalog }
 
-# ── Fuzzy scoring (port of pi's fuzzy.ts matchQuery) ─────────────────────────
+# Fuzzy scoring (port of pi's fuzzy.ts matchQuery)
 def fuzzy_score(query: str, text: str) -> int {
     # Returns -9999 on no match. Lower (more negative) score = better match.
     # Exact match: -100 bonus. Consecutive chars: -5 each. Word boundary: -10.
@@ -71,7 +71,7 @@ def fuzzy_score(query: str, text: str) -> int {
     return score;
 }
 
-# ── Path helpers ──────────────────────────────────────────────────────────────
+# Path helpers
 def _basename(path: str) -> str {
     n = len(path);
     i: int = n - 1;
@@ -84,7 +84,7 @@ def _basename(path: str) -> str {
     return path;
 }
 
-# ── Sort helpers (NA has no in-place list item assignment, use rebuild) ───────
+# Sort helpers (NA has no in-place list item assignment, use rebuild)
 def _sort_items_by_score(
     vals: list[str], labs: list[str], descs: list[str], scores: list[int]
 ) -> list[AcItem] {
@@ -131,7 +131,7 @@ def _sort_items_by_score(
     return result;
 }
 
-# ── Trigger detection ─────────────────────────────────────────────────────────
+# Trigger detection
 def _extract_trigger(ed: EditorState) -> list[str] {
     # Returns [kind, prefix, query]. kind="" means no completion active.
     if len(ed.lines) == 0 {
@@ -179,7 +179,7 @@ def _extract_trigger(ed: EditorState) -> list[str] {
     return ["", "", ""];
 }
 
-# ── Item builders ─────────────────────────────────────────────────────────────
+# Item builders
 def _slash_items(query: str, state: TuiState) -> list[AcItem] {
     catalog = slash_ac_catalog(state);
     vals: list[str] = [];
@@ -285,7 +285,7 @@ def _file_items(state: TuiState, query: str) -> list[AcItem] {
     return result;
 }
 
-# ── Public API ────────────────────────────────────────────────────────────────
+# Public API
 def ac_update(state: TuiState) {
     # Recompute AC state from current editor content. Call after every edit.
     trigger = _extract_trigger(state.editor);

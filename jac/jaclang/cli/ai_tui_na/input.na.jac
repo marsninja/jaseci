@@ -173,7 +173,7 @@ def handle_key(key: str, state: TuiState, ipc_fd: int) -> bool {
     first = key[0];
     code = ord(first);
 
-    # ── Autocomplete intercepts (phase 7) ─────────────────────────────────────
+    # Autocomplete intercepts (phase 7)
     # These run before other key handlers so AC navigation takes priority.
     if state.ac.active {
         # Tab: apply the selected completion.

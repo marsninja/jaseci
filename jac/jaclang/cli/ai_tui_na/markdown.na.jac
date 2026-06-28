@@ -27,7 +27,7 @@ glob _BG_R: int = 18,
      _BG_G: int = 18,
      _BG_B: int = 28;
 
-# ── Block detectors ────────────────────────────────────────────────────────────
+# Block detectors
 def _md_is_blank(s: str) -> bool {
     # True if line is empty or contains only whitespace.
     i: int = 0;
@@ -173,7 +173,7 @@ def _md_bq_text(s: str) -> str {
     return s[1:];
 }
 
-# ── Inline span scanner ────────────────────────────────────────────────────────
+# Inline span scanner
 def _md_find_close(s: str, start: int, delim: str, dlen: int) -> int {
     # First index >= start where s[i:i+dlen] == delim.  Returns -1 if not found.
     n = len(s);
@@ -261,7 +261,7 @@ def _md_apply_inline(s: str, base_sgr: str) -> str {
     return result;
 }
 
-# ── Word wrap ──────────────────────────────────────────────────────────────────
+# Word wrap
 def _md_wrap(styled: str, width: int, base_sgr: str) -> list[str] {
     # Word-wrap `styled` (may contain ANSI codes) to `width` visible columns.
     # Each output row starts with base_sgr, is padded to width, and ends with ESC[0m.
@@ -309,7 +309,7 @@ def _md_append(src: list[str], dst: list[str]) {
     }
 }
 
-# ── Public entry ───────────────────────────────────────────────────────────────
+# Public entry
 def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list[str] {
     # Render markdown text into ANSI-styled rows of exactly `width` visible columns.
     # r/g/b: base text colour; attrs bitmask: bold=1, dim=2, italic=4.
@@ -346,7 +346,7 @@ def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list
             line = line[:ll - 1];
         }
 
-        # ── Inside a fenced code block ─────────────────────────────────────────
+        # Inside a fenced code block
         if in_fence {
             if _md_is_fence(line) {
                 close_row = code_fence_sgr + "```";
@@ -360,7 +360,7 @@ def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list
             continue;
         }
 
-        # ── Block detection (checked in priority order) ────────────────────────
+        # Block detection (checked in priority order)
         if _md_is_blank(line) {
             result.append(base_sgr + ansi_pad("", width) + "\033[0m");
             i = i + 1;

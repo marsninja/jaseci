@@ -20,7 +20,7 @@ embedded interpreter, feeding a queue this loop drains under the GIL.
 Build:  build_embed.sh   ->  bin/jac-ai-tui  (nacompiled executable + trailer)
 """
 
-# ── Renderer: the SAME flat import block host.na.jac uses (keep it verbatim) ──
+# Renderer: the SAME flat import block host.na.jac uses (keep it verbatim)
 # The native cross-module type resolver is DFS-order sensitive and resolves leaf
 # types (e.g. select_list.SelectItem, reached via input -> overlay) to <Unknown>
 # if first seen too deep -- E5090/E2018. This block mirrors the proven-good order
@@ -77,7 +77,7 @@ import from .tui_core {
 
 import os;
 
-# ── Agent: the fused-runtime shim, IDENTICAL to _jacpyembed_import_block in
+# Agent: the fused-runtime shim, IDENTICAL to _jacpyembed_import_block in
 # _host_bootstrap.jac. The binary DT_NEEDEDs libjacpyembed (logical name,
 # $ORIGIN-resolved); jac_engine_boot() materializes the trailer payload, dlopens
 # THIS binary's bundled CPython and Py_Initialize()s it; the rest are jpy_-prefixed
@@ -115,7 +115,7 @@ glob files_env = os.getenv("JAC_AI_UI_FILES");
 glob presets_env = os.getenv("JAC_AI_UI_MODEL_PRESETS");
 
 
-# ── Runtime sys.path hook -- the TUI analogue of desktop's _scale_runtime_hook_py
+# Runtime sys.path hook -- the TUI analogue of desktop's _scale_runtime_hook_py
 # (_host_bootstrap.jac). The fused payload this binary carries is jaclang-only
 # (the SAME one the desktop host boots): byllm + its LLM stack (litellm/openai/...)
 # are deliberately NOT bundled. Rather than baking ~114MB into every binary, the
@@ -136,7 +136,7 @@ def _byllm_runtime_hook_py -> str {
 }
 
 
-# ── The embedded-Python bootstrap, the TUI analogue of DISPATCH_PY ────────────
+# The embedded-Python bootstrap, the TUI analogue of DISPATCH_PY
 # Real surface: wraps the agent's blocking ui_stream() generator (its own daemon
 # thread) into a synchronous pull/push, reusing _frame_blob / _dispatch_cmd from
 # tui_shared.jac VERBATIM so the wire grammar stays single-sourced with the
