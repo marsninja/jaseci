@@ -91,12 +91,13 @@ impl EsastGenPass.exit_token(nd: uni.Token) -> None {
     ;
 }
 
-"""Process test as a function."""
-impl EsastGenPass.exit_test(nd: uni.Test) -> None {
-    params: list[es.Pattern] = [];
+"""Collect a node body's statements, flattening list-valued es_ast results."""
+impl EsastGenPass._collect_body_stmts(
+    body: Sequence[uni.UniNode]
+) -> list[es.Statement] {
     body_stmts: list[es.Statement] = [];
-    if nd.body {
-        for stmt in nd.body {
+    if body {
+        for stmt in body {
             if stmt.gen.es_ast {
                 if isinstance(stmt.gen.es_ast, list) {
                     body_stmts.extend(cast(es.Statement, s) for s in stmt.gen.es_ast);
@@ -106,6 +107,13 @@ impl EsastGenPass.exit_test(nd: uni.Test) -> None {
             }
         }
     }
+    return body_stmts;
+}
+
+"""Process test as a function."""
+impl EsastGenPass.exit_test(nd: uni.Test) -> None {
+    params: list[es.Pattern] = [];
+    body_stmts = self._collect_body_stmts(nd.body);
     body_stmts = self._prepend_hoisted(nd, body_stmts);
     block = self.sync_loc(es.BlockStatement(body=body_stmts), jac_node=nd);
     func_id = self.sync_loc(es.Identifier(name=nd.name.sym_name), jac_node=nd.name);
@@ -133,19 +141,7 @@ impl EsastGenPass.exit_test(nd: uni.Test) -> None {
 
 """Process client block (cl { ... })."""
 impl EsastGenPass.exit_client_block(nd: uni.ClientBlock) -> None {
-    body_stmts: list[es.Statement] = [];
-    if nd.body {
-        for stmt in nd.body {
-            if stmt.gen.es_ast {
-                if isinstance(stmt.gen.es_ast, list) {
-                    body_stmts.extend(cast(es.Statement, s) for s in stmt.gen.es_ast);
-                } else {
-                    body_stmts.append(cast(es.Statement, stmt.gen.es_ast));
-                }
-            }
-        }
-    }
-    nd.gen.es_ast = body_stmts;
+    nd.gen.es_ast = self._collect_body_stmts(nd.body);
 }
 
 """Process native block (na { ... }) - pruned from ECMAScript generation."""
@@ -155,19 +151,7 @@ impl EsastGenPass.exit_native_block(nd: uni.NativeBlock) -> None {
 
 """Process module code (with entry block)."""
 impl EsastGenPass.exit_module_code(nd: uni.ModuleCode) -> None {
-    body_stmts: list[es.Statement] = [];
-    if nd.body {
-        for stmt in nd.body {
-            if stmt.gen.es_ast {
-                if isinstance(stmt.gen.es_ast, list) {
-                    body_stmts.extend(cast(es.Statement, s) for s in stmt.gen.es_ast);
-                } else {
-                    body_stmts.append(cast(es.Statement, stmt.gen.es_ast));
-                }
-            }
-        }
-    }
-    nd.gen.es_ast = body_stmts;
+    nd.gen.es_ast = self._collect_body_stmts(nd.body);
 }
 
 """Process non-local statement."""

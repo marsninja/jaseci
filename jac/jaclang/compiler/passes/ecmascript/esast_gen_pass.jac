@@ -268,6 +268,8 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         nd: uni.UniScopeNode, statements: list[es.Statement]
     ) -> list[es.Statement];
 
+    def _collect_body_stmts(body: Sequence[uni.UniNode]) -> list[es.Statement];
+
     def _strip_spawn_await(
         node_expr: uni.Expr, es_expr: es.Expression
     ) -> tuple[uni.Expr, es.Expression];
