@@ -152,6 +152,50 @@ def format(
     paths: list, to_screen: bool = False, lintfix: bool = False, check: bool = False
 ) -> int;
 
+"""Run format (lintfix) + check as a pre-commit pipeline using jac.toml settings."""
+@registry.command(
+    name="precommit",
+    help="Run format (--lintfix) + check using jac.toml lint settings; installable as a git hook",
+    args=[
+        Arg.create(
+            "paths",
+            kind=ArgKind.MULTI,
+            default=[],
+            help="Paths to .jac files or directories (default: project root)"
+        ),
+        Arg.create(
+            "staged", typ=bool, default=False, help="Only process git-staged .jac files"
+        ),
+        Arg.create(
+            "verify",
+            typ=bool,
+            default=False,
+            help="Verify only: do not rewrite files (exit 1 if unformatted)",
+            short="v"
+        ),
+        Arg.create(
+            "install",
+            typ=bool,
+            default=False,
+            help="Install a git pre-commit hook that runs this command"
+        ),
+
+    ],
+    examples=[
+        ("jac precommit", "Format (lintfix) and check the whole project"),
+        ("jac precommit --staged", "Run on staged '.jac' files only"),
+        ("jac precommit --install", "Install a .git/hooks/pre-commit hook"),
+
+    ],
+    group="analysis"
+)
+def precommit(
+    paths: (list | None) = None,
+    staged: bool = False,
+    verify: bool = False,
+    install: bool = False
+) -> int;
+
 """Run the test suite in the specified .jac file or directory."""
 @registry.command(
     name="test",

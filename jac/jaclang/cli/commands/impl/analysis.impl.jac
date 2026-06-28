@@ -635,6 +635,118 @@ impl format(
     return 0;
 }
 
+"""Run the pre-commit pipeline: format (--lintfix) + check, honoring jac.toml.
+
+Lint behavior (including the opt-in strip-comments / strip-docstrings deslop
+rules) comes entirely from the [check.lint] settings in jac.toml — this command
+just sequences `jac format --lintfix` and `jac check` over the chosen targets
+and fails (exit 1) if either reformats a file or reports errors.
+"""
+impl precommit(
+    paths: (list | None) = None,
+    staged: bool = False,
+    verify: bool = False,
+    install: bool = False
+) -> int {
+    import os;
+    import subprocess;
+    import from jaclang.project.config { get_config }
+    if install {
+        return _install_precommit_hook();
+    }
+    targets: list[str] = [];
+    if staged {
+        try {
+            completed = subprocess.run(
+                ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+                capture_output=True,
+                text=True,
+                check=True
+            );
+        } except Exception as e {
+            console.error(f"Could not read staged files from git: {e}");
+            return 1;
+        }
+        for line in completed.stdout.splitlines() {
+            candidate = line.strip();
+            if candidate.endswith(".jac") and os.path.exists(candidate) {
+                targets.append(candidate);
+            }
+        }
+        if not targets {
+            console.success("No staged '.jac' files to check.");
+            return 0;
+        }
+    } elif paths {
+        targets = list(paths);
+    } else {
+        config = get_config();
+        targets = [str(config.project_root)] if config?.project_root else ["."];
+    }
+    console.print("[precommit] Running format (--lintfix)...");
+    fmt_ret = format(targets, to_screen=False, lintfix=True, check=verify);
+    console.print("[precommit] Running check...");
+    check_ret = check(targets);
+    if fmt_ret != 0 or check_ret != 0 {
+        console.error("Pre-commit checks failed.");
+        if verify and fmt_ret != 0 {
+            console.error(
+                "Run 'jac precommit' (without --verify) to apply formatting fixes."
+            );
+        }
+        return 1;
+    }
+    console.success("Pre-commit checks passed.");
+    return 0;
+}
+
+"""Install a git pre-commit hook that runs `jac precommit --staged --verify`."""
+def _install_precommit_hook -> int {
+    import os;
+    import stat;
+    import subprocess;
+    try {
+        completed = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            check=True
+        );
+    } except Exception as e {
+        console.error(f"Not a git repository (or git unavailable): {e}");
+        return 1;
+    }
+    git_dir = completed.stdout.strip();
+    hooks_dir = os.path.join(git_dir, "hooks");
+    os.makedirs(hooks_dir, exist_ok=True);
+    hook_path = os.path.join(hooks_dir, "pre-commit");
+    if os.path.exists(hook_path) {
+        console.warning(f"A pre-commit hook already exists at '{hook_path}'.");
+        console.warning(
+            "Back it up or remove it, then re-run 'jac precommit --install'."
+        );
+        return 1;
+    }
+    hook_body = (
+        "#!/bin/sh\n"
+        "# Installed by `jac precommit --install`\n"
+        "exec jac precommit --staged --verify\n"
+    );
+    try {
+        with open(hook_path, "w", encoding="utf-8") as f {
+            f.write(hook_body);
+        }
+        mode = os.stat(hook_path).st_mode;
+        os.chmod(hook_path, mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH);
+    } except Exception as e {
+        console.error(f"Failed to write hook: {e}");
+        return 1;
+    }
+    console.success(f"Installed git pre-commit hook at '{hook_path}'.");
+    console.print("It runs: jac precommit --staged --verify");
+    return 0;
+}
+
 """Run the test suite in the specified .jac file or directory."""
 impl `test(
     paths: list = [],

@@ -261,8 +261,15 @@ impl Transform._is_suppressed(
             );
             # no-print is the only non-default rule
             non_default_codes: set[str] = {"E3012"};
+            # Destructive "deslop" rules that only ever activate when named
+            # explicitly in select — never via "all" or "default". This keeps
+            # comment/docstring stripping strictly opt-in (project-default-able
+            # by listing the rule in jac.toml's [check.lint] select).
+            explicit_only_codes: set[str] = {"W3050", "W3051"};
             enabled = False;
-            if "all" in lint.select {
+            if diag.code in explicit_only_codes {
+                enabled = code_in_select;
+            } elif "all" in lint.select {
                 enabled = True;
             } elif "default" in lint.select {
                 enabled = (diag.code not in non_default_codes) or code_in_select;
