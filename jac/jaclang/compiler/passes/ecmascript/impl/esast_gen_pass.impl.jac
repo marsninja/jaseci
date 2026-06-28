@@ -5092,7 +5092,7 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
             self.client_manifest.exports.append(nd.name.sym_name);
         }
     }
-    body_stmts: list[es.MethodDefinition | es.PropertyDefinition | es.StaticBlock] = [];
+    body_stmts: list[es.MethodDefinition | es.PropertyDefinition] = [];
     has_members: list[uni.ArchHas] = [];
     inner = self.unwrap_body(nd);
     if inner {
@@ -5105,8 +5105,7 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
                 stmt.gen.es_ast
                 and stmt.gen.es_ast
                 and isinstance(
-                    stmt.gen.es_ast,
-                    (es.MethodDefinition, es.PropertyDefinition, es.StaticBlock)
+                    stmt.gen.es_ast, (es.MethodDefinition, es.PropertyDefinition)
                 )
             ) {
                 body_stmts.append(stmt.gen.es_ast);

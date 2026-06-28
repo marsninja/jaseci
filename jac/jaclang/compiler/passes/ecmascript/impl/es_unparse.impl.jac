@@ -267,14 +267,12 @@ impl JSCodeGenerator.gen_member_expression(nd: es.MemberExpression) -> str {
         nd.object,
         (
             es.AwaitExpression,
-            es.YieldExpression,
             es.AssignmentExpression,
             es.ConditionalExpression,
             es.BinaryExpression,
             es.LogicalExpression,
             es.UnaryExpression,
-            es.UpdateExpression,
-            es.SequenceExpression
+
         )
     ) {
         `obj = f"({`obj})";

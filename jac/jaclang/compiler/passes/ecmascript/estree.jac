@@ -71,46 +71,16 @@ obj ExpressionStatement(Node) {
         `type: TypingLiteral['ExpressionStatement'] = 'ExpressionStatement';
 }
 
-"""Directive (e.g., 'use strict') - ES5."""
-obj Directive(ExpressionStatement) {
-    has directive: str = '',
-        `type: TypingLiteral['ExpressionStatement'] = 'ExpressionStatement';
-}
-
 """Block statement."""
 obj BlockStatement(Node) {
     has body: List[Statement] = [],
         `type: TypingLiteral['BlockStatement'] = 'BlockStatement';
 }
 
-"""Empty statement (;)."""
-obj EmptyStatement(Node) {
-    has `type: TypingLiteral['EmptyStatement'] = 'EmptyStatement';
-}
-
-"""Debugger statement."""
-obj DebuggerStatement(Node) {
-    has `type: TypingLiteral['DebuggerStatement'] = 'DebuggerStatement';
-}
-
-"""With statement."""
-obj WithStatement(Node) {
-    has object: (Expression | None) = None,
-        body: (Statement | None) = None,
-        `type: TypingLiteral['WithStatement'] = 'WithStatement';
-}
-
 """Return statement."""
 obj ReturnStatement(Node) {
     has argument: (Expression | None) = None,
         `type: TypingLiteral['ReturnStatement'] = 'ReturnStatement';
-}
-
-"""Labeled statement."""
-obj LabeledStatement(Node) {
-    has label: (Identifier | None) = None,
-        body: (Statement | None) = None,
-        `type: TypingLiteral['LabeledStatement'] = 'LabeledStatement';
 }
 
 """Break statement."""
@@ -175,13 +145,6 @@ obj WhileStatement(Node) {
         `type: TypingLiteral['WhileStatement'] = 'WhileStatement';
 }
 
-"""Do-while statement."""
-obj DoWhileStatement(Node) {
-    has body: (Statement | None) = None,
-        `test: (Expression | None) = None,
-        `type: TypingLiteral['DoWhileStatement'] = 'DoWhileStatement';
-}
-
 """For statement."""
 obj ForStatement(Node) {
     has `init: VariableDeclaration | Expression | None = None,
@@ -189,14 +152,6 @@ obj ForStatement(Node) {
         update: (Expression | None) = None,
         body: (Statement | None) = None,
         `type: TypingLiteral['ForStatement'] = 'ForStatement';
-}
-
-"""For-in statement."""
-obj ForInStatement(Node) {
-    has left: VariableDeclaration | Pattern | None = None,
-        right: (Expression | None) = None,
-        body: (Statement | None) = None,
-        `type: TypingLiteral['ForInStatement'] = 'ForInStatement';
 }
 
 """For-of statement (ES6)."""
@@ -287,14 +242,6 @@ obj UnaryExpression(Node) {
         `type: TypingLiteral['UnaryExpression'] = 'UnaryExpression';
 }
 
-"""Update expression."""
-obj UpdateExpression(Node) {
-    has operator: str = '++',
-        argument: (Expression | None) = None,
-        prefix: bool = True,
-        `type: TypingLiteral['UpdateExpression'] = 'UpdateExpression';
-}
-
 """Binary expression."""
 obj BinaryExpression(Node) {
     has operator: str = '',
@@ -321,7 +268,7 @@ obj LogicalExpression(Node) {
 
 """Member expression."""
 obj MemberExpression(Node) {
-    has object: Expression | Super | None = None,
+    has object: Expression | None = None,
         property: (Expression | None) = None,
         computed: bool = False,
         optional: bool = False,
@@ -338,16 +285,10 @@ obj ConditionalExpression(Node) {
 
 """Call expression."""
 obj CallExpression(Node) {
-    has callee: Expression | Super | None = None,
+    has callee: Expression | None = None,
         arguments: list[(Expression | SpreadElement)] = [],
         optional: bool = False,
         `type: TypingLiteral['CallExpression'] = 'CallExpression';
-}
-
-"""Optional chaining expression (ES2020)."""
-obj ChainExpression(Node) {
-    has expression: CallExpression | MemberExpression | None = None,
-        `type: TypingLiteral['ChainExpression'] = 'ChainExpression';
 }
 
 """New expression."""
@@ -355,19 +296,6 @@ obj NewExpression(Node) {
     has callee: (Expression | None) = None,
         arguments: list[(Expression | SpreadElement)] = [],
         `type: TypingLiteral['NewExpression'] = 'NewExpression';
-}
-
-"""Sequence expression."""
-obj SequenceExpression(Node) {
-    has expressions: list[Expression] = [],
-        `type: TypingLiteral['SequenceExpression'] = 'SequenceExpression';
-}
-
-"""Yield expression."""
-obj YieldExpression(Node) {
-    has argument: (Expression | None) = None,
-        delegate: bool = False,
-        `type: TypingLiteral['YieldExpression'] = 'YieldExpression';
 }
 
 """Await expression (ES2017)."""
@@ -390,29 +318,10 @@ obj TemplateElement(Node) {
         `type: TypingLiteral['TemplateElement'] = 'TemplateElement';
 }
 
-"""Tagged template expression (ES6)."""
-obj TaggedTemplateExpression(Node) {
-    has tag: (Expression | None) = None,
-        quasi: (TemplateLiteral | None) = None,
-        `type: TypingLiteral['TaggedTemplateExpression'] = 'TaggedTemplateExpression';
-}
-
 """Spread element (ES6)."""
 obj SpreadElement(Node) {
     has argument: (Expression | None) = None,
         `type: TypingLiteral['SpreadElement'] = 'SpreadElement';
-}
-
-"""Super keyword."""
-obj Super(Node) {
-    has `type: TypingLiteral['Super'] = 'Super';
-}
-
-"""Meta property (e.g., new.target)."""
-obj MetaProperty(Node) {
-    has meta: (Identifier | None) = None,
-        property: (Identifier | None) = None,
-        `type: TypingLiteral['MetaProperty'] = 'MetaProperty';
 }
 
 """Assignment pattern (default parameters)."""
@@ -459,17 +368,9 @@ obj ClassDeclaration(Node) {
         `type: TypingLiteral['ClassDeclaration'] = 'ClassDeclaration';
 }
 
-"""Class expression."""
-obj ClassExpression(Node) {
-    has id: (Identifier | None) = None,
-        superClass: (Expression | None) = None,
-        body: (ClassBody | None) = None,
-        `type: TypingLiteral['ClassExpression'] = 'ClassExpression';
-}
-
 """Class body (ES2022: supports methods, properties, and static blocks)."""
 obj ClassBody(Node) {
-    has body: list[MethodDefinition | PropertyDefinition | StaticBlock] = [],
+    has body: list[MethodDefinition | PropertyDefinition] = [],
         `type: TypingLiteral['ClassBody'] = 'ClassBody';
 }
 
@@ -492,24 +393,12 @@ obj PropertyDefinition(Node) {
         `type: TypingLiteral['PropertyDefinition'] = 'PropertyDefinition';
 }
 
-"""Static initialization block (ES2022)."""
-obj StaticBlock(Node) {
-    has body: list[Statement] = [],
-        `type: TypingLiteral['StaticBlock'] = 'StaticBlock';
-}
-
 """Import declaration."""
 obj ImportDeclaration(Node) {
     has specifiers:
         list[ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier] = [],
         source: (Literal | None) = None,
         `type: TypingLiteral['ImportDeclaration'] = 'ImportDeclaration';
-}
-
-"""Dynamic import expression (ES2020)."""
-obj ImportExpression(Node) {
-    has source: (Expression | None) = None,
-        `type: TypingLiteral['ImportExpression'] = 'ImportExpression';
 }
 
 """Import specifier."""
@@ -544,19 +433,6 @@ obj ExportSpecifier(Node) {
     has exported: (Identifier | None) = None,
         local: (Identifier | None) = None,
         `type: TypingLiteral['ExportSpecifier'] = 'ExportSpecifier';
-}
-
-"""Export default declaration."""
-obj ExportDefaultDeclaration(Node) {
-    has declaration: Declaration | Expression | None = None,
-        `type: TypingLiteral['ExportDefaultDeclaration'] = 'ExportDefaultDeclaration';
-}
-
-"""Export all declaration."""
-obj ExportAllDeclaration(Node) {
-    has source: (Literal | None) = None,
-        exported: (Identifier | None) = None,
-        `type: TypingLiteral['ExportAllDeclaration'] = 'ExportAllDeclaration';
 }
 
 # === JSX nodes (ESTree-JSX) ==================================================
@@ -654,14 +530,12 @@ obj IndexInfo {
     has value: (Node | None) = None;
 }
 
-glob Statement = ExpressionStatement | BlockStatement | EmptyStatement | DebuggerStatement | WithStatement | ReturnStatement | LabeledStatement | BreakStatement | ContinueStatement | IfStatement | SwitchStatement | ThrowStatement | TryStatement | WhileStatement | DoWhileStatement | ForStatement | ForInStatement | ForOfStatement | FunctionDeclaration | VariableDeclaration | ClassDeclaration,
+glob Statement = ExpressionStatement | BlockStatement | ReturnStatement | BreakStatement | ContinueStatement | IfStatement | SwitchStatement | ThrowStatement | TryStatement | WhileStatement | ForStatement | ForOfStatement | FunctionDeclaration | VariableDeclaration | ClassDeclaration,
      Expression = (
-         Identifier | Literal | ThisExpression | ArrayExpression | ObjectExpression | FunctionExpression | ArrowFunctionExpression | UnaryExpression | UpdateExpression | BinaryExpression | AssignmentExpression | LogicalExpression | MemberExpression | ConditionalExpression | CallExpression | ChainExpression | NewExpression | SequenceExpression | YieldExpression | AwaitExpression | TemplateLiteral | TaggedTemplateExpression | ClassExpression | ImportExpression | JsxElement | JsxFragment
+         Identifier | Literal | ThisExpression | ArrayExpression | ObjectExpression | FunctionExpression | ArrowFunctionExpression | UnaryExpression | BinaryExpression | AssignmentExpression | LogicalExpression | MemberExpression | ConditionalExpression | CallExpression | NewExpression | AwaitExpression | TemplateLiteral | JsxElement | JsxFragment
      ),
      Pattern = Identifier | ArrayPattern | ObjectPattern | AssignmentPattern | RestElement,
      Declaration = FunctionDeclaration | VariableDeclaration | ClassDeclaration,
-     ModuleDeclaration = (
-         ImportDeclaration | ExportNamedDeclaration | ExportDefaultDeclaration | ExportAllDeclaration
-     );
+     ModuleDeclaration = ImportDeclaration | ExportNamedDeclaration;
 
 def es_node_to_dict(nd: Node) -> dict[str, any];
