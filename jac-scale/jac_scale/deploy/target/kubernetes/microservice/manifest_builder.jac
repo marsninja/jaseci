@@ -87,10 +87,24 @@ obj MicroserviceManifestBuilder {
         if not self.experimental {
             try {
                 import from jac_scale.injector.binary_injector { BinaryInjector }
+                import from jaclang.cli.console { console }
+                # The host build (zig build) streams its own raw "[N/11] steps"
+                # progress with no context - frame it so a multi-minute first run
+                # does not read as a hang. It is one-time: the binary is cached on
+                # the host, so later deploys skip straight to packing + seeding.
+                console.print(
+                    "Building the jac binary on the host to ship into pods - "
+                    "one-time (cached after), a few minutes on first run. This "
+                    "replaces the per-pod in-pod build."
+                );
                 binary_injector = BinaryInjector(storage_class=storage);
                 binary_injector.prepare(app, self.k8s_config.namespace, project);
                 self._ship_binary = True;
                 self._toolchain_object_key = binary_injector._toolchain_object_key;
+                console.print(
+                    "Built jac binary; shipping it to pods (pods skip the in-pod "
+                    "build)."
+                );
                 return binary_injector;
             } except Exception as exc {
                 import logging;
