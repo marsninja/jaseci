@@ -66,6 +66,7 @@ glob O_RDWR: int = 2,
 obj TtyCtx {
     has fd: int = -1,
         saved_term: str = "",
+        term_saved: int = 0,
         rows: int = 24,
         cols: int = 80,
         x_pixels: int = 0,
@@ -185,6 +186,13 @@ def tty_open_dev(dev: str) -> int {
         return -1;
     }
     g_tty.saved_term = saved;
+    # Flag the save explicitly -- do NOT later gate the restore on len(saved).
+    # `saved` is a 60-byte termios buffer held as a NUL-terminated NA str, so
+    # len() is a strlen that returns 0 whenever the original c_iflag's low byte
+    # is 0x00 (e.g. a cooked tty with c_iflag=ICRNL|IXON=0x500). That false
+    # "empty" reading would skip tcsetattr in tty_close and strand the terminal
+    # in raw mode (no ISIG -> the shell's Ctrl+C is dead after exit).
+    g_tty.term_saved = 1;
     raw_buf: str = build_raw_termios(saved);
     rc: int = tcsetattr(fd, TCSANOW, raw_buf);
     free(raw_buf);
@@ -204,7 +212,7 @@ def tty_close {
     fd: int = g_tty.fd;
     saved: str = g_tty.saved_term;
     if fd >= 0 {
-        if len(saved) > 0 {
+        if g_tty.term_saved != 0 {
             # `saved` already holds the original 60-byte termios; restore it
             # directly as an i8* -- no struct round-trip needed.
             rc: int = tcsetattr(fd, TCSANOW, saved);
@@ -224,6 +232,7 @@ def tty_close {
             }
             free(saved);
             g_tty.saved_term = "";
+            g_tty.term_saved = 0;
         }
         close(fd);
         g_tty.fd = -1;
