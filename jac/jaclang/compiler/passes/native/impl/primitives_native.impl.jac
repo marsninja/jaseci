@@ -5858,6 +5858,13 @@ impl NativeBuiltinEmitter.emit_str(
     # pointer address.
     if isinstance(arg_val.type, ir.PointerType) {
         if arg_val.type != i8p {
+            # str(obj): dispatch to the user object's __str__ (or a default
+            # repr), instead of bitcasting the struct pointer to garbage (#7003).
+            # The builtin-arg release at the call site (calls.impl) owns `arg_val`.
+            obj_s = p._emit_obj_str(arg_val);
+            if obj_s is not None {
+                return obj_s;
+            }
             return b.bitcast(arg_val, i8p, name="str.identity");
         }
         # str(None): None lowers to a null i8*; CPython prints "None". Guard the

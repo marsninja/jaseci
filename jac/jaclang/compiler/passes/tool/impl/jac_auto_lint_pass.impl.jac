@@ -2787,6 +2787,84 @@ impl JacAutoLintPass._strip_usestate_imports(nd: uni.Module) -> None {
 """W3038: drop useState from imports after all useState hooks have been converted."""
 impl JacAutoLintPass.exit_module(nd: uni.Module) -> None {
     self._strip_usestate_imports(nd);
+    self._strip_noise(nd);
+}
+
+"""Strip comments (W3050) and docstrings (W3051) — the opt-in 'deslop' rules.
+
+Both rules are destructive and activate only when explicitly named in
+[check.lint] select in jac.toml (see explicit_only_codes in transform). This
+runs in both report-only mode (jac check) and fix mode (jac format --lintfix);
+it only mutates the tree when not report_only.
+"""
+impl JacAutoLintPass._strip_noise(nd: uni.Module) -> None {
+    if not self.lint_enabled {
+        return;
+    }
+    # W3050: remove all comments. Comments are stored on the Source object and
+    # re-attached later by CommentInjectionPass (which runs after this pass), so
+    # clearing the list means none are ever injected into the formatted output.
+    if not self._is_suppressed(W3050) and nd.source.comments {
+        for comment in list(nd.source.comments) {
+            self.emit(W3050, node_override=comment);
+        }
+        if not self.report_only {
+            nd.source.comments = [];
+        }
+    }
+    # W3051: remove every docstring (module / archetype / ability / enum / has).
+    if not self._is_suppressed(W3051) {
+        self._strip_docstrings(nd);
+    }
+}
+
+"""Emit W3051 for each docstring under `root`, removing it in fix mode.
+
+Docstrings are the `doc` field on AstDocNode nodes and live as a direct child
+in the node's kid list; the formatter keys emission on identity with `nd.doc`,
+so both the field and the kid entry must be cleared to fully drop the string.
+"""
+impl JacAutoLintPass._strip_docstrings(start: uni.UniNode) -> None {
+    doc_nodes: list[uni.UniNode] = [];
+    self._collect_doc_nodes(start, doc_nodes);
+    for `node in doc_nodes {
+        doc_str = `node.doc;
+        if doc_str is None {
+            continue;
+        }
+        self.emit(W3051, node_override=doc_str);
+        if self.report_only {
+            continue;
+        }
+        `node.doc = None;
+        new_kid: list[uni.UniNode] = [
+            k
+            for k in `node.kid
+            if k is not doc_str
+        ];
+        `node.set_kids(nodes=new_kid if len(new_kid) else [uni.EmptyToken()]);
+        `node._invalidate_sub_node_tab();
+    }
+}
+
+"""Collect AstDocNode nodes that carry a docstring.
+
+Iterative (explicit stack) rather than recursive so a deeply nested or
+auto-generated module can't blow Python's recursion limit while deslopping.
+"""
+impl JacAutoLintPass._collect_doc_nodes(`node: uni.UniNode, results: list) -> None {
+    stack: list[uni.UniNode] = [`node];
+    while stack {
+        current = stack.pop();
+        if isinstance(current, uni.AstDocNode) and current.doc is not None {
+            results.append(current);
+        }
+        for kid in current.kid {
+            if kid is not None {
+                stack.append(kid);
+            }
+        }
+    }
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

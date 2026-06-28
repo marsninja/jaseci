@@ -1,6 +1,12 @@
-import from jac_scale.persistence.db { Db, get_mongo_client, get_redis_client }
+import from jac_scale.persistence.db {
+    Db,
+    get_mongo_client,
+    get_redis_client,
+    get_firestore_db
+}
 import from jac_scale.persistence.mongo_db { MongoDb }
 import from jac_scale.persistence.redis_db { RedisDb }
+import from jac_scale.persistence.firestore_db { FirestoreDb }
 import from jac_scale.deploy.database.factory { DatabaseType }
 
 def kvstore(
@@ -16,6 +22,8 @@ def kvstore(
         return RedisDb(
             client=get_redis_client(uri=uri), db_name=db_name, db_type=db_type_enum
         );
+    } elif db_type_enum == DatabaseType.FIRESTORE {
+        return get_firestore_db(db_name=db_name, project_id=uri);
     } else {
         raise ValueError(f'Unsupported database type: {db_type}');
     }

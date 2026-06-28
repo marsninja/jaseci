@@ -635,9 +635,145 @@ impl format(
     return 0;
 }
 
+"""Run the pre-commit pipeline: format (--lintfix) + check, honoring jac.toml.
+
+Lint behavior (including the opt-in strip-comments / strip-docstrings deslop
+rules) comes entirely from the [check.lint] settings in jac.toml — this command
+just sequences `jac format --lintfix` and `jac check` over the chosen targets
+and fails (exit 1) if either reformats a file or reports errors.
+"""
+impl precommit(
+    paths: (list | None) = None,
+    staged: bool = False,
+    verify: bool = False,
+    install: bool = False
+) -> int {
+    import os;
+    import subprocess;
+    import from jaclang.project.config { get_config }
+    if install {
+        return _install_precommit_hook();
+    }
+    targets: list[str] = [];
+    if staged {
+        try {
+            # git reports staged paths relative to the repo root, so resolve them
+            # against the worktree root (not cwd) — otherwise running from a
+            # subdirectory drops every staged file and falsely "passes".
+            git_root = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=True
+            ).stdout.strip();
+            completed = subprocess.run(
+                ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+                capture_output=True,
+                text=True,
+                check=True
+            );
+        } except Exception as e {
+            console.error(f"Could not read staged files from git: {e}");
+            return 1;
+        }
+        for line in completed.stdout.splitlines() {
+            candidate = line.strip();
+            if not candidate.endswith(".jac") {
+                continue;
+            }
+            abs_candidate = os.path.join(git_root, candidate);
+            if os.path.exists(abs_candidate) {
+                targets.append(abs_candidate);
+            }
+        }
+        if not targets {
+            console.success("No staged '.jac' files to check.");
+            return 0;
+        }
+    } elif paths {
+        targets = list(paths);
+    } else {
+        config = get_config();
+        targets = [str(config.project_root)] if config?.project_root else ["."];
+    }
+    console.print("[precommit] Running format (--lintfix)...");
+    fmt_ret = format(targets, to_screen=False, lintfix=True, check=verify);
+    console.print("[precommit] Running check...");
+    check_ret = check(targets);
+    if not verify and check_ret == 0 and fmt_ret != 0 {
+        # Files were reformatted/auto-fixed but type-checking is clean: this is a
+        # successful fix, not a failure. Still exit non-zero so a hook blocks the
+        # commit until the developer reviews and re-stages the changes.
+        console.warning(
+            "Pre-commit applied formatting/lint fixes — review the changes, "
+            "re-stage them, and commit again."
+        );
+        return 1;
+    }
+    if fmt_ret != 0 or check_ret != 0 {
+        console.error("Pre-commit checks failed.");
+        if verify and fmt_ret != 0 {
+            console.error(
+                "Run 'jac precommit' (without --verify) to apply formatting "
+                "fixes, then re-stage."
+            );
+        }
+        return 1;
+    }
+    console.success("Pre-commit checks passed.");
+    return 0;
+}
+
+"""Install a git pre-commit hook that runs `jac precommit --staged --verify`."""
+def _install_precommit_hook -> int {
+    import os;
+    import stat;
+    import subprocess;
+    try {
+        completed = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            check=True
+        );
+    } except Exception as e {
+        console.error(f"Not a git repository (or git unavailable): {e}");
+        return 1;
+    }
+    git_dir = completed.stdout.strip();
+    hooks_dir = os.path.join(git_dir, "hooks");
+    os.makedirs(hooks_dir, exist_ok=True);
+    hook_path = os.path.join(hooks_dir, "pre-commit");
+    if os.path.exists(hook_path) {
+        console.warning(f"A pre-commit hook already exists at '{hook_path}'.");
+        console.warning(
+            "Back it up or remove it, then re-run 'jac precommit --install'."
+        );
+        return 1;
+    }
+    hook_body = (
+        "#!/bin/sh\n"
+        "# Installed by `jac precommit --install`\n"
+        "exec jac precommit --staged --verify\n"
+    );
+    try {
+        with open(hook_path, "w", encoding="utf-8") as f {
+            f.write(hook_body);
+        }
+        mode = os.stat(hook_path).st_mode;
+        os.chmod(hook_path, mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH);
+    } except Exception as e {
+        console.error(f"Failed to write hook: {e}");
+        return 1;
+    }
+    console.success(f"Installed git pre-commit hook at '{hook_path}'.");
+    console.print("It runs: jac precommit --staged --verify");
+    return 0;
+}
+
 """Run the test suite in the specified .jac file or directory."""
 impl `test(
-    filepath: str = "",
+    paths: list = [],
     test_name: str = "",
     filter: str = "",
     xit: bool = False,
@@ -648,13 +784,20 @@ impl `test(
 ) -> int {
     import os;
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    # Accept a single path string as well as a list (matches `check`/`lint`):
+    # programmatic callers pass `test("file.jac")` positionally, which would
+    # otherwise iterate the string character-by-character as if each char were a
+    # path.
+    if isinstance(paths, str) {
+        paths = [paths];
+    }
     # With neither an explicit file nor --directory, scope discovery to the
     # project's `[test] directory` (jac.toml) when configured -- pytest's
     # `testpaths`. This keeps `jac test` from walking the whole project and
     # importing app modules whose top-level `with entry` would execute (and
     # crash collection) as a side effect of being imported. The directory is
     # resolved against the project root so it holds from any working directory.
-    if (not filepath and not directory) {
+    if (not paths and not directory) {
         import from jaclang.project.config { get_config }
         cfg = get_config();
         if (cfg and cfg.test.directory) {
@@ -671,8 +814,8 @@ impl `test(
             }
         }
     }
-    # e.g. jac test --test_name "typevar7 constrained operations"  (no filepath given)
-    if (test_name and not filepath) {
+    # e.g. jac test --test_name "typevar7 constrained operations"  (no path given)
+    if (test_name and not paths) {
         console.error(
             "Error: --test_name requires a filepath. "
             "Running by name across all files is ambiguous.\n"
@@ -681,13 +824,15 @@ impl `test(
         return 1;
     }
     # e.g. jac test test_typevar.jac  (run from wrong directory)
-    if (filepath and not Path(filepath).exists()) {
-        console.error(
-            f"Error: File not found: '{filepath}'\n"
-            "Make sure you are in the correct directory or provide the full path.\n"
-            f"Usage: jac test /full/path/to/{filepath}"
-        );
-        return 1;
+    for fp in paths {
+        if not Path(fp).exists() {
+            console.error(
+                f"Error: File not found: '{fp}'\n"
+                "Make sure you are in the correct directory or provide the full path.\n"
+                f"Usage: jac test /full/path/to/{fp}"
+            );
+            return 1;
+        }
     }
     # Route `jac test` through the bundled pytest (+ xdist for `-n auto`) when it
     # is available -- the single-binary build ships it, so the suite runs with
@@ -703,8 +848,9 @@ impl `test(
         }
         if run_pytest {
             pargs: list[str] = [];
-            target = filepath or directory;
-            if target {
+            # One or more explicit paths, else the resolved directory (if any).
+            targets = paths or ([directory] if directory else []);
+            for target in targets {
                 pargs.append(target);
             }
             # Skip a subtree during collection (pytest `--ignore`). Lets the suite
@@ -754,15 +900,26 @@ impl `test(
         }
     }
     normalized_name = test_name.strip().replace(' ', '_') if test_name else '';
-    failcount = Jac.run_test(
-        filepath=filepath,
-        func_name=('test_' + normalized_name) if normalized_name else None,
-        filter=filter,
-        xit=xit,
-        maxfail=maxfail,
-        directory=directory,
-        verbose=verbose
-    );
+    func_name = ('test_' + normalized_name) if normalized_name else None;
+    # Native runner fallback (no pytest / JAC_TEST_NATIVE=1): run each path in
+    # turn, or a single directory-scoped pass when no explicit paths were given.
+    run_targets = paths or [""];
+    failcount = 0;
+    for fp in run_targets {
+        failcount += Jac.run_test(
+            filepath=fp,
+            func_name=func_name,
+            filter=filter,
+            xit=xit,
+            maxfail=maxfail,
+            directory=directory,
+            verbose=verbose
+        );
+        # Honor --xit across files too: stop at the first file with failures.
+        if xit and failcount > 0 {
+            break;
+        }
+    }
     if failcount {
         console.error(f"Tests failed: {failcount}");
         return 1;

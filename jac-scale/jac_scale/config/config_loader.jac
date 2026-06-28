@@ -1,19 +1,12 @@
-"""Configuration loader for Jac Scale.
-
-This module provides configuration access for the scale plugin.
-Configuration is loaded from jac.toml under [plugins.scale] section.
-
-Inherits from PluginConfigBase to eliminate boilerplate code.
-"""
 import from pathlib { Path }
 import from jaclang.project.plugin_config { PluginConfigBase }
+import from jac_scale.config.firebase_env {
+    FIREBASE_AUTH_PROJECT_ID_ENV,
+    FIRESTORE_PROJECT_ID_ENV,
+    resolve_firebase_project_id
+}
 import os;
 
-"""Scale-specific configuration loader.
-
-Provides access to jwt, sso, database, kubernetes, server and webhook configuration
-from the [plugins.scale] section of jac.toml.
-"""
 class JacScaleConfig(PluginConfigBase) {
     override def get_plugin_name(self: JacScaleConfig) -> str;
     override def get_default_config(self: JacScaleConfig) -> dict[str, any];

@@ -1,13 +1,3 @@
-"""Tests for optional dependency guards and install groups.
-
-These tests verify that:
-- Per-package compat modules re-export symbols correctly
-- require_optional() raises clear errors for missing packages
-- is_optional_available() reports correctly for installed packages
-- Factories gracefully handle missing optional deps
-- HAS_* flags reflect actual package availability
-"""
-
 import unittest.mock;
 import from jac_scale._optdeps.optional_deps { require_optional, is_optional_available }
 import from jac_scale._optdeps.pymongo { HAS_PYMONGO, MongoClient }
@@ -15,23 +5,16 @@ import from jac_scale._optdeps.redis { HAS_REDIS, Redis }
 import from jac_scale._optdeps.prometheus { HAS_PROMETHEUS, Counter }
 import from jac_scale._optdeps.apscheduler { HAS_APSCHEDULER, BackgroundScheduler }
 import from jac_scale._optdeps.kubernetes { HAS_KUBERNETES, client as k8s_client }
+import from jac_scale._optdeps.gcs { HAS_GCS, StorageClient }
 
-# =============================================================================
-# require_optional - happy path (installed packages)
-# =============================================================================
 test "require_optional does not raise for installed stdlib package" {
-    # json is always available
     require_optional("json", "core");
 }
 
 test "require_optional does not raise for installed package" {
-    # fastapi is a core dependency, always installed
     require_optional("fastapi", "core");
 }
 
-# =============================================================================
-# require_optional - error messages
-# =============================================================================
 test "require_optional raises ImportError for missing package" {
     raised = False;
     try {
@@ -55,9 +38,6 @@ test "require_optional error includes correct install group" {
     assert raised , "Expected ImportError with correct group name";
 }
 
-# =============================================================================
-# is_optional_available
-# =============================================================================
 test "is_optional_available returns True for installed package" {
     assert is_optional_available("json") is True;
     assert is_optional_available("fastapi") is True;
@@ -67,15 +47,13 @@ test "is_optional_available returns False for missing package" {
     assert is_optional_available("nonexistent_package_xyz") is False;
 }
 
-# =============================================================================
-# HAS_* flags reflect actual availability
-# =============================================================================
 test "HAS flags are booleans" {
     assert isinstance(HAS_PYMONGO, bool);
     assert isinstance(HAS_REDIS, bool);
     assert isinstance(HAS_PROMETHEUS, bool);
     assert isinstance(HAS_APSCHEDULER, bool);
     assert isinstance(HAS_KUBERNETES, bool);
+    assert isinstance(HAS_GCS, bool);
 }
 
 test "HAS flags match is_optional_available" {
@@ -84,11 +62,9 @@ test "HAS flags match is_optional_available" {
     assert HAS_PROMETHEUS == is_optional_available("prometheus_client");
     assert HAS_APSCHEDULER == is_optional_available("apscheduler");
     assert HAS_KUBERNETES == is_optional_available("kubernetes");
+    assert HAS_GCS == is_optional_available("google.cloud.storage");
 }
 
-# =============================================================================
-# Compat module exports real types when packages are installed
-# =============================================================================
 test "pymongo exports are real when installed" {
     if HAS_PYMONGO {
         assert MongoClient is not None;
@@ -133,9 +109,15 @@ test "kubernetes exports are real when installed" {
 }
 
 
-# =============================================================================
-# Factory fallback behavior
-# =============================================================================
+test "gcs exports are real when installed" {
+    if HAS_GCS {
+        assert StorageClient is not None;
+        assert callable(StorageClient);
+    } else {
+        assert StorageClient is None;
+    }
+}
+
 test "utility factory returns noop metrics when prometheus missing" {
     import from jac_scale.observability.factory { UtilityFactory }
     import from jac_scale.observability.metrics { NoOpMetricsCollector }
@@ -213,6 +195,31 @@ test "database factory requires redis for redis" {
     }
 }
 
+test "database factory requires firestore for firestore" {
+    import from jac_scale.deploy.database.factory {
+        DatabaseProviderFactory,
+        DatabaseType
+    }
+
+    with unittest.mock.patch(
+        "jac_scale.deploy.database.factory.require_optional",
+        side_effect=ImportError(
+            "'google.cloud.firestore' is required. Install: pip install jac-scale[firebase]"
+        )
+    ) {
+        raised = False;
+        try {
+            DatabaseProviderFactory.create_client(
+                DatabaseType.FIRESTORE, uri="firebase-project"
+            );
+        } except ImportError as e {
+            raised = True;
+            assert "jac-scale[firebase]" in str(e);
+        }
+        assert raised , "Expected ImportError when google-cloud-firestore is missing";
+    }
+}
+
 test "deployment factory requires kubernetes for k8s target" {
     import from jac_scale.deploy.target.factory { DeploymentTargetFactory }
 
@@ -233,9 +240,6 @@ test "deployment factory requires kubernetes for k8s target" {
     }
 }
 
-# =============================================================================
-# Edge cases
-# =============================================================================
 test "require_optional with empty package name raises" {
     raised = False;
     try {
@@ -251,7 +255,6 @@ test "is_optional_available with empty string returns False" {
 }
 
 test "compat modules are always importable" {
-    # Per-package compat modules must never fail to import regardless of what's installed
     import jac_scale._optdeps.pymongo;
     import jac_scale._optdeps.redis;
     import jac_scale._optdeps.prometheus;
@@ -265,20 +268,14 @@ test "compat modules are always importable" {
 }
 
 test "multiple require_optional calls do not conflict" {
-    # Calling require_optional multiple times for the same installed package is fine
     require_optional("json", "core");
     require_optional("json", "core");
     require_optional("os", "core");
 }
 
-# =============================================================================
-# Scheduler graceful degradation without APScheduler
-# =============================================================================
 test "scheduler setup succeeds without apscheduler installed" {
     import from jac_scale.scheduler.scheduler { JacScaleScheduler }
 
-    # Simulate APScheduler not being installed by patching the symbols
-    # in the scheduler module (where setup() reads them at runtime).
     with unittest.mock.patch("jac_scale.scheduler.scheduler.HAS_APSCHEDULER", False) {
         with unittest.mock.patch(
             "jac_scale.scheduler.scheduler.BackgroundScheduler", None
@@ -287,10 +284,8 @@ test "scheduler setup succeeds without apscheduler installed" {
                 "jac_scale.scheduler.scheduler.ThreadPoolExecutor", None
             ) {
                 sched = JacScaleScheduler();
-                # setup() should not crash - APScheduler init is skipped gracefully.
                 sched.setup(system_user_id="system-user-id");
                 assert sched._apscheduler is None , "APScheduler should be None when package is not installed";
-                # start/stop should be no-ops, not errors.
                 sched.start();
                 sched.stop();
             }
