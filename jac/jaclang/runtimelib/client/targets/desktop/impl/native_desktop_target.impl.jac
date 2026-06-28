@@ -142,9 +142,8 @@ impl NativeDesktopTarget.build(
     }
     # 9. Append THIS jac binary's fused-runtime trailer payload to the host so it
     #    carries the same bundled CPython + jaclang the CLI ships; jac_engine_boot()
-    #    materializes it from /proc/self/exe at first launch into its own
-    #    rt/<hash16>-<pathhash> cache (the path-fold isolates each binary -- see
-    #    runtime.zig rtKey / issue #7012 -- so the host gets its own tree).
+    #    materializes it from /proc/self/exe at first launch (shared rt/<hash> cache,
+    #    auto-deduped with the CLI's).
     _bundle_runtime(binary);
     stray = project_dir / app_name;
     if stray.exists() and stray.resolve() != binary.resolve() {
