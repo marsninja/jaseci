@@ -7,13 +7,8 @@ Generates well-formatted help output with:
 - Plugin attribution for extended arguments
 """
 
-import from jaclang.cli.command { CommandSpec }
+import from jaclang.cli.command { CommandSpec, Arg }
 
-"""Groups for organizing commands in help output.
-
-Provides a registry of command groups with display names and ordering
-for consistent help menu formatting.
-"""
 obj CommandGroups {
     has groups: dict[str, str] = {
         "execution": "Program Execution",
@@ -38,13 +33,6 @@ obj CommandGroups {
     def get_ordered_groups -> list[str];
 }
 
-"""Format help output for commands.
-
-Provides methods for formatting:
-- Main help with grouped command list
-- Individual command help with examples
-- Argument lists with plugin attribution
-"""
 obj HelpFormatter {
     has groups: CommandGroups = CommandGroups();
 
@@ -54,7 +42,9 @@ obj HelpFormatter {
 }
 
 # Global singleton instance
-glob _formatter: HelpFormatter | None = None;
+glob _groups: CommandGroups | None = None,
+     _formatter: HelpFormatter | None = None;
 
-"""Get the global HelpFormatter instance."""
+def get_command_groups -> CommandGroups;
+
 def get_help_formatter -> HelpFormatter;

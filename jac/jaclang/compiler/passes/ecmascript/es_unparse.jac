@@ -1,15 +1,8 @@
-"""
-ECMAScript/JavaScript code generation from ESTree AST.
-
-This module provides functionality to convert ESTree AST nodes back to
-JavaScript source code (unparsing).
-"""
-
 import from jaclang.compiler.passes.ecmascript { estree as es }
-"""Generate JavaScript code from ESTree AST."""
+
 obj JSCodeGenerator {
     def init(indent: str = '  ') -> None;
-    # Source mapping: maps output line -> (source_line, source_col)
+
     has line_map: list[tuple[int, int, int]] = [],
         _current_line: int = 1,
         _line_to_src: dict[int, tuple[int, int]] = {};

@@ -1,28 +1,3 @@
-"""System V AMD64 ABI lowering for foreign (clib) structs — Phase 1.
-
-This module gives the native backend a real platform-ABI classifier instead of
-the previous all-integer ≤64-bit heuristic. A foreign struct passed/returned by
-value is classified per the System V AMD64 psABI eightbyte algorithm into either
-MEMORY (passed via a `byval` pointer / returned via `sret`) or a sequence of
-register coerce types (INTEGER -> iN, SSE -> float/double/<2 x float>), matching
-what clang/gcc emit. The result is a per-function ABI plan stored on
-`self.clib_fn_abi`, consumed by `_codegen_clib_call` — so a foreign call's
-marshalling is decided once from the declared types, never re-derived from the
-shape of an LLVM value (which is what corrupted scalar returns sharing a type
-with a struct, gap #7).
-
-Scope: x86_64 System V only (the default Linux/Intel-macOS target). AArch64
-AAPCS is Phase 2; off-x86_64 targets keep the legacy path in
-`_declare_clib_ability`.
-"""
-
-"""The memoized foreign declaration model (Phase 8): clib struct shapes
-collected centrally over this pass's module universe. The memo is keyed
-on the universe size because the universe grows mid-transform: the entry
-module's clib imports are processed (Phase 0) before
-_register_imported_struct_types assembles _foreign_modules, so a model
-built early for an entry-declared function must be rebuilt once the
-transitively imported modules join the universe."""
 impl NaIRGenPass._foreign_model -> dict {
     import from jaclang.compiler.targets.foreign { collect_foreign_structs }
     universe = [self.ir_in] + self._foreign_modules;
@@ -33,10 +8,6 @@ impl NaIRGenPass._foreign_model -> dict {
     return self._foreign_structs;
 }
 
-"""The memoized foreign function declarations (Phase 8): clib signature
-names collected centrally over this pass's module universe, keyed on the
-universe size for the same mid-transform growth reason as
-_foreign_model."""
 impl NaIRGenPass._foreign_fns -> dict {
     import from jaclang.compiler.targets.foreign { collect_foreign_fns }
     universe = [self.ir_in] + self._foreign_modules;
@@ -47,14 +18,6 @@ impl NaIRGenPass._foreign_fns -> dict {
     return self._foreign_fn_decls;
 }
 
-"""Ordered (field_name, nested_struct_name | None) pairs for a clib
-struct, from the foreign declaration model - the single answer to
-'which fields are nested clib structs'. Position in this list IS the
-field's GEP index in both the Jac struct and the C-laid-out struct:
-the model's order and the backend's struct_field_indices both derive
-from the declaration's has-var order. The copiers address both
-representations by this position, so the invariant is asserted here
-(the shared chokepoint) rather than trusted silently."""
 impl NaIRGenPass._foreign_fields_of(name: str) -> list {
     model = self._foreign_model();
     indices = self.struct_field_indices.get(name, {});
@@ -64,6 +27,17 @@ impl NaIRGenPass._foreign_fields_of(name: str) -> list {
         out.append((fn, tn if (tn is not None and tn in model) else None));
     }
     return out;
+}
+
+impl NaIRGenPass._clib_struct_layout(name: str) -> tuple {
+    import from jaclang.compiler.targets.foreign { foreign_struct_layout }
+    return foreign_struct_layout(self._foreign_model(), name);
+}
+
+impl NaIRGenPass._classify_clib_struct(name: str) -> dict {
+    import from jaclang.compiler.targets.abi { classify_struct }
+    (size, align, scalars) = self._clib_struct_layout(name);
+    return classify_struct(size, align, scalars, str(self.llvm_module.triple or ""));
 }
 
 """True if a clib struct has a field whose type is itself a clib struct."""
@@ -76,12 +50,6 @@ impl NaIRGenPass._clib_has_nested(name: str) -> bool {
     return False;
 }
 
-"""Return the C-laid-out LLVM type for a clib struct.
-
-For flat structs the Jac representation already matches C, so the existing
-struct type is returned. For structs with nested clib-struct fields a parallel
-`<name>.cabi` identified type is built with the nested structs inlined by value.
-"""
 impl NaIRGenPass._clib_c_type(name: str) -> ir.Type {
     if not self._clib_has_nested(name) {
         return self.struct_types[name];
@@ -105,7 +73,6 @@ impl NaIRGenPass._clib_c_type(name: str) -> ir.Type {
     return ct;
 }
 
-"""Allocate an RC-managed box for a clib struct (Jac representation)."""
 impl NaIRGenPass._clib_alloc_box(name: str) -> ir.Value {
     import os;
     stype = self.struct_types[name];
@@ -119,7 +86,7 @@ impl NaIRGenPass._clib_alloc_box(name: str) -> ir.Value {
         self.rc_alloc_fn, [size], op="box", name="clib.box.raw"
     );
     typed_ptr = self.builder.bitcast(raw_ptr, sptype, name="clib.box.ptr");
-    # Install the typed destructor at obj-8 so RC release dispatches correctly.
+
     self._emit_struct_release_fn(name);
     dtor_fn = self.struct_release_fns.get(name);
     if dtor_fn is not None {
@@ -143,7 +110,6 @@ impl NaIRGenPass._clib_alloc_box(name: str) -> ir.Value {
     return typed_ptr;
 }
 
-"""Recursively copy a Jac clib-struct value into a C-laid-out buffer."""
 impl NaIRGenPass._clib_copy_jac_to_c(
     jac_ptr: ir.Value, c_ptr: ir.Value, name: str
 ) -> None {
@@ -168,7 +134,6 @@ impl NaIRGenPass._clib_copy_jac_to_c(
     }
 }
 
-"""Recursively copy a C-laid-out buffer into a fresh Jac clib-struct value."""
 impl NaIRGenPass._clib_copy_c_to_jac(
     c_ptr: ir.Value, jac_ptr: ir.Value, name: str
 ) -> None {
@@ -195,10 +160,8 @@ impl NaIRGenPass._clib_copy_c_to_jac(
     }
 }
 
-"""Produce a pointer to a C-laid-out copy of a Jac clib-struct value."""
 impl NaIRGenPass._clib_materialize_c_ptr(jac_ptr: ir.Value, name: str) -> ir.Value {
     if not self._clib_has_nested(name) {
-        # Flat structs already have C layout; reuse the pointer directly.
         return jac_ptr;
     }
     ct = self._clib_c_type(name);
@@ -207,11 +170,9 @@ impl NaIRGenPass._clib_materialize_c_ptr(jac_ptr: ir.Value, name: str) -> ir.Val
     return cbuf;
 }
 
-"""Box a C-laid-out struct pointer into an RC-managed Jac struct pointer."""
 impl NaIRGenPass._clib_box_c_ptr(c_ptr: ir.Value, name: str) -> ir.Value {
     box = self._clib_alloc_box(name);
     if not self._clib_has_nested(name) {
-        # Flat: Jac and C layouts coincide; copy the whole value.
         val = self.builder.load(c_ptr, name="clib.ret.load");
         self.builder.store(val, box);
     } else {
@@ -221,14 +182,6 @@ impl NaIRGenPass._clib_box_c_ptr(c_ptr: ir.Value, name: str) -> ir.Value {
     return box;
 }
 
-"""Marshal a foreign call from its stored System V ABI plan.
-
-`args` are the source argument values (1:1 with the declared parameters, before
-any register expansion). Struct arguments are materialized to C layout and then
-either sliced into register pieces or passed via a byval pointer; a MEMORY
-return is collected through an sret buffer. The result is reconstructed into the
-Jac representation (struct pointer) or returned as the scalar it is.
-"""
 impl NaIRGenPass._codegen_clib_call(
     func: ir.Function, func_name: str, args: list[ir.Value]
 ) -> (ir.Value | None) {
@@ -236,9 +189,7 @@ impl NaIRGenPass._codegen_clib_call(
     param_plans = plan["params"];
     ret_plan = plan["ret"];
     call_args: list = [];
-    # Call-site argument attributes. byval/sret must be marked on BOTH the
-    # declaration and the call instruction or LLVM passes the pointer in a
-    # register instead of copying the aggregate per the ABI.
+
     arg_attrs: dict = {};
     sret_buf = None;
     if plan["sret"] {
@@ -264,7 +215,6 @@ impl NaIRGenPass._codegen_clib_call(
         } elif kind == "struct_mem" {
             c_ptr = self._clib_materialize_c_ptr(jac_val, pp["sname"]);
             if pp["byval"] {
-                # System V: pass the pointer with `byval`; the backend copies.
                 byval_aa = ir.ArgumentAttributes();
                 byval_aa.add("byval");
                 byval_aa.type = self._clib_c_type(pp["sname"]);
@@ -273,7 +223,6 @@ impl NaIRGenPass._codegen_clib_call(
                 arg_attrs[len(call_args)] = byval_aa;
                 call_args.append(c_ptr);
             } else {
-                # AAPCS: pass a plain pointer to a caller-made copy.
                 _ct = self._clib_c_type(pp["sname"]);
                 _copy = self._entry_alloca(_ct, "clib.indir.copy");
                 self.builder.store(
@@ -282,14 +231,10 @@ impl NaIRGenPass._codegen_clib_call(
                 call_args.append(_copy);
             }
         } else {
-            # struct_reg: slice the C-laid-out struct into its register pieces.
             c_ptr = self._clib_materialize_c_ptr(jac_val, pp["sname"]);
             coerce = pp["coerce"];
             ct = ir.LiteralStructType(coerce);
             if pp["safe"] {
-                # AAPCS: a register coerce (i64 / [2 x i64] / [N x float]) can be
-                # wider than the struct, so copy into a coerce-sized buffer first
-                # to avoid reading past the struct's end.
                 _buf = self._entry_alloca(ct, "clib.arg.buf");
                 _sct = self._clib_c_type(pp["sname"]);
                 self.builder.store(
@@ -322,10 +267,7 @@ impl NaIRGenPass._codegen_clib_call(
     if rkind == "struct_reg" {
         sname = ret_plan["sname"];
         coerce = ret_plan["coerce"];
-        # AAPCS coerces (i64 / [2 x i64] / [N x float]) can be wider than the
-        # struct, so the receiving buffer is sized to the coerce, not the struct;
-        # the box step then reads back only the struct's bytes. System V sizes
-        # each eightbyte exactly, so its struct-sized buffer is in bounds.
+
         if ret_plan["safe"] {
             rbuf = self._entry_alloca(ir.LiteralStructType(coerce), "clib.ret.rbuf");
         } else {
@@ -354,8 +296,7 @@ impl NaIRGenPass._codegen_clib_call(
         );
         return self._clib_box_c_ptr(c_view, sname);
     }
-    # Scalar return: hand back exactly what C produced. No struct boxing — this
-    # is what closes gap #7 (an int return is never mistaken for a struct).
+
     if isinstance(result.type, ir.PointerType) {
         self._mark_owned(result);
     }

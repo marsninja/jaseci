@@ -1,6 +1,3 @@
-"""Transport abstraction layer implementations."""
-
-"""Create a success response with envelope pattern."""
 impl TransportResponse.success(
     data: any = None,
     msg_type: MessageType = MessageType.RESPONSE,
@@ -16,7 +13,6 @@ impl TransportResponse.success(
     return response;
 }
 
-"""Create an error response with envelope pattern."""
 impl TransportResponse.fail(
     code: str,
     message: str,
@@ -34,21 +30,19 @@ impl TransportResponse.fail(
     return response;
 }
 
-"""Serialize and send HTTP response. Converts TransportResponse to HTTP format."""
 impl HTTPTransport.send(data: any) -> None {
     if isinstance(data, TransportResponse) {
-        # Extract HTTP status from meta.extra or use defaults
         status = data.meta.extra.get('http_status', 200 if data.ok else 500)
             if data.meta.extra
             else (200 if data.ok else 500);
-        # Build response body following TransportResponse envelope pattern
+
         response_body = {
             'ok': data.ok,
             'type': data.type,
             'data': data.data,
             'error': None
         };
-        # Serialize error if present
+
         if not data.ok and data.error {
             error_obj = {};
             if data.error.code {
@@ -62,7 +56,7 @@ impl HTTPTransport.send(data: any) -> None {
             }
             response_body['error'] = error_obj;
         }
-        # Include metadata if present
+
         if data.meta {
             meta_dict = {};
             if data.meta.request_id {
@@ -81,7 +75,7 @@ impl HTTPTransport.send(data: any) -> None {
                 response_body['meta'] = meta_dict;
             }
         }
-        # Send HTTP response
+
         self.handler.send_response(status);
         self.handler.send_header('Content-Type', 'application/json');
         self.handler.send_header('Access-Control-Allow-Origin', '*');
@@ -91,14 +85,13 @@ impl HTTPTransport.send(data: any) -> None {
         );
         self.handler.end_headers();
         self.handler.wfile.write(json.dumps(response_body).encode());
-        # Store for any callbacks
+
         self.response_data = response_body;
     } else {
-        # For non-TransportResponse data (backward compatibility)
         self.response_data.update(data) if isinstance(data, dict) else None;
         self.response_data = data if not isinstance(data, dict) else self.response_data;
     }
-    # Trigger on_message callback if registered
+
     if self.on_message {
         self.on_message(data);
     }

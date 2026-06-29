@@ -1,21 +1,15 @@
-"""Implementation of target registry."""
-
-"""Register a new build target."""
 impl TargetRegistry.register(target: ClientTarget) -> None {
     self._targets[target.name] = target;
 }
 
-"""Get a target by name."""
 impl TargetRegistry.get(name: str) -> Optional[ClientTarget] {
     return self._targets.get(name);
 }
 
-"""Get all registered targets."""
 impl TargetRegistry.get_all -> list[ClientTarget] {
     return list(self._targets.values());
 }
 
-"""Create a target by name string from the plugin registry."""
 impl TargetFactory.create(name: str, project_dir: Path) -> ClientTarget {
     import from jaclang.runtimelib.client.targets.registry { get_target_registry }
     registry = get_target_registry();
@@ -29,7 +23,6 @@ impl TargetFactory.create(name: str, project_dir: Path) -> ClientTarget {
     return target;
 }
 
-"""Create a target by TargetType enum (preferred method)."""
 impl TargetFactory.create_by_type(
     target_type: TargetType, project_dir: Path
 ) -> ClientTarget {
@@ -37,7 +30,6 @@ impl TargetFactory.create_by_type(
     return self.create(target_type.value, project_dir);
 }
 
-"""Get list of available target names as strings."""
 impl TargetFactory.get_available_target_names -> list[str] {
     import from jaclang.runtimelib.client.targets.registry { get_target_registry }
     registry = get_target_registry();

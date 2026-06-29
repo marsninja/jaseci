@@ -1,9 +1,3 @@
-"""Implementation of help formatter."""
-
-# ===============================================================================
-# CommandGroups Implementation
-# ===============================================================================
-"""Get display name for a group."""
 impl CommandGroups.get_display_name(group: str) -> str {
     return self.groups.get(group, group.title());
 }
@@ -13,16 +7,12 @@ impl CommandGroups.get_ordered_groups -> list[str] {
     return self.group_order.copy();
 }
 
-# ===============================================================================
-# HelpFormatter Implementation
-# ===============================================================================
-"""Format the main help message with grouped commands."""
 impl HelpFormatter.format_main_help(
     commands: list[CommandSpec], prog: str = "jac", version: str | None = None
 ) -> str {
     import from jaclang.cli.command { CommandSpec }
     lines: list[str] = [];
-    # Header
+
     lines.append(f"Jac Programming Language CLI");
     if version {
         lines.append(f"Version: {version}");
@@ -34,7 +24,7 @@ impl HelpFormatter.format_main_help(
     lines.append("  -V, --version  Show version and exit");
     lines.append("  -h, --help     Show this message and exit");
     lines.append("");
-    # Group commands by category
+
     grouped: dict[str, list[CommandSpec]] = {};
     for cmd in commands {
         group = cmd.group or "general";
@@ -43,7 +33,7 @@ impl HelpFormatter.format_main_help(
         }
         grouped[group].append(cmd);
     }
-    # Sort groups by order
+
     ordered_groups = self.groups.get_ordered_groups();
     for group in ordered_groups {
         if group not in grouped {
@@ -55,10 +45,8 @@ impl HelpFormatter.format_main_help(
             continue;
         }
 
-        # Get display name
         display_name = self.groups.get_display_name(group);
 
-        # Check if all commands in group are from plugins
         sources = set(cmd.source for cmd in cmds);
         if len(sources) == 1 and "jaclang" not in sources {
             display_name += f"  [{list(sources)[0]}]";
@@ -66,17 +54,15 @@ impl HelpFormatter.format_main_help(
 
         lines.append(f"{display_name}:");
 
-        # Sort commands alphabetically within group
         cmds.sort(key=lambda c: str : c.name);
         for cmd in cmds {
-            # Format: "  name        description"
             padding = " " * (12 - len(cmd.name));
             lines.append(f"  {cmd.name}{padding}{cmd.help}");
         }
 
         lines.append("");
     }
-    # Handle any ungrouped commands (shouldn't happen but be safe)
+
     for group in grouped.keys() {
         if group not in ordered_groups {
             cmds = grouped[group];
@@ -96,6 +82,15 @@ impl HelpFormatter.format_main_help(
 # ===============================================================================
 # Module-level Functions Implementation
 # ===============================================================================
+impl get_command_groups -> CommandGroups {
+    import from jaclang.cli.help { CommandGroups }
+    global _groups;
+    if _groups is None {
+        _groups = CommandGroups();
+    }
+    return _groups;
+}
+
 """Get the global HelpFormatter instance."""
 impl get_help_formatter -> HelpFormatter {
     import from jaclang.cli.help { HelpFormatter }
