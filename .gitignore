@@ -99,8 +99,6 @@ jactastic/**
 
 # NA TUI build artifacts (built via jac/jaclang/cli/ai_tui_na/build.sh)
 jac/jaclang/cli/ai_tui_na/bin/
-jac/jaclang/cli/ai_tui_na/proto/rawmode_proto
-jac/jaclang/cli/ai_tui_na/proto/libtui_helpers.so
 jac/jaclang/cli/ai_tui_na/*.so
 
 # Local reference clones for TUI design (not vendored)

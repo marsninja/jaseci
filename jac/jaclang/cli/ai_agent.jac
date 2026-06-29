@@ -1,16 +1,3 @@
-"""Interactive Jac coding agent -- the engine behind `jac ai`.
-
-A terminal coding agent built as a byLLM ReAct loop wired to file and guide
-tools. The agent reads, writes, and debugs Jac code in the current project,
-grounded in the bundled Jac reference guides so it self-serves the
-authoritative spec for idiomatic Jac.
-
-This module is imported lazily by the `jac ai` command, so the core CLI keeps
-no hard dependency on the byLLM plugin. `run_agent` takes the resolved flags
-directly and builds the model from them before the session starts.
-"""
-
-# Implementations live in impl/ai_agent.impl.jac.
 import from jaclang.cli.agent_api { AgentRequest }
 import from typing { Callable }
 import from byllm.lib { Model }
@@ -211,6 +198,14 @@ obj ToolSpec {
         phases: set[type] = set();
 }
 
+obj HostCmd {
+    has names: list[str],
+        help_label: str,
+        help_desc: str,
+        takes_arg: bool,
+        handler: any;
+}
+
 def _project_root_of(start: str) -> str;
 def resolve_model_name(model_override: str = "") -> str;
 def _byllm_config -> any;
@@ -288,54 +283,21 @@ obj TurnStats {
 }
 
 
-"""Persistent storage for `jac ai` sessions: JSON CRUD over the cache dir.
-
-One session is one JSON file at `<root_dir>/sessions/<id>.json`, where
-`<root_dir>` is the env-derived cache dir (`JAC_AI_CACHE` override or the
-centralized platform default, see `cache_paths`) by default and a temp dir
-in tests. Mirrors `browser_engine`'s cache pattern.
-Writes are atomic (temp file + `os.replace`) so a Ctrl-C mid-save never leaves
-torn JSON, and a corrupt file is skipped on list/load with a warning rather
-than crashing the agent. `root_dir` empty means resolve the cache dir lazily on
-each call, so a test that overrides the `JAC_AI_CACHE` env after construction
-still picks it up.
-
-A record is a plain `dict` shaped as: id, name, cwd, created, updated, cfg,
-ledger ({changes, notes}), turns (per-turn objective + phase answers + stats),
-and totals (running token/tool counts). The store is format-agnostic -- it does
-not know about `Ledger` or `AgentConfig`; (de)serialization between the dict and
-those objects lives on the agent module (where those types are defined).
-"""
 obj SessionStore {
     has root_dir: str = "";
 
-    # Enumerate session records, newest-first by `updated`. When `cwd` is set,
-    # only sessions whose stored `cwd` matches are returned (isolation: a
-    # session belongs to the project it ran in).
     def list_sessions(cwd: str = "") -> list[dict];
-    # Load one record by id; returns None (and warns) if the file is missing or
-    # its JSON is corrupt -- never raises.
     def load(id: str) -> dict | None;
-    # Persist a record atomically: temp file + os.replace. Stamps `updated`.
     def save(record: dict) -> None;
-    # Remove a session's file; returns whether a file was removed.
     def delete(id: str) -> bool;
-    # Allocate a fresh record (id + timestamps + empty ledger/turns/totals) for
-    # a given cwd and optional name.
     def create(cwd: str, name: str = "") -> dict;
-    # The most recently updated session for a cwd, or None.
     def most_recent(cwd: str) -> dict | None;
-    # The existing session for a (cwd, name) pair, or None. Names are unique
-    # within a cwd (see create/save).
     def resolve_by_name(cwd: str, name: str) -> dict | None;
-    # Resolve `<root_dir>/sessions`, creating it on first use.
     def _dir -> str;
-    # The file path for one session id.
     def _path(id: str) -> str;
 }
 
 
-"""Builds a phase's system prompt: base rules + the node's own role + the ledger."""
 obj Prompt {
     static def for_phase(state_ty: type, objective: str, ledger: Ledger) -> str;
 }
@@ -539,15 +501,7 @@ walker AgentSession {
         stats: TurnStats,
         steps: int = 0,
         max_steps: int = 16,
-        # How many times a Build phase has ended writing nothing and been pushed
-        # back to actually write code; bounded so a model that simply cannot
-        # produce a file does not loop forever.
         build_nudges: int = 0,
-        # Per-turn phase transcript: {name, answer} pairs collected by
-        # PhaseState.step as the walker visits each phase. Fresh per spawn
-        # (one AgentSession per turn), then folded into the session record's
-        # `turns[].phases` for resume scrollback. Display-only -- never fed
-        # back into the model's ctx (see SESSIONS_PLAN §1 sub-decision).
         phases: list = [];
 
     can begin with Root entry;
