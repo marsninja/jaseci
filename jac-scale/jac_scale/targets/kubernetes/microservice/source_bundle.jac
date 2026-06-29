@@ -412,10 +412,10 @@ def experimental_bootstrap_script -> str {
         # shared volume, not an ephemeral project venv) from this same checkout
         # so PR changes to the plugins are tested too.
         f"{jac_bin} install -e ./jac-scale --extras all --global",
-        # Skip-when-absent (core-only forks may omit these) but let a genuine
+        # Skip-when-absent (core-only forks may omit it) but let a genuine
         # install failure propagate rather than swallowing it with `|| true`.
-        f"[ ! -d ./jac-byllm ] || {jac_bin} install -e ./jac-byllm --global",
-        f"[ ! -d ./jac-mcp ] || {jac_bin} install -e ./jac-mcp --global"
+        # (The MCP server is built into the jac binary -- no separate install.)
+        f"[ ! -d ./jac-byllm ] || {jac_bin} install -e ./jac-byllm --global"
     ];
     return " && ".join(steps);
 }

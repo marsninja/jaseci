@@ -280,19 +280,18 @@ obj KubernetesTarget(DeploymentTarget) {
             # finds them after `cd ..` (a bare `jac install` would target a
             # per-project .jac/venv that isn't on PATH at run time).
             commands.append('jac install -e ./jac-scale --extras all --global');
-            # byllm/mcp are optional: a core-only fork branch may not ship them,
-            # so skip-when-absent rather than failing the bootstrap.
+            # byllm is optional: a core-only fork branch may not ship it, so
+            # skip-when-absent rather than failing the bootstrap. (The MCP server
+            # is built into the jac binary now -- no separate install.)
             commands.append(
                 '[ ! -d ./jac-byllm ] || jac install -e ./jac-byllm --global'
             );
-            commands.append('[ ! -d ./jac-mcp ] || jac install -e ./jac-mcp --global');
             commands.append('cd ..');
         } else {
             packages = config.plugin_versions or {};
             jaclang_v = packages.get('jaclang', 'latest');
             scale_v = packages.get('jac_scale', 'latest');
             byllm_v = packages.get('jac_byllm', 'latest');
-            mcp_v = packages.get('jac_mcp', 'latest');
             # jaclang ships as the self-contained `jac` binary (not on PyPI); the
             # official installer fetches it from GitHub Releases onto PATH.
             # `--version` pins to a specific jaseci release; omit it for latest.
@@ -310,7 +309,8 @@ obj KubernetesTarget(DeploymentTarget) {
             # before `cd {app_mount_path}`, so a bare `jac install` would have no
             # project venv to target. Extras ride in the spec as PEP 508 brackets
             # (`jac-scale[all]`) because `--extras` is dropped for named packages.
-            # jac-scale[all] is always needed; byllm/mcp are opt-out via 'none'.
+            # jac-scale[all] is always needed; byllm is opt-out via 'none'. (The
+            # MCP server ships inside the jac binary -- no install needed.)
             if scale_v == 'latest' {
                 commands.append("jac install 'jac-scale[all]' --global");
             } else {
@@ -321,13 +321,6 @@ obj KubernetesTarget(DeploymentTarget) {
                     commands.append('jac install byllm --global');
                 } else {
                     commands.append(f'jac install byllm=={byllm_v} --global');
-                }
-            }
-            if mcp_v and mcp_v != 'none' {
-                if mcp_v == 'latest' {
-                    commands.append('jac install jac-mcp --global');
-                } else {
-                    commands.append(f'jac install jac-mcp=={mcp_v} --global');
                 }
             }
         }
