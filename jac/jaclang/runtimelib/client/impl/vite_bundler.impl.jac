@@ -476,18 +476,30 @@ impl ViteBundler._generate_vite_config_content(
         compiled_utils_relative = entry_relative[:-13] + '/compiled/client_runtime.js';
         compiled_pwa_relative = entry_relative[:-13] + '/compiled/pwa_runtime.js';
         compiled_desktop_relative = entry_relative[:-13] + '/compiled/desktop_api.js';
+        compiled_ui_relative = entry_relative[:-13] + '/compiled/client_ui.js';
         compiled_assets_relative = entry_relative[:-13] + '/compiled/assets';
     } elif entry_relative.endswith('build/main.js') {
         compiled_utils_relative = 'compiled/client_runtime.js';
         compiled_pwa_relative = 'compiled/pwa_runtime.js';
         compiled_desktop_relative = 'compiled/desktop_api.js';
+        compiled_ui_relative = 'compiled/client_ui.js';
         compiled_assets_relative = 'compiled/assets';
     } else {
         compiled_utils_relative = 'compiled/client_runtime.js';
         compiled_pwa_relative = 'compiled/pwa_runtime.js';
         compiled_desktop_relative = 'compiled/desktop_api.js';
+        compiled_ui_relative = 'compiled/client_ui.js';
         compiled_assets_relative = 'compiled/assets';
     }
+    # mobUI ``@jac/ui`` primitive surface: alias the bare specifier to the
+    # compiled ``client_ui.js`` and map ``react-native`` -> ``react-native-web``
+    # so the same source lowers to RNW on the web target (the native target wires
+    # these in its Metro scaffold instead). ``client_ui.js`` is always emitted by
+    # ``compile_ui_utils`` on the web path, so the alias always resolves.
+    ui_alias_str = (
+        f'\n      "@jac/ui": path.resolve(buildDir, "{compiled_ui_relative}"),'
+        f'\n      "react-native": "react-native-web",'
+    );
     # Check if PWA is enabled to add @jac/pwa alias
     pwa_alias_str = '';
     if self.config_loader.is_pwa_enabled() {
@@ -785,7 +797,7 @@ export default defineConfig({{
   }},
   resolve: {{
     alias: {{
-      "@jac/runtime": path.resolve(buildDir, "{compiled_utils_relative}"),{pwa_alias_str}{desktop_alias_str}{framework_alias_str}
+      "@jac/runtime": path.resolve(buildDir, "{compiled_utils_relative}"),{pwa_alias_str}{desktop_alias_str}{framework_alias_str}{ui_alias_str}
       "@jac-client/assets": path.resolve(buildDir, "{compiled_assets_relative}"),{user_aliases_str}
     }},
     extensions: [{extensions_str}],
@@ -907,7 +919,7 @@ export default defineConfig({{
   publicDir: false,
 {server_section}  resolve: {{
       alias: {{
-        "@jac/runtime": path.resolve(buildDir, "{compiled_utils_relative}"),{pwa_alias_str}{desktop_alias_str}{framework_alias_str}
+        "@jac/runtime": path.resolve(buildDir, "{compiled_utils_relative}"),{pwa_alias_str}{desktop_alias_str}{framework_alias_str}{ui_alias_str}
         "@jac-client/assets": path.resolve(buildDir, "{compiled_assets_relative}"),{user_aliases_str}
       }},
       extensions: [{extensions_str}],
