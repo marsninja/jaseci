@@ -1,6 +1,6 @@
 import from _socket_native {
     resolve_all,
-    gai_message,
+    gai_str,
     sock_open,
     sock_connect,
     sock_send,
@@ -49,12 +49,10 @@ obj:pub socket {
         host = address[0];
         port = address[1];
         service = str(port);
-        addrs = resolve_all(host, service);
+        (addrs, rc) = resolve_all(host, service);
         if len(addrs) == 0 {
             raise OSError(
-                "getaddrinfo failed for " + host + ":" + service + ": " + gai_message(
-                    host, service
-                )
+                "getaddrinfo failed for " + host + ":" + service + ": " + gai_str(rc)
             );
         }
         for sa in addrs {
@@ -108,12 +106,10 @@ def:pub create_connection(address: tuple[(str, int)]) -> socket {
     host = address[0];
     port = address[1];
     service = str(port);
-    addrs = resolve_all(host, service);
+    (addrs, rc) = resolve_all(host, service);
     if len(addrs) == 0 {
         raise OSError(
-            "getaddrinfo failed for " + host + ":" + service + ": " + gai_message(
-                host, service
-            )
+            "getaddrinfo failed for " + host + ":" + service + ": " + gai_str(rc)
         );
     }
     for sa in addrs {

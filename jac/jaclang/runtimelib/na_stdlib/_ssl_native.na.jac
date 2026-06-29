@@ -20,6 +20,7 @@ import from ssl { def SSL_free(ssl: int) -> None;  }
 
 import from crypto { def X509_verify_cert_error_string(n: i64) -> str;  }
 import from crypto { def ERR_get_error -> u64;  }
+import from crypto { def ERR_peek_error -> u64;  }
 import from crypto { def ERR_reason_error_string(e: u64) -> str;  }
 
 glob _SSL_CTRL_SET_TLSEXT_HOSTNAME: int = 55,
@@ -27,7 +28,11 @@ glob _SSL_CTRL_SET_TLSEXT_HOSTNAME: int = 55,
 
 glob _SSL_VERIFY_PEER: int = 1;
 
-glob _SSL_ERROR_ZERO_RETURN: int = 6;
+glob _SSL_ERROR_ZERO_RETURN: int = 6,
+     _SSL_ERROR_SSL: int = 1;
+
+glob _ERR_REASON_MASK: int = 8388607,
+     _SSL_R_UNEXPECTED_EOF_WHILE_READING: int = 294;
 
 
 def:pub ctx_new_verifying -> int {
@@ -117,10 +122,20 @@ def:pub ssl_read(ssl: int, bufsize: int) -> bytes {
     }
     buf = b"\x00" * bufsize;
     got = SSL_read(ssl, buf, bufsize);
-    if got <= 0 {
+    if got > 0 {
+        return buf[0:got];
+    }
+    err = SSL_get_error(ssl, got);
+    if err == _SSL_ERROR_ZERO_RETURN {
         return b"";
     }
-    return buf[0:got];
+    if err == _SSL_ERROR_SSL {
+        reason = ERR_peek_error() & _ERR_REASON_MASK;
+        if reason != _SSL_R_UNEXPECTED_EOF_WHILE_READING {
+            raise OSError("TLS read failed: " + last_error());
+        }
+    }
+    return b"";
 }
 
 

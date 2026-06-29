@@ -42,7 +42,11 @@ obj:pub SSLSocket {
     }
 
     def recv(bufsize: int) -> bytes {
-        return ssl_read(self._ssl, bufsize);
+        try {
+            return ssl_read(self._ssl, bufsize);
+        } except OSError as e {
+            raise SSLError("TLS read error");
+        }
     }
 
     def close {
@@ -68,6 +72,7 @@ obj:pub SSLContext {
     def wrap_socket(sock: Socket, server_hostname: str) -> SSLSocket {
         ctx = ctx_new_verifying();
         if ctx == 0 {
+            sock.close();
             raise SSLError("SSL_CTX_new failed");
         }
         loaded = 0;
@@ -78,11 +83,13 @@ obj:pub SSLContext {
         }
         if loaded != 1 {
             ctx_free(ctx);
+            sock.close();
             raise SSLError("could not load the CA trust store");
         }
         ssl = ssl_new_client(ctx, sock.fileno(), server_hostname, self.check_hostname);
         if ssl == 0 {
             ctx_free(ctx);
+            sock.close();
             raise SSLError("SSL_new failed");
         }
         if do_handshake(ssl) != 1 {
@@ -95,6 +102,7 @@ obj:pub SSLContext {
             }
             ssl_close(ssl);
             ctx_free(ctx);
+            sock.close();
             raise SSLError(msg);
         }
         return SSLSocket(_ssl=ssl, _ctx=ctx, _sock=sock);

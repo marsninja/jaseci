@@ -34,12 +34,12 @@ def:pub errno_message -> str {
 }
 
 
-def:pub resolve_all(host: str, service: str) -> list[bytes] {
+def:pub resolve_all(host: str, service: str) -> tuple[(list[bytes], int)] {
     out: list[bytes] = [];
     res_slot = b"\x00" * 8;
     rc = getaddrinfo(host, service, 0, res_slot);
     if rc != 0 {
-        return out;
+        return (out, rc);
     }
     head = int.from_bytes(res_slot, "little");
     cur = head;
@@ -58,20 +58,11 @@ def:pub resolve_all(host: str, service: str) -> list[bytes] {
     if head != 0 {
         freeaddrinfo(head);
     }
-    return out;
+    return (out, 0);
 }
 
 
-def:pub gai_message(host: str, service: str) -> str {
-    res_slot = b"\x00" * 8;
-    rc = getaddrinfo(host, service, 0, res_slot);
-    if rc == 0 {
-        head = int.from_bytes(res_slot, "little");
-        if head != 0 {
-            freeaddrinfo(head);
-        }
-        return "";
-    }
+def:pub gai_str(rc: int) -> str {
     return gai_strerror(rc);
 }
 
