@@ -232,8 +232,10 @@ test "native call resolves bundled stdlib signature, not typeshed (#7037)" {
     (eng, _) = compile_native("bundled_stdlib_sig.jac");
     pos = get_func(eng, "dumps_pos_len", ctypes.c_int64);
     kw = get_func(eng, "dumps_kw_len", ctypes.c_int64);
-    assert pos() == 4 , f"positional dumps len {pos()}";
-    assert kw() == 4 , f"keyword dumps len {kw()}";
+    pos_len = pos();
+    kw_len = kw();
+    assert pos_len == 4 , f"positional dumps len {pos_len}";
+    assert kw_len == 4 , f"keyword dumps len {kw_len}";
 }
 
 test "random" {
