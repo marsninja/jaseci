@@ -1,16 +1,3 @@
-"""Phase 4 PTY termios harness — validates the Darwin raw-mode flag table.
-
-macOS-only (exits 0 immediately on other platforms). Two checks:
-
-1. Constant probe: compare baked values in tty/libc_tty.darwin.na.jac against
-   the live Python termios attributes on the runner.
-
-2. PTY raw-mode gate: allocate a PTY, apply raw mode via tcsetattr, read back
-   with tcgetattr, and assert every mask the Darwin module applies.
-
-Run by build.sh; exits non-zero on any failure.
-"""
-
 import os;
 import sys;
 

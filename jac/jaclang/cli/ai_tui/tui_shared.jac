@@ -1,7 +1,4 @@
-"""Shared helpers for the `jac ai --tui` embed host launch + NA renderer. """
-
 def _debug_log(msg: str) -> None {
-    # Append-only trace, enabled only when JAC_AI_TUI_DEBUG_LOG points at a file.
     import os;
     import time;
 
@@ -53,8 +50,6 @@ def _frame_blob(frame: dict) -> str {
         ev = frame["ev"];
         delta = ev.get("_delta");
         if delta is not None {
-            # Streaming append: ship only the new token (O(token) not O(full_body)).
-            # Sidecar handles EVA by appending to the existing event text.
             ev_id = str(ev.get("id", 0));
             parts.append(f"EVA:{ev_id}:{_esc_text(delta)}");
         } else {
@@ -119,7 +114,6 @@ def _list_project_files(project: str) -> str {
 
 
 def _first_tty_stream -> object {
-    # stderr first -- matches historical probe order.
     import sys;
 
     for stream in (sys.stderr, sys.stdin, sys.stdout) {
@@ -153,7 +147,6 @@ def _probe_tty -> dict {
 
 
 def _require_tty -> str | None {
-    # return None on failure. Returns the tty device path on success ('' on Windows).
     import from jaclang.cli.console { console }
     probe = _probe_tty();
     if not probe["available"] {
@@ -203,8 +196,7 @@ def _configure_ui_env(r: any) -> dict {
     os.environ["JAC_AI_UI_NCTX"] = str(int(r?.n_ctx or 0));
     os.environ["JAC_AI_UI_FILES"] = files_env;
     os.environ["JAC_AI_UI_MODEL_PRESETS"] = presets_env;
-    # Session resume controls: forwarded from the AgentRequest so ui_configure
-    # can resolve/restore the right session instead of always starting fresh.
+
     os.environ["JAC_AI_UI_RESUME"] = str(r?.resume or "");
     os.environ["JAC_AI_UI_CONTINUE"] = "1" if bool(r?.continue_last) else "";
     os.environ["JAC_AI_UI_SESSION"] = str(r?.session_name or "");
@@ -319,10 +311,6 @@ def _resolve_jac_build_bin(pkg_root: any) -> str | None {
 
 
 def _embed_module_dir(name: str) -> str | None {
-    # The directory CONTAINING top-level module/package `name`, located WITHOUT
-    # importing it (find_spec only) -- so this works even where `name` cannot be
-    # imported into *this* interpreter. For a package, that is the parent of its
-    # package dir; for a single-file module, the parent of its origin file.
     import os;
     import from importlib { util }
 
@@ -351,13 +339,6 @@ def _embed_module_dir(name: str) -> str | None {
 
 
 def _embed_byllm_seams -> dict {
-    # Locate byLLM + its LLM-stack deps for the embed TUI host's runtime sys.path
-    # seams (host_embed.na.jac's _byllm_runtime_hook_py): the fused payload that
-    # host carries is jaclang-only, so its embedded interpreter resolves byLLM at
-    # launch from these env dirs. Computed by find_spec (never import) so it works
-    # from a fused parent where byLLM itself isn't importable. Returns
-    # {"src": <dir containing byllm/>, "deps": <os.pathsep-joined dep dirs>}; keys
-    # absent when nothing is found (the host then surfaces its own clean hint).
     import os;
 
     out: dict = {};
@@ -389,11 +370,6 @@ def _embed_byllm_seams -> dict {
 
 
 def _ensure_embed_host(cli_root: any) -> dict {
-    # Ensure the self-hosting embed TUI host (bin/jac-ai-tui) exists -- the sole
-    # `jac ai --tui` backend. Installed payloads ship it prebuilt (trailerless,
-    # runtime-borrowing); a dev tree compiles the self-contained (trailered) build
-    # on first launch via build_embed.sh, mirroring _ensure_na_artifact. Returns
-    # {"ok", "path", "error", "hint"}. JAC_AI_TUI_REBUILD=1 forces a rebuild.
     import os;
     import subprocess;
     import from jaclang.cli.console { console }
@@ -415,8 +391,6 @@ def _ensure_embed_host(cli_root: any) -> dict {
         return {"ok": True, "path": artifact, "error": "", "hint": ""};
     }
     if not os.path.isfile(source) or not os.path.isfile(build_sh) {
-        # Installed payload: no sources to (re)build from -- trust the prebuilt
-        # artifact if present, only fail when there is nothing to launch.
         if exists {
             return {"ok": True, "path": artifact, "error": "", "hint": ""};
         }
@@ -489,16 +463,6 @@ def _ensure_embed_host(cli_root: any) -> dict {
 def _ensure_na_artifact(
     pkg_root: any, artifact_path: str, source_file: str, label: str
 ) -> dict {
-    # Compile a NA build artifact on first launch when NA sources are present
-    # (dev tree); installed packages ship a prebuilt artifact. JAC_AI_TUI_REBUILD=1
-    # forces a recompile (dev iteration: pick up edits to *.na.jac without deleting
-    # bin/* by hand). build.sh / build.ps1 --quick builds both jac-na-tui and the
-    # shared lib, so the same invocation works for either artifact.
-    #
-    # pkg_root: jaclang/cli/ package root (parent of ai_tui_na/).
-    # artifact_path: full path to the built artifact -- also used in error messages.
-    # source_file: full path to a NA source file used to detect a dev tree.
-    # label: human-readable name used in console messages and error hints.
     import os;
     import sys;
     import subprocess;
@@ -518,7 +482,6 @@ def _ensure_na_artifact(
     build_sh = str(pkg_root / "ai_tui_na" / "build.sh");
     build_ps1 = str(pkg_root / "ai_tui_na" / "build.ps1");
 
-    # Select the build script and command for this platform.
     if sys.platform == "win32" {
         build_script = build_ps1;
         build_cmd = [
@@ -537,8 +500,6 @@ def _ensure_na_artifact(
     }
 
     if not os.path.isfile(source_file) or not os.path.isfile(build_script) {
-        # No sources to (re)build from. Use a prebuilt artifact if present
-        # (installed package); only fail when there is nothing to load.
         if exists {
             return {"ok": True, "error": "", "hint": ""};
         }

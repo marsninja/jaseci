@@ -1,28 +1,3 @@
-"""Pure-Jac terminal helpers — direct libSystem FFI, zero custom .c files.
-
-Opens the terminal device passed as JAC_AI_TUI_TTY by the control plane
-(typically /dev/ttys003), falling back to /dev/tty. Uses:
-  - scalar libSystem calls (open, read, write, dup2, fcntl, poll, …)
-  - calloc-backed str buffers for ioctl / tcgetattr / tcsetattr / poll
-
-Every binary struct handed to an FFI call (termios, struct pollfd[]) MUST live in
-calloc'd memory and be filled with memcpy/memset -- never built by `chr()` + `+`
-concatenation. NA strings are NUL-terminated, so concatenating any chr(0) byte
-silently truncates the buffer (a struct pollfd for fd 0 collapses to 0 bytes,
-poll then reports POLLNVAL and no keystroke or stdin frame is ever read).
-
-Type rule: Jac `int` for locals; `i32`/`i64` only in libSystem FFI decl slots.
-
-xnu struct termios layout (44 bytes, NCCS=20, no c_line field):
-  offset 0   c_iflag  (4 bytes)
-  offset 4   c_oflag  (4 bytes)
-  offset 8   c_cflag  (4 bytes)
-  offset 12  c_lflag  (4 bytes)
-  offset 16  c_cc[20] (20 bytes) -- VMIN=c_cc[16]@32, VTIME=c_cc[17]@33
-  offset 36  c_ispeed (4 bytes)
-  offset 40  c_ospeed (4 bytes)
-"""
-
 import os;
 
 import from "/usr/lib/libSystem.B.dylib" {
@@ -41,20 +16,13 @@ import from "/usr/lib/libSystem.B.dylib" {
     ) -> int;
 }
 
-# Both tcgetattr and tcsetattr take a 44-byte xnu-termios buffer via an i8*
-# (a calloc'd `str`). Passing a by-value `Termios` struct through NA FFI
-# mis-marshals the 44-byte aggregate and segfaults inside libSystem tcsetattr, so
-# we never pass structs by value -- only pointer buffers built as fresh strings.
-#
-# Constants that differ from Linux/glibc are annotated with the glibc value for
-# reference (glibc value in parentheses).
 glob O_RDWR: int = 2,
-     O_NONBLOCK: int = 4,  # xnu: 0x4    (linux glibc: 0x800)
+     O_NONBLOCK: int = 4,
      F_GETFL: int = 3,
      F_SETFL: int = 4,
      F_DUPFD: int = 10,
      TCSANOW: int = 0,
-     TIOCGWINSZ: int = 0x40087468,  # xnu _IOR('t',104,winsize) (linux: 0x5413)
+     TIOCGWINSZ: int = 0x40087468,
      POLLIN: int = 1,
      IGNBRK: int = 0x00000001,
      BRKINT: int = 0x00000002,
@@ -63,17 +31,17 @@ glob O_RDWR: int = 2,
      INLCR: int = 0x00000040,
      IGNCR: int = 0x00000080,
      ICRNL: int = 0x00000100,
-     IXON: int = 0x00000200,  # xnu: 0x200  (linux glibc: 0x400) -- 0x400 is IXOFF
+     IXON: int = 0x00000200,
      OPOST: int = 0x00000001,
      ECHO: int = 0x00000008,
-     ECHONL: int = 0x00000010,  # xnu: 0x10   (linux glibc: 0x40)
-     ICANON: int = 0x00000100,  # xnu: 0x100  (linux glibc: 0x02)
-     ISIG: int = 0x00000080,  # xnu: 0x80   (linux glibc: 0x01)
-     IEXTEN: int = 0x00000400,  # xnu: 0x400  (linux glibc: 0x8000)
-     CSIZE: int = 0x00000300,  # xnu: 0x300  (linux glibc: 0x30)
-     PARENB: int = 0x00001000,  # xnu: 0x1000 (linux glibc: 0x100)
-     CS8: int = 0x00000300,  # xnu: 0x300  (linux glibc: 0x30)
-     TERMIOS_SZ: int = 44;  # xnu: 44 bytes (linux glibc: 60)
+     ECHONL: int = 0x00000010,
+     ICANON: int = 0x00000100,
+     ISIG: int = 0x00000080,
+     IEXTEN: int = 0x00000400,
+     CSIZE: int = 0x00000300,
+     PARENB: int = 0x00001000,
+     CS8: int = 0x00000300,
+     TERMIOS_SZ: int = 44;
 
 obj TtyCtx {
     has fd: int = -1,
@@ -105,20 +73,12 @@ def u16le(buf: str, off: int) -> int {
 }
 
 def poke_u32(p: int, off: int, val: int) {
-    # Write a 32-bit little-endian word into calloc'd memory one byte at a time.
-    # memset (not chr()+concat) so embedded NUL bytes survive.
     memset(p + off, val & 0xFF, 1);
     memset(p + off + 1, (val >> 8) & 0xFF, 1);
     memset(p + off + 2, (val >> 16) & 0xFF, 1);
     memset(p + off + 3, (val >> 24) & 0xFF, 1);
 }
 
-# Build a fresh 44-byte termios buffer with raw-mode flags applied, in calloc'd
-# memory so NUL bytes in the flag words and c_cc[] survive (chr()+concat would
-# truncate at the first NUL, leaving tcsetattr a garbage struct -> the terminal
-# never actually enters raw mode). c_cc[] and speeds (bytes 16..43) are copied
-# verbatim from `saved` via memcpy; the four flag words are then poked in.
-# Returns the calloc pointer as a `str`; the caller MUST free() it.
 def build_raw_termios(saved: str) -> str {
     iflag: int = read_u32(saved, 0) & ~(
         IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON
@@ -132,8 +92,7 @@ def build_raw_termios(saved: str) -> str {
     poke_u32(p, 4, oflag);
     poke_u32(p, 8, cflag);
     poke_u32(p, 12, lflag);
-    # Non-canonical byte-at-a-time reads: VMIN=1 (c_cc[16]@32), VTIME=0 (c_cc[17]@33).
-    # xnu c_cc base offset is 16 (no c_line field); VMIN=16, VTIME=17 in <sys/termios.h>.
+
     memset(p + 32, 1, 1);
     memset(p + 33, 0, 1);
     out: str = p;
@@ -141,9 +100,6 @@ def build_raw_termios(saved: str) -> str {
 }
 
 def _tty_device_path -> str {
-    # Control plane sets JAC_AI_TUI_TTY to the parent's terminal (e.g. /dev/ttys003).
-    # open("/dev/tty") fails after setsid() (no controlling tty), so we need the
-    # explicit path when the sidecar runs in its own session.
     p = os.getenv("JAC_AI_TUI_TTY");
     if p is not None {
         if len(p) > 0 {
@@ -154,20 +110,14 @@ def _tty_device_path -> str {
 }
 
 def tty_open -> int {
-    # Subprocess entry: device chosen by JAC_AI_TUI_TTY / /dev/tty fallback.
     return tty_open_dev("");
 }
 
 def tty_fd -> int {
-    # The opened tty fd (>= 10 after relocation), or -1 if not open. Lets the
-    # in-process host (host.na.jac) render/poll against the tty it owns rather
-    # than fd 1, which in-process is the sv process's real stdout.
     return g_tty.fd;
 }
 
 def tty_open_dev(dev: str) -> int {
-    # Open an explicit tty device, or "" to use _tty_device_path(). The
-    # in-process host passes its foreground tty here; the subprocess passes "".
     path: str = dev;
     if len(path) == 0 {
         path = _tty_device_path();
@@ -176,14 +126,7 @@ def tty_open_dev(dev: str) -> int {
     if fd < 0 {
         return -1;
     }
-    # Relocate the tty fd above the stdio-remap range. open() hands back the lowest
-    # free fd -- typically 3, since the sidecar's 0/1/2 are pipes -- but
-    # tty_init_stdio_remap reuses fd 3 for the IPC channel (dup2(1, 3)) and would
-    # clobber the tty. Move it with dup2, NOT fcntl(F_DUPFD): fcntl is variadic and
-    # its min-fd arg is mis-marshaled through NA FFI (returns fd 0), which silently
-    # rebinds every subsequent tcgetattr/tcsetattr to stdin -- so the TTY only works
-    # by accident when stdin is itself a terminal, and fails under a piped stdin
-    # (exactly how `jac ai --tui` spawns this sidecar).
+
     if fd < 10 {
         if dup2(fd, 10) < 0 {
             close(fd);
@@ -199,12 +142,7 @@ def tty_open_dev(dev: str) -> int {
         return -1;
     }
     g_tty.saved_term = saved;
-    # Flag the save explicitly -- do NOT later gate the restore on len(saved).
-    # `saved` is the original termios held as a NUL-terminated NA str, so len()
-    # is a strlen that returns 0 whenever c_iflag's low byte is 0x00 (e.g. a
-    # cooked tty with c_iflag=ICRNL|IXON). That false "empty" reading would skip
-    # tcsetattr in tty_close and strand the terminal in raw mode (no ISIG -> the
-    # shell's Ctrl+C is dead after exit).
+
     g_tty.term_saved = 1;
     raw_buf: str = build_raw_termios(saved);
     rc: int = tcsetattr(fd, TCSANOW, raw_buf);
@@ -226,17 +164,10 @@ def tty_close {
     saved: str = g_tty.saved_term;
     if fd >= 0 {
         if g_tty.term_saved != 0 {
-            # `saved` already holds the original 44-byte termios; restore it
-            # directly as an i8* -- no struct round-trip needed.
             rc: int = tcsetattr(fd, TCSANOW, saved);
             if rc != 0 {
-                # If restoring the exact saved termios fails, try to at least
-                # restore canonical mode and signal handling so the terminal
-                # is usable after exit. This is a fallback to prevent leaving
-                # the terminal in a broken raw state.
                 fallback: str = calloc(TERMIOS_SZ, 1);
                 if tcgetattr(fd, fallback) == 0 {
-                    # Re-enable canonical mode, signals, and echo
                     lflag: int = read_u32(fallback, 12) | (ICANON | ISIG | ECHO);
                     poke_u32(fallback, 12, lflag);
                     tcsetattr(fd, TCSANOW, fallback);
@@ -284,12 +215,10 @@ def tty_cols -> int {
 }
 
 def tty_x_pixels -> int {
-    # Total terminal pixel width (ws_xpixel from TIOCGWINSZ). 0 if not reported.
     return g_tty.x_pixels;
 }
 
 def tty_y_pixels -> int {
-    # Total terminal pixel height (ws_ypixel from TIOCGWINSZ). 0 if not reported.
     return g_tty.y_pixels;
 }
 
@@ -300,10 +229,7 @@ def tty_poll(timeout_ms: int) {
     if fd < 0 {
         return;
     }
-    # struct pollfd[2] in calloc'd (NUL-safe) memory. Each entry is 8 bytes:
-    # { int fd; short events; short revents }. calloc zeroes fd-high bytes and
-    # revents; we poke in fd low bytes and events=POLLIN. Slot 0 = stdin (fd 0,
-    # already zeroed), slot 1 = the tty fd.
+
     p: int = calloc(16, 1);
     memset(p + 4, POLLIN, 1);
     memset(p + 8, fd & 0xFF, 1);
@@ -395,9 +321,6 @@ def tty_read_key -> str {
         return seq;
     }
     if c2 == 91 {
-        # CSI: read parameter/intermediate bytes until a final byte in
-        # 0x40-0x7E (@-~). Cap the run to bound a malformed stream. This
-        # captures 4-byte (\033[5~) and mouse (\033[<b;x;yM) sequences.
         while len(seq) < 32 {
             cn: int = tty_read_byte(fd);
             if cn < 0 {

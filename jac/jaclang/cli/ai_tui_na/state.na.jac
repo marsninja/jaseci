@@ -1,5 +1,3 @@
-"""TUI state: one Event per agent bus emit, one TuiState for the whole session."""
-
 import from .select_list { SelectList }
 
 obj AcItem {
@@ -84,10 +82,6 @@ obj EditorState {
     }
 }
 
-"""One wrapped transcript line: composed text plus the source event's kind so the
-renderer can derive its color/attr without reaching back into `events`.
-pre_styled: text already contains ANSI SGR codes and is padded to inner_w;
-the renderer skips _kind_sgr and emits the text directly."""
 obj DisplayRow {
     has text: str = "",
         kind: str = "",
@@ -100,9 +94,6 @@ obj Event {
         kind: str = "",
         text: str = "",
         node: str = "",
-        # Per-event render cache: skip md_render for events whose text and
-        # terminal width haven't changed since the last build_rows call.
-        # cache_text_len = -1 means "not cached" (initial / after text change).
         cache_text_len: int = -1,
         cache_width: int = -1,
         cached_rows: list[DisplayRow] = [];
@@ -118,45 +109,25 @@ obj TuiState {
         events: list[Event] = [],
         dirty: bool = True,
         editor: EditorState = EditorState(),
-        # Top visible DISPLAY-ROW index (not an event index).
         viewport_top: int = 0,
         term_rows: int = 24,
         term_cols: int = 80,
         quit_flag: bool = False,
-        # Command sink fd. >= 0: write commands to this pipe fd (subprocess
-        # transport). -1: enqueue into the in-process CmdQueue (ipc.na.jac),
-        # drained by the sv host. Set by tui_setup (tui_core.na.jac).
         ipc_fd: int = -1,
-        # Derived layout cache: display_rows is rebuilt from events+width by
-        # build_rows() whenever layout_dirty is set or layout_cols drifts from
-        # term_cols. follow_tail pins the viewport to the last row (streaming).
         display_rows: list[DisplayRow] = [],
         layout_cols: int = -1,
         layout_dirty: bool = True,
         follow_tail: bool = True,
-        # Overlay stack (phase 6): command palette / model / file pickers via
-        # SelectList. overlay_kind selects the on-select behavior in overlay.na.jac
-        # ("palette" | "model" | "file").
         overlay_active: bool = False,
         overlay_kind: str = "palette",
         overlay_title: str = "",
         overlay_filter: str = "",
         overlay_full_redraw: bool = False,
         select_list: SelectList = SelectList(),
-        # Project file list, read once at startup from JAC_AI_UI_FILES; the file
-        # picker filters this cache.
         files: list[str] = [],
-        # Quick-pick model names from JAC_AI_UI_MODEL_PRESETS (control plane
-        # copies ai_agent._MODEL_PRESETS); the model picker filters this cache.
         model_presets: list[str] = [],
-        # Inline autocomplete state (phase 7). Managed by autocomplete.na.jac.
         ac: AcState = AcState();
 
-    # A transcript/layout change is always a visible change, so it must both
-    # rebuild the display-row cache (layout_dirty, consumed by build_rows) AND
-    # repaint (dirty, the render gate). Funnelling both through one method keeps
-    # them in lockstep: a mutator can never mark the layout stale without also
-    # asking for a paint, which is the bug class this invariant removes.
     def mark_layout_dirty {
         self.dirty = True;
         self.layout_dirty = True;
@@ -172,8 +143,6 @@ obj TuiState {
     }
 
     def upsert_event(ev_id: int, kind: str, text: str, node_name: str) -> None {
-        # Special case: if backend sends the user message we added locally with ID -1,
-        # replace it with the real backend-assigned ID instead of creating a duplicate
         if kind == "user" and ev_id >= 0 {
             for ev in self.events {
                 if ev.id == -1 and ev.kind == "user" and ev.text == text {
@@ -194,7 +163,7 @@ obj TuiState {
                 if len(node_name) > 0 {
                     ev.node = node_name;
                 }
-                # Text replaced entirely — invalidate render cache.
+
                 ev.cache_text_len = -1;
                 self.mark_layout_dirty();
                 return;
@@ -209,8 +178,6 @@ obj TuiState {
         self.mark_layout_dirty();
     }
 
-    # Append delta text to an existing streaming event (EVA IPC line). Avoids
-    # shipping the full accumulated body on every token; ipc.na.jac calls this.
     def append_to_event(ev_id: int, delta: str) -> None {
         for ev in self.events {
             if ev.id == ev_id {
@@ -221,15 +188,13 @@ obj TuiState {
         }
     }
 
-    # Scrolling operates on display-row indices; clamping against the live
-    # transcript height happens in render (which knows the visible height).
     def scroll_up(n: int) {
         if self.viewport_top > n {
             self.viewport_top = self.viewport_top - n;
         } else {
             self.viewport_top = 0;
         }
-        # Detaching from the bottom: stop auto-following new rows.
+
         self.follow_tail = False;
         self.dirty = True;
     }

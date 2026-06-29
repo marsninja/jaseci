@@ -1,29 +1,6 @@
-"""NA-native TUI binary -- pure libc FFI, no custom C.
-
-IPC contract (see ipc.na.jac):
-  stdin  <- Python: key:value frames terminated by "---"
-  fd 3   -> Python: SEND:, STOP, RESET, QUIT, APPLY: commands  (after fd remap)
-  /dev/tty: keyboard in; ANSI rendering on fd 1
-
-Build:
-  cd ai_tui_na
-  ./build.sh
-"""
-
 import sys;
 import os;
 
-# The lifecycle logic now lives in tui_core; tui.na.jac only needs TuiState,
-# ipc_send_cmd, DiffEngine and the tui_core helpers. But the native cross-module
-# type resolver is ORDER-SENSITIVE: it resolves types in the DFS order the ENTRY
-# module imports them, and if a leaf type (e.g. select_list.SelectItem, reached
-# only via tui_core -> input -> overlay) is first seen too deep it resolves to
-# <Unknown> and the build dies with E5090/E2018. Importing the same flat module
-# set the pre-refactor entry imported (libc_tty, terminal, state, ipc, screen,
-# diff, input) PRIMES the resolver into the proven-good order. These imports are
-# otherwise unused here -- do not "clean them up" or the build regresses.
-# host.na.jac carries the same priming block for the --shared build.
-# Upstream fix tracked in jaseci-labs/jaseci#6793.
 import from .libc_tty {
     tty_open,
     tty_close,
@@ -50,9 +27,7 @@ import from .terminal {
     term_disable_mouse
 }
 import from .state { TuiState }
-# select_list primed explicitly so SelectItem is resolvable when overlay.na.jac is
-# DFS'd via screen; adding AcItem/AcState to state.na.jac (phase 7) disrupted the
-# implicit priming path that previously worked without this line.
+
 import from .select_list { SelectList, SelectItem }
 import from .ipc { ipc_read_frame_v2, ipc_send_cmd }
 import from .screen { screen_render }
@@ -63,29 +38,15 @@ import from .tui_core { tui_setup, tui_loop_once, tui_teardown }
 
 glob args = sys.argv;
 
-# Pure object construction (no libc) is safe in glob init.
 glob state: TuiState = TuiState(),
      diff_engine: DiffEngine = DiffEngine();
 
 glob proj = os.getenv("JAC_AI_UI_PROJECT");
 
-# Project file list for the file picker. The control plane computes it and
-# passes a newline-separated JAC_AI_UI_FILES env var (tui_shared.jac
-# `_list_project_files`), so the renderer needs no filesystem FFI -- which also
-# sidesteps the NA `str = calloc(...)` refcount double-free that bites any
-# in-binary file read.
 glob files_env = os.getenv("JAC_AI_UI_FILES");
 
-# Quick-pick model names for the model picker. The control plane copies
-# ai_agent._MODEL_PRESETS into JAC_AI_UI_MODEL_PRESETS (newline-separated).
 glob presets_env = os.getenv("JAC_AI_UI_MODEL_PRESETS");
 
-# The lifecycle is kept inside a function (invoked from `with entry`), never in
-# glob init: tui_setup() calls tty_open() / tty_init_stdio_remap(), which run
-# before the imported libc_tty module's `g_tty` glob is constructed if placed in
-# glob init -- a no-TTY run (piped/CI) then NULL-derefs `g_tty.fd_saved` and
-# segfaults before any output. setup/loop/teardown live in tui_core.na.jac so the
-# Phase-1 in-process host shares the same renderer with no duplication.
 def _run {
     proj_s: str = "";
     if proj is not None {

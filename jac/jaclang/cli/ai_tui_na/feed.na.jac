@@ -1,11 +1,3 @@
-"""Project Event objects into wrapped DisplayRows for the transcript panel.
-
-This is the single event-to-display seam: build_rows() turns events + width into
-the cached display_rows the renderer consumes. Wrapping uses only separate while
-loops (never the nested-for-reassigning-locals shape that segfaults in NA
-codegen) and is append-only.
-"""
-
 import from .state { Event, DisplayRow, TuiState }
 import from .markdown { md_render }
 import from .tool_block { tool_call_rows, tool_result_rows }
@@ -56,12 +48,6 @@ def event_text(ev: Event) -> str {
     return ev.text;
 }
 
-"""Wrap one newline-free logical line to `width`, emitting DisplayRows.
-
-The first row carries `first_pre`; every wrapped continuation carries
-`cont_pre`. A single while loop slices the text in fixed chunks (hard character
-wrap), so there is no nested control flow to trip the NA codegen bug.
-"""
 def _wrap_line(
     text: str,
     width: int,
@@ -80,7 +66,6 @@ def _wrap_line(
     }
     n = len(text);
     if n == 0 {
-        # Preserve blank lines as an empty (prefixed) row.
         out.append(DisplayRow(text=first_pre, kind=kind, is_continuation=False));
         return;
     }
@@ -102,16 +87,10 @@ def _wrap_line(
     }
 }
 
-"""Project one event into wrapped rows.
-
-answer and reasoning events are rendered as markdown (pre-styled ANSI rows).
-All other events use plain prefix-wrap.
-"""
 def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
     kind = ev.kind;
     body = event_text(ev);
 
-    # Markdown rendering for assistant answer and reasoning
     if kind == "answer" {
         md_rows = md_render(body, width, 220, 220, 220, 0);
         i: int = 0;
@@ -127,7 +106,6 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
         return;
     }
     if kind == "reasoning" {
-        # attrs=6: dim(2)+italic(4)
         md_rows = md_render(body, width, 160, 160, 160, 6);
         i: int = 0;
         n = len(md_rows);
@@ -142,7 +120,6 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
         return;
     }
 
-    # ToolBlock rendering for tool call and result events (pi tool-execution.ts patterns)
     if kind == "call" {
         tool_call_rows(ev.node, body, width, out);
         return;
@@ -152,7 +129,6 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
         return;
     }
 
-    # Image events: node = "mime:width_px:height_px", text = base64 data
     if kind == "img" {
         img_mime: str = "image/png";
         img_w: int = 0;
@@ -190,7 +166,6 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
         return;
     }
 
-    # Plain prefix-wrap for all other event kinds
     pre = event_prefix(ev);
     cont = "    ";
     parts = body.split("\n");
@@ -202,17 +177,6 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
     }
 }
 
-"""Rebuild state.display_rows from state.events at the current width.
-
-Width matches the renderer's inner content width (term_cols - 4). Records the
-width it built for in layout_cols and clears layout_dirty so render skips the
-rebuild until text or width changes again.
-
-Per-event render cache: events carry cache_text_len / cache_width / cached_rows
-so that only the event(s) whose text actually changed are re-rendered. On a
-streaming answer this means only the tail event is processed on each token —
-O(1) per token instead of O(N × L) — eliminating the GC-pressure blowup.
-"""
 def build_rows(state: TuiState) {
     width = state.term_cols - 4;
     if width < 20 {
@@ -222,12 +186,11 @@ def build_rows(state: TuiState) {
     i: int = 0;
     n = len(state.events);
     while i < n {
-        # Blank separator row between events for visual breathing room.
         if i > 0 {
             rows.append(DisplayRow(text="", kind="sep", is_continuation=False));
         }
         ev = state.events[i];
-        # Cache hit: event text and terminal width unchanged — reuse stored rows.
+
         if ev.cache_text_len == len(ev.text) and ev.cache_width == width {
             j: int = 0;
             nc = len(ev.cached_rows);
@@ -236,7 +199,6 @@ def build_rows(state: TuiState) {
                 j = j + 1;
             }
         } else {
-            # Cache miss: render fresh, update the per-event cache.
             event_rows: list[DisplayRow] = [];
             wrap_event(ev, width, event_rows);
             ev.cache_text_len = len(ev.text);

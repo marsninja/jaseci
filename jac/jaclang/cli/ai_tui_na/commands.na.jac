@@ -1,10 +1,3 @@
-"""Command registry: slash input, palette, and autocomplete share one source of truth.
-
-Add new slash/palette commands in `_cmd_defs()` only. `slash_submit` handles typed
-editor lines; `palette_commands` + `command_dispatch` handle the palette; slash AC
-pulls labels/descriptions from the same registry via `slash_ac_catalog`.
-"""
-
 import from .state { TuiState, AcItem }
 import from .select_list { SelectItem }
 import from .ipc { ipc_send_cmd }
@@ -219,7 +212,6 @@ def resolve_slash_line(text: str) -> str {
 }
 
 def command_dispatch(cmd: str, state: TuiState, ipc_fd: int) -> str {
-    # Returns: "quit" | "handled" | "open_model" | "open_file" | "" (unknown).
     d = _find_def(cmd);
     if d is None {
         return "";
@@ -261,8 +253,6 @@ def command_dispatch(cmd: str, state: TuiState, ipc_fd: int) -> str {
 }
 
 def slash_submit(text: str, state: TuiState, ipc_fd: int) -> str {
-    # Typed editor submit for slash lines. Returns the same codes as command_dispatch
-    # plus "" when the line is not a recognized slash command.
     if text.startswith("/settings ") {
         args = text[10:].strip();
         ipc_send_cmd(ipc_fd, f"APPLY:{args}");
@@ -302,8 +292,6 @@ def palette_commands(state: TuiState) -> list[SelectItem] {
 }
 
 def slash_ac_catalog(state: TuiState) -> list[AcItem] {
-    # Slash AC lists every slash_ac command regardless of running state (palette
-    # still hides /stop when idle). Overlay entries use palette_label (/files).
     items: list[AcItem] = [];
     defs = _cmd_defs();
     i: int = 0;
@@ -350,8 +338,6 @@ def file_items(state: TuiState) -> list[SelectItem] {
 }
 
 def apply_model(model: str, state: TuiState, ipc_fd: int) {
-    # APPLY:model=<name> tells the control plane to rebuild the model live
-    # (PROTOCOL.md).
     ipc_send_cmd(ipc_fd, f"APPLY:model={model}");
     state.dirty = True;
 }

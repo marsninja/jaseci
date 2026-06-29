@@ -1,13 +1,3 @@
-"""Component base objects for the pi-tui-inspired component spine.
-
-Component.render(width) -> list[str]: one string per terminal row (ANSI SGR
-codes allowed; no cursor-positioning sequences inside).
-
-Container.render concatenates children vertically.
-
-Phase 6: SelectList command palette via overlay.na.jac.
-"""
-
 obj Component {
     has _dirty: bool = True;
 

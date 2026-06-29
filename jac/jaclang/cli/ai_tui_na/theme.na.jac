@@ -1,12 +1,3 @@
-"""TUI palette — canonical RGB values and SGR attribute bitmasks.
-
-Import these constants in rendering modules; use them in ansi_sgr() calls
-inside function bodies (not at glob-init with libc). The hardcoded SGR string
-globs in screen.na.jac are generated from these same values.
-
-Palette inspiration: Dracula-ish dark with semantic accents.
-"""
-
 glob TH_BG_R: int = 18,
      TH_BG_G: int = 18,
      TH_BG_B: int = 28;
@@ -73,8 +64,6 @@ glob TH_STATUS_STOP_R: int = 255,
      TH_STATUS_STOP_G: int = 80,
      TH_STATUS_STOP_B: int = 80;
 
-# SGR attribute bitmasks (for ansi_sgr attrs parameter)
-# bit 0 = bold (1), bit 1 = dim (2), bit 2 = italic (4)
 glob TH_NONE: int = 0,
      TH_BOLD: int = 1,
      TH_DIM: int = 2,

@@ -1,17 +1,3 @@
-"""Phase 4 Win32 console gate — validates baked constants and VT output mode.
-
-Windows-only (exits 0 immediately on non-Windows). Two checks:
-
-1. Constant probe: verify the numeric values baked into tty/console.win32.na.jac
-   are consistent with the Win32 SDK documentation.
-
-2. VT output gate: if a console output handle is available, enable
-   ENABLE_VIRTUAL_TERMINAL_PROCESSING (0x0004) via kernel32 and verify.
-   Skipped when running headless (INVALID_HANDLE from GetStdHandle).
-
-Run by build.ps1; exits non-zero on any failure.
-"""
-
 import sys;
 
 def check_constant_table -> list {

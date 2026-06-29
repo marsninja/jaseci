@@ -1,5 +1,3 @@
-"""ctypes binding to the NA TUI renderer shared library (libtui.so)."""
-
 import from jaclang.cli.ai_tui.tui_shared { _ensure_na_artifact }
 
 
@@ -7,17 +5,12 @@ obj TuiHost {
     has lib: any = None;
 
     def load(lib_path: str) {
-        # Resolve to an absolute path before CDLL: a bare name only works if it is
-        # next to the loader or on the search path (a Windows footgun; harmless on
-        # Linux/macOS).
         import ctypes;
         import os;
 
         abs_path = os.path.abspath(lib_path);
         self.lib = ctypes.CDLL(abs_path);
 
-        # int <-> c_int64, str <-> c_char_p (the frame blob / command lines). The
-        # native TuiState never crosses the ABI, so no pointer/handle marshalling.
         self.lib.tui_init.restype = ctypes.c_int64;
         self.lib.tui_init.argtypes = [
             ctypes.c_char_p,
@@ -57,19 +50,14 @@ obj TuiHost {
     }
 
     def wait_key(timeout_ms: int) -> int {
-        # Lock-free: the GIL is released for the native poll(2). Returns 1 if a
-        # key is ready, 0 on timeout.
         return int(self.lib.tui_wait_key(int(timeout_ms)));
     }
 
     def handle_key -> int {
-        # MUTATES native TuiState; caller must hold the render lock. Returns 1 if
-        # the key requested quit.
         return int(self.lib.tui_handle_key());
     }
 
     def next_command -> str {
-        # Drain one queued command (FIFO), "" when empty. c_char_p returns bytes.
         raw = self.lib.tui_next_command();
         if raw is None {
             return "";
@@ -82,7 +70,6 @@ obj TuiHost {
     }
 
     def render -> int {
-        # Paints to the native-owned tty fd (NOT fd 1). Caller holds the lock.
         return int(self.lib.tui_render());
     }
 

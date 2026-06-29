@@ -71,9 +71,6 @@ glob registry = get_registry();
             default="",
             help="Open or create a named session for this project",
             short=""
-            # No short: -s is already taken by --safe (auto-generated). The
-            # long form is the only documented usage, so opt out of the
-            # first-char auto-short to avoid an argparse conflict.
         ),
 
     ],

@@ -1,20 +1,7 @@
-"""Inline autocomplete: fuzzy engine, trigger detection, item builders, apply.
-
-Triggers:
-  "slash"   - line starts with / and no space yet  (e.g. /mo -> /model)
-  "at_file" - last token before cursor starts with @ (e.g. @src -> @src/app.jac)
-
-Port of pi packages/tui/src/fuzzy.ts (matchQuery) and autocomplete.ts logic.
-"""
-
 import from .state { TuiState, AcItem, EditorState }
 import from .commands { slash_ac_catalog }
 
-# Fuzzy scoring (port of pi's fuzzy.ts matchQuery)
 def fuzzy_score(query: str, text: str) -> int {
-    # Returns -9999 on no match. Lower (more negative) score = better match.
-    # Exact match: -100 bonus. Consecutive chars: -5 each. Word boundary: -10.
-    # Gap between matched chars: +2 per skipped char.
     qn = len(query);
     tn = len(text);
     if qn == 0 {
@@ -44,7 +31,7 @@ def fuzzy_score(query: str, text: str) -> int {
                     score = score + (i - last_match - 1) * 2;
                 }
             }
-            # Word boundary bonus: start of text or after / - . _ space
+
             if i == 0 {
                 score = score - 10;
             } elif tl[i - 1] == "/"
@@ -71,7 +58,6 @@ def fuzzy_score(query: str, text: str) -> int {
     return score;
 }
 
-# Path helpers
 def _basename(path: str) -> str {
     n = len(path);
     i: int = n - 1;
@@ -84,11 +70,9 @@ def _basename(path: str) -> str {
     return path;
 }
 
-# Sort helpers (NA has no in-place list item assignment, use rebuild)
 def _sort_items_by_score(
     vals: list[str], labs: list[str], descs: list[str], scores: list[int]
 ) -> list[AcItem] {
-    # Selection sort: extract minimum-score item each round, building result.
     rem_v = vals;
     rem_l = labs;
     rem_d = descs;
@@ -108,7 +92,6 @@ def _sort_items_by_score(
             AcItem(value=rem_v[best], label=rem_l[best], description=rem_d[best])
         );
 
-        # Rebuild without picked index
         nv: list[str] = [];
         nl: list[str] = [];
         nd: list[str] = [];
@@ -131,9 +114,7 @@ def _sort_items_by_score(
     return result;
 }
 
-# Trigger detection
 def _extract_trigger(ed: EditorState) -> list[str] {
-    # Returns [kind, prefix, query]. kind="" means no completion active.
     if len(ed.lines) == 0 {
         return ["", "", ""];
     }
@@ -142,7 +123,6 @@ def _extract_trigger(ed: EditorState) -> list[str] {
     before = cur_line[:ed.cursor_col];
     blen = len(before);
 
-    # Slash command: must be on line 0, starts with /, no space yet.
     if ed.cursor_line == 0 and blen > 0 and before[0] == "/" {
         j: int = 1;
         has_space: bool = False;
@@ -159,7 +139,6 @@ def _extract_trigger(ed: EditorState) -> list[str] {
         return ["", "", ""];
     }
 
-    # @file: find the last @ token that starts at a word boundary.
     j: int = ed.cursor_col - 1;
     while j >= 0 {
         c = cur_line[j];
@@ -179,7 +158,6 @@ def _extract_trigger(ed: EditorState) -> list[str] {
     return ["", "", ""];
 }
 
-# Item builders
 def _slash_items(query: str, state: TuiState) -> list[AcItem] {
     catalog = slash_ac_catalog(state);
     vals: list[str] = [];
@@ -212,7 +190,6 @@ def _slash_items(query: str, state: TuiState) -> list[AcItem] {
     }
 
     if len(query) == 0 {
-        # No query: return in natural order
         items: list[AcItem] = [];
         j: int = 0;
         while j < len(vals) {
@@ -264,7 +241,6 @@ def _file_items(state: TuiState, query: str) -> list[AcItem] {
     }
 
     if len(query) == 0 {
-        # No query: return first 20 in order
         items: list[AcItem] = [];
         j: int = 0;
         while j < len(vals) and j < 20 {
@@ -274,7 +250,6 @@ def _file_items(state: TuiState, query: str) -> list[AcItem] {
         return items;
     }
 
-    # Sort by score and return top 20
     all_sorted = _sort_items_by_score(vals, labs, descs_, scores);
     result: list[AcItem] = [];
     j: int = 0;
@@ -285,9 +260,7 @@ def _file_items(state: TuiState, query: str) -> list[AcItem] {
     return result;
 }
 
-# Public API
 def ac_update(state: TuiState) {
-    # Recompute AC state from current editor content. Call after every edit.
     trigger = _extract_trigger(state.editor);
     kind = trigger[0];
     prefix = trigger[1];
@@ -325,7 +298,6 @@ def ac_update(state: TuiState) {
 }
 
 def ac_apply(state: TuiState) {
-    # Replace the trigger prefix in the editor with the selected item's value.
     if not state.ac.active or len(state.ac.items) == 0 {
         return;
     }

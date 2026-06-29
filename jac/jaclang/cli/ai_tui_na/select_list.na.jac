@@ -1,9 +1,3 @@
-"""Pi-style SelectList: filtered picker with keyboard navigation.
-
-SelectList.render(inner_w) returns content lines (no outer border).
-handle_key(key) returns: "none", "changed", "select", or "cancel".
-"""
-
 import from .width { visible_width, ansi_trunc, ansi_pad }
 import from .terminal { ansi_sgr, ansi_reset }
 import from .theme {
@@ -65,8 +59,7 @@ obj SelectList {
         if lbl.startswith(prefix) {
             return True;
         }
-        # Substring match: model names ("anthropic/claude-opus") and file paths
-        # ("src/foo.jac") are best filtered by any contained run, not just prefix.
+
         if val.find(prefix) >= 0 {
             return True;
         }

@@ -1,10 +1,3 @@
-"""Modal overlays composited on top of the base screen.
-
-Phase 6: center-anchored command palette, model picker, and file picker, all
-built on SelectList. state.overlay_kind ("palette" | "model" | "file") selects
-the on-select behavior.
-"""
-
 import from .state { TuiState }
 import from .commands {
     palette_commands,
@@ -110,7 +103,6 @@ def overlay_handle_key(key: str, state: TuiState, ipc_fd: int) -> bool {
             return False;
         }
 
-        # palette: run registry command; overlay kinds reopen nested pickers in place.
         result = command_dispatch(item.value, state, ipc_fd);
         if result == "open_model" {
             overlay_open_model(state);
@@ -169,7 +161,6 @@ def overlay_build_modal(state: TuiState, cols: int, rows: int) -> list[str] {
     sl = state.select_list;
     content = sl.render(inner_w);
 
-    # Optional filter hint row.
     if len(state.overlay_filter) > 0 {
         filt = f"filter: {state.overlay_filter}";
         filt = ansi_trunc(filt, inner_w);
@@ -212,7 +203,6 @@ def overlay_build_modal(state: TuiState, cols: int, rows: int) -> list[str] {
     bottom: str = border + "└" + term_dashes(modal_w - 2) + "┘" + reset;
     modal.append(bottom);
 
-    # Pad modal to center vertically: left/right margin on each row.
     margin = (cols - modal_w) // 2;
     if margin < 0 {
         margin = 0;
@@ -227,7 +217,6 @@ def overlay_build_modal(state: TuiState, cols: int, rows: int) -> list[str] {
         mi = mi + 1;
     }
 
-    # Center vertically within full terminal height.
     modal_h = len(padded);
     start_row = (rows - modal_h) // 2;
     if start_row < 1 {

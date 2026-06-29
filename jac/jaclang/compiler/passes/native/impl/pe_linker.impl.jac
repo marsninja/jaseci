@@ -57,13 +57,6 @@ impl PeLinker.parse_object -> bool {
         return False;
     }
 
-    # ── Detect BigObj (COFF extended format) ──────────────────────
-    # LLVM on Windows emits BigObj when a translation unit produces
-    # >65535 sections or symbols. BigObj signature: sig1=0x0000 at
-    # byte 0, sig2=0xFFFF at byte 2. Standard COFF has machine at
-    # byte 0 (0x8664 for AMD64) so the signatures never collide.
-    # BigObj header: 56 bytes. Symbol records: 20 bytes each (vs 18).
-    # SectionNumber in symbol is int32 (vs int16 in standard COFF).
     is_bigobj = raw[0:2] == b"\x00\x00" and raw[2:4] == b"\xff\xff";
 
     if is_bigobj {
@@ -91,8 +84,6 @@ impl PeLinker.parse_object -> bool {
     }
     strtab_off = psym + nsym * sym_size;
 
-    # ── Section headers ───────────────────────────────────────────
-    # Section header format is identical in standard and BigObj COFF.
     self.sections = [];
     for i in range(nsec) {
         off = sec_table_off + i * 40;
@@ -116,7 +107,7 @@ impl PeLinker.parse_object -> bool {
         }
         sec = CoffSection(name=name, characteristics=chars, data=data, vsize=vsize);
         self.sections.append(sec);
-        # Parse this section's relocations (REL-style, 10 bytes each).
+
         for r in range(nrel) {
             ro = prel + r * 10;
             (rva, symidx, rtype) = struct.unpack_from("<IIH", raw, ro);
@@ -126,9 +117,6 @@ impl PeLinker.parse_object -> bool {
         }
     }
 
-    # ── Symbol table (keep aux slots as None so indices line up) ──
-    # BigObj: 20-byte records, int32 SectionNumber ("<IiHBB").
-    # Standard:  18-byte records, int16 SectionNumber ("<IhHBB").
     sym_fmt = "<IiHBB" if is_bigobj else "<IhHBB";
     self.symbols = [];
     i = 0;

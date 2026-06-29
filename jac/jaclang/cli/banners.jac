@@ -51,26 +51,15 @@ def print_version_banner(version: str) {
     console.print();
 }
 
-"""Print header for server startup.
-
-    Args:
-        mode: Server mode (development, production, etc.)
-    """
 def print_startup_header(mode: str = 'development') {
     console.print('\n  JAC DEV SERVER', style='bold cyan');
     console.print();
 }
 
-"""Print a celebration message.
-
-    Args:
-        message: Message to display
-    """
 def print_celebration(message: str = 'Happy coding!') {
     console.print(f"🚀 {message}", style='bold green');
 }
 
-"""Print just the logos without version/platform info."""
 def print_logos {
     jac_lines = JAC_LOGO.split('\n');
     cli_lines = JAC_CLI_LOGO.split('\n');

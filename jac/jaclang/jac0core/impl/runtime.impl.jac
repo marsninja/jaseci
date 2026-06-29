@@ -565,18 +565,6 @@ impl JacBuiltin.printgraph(
 
 impl JacCmd.create_cmd -> None { }
 
-"""Run the `jac ai` coding agent -- the built-in implementation.
-
-This is the default hook implementation. With `--tui` it launches the
-self-hosting embed terminal UI (`jac-ai-tui`, the sole TUI backend); otherwise it
-lazily imports the byLLM-powered REPL agent so the core CLI keeps no hard
-dependency on byLLM. A plugin that registers its own `run_ai_agent` hook outranks
-this one and replaces the agent entirely.
-
-`--tui` execs the fused `jac-ai-tui` host: its renderer is linked Jac and its
-agent runs in an embedded CPython (`libjacpyembed`). See
-`jaclang.cli.ai_tui.run_tui_embed`.
-"""
 impl JacCmd.run_ai_agent(req: object) -> int {
     r: any = req;
     if bool(r?.tui) {
@@ -986,11 +974,6 @@ impl JacTest.run_test(
     if (filter or directory) {
         current_dir = directory or os.getcwd();
         for (root_dir, dirs, files) in os.walk(current_dir, topdown=True) {
-            # Prune hidden / build-cache / pycache directories in place so the
-            # walk never descends into them -- e.g. the per-project ".jac" build
-            # cache, which holds generated artifacts that are not test sources.
-            # Mutating the list in place is required: os.walk in topdown mode
-            # only honors pruning of the same list object it yields.
             dirs[:] = [
                 d
                 for d in dirs
@@ -1103,10 +1086,7 @@ impl JacGraph.refs(
 
     ctx = JacRuntimeInterface.get_context();
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
-    # Per-hop resolver. Walks the hop chain as a uniform fold where every
-    # hop locally picks index narrowing or anchor walk, so a single
-    # awkward hop never forfeits index narrowing on the rest of the chain.
-    # `resolve_path_anchors` always returns a list -- no slow-loop fallback.
+
     import from jaclang.runtimelib.resolver { resolve_path_anchors }
     if not path.edge_only {
         planned = resolve_path_anchors(ctx.mem, path, slc);
@@ -1657,7 +1637,7 @@ impl JacServe.create_server(
                         style="warning"
                     );
                 }
-                jac_server.port = actual_port;  # Update the server's port
+                jac_server.port = actual_port;
             }
             return server;
         } except OSError as e {
@@ -1712,7 +1692,6 @@ impl JacServe.send_css(handler: BaseHTTPRequestHandler, css_code: str) -> None {
     ResponseBuilder.send_css(handler, css_code);
 }
 
-"""Send static file response (images, fonts, etc.) -- built-in client framework."""
 impl JacServe.send_static_file(
     handler: BaseHTTPRequestHandler, file_path: Path, content_type: (str | None) = None
 ) -> None {

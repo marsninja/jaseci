@@ -1,15 +1,3 @@
-"""Phase-1 gate: load libtui shared library under CPython and exercise the
-:pub surface headlessly (no TTY).
-
-Validates:
-  - the shared lib loads via ctypes.CDLL;
-  - tui_apply_frame parses a canned KEY:VALUE blob into TuiState;
-  - tui_render_buf renders the screen and the event text shows up;
-  - tui_next_command is empty after a pure frame apply.
-
-Run by build.sh / build.ps1; exits non-zero on any failure.
-"""
-
 import ctypes;
 import os;
 import sys;
@@ -45,10 +33,6 @@ def main -> int {
     lib = ctypes.CDLL(lib_path);
     sys.stdout.write(f"ok: CDLL loaded {lib_path}\n");
 
-    # Use bare C names on all platforms. Darwin dlsym prepends '_' internally,
-    # so lib["tui_apply_frame"] resolves _tui_apply_frame in the export trie.
-    # lib[name] creates a new _FuncPtr each call; cache the objects so
-    # that restype/argtypes set below survive to the actual call.
     fn_apply_frame = lib["tui_apply_frame"];
     fn_apply_frame.restype = ctypes.c_int64;
     fn_apply_frame.argtypes = [ctypes.c_char_p];

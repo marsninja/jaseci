@@ -1,23 +1,7 @@
-"""Terminal image & hyperlink helpers — capability detection, Kitty/iTerm2
-encoding, OSC-8 hyperlinks. Ported from pi packages/tui/src/terminal-image.ts.
-
-Protocol detection is env-var only (no DA2 query) — correct for the supported
-terminal set and zero I/O at import time.
-
-Protocols:
-  Kitty  ESC_G params ; base64data ESC \\  (APC chunked at 4096 bytes)
-  iTerm2 ESC ] 1337 ; File=params : base64data BEL
-  OSC-8  ESC ] 8 ;; URL ESC \\ TEXT ESC ] 8 ;; ESC \\
-
-Image event node format: "mime/type:width_px:height_px"  (e.g. "image/png:640:480")
-Image event text: base64-encoded image data (escaped via the standard IPC escaping).
-"""
-
 import os;
 import from .libc_tty { tty_rows, tty_cols, tty_x_pixels, tty_y_pixels }
 
 def _getenv(name: str) -> str {
-    # Returns the env var value or "" if unset/None.
     v = os.getenv(name);
     if v is None {
         return "";
@@ -26,7 +10,6 @@ def _getenv(name: str) -> str {
 }
 
 def detect_image_protocol -> str {
-    # Kitty/iTerm2 image protocols don't work reliably inside tmux or screen.
     if len(_getenv("TMUX")) > 0 {
         return "";
     }
@@ -35,7 +18,6 @@ def detect_image_protocol -> str {
         return "";
     }
 
-    # Kitty-protocol terminals
     if len(_getenv("KITTY_WINDOW_ID")) > 0 {
         return "kitty";
     }
@@ -59,7 +41,6 @@ def detect_image_protocol -> str {
         return "kitty";
     }
 
-    # iTerm2-protocol terminals
     if len(_getenv("ITERM_SESSION_ID")) > 0 {
         return "iterm2";
     }
@@ -71,8 +52,6 @@ def detect_image_protocol -> str {
 }
 
 def detect_hyperlinks -> bool {
-    # tmux forwards OSC-8 only when client_termfeatures lists "hyperlinks" —
-    # we can't probe that from NA, so be conservative and disable by default.
     if len(_getenv("TMUX")) > 0 {
         return False;
     }
@@ -122,7 +101,6 @@ def detect_hyperlinks -> bool {
 }
 
 def term_hyperlink(text: str, url: str) -> str {
-    # OSC-8 hyperlink, or "text (url)" fallback for unsupported terminals.
     if not detect_hyperlinks() {
         return text + " (" + url + ")";
     }
@@ -130,8 +108,6 @@ def term_hyperlink(text: str, url: str) -> str {
 }
 
 def _encode_kitty(b64: str, cols: int, img_rows: int, img_id: int) -> str {
-    # Kitty graphics protocol: APC sequence chunked at 4096 bytes.
-    # a=T: transmit+display, f=100: PNG, q=2: quiet (no OK/ERR response).
     chunk_sz: int = 4096;
     params: str = "a=T,f=100,q=2";
     if cols > 0 {
@@ -171,7 +147,6 @@ def _encode_kitty(b64: str, cols: int, img_rows: int, img_id: int) -> str {
 }
 
 def _encode_iterm2(b64: str, cols: int) -> str {
-    # iTerm2 inline image protocol (OSC 1337).
     params: str = "inline=1";
     if cols > 0 {
         params = params + f";width={cols}";
@@ -181,13 +156,10 @@ def _encode_iterm2(b64: str, cols: int) -> str {
 }
 
 def image_fallback(mime: str, w_px: int, h_px: int) -> str {
-    # Text placeholder for terminals that don't support image protocols.
     return f"[Image: {mime} {w_px}x{h_px}]";
 }
 
 def _cell_px_w -> int {
-    # Width of one terminal cell in pixels. Falls back to 9 if the terminal
-    # didn't report pixel dimensions (common in xterm-compatible terminals).
     xpx = tty_x_pixels();
     cols = tty_cols();
     if xpx > 0 and cols > 0 {
@@ -197,7 +169,6 @@ def _cell_px_w -> int {
 }
 
 def _cell_px_h -> int {
-    # Height of one terminal cell in pixels. Falls back to 18.
     ypx = tty_y_pixels();
     rows = tty_rows();
     if ypx > 0 and rows > 0 {
@@ -207,10 +178,6 @@ def _cell_px_h -> int {
 }
 
 def image_rows(b64: str, mime: str, w_px: int, h_px: int, inner_w: int) -> list[str] {
-    # Render an image to a list of terminal rows. Returns [fallback_text] when
-    # the terminal has no image protocol. For Kitty/iTerm2, returns the APC/OSC
-    # sequence on row 0 followed by (img_cell_rows-1) empty placeholder rows so
-    # the diff engine reserves the correct height in the transcript.
     result: list[str] = [];
     proto = detect_image_protocol();
 
@@ -219,7 +186,6 @@ def image_rows(b64: str, mime: str, w_px: int, h_px: int, inner_w: int) -> list[
         return result;
     }
 
-    # Scale image to fit inner_w columns, preserving aspect ratio.
     if w_px <= 0 {
         w_px = 1;
     }
@@ -239,11 +205,10 @@ def image_rows(b64: str, mime: str, w_px: int, h_px: int, inner_w: int) -> list[
         cpx_h = 18;
     }
 
-    # max_px_w = the total pixel width available to the image
     max_px_w = inner_w * cpx_w;
-    # Scale factor (keep as integer * 1000 to avoid float)
+
     scale_num: int = max_px_w * 1000;
-    scale_k = scale_num // w_px;  # scaled_w_px = w_px * scale_k / 1000 = max_px_w
+    scale_k = scale_num // w_px;
 
     scaled_w_px = w_px * scale_k // 1000;
     scaled_h_px = h_px * scale_k // 1000;
@@ -267,9 +232,6 @@ def image_rows(b64: str, mime: str, w_px: int, h_px: int, inner_w: int) -> list[
         result.append(_encode_iterm2(b64, img_cols));
     }
 
-    # Placeholder rows: the image pixel data spans these terminal rows; the diff
-    # engine emits ESC[r;1H ESC[2K for each — that clears cell text but not Kitty
-    # pixel placements, so the image remains visible.
     i: int = 1;
     while i < img_cell_rows {
         result.append("");

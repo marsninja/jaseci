@@ -1,35 +1,12 @@
-"""Minimal markdown renderer: text -> ANSI-styled terminal rows.
-
-Each row is padded to `width` visible columns and self-contained (starts with
-the base SGR, ends with ESC[0m) so the diff engine can repaint any row without
-ANSI state carry-over between rows.
-
-Supported blocks:
-  # ## ###   headings
-  ```lang     fenced code blocks
-  - * +       unordered list items
-  N.          ordered list items
-  >           blockquotes
-  ---         horizontal rules
-  (blank)     blank separator rows
-  (other)     paragraph text
-
-Supported inline spans:
-  **bold**   *italic*   `code`   ~~strikethrough~~
-"""
-
 import from .terminal { ansi_sgr, term_spaces, term_dashes }
 import from .width { visible_width, ansi_pad }
 import from .terminal_image { term_hyperlink }
 
-# Background matches the TUI chrome (screen.na.jac BG_R/G/B)
 glob _BG_R: int = 18,
      _BG_G: int = 18,
      _BG_B: int = 28;
 
-# Block detectors
 def _md_is_blank(s: str) -> bool {
-    # True if line is empty or contains only whitespace.
     i: int = 0;
     n = len(s);
     while i < n {
@@ -43,7 +20,6 @@ def _md_is_blank(s: str) -> bool {
 }
 
 def _md_is_fence(s: str) -> bool {
-    # True if line starts with ``` (fenced code block marker).
     n = len(s);
     if n < 3 {
         return False;
@@ -52,7 +28,6 @@ def _md_is_fence(s: str) -> bool {
 }
 
 def _md_fence_lang(s: str) -> str {
-    # Language identifier after ```. Returns "" if absent.
     if len(s) <= 3 {
         return "";
     }
@@ -66,7 +41,6 @@ def _md_fence_lang(s: str) -> str {
 }
 
 def _md_heading_level(s: str) -> int {
-    # Returns 1/2/3 for ATX headings (# / ## / ###), 0 otherwise.
     n = len(s);
     if n < 2 or s[0] != "#" {
         return 0;
@@ -89,7 +63,6 @@ def _md_heading_level(s: str) -> int {
 }
 
 def _md_heading_text(s: str, level: int) -> str {
-    # Text after the # prefix and space.
     h_skip = level + 1;
     if len(s) <= h_skip {
         return "";
@@ -98,7 +71,6 @@ def _md_heading_text(s: str, level: int) -> str {
 }
 
 def _md_is_hr(s: str) -> bool {
-    # Three or more of the same char (- _ *) with optional spaces — no other chars.
     n = len(s);
     if n < 3 {
         return False;
@@ -124,7 +96,6 @@ def _md_is_hr(s: str) -> bool {
 }
 
 def _md_is_ul(s: str) -> bool {
-    # Unordered list item: starts with "- ", "* ", or "+ ".
     n = len(s);
     if n < 2 {
         return False;
@@ -134,7 +105,6 @@ def _md_is_ul(s: str) -> bool {
 }
 
 def _md_is_ol(s: str) -> bool {
-    # Ordered list item: one or more digits followed by ". ".
     n = len(s);
     if n < 3 {
         return False;
@@ -150,7 +120,6 @@ def _md_is_ol(s: str) -> bool {
 }
 
 def _md_ol_marker_end(s: str) -> int {
-    # Index of the first content char after "N. ".
     n = len(s);
     i: int = 0;
     while i < n and s[i] >= "0" and s[i] <= "9" {
@@ -173,9 +142,7 @@ def _md_bq_text(s: str) -> str {
     return s[1:];
 }
 
-# Inline span scanner
 def _md_find_close(s: str, start: int, delim: str, dlen: int) -> int {
-    # First index >= start where s[i:i+dlen] == delim.  Returns -1 if not found.
     n = len(s);
     i: int = start;
     while i + dlen <= n {
@@ -188,15 +155,12 @@ def _md_find_close(s: str, start: int, delim: str, dlen: int) -> int {
 }
 
 def _md_apply_inline(s: str, base_sgr: str) -> str {
-    # Apply inline markdown spans.  Normal text inherits whatever SGR the caller set.
-    # After each closing span emits ESC[0m + base_sgr to restore context.
     result: str = "";
     i: int = 0;
     n = len(s);
     while i < n {
         c = s[i];
 
-        # Inline code: `...`  — no inner formatting, yellow tint
         if c == "`" {
             j = _md_find_close(s, i + 1, "`", 1);
             if j >= 0 {
@@ -206,7 +170,6 @@ def _md_apply_inline(s: str, base_sgr: str) -> str {
             }
         }
 
-        # Bold: **...**  — checked before single-star italic
         if c == "*" and i + 1 < n and s[i + 1] == "*" {
             j = _md_find_close(s, i + 2, "**", 2);
             if j >= 0 {
@@ -216,7 +179,6 @@ def _md_apply_inline(s: str, base_sgr: str) -> str {
             }
         }
 
-        # Italic: *...*  (single star not followed by another *)
         if c == "*" and (i + 1 >= n or s[i + 1] != "*") {
             j = _md_find_close(s, i + 1, "*", 1);
             if j > i + 1 {
@@ -226,7 +188,6 @@ def _md_apply_inline(s: str, base_sgr: str) -> str {
             }
         }
 
-        # Strikethrough: ~~...~~
         if c == "~" and i + 1 < n and s[i + 1] == "~" {
             j = _md_find_close(s, i + 2, "~~", 2);
             if j >= 0 {
@@ -236,7 +197,6 @@ def _md_apply_inline(s: str, base_sgr: str) -> str {
             }
         }
 
-        # Inline link: [text](url) — OSC-8 hyperlink or "text (url)" fallback
         if c == "[" {
             j = _md_find_close(s, i + 1, "]", 1);
             if j > i {
@@ -261,10 +221,7 @@ def _md_apply_inline(s: str, base_sgr: str) -> str {
     return result;
 }
 
-# Word wrap
 def _md_wrap(styled: str, width: int, base_sgr: str) -> list[str] {
-    # Word-wrap `styled` (may contain ANSI codes) to `width` visible columns.
-    # Each output row starts with base_sgr, is padded to width, and ends with ESC[0m.
     result: list[str] = [];
     words = styled.split(" ");
     current: str = "";
@@ -300,7 +257,6 @@ def _md_wrap(styled: str, width: int, base_sgr: str) -> list[str] {
 }
 
 def _md_append(src: list[str], dst: list[str]) {
-    # Append all rows from src into dst.
     i: int = 0;
     n = len(src);
     while i < n {
@@ -309,28 +265,18 @@ def _md_append(src: list[str], dst: list[str]) {
     }
 }
 
-# Public entry
 def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list[str] {
-    # Render markdown text into ANSI-styled rows of exactly `width` visible columns.
-    # r/g/b: base text colour; attrs bitmask: bold=1, dim=2, italic=4.
     base_sgr = ansi_sgr(r, g, b, _BG_R, _BG_G, _BG_B, attrs);
     result: list[str] = [];
 
-    # Per-element SGR codes (computed inside function body, not at glob-init)
-    h1_sgr = ansi_sgr(255, 215, 100, _BG_R, _BG_G, _BG_B, 1);  # bold warm gold
-    h2_sgr = ansi_sgr(130, 200, 255, _BG_R, _BG_G, _BG_B, 1);  # bold sky blue
-    h3_sgr = ansi_sgr(150, 220, 180, _BG_R, _BG_G, _BG_B, 1);  # bold sage green
-    code_line_sgr = ansi_sgr(
-        190, 190, 210, 28, 28, 45, 0
-    );  # code body: light text, elevated bg
-    code_fence_sgr = ansi_sgr(
-        100, 100, 140, _BG_R, _BG_G, _BG_B, 2
-    );  # dim ``` delimiters
-    bq_text_sgr = ansi_sgr(
-        170, 190, 210, _BG_R, _BG_G, _BG_B, 4
-    );  # italic blockquote text
-    bq_bar_sgr = ansi_sgr(80, 120, 160, _BG_R, _BG_G, _BG_B, 0);  # blockquote │ bar
-    hr_sgr = ansi_sgr(70, 70, 100, _BG_R, _BG_G, _BG_B, 2);  # dim horizontal rule
+    h1_sgr = ansi_sgr(255, 215, 100, _BG_R, _BG_G, _BG_B, 1);
+    h2_sgr = ansi_sgr(130, 200, 255, _BG_R, _BG_G, _BG_B, 1);
+    h3_sgr = ansi_sgr(150, 220, 180, _BG_R, _BG_G, _BG_B, 1);
+    code_line_sgr = ansi_sgr(190, 190, 210, 28, 28, 45, 0);
+    code_fence_sgr = ansi_sgr(100, 100, 140, _BG_R, _BG_G, _BG_B, 2);
+    bq_text_sgr = ansi_sgr(170, 190, 210, _BG_R, _BG_G, _BG_B, 4);
+    bq_bar_sgr = ansi_sgr(80, 120, 160, _BG_R, _BG_G, _BG_B, 0);
+    hr_sgr = ansi_sgr(70, 70, 100, _BG_R, _BG_G, _BG_B, 2);
 
     lines = text.split("\n");
     in_fence: bool = False;
@@ -340,13 +286,11 @@ def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list
     while i < nlines {
         line = lines[i];
 
-        # Strip trailing carriage return (CRLF input)
         ll = len(line);
         if ll > 0 and line[ll - 1] == "\r" {
             line = line[:ll - 1];
         }
 
-        # Inside a fenced code block
         if in_fence {
             if _md_is_fence(line) {
                 close_row = code_fence_sgr + "```";
@@ -360,7 +304,6 @@ def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list
             continue;
         }
 
-        # Block detection (checked in priority order)
         if _md_is_blank(line) {
             result.append(base_sgr + ansi_pad("", width) + "\033[0m");
             i = i + 1;
@@ -397,7 +340,6 @@ def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list
             continue;
         }
 
-        # hr checked before ul/ol so "---" is a rule, not a list item
         if _md_is_hr(line) {
             hr_w = width;
             if hr_w > 80 {
@@ -478,7 +420,6 @@ def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list
             continue;
         }
 
-        # Paragraph: inline-format and word-wrap
         styled = _md_apply_inline(line, base_sgr);
         wrapped = _md_wrap(styled, width, base_sgr);
         _md_append(wrapped, result);

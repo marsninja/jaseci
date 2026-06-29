@@ -1,5 +1,3 @@
-"""IPC frame parser: converts text lines from the Python bridge to TuiState."""
-
 import from .state { TuiState }
 
 import from .libc_tty { tty_read_line, tty_write }
@@ -61,7 +59,6 @@ def _parse_ev_val(state: TuiState, val: str) -> None {
 }
 
 def _parse_eva_val(state: TuiState, val: str) -> None {
-    # EVA:<id>:<escaped_delta> — append delta to existing streaming event text.
     i1 = val.find(":");
     if i1 < 0 {
         return;
@@ -79,8 +76,6 @@ def _parse_eva_val(state: TuiState, val: str) -> None {
 }
 
 def ipc_apply_line(state: TuiState, key: str, val: str) {
-    # EV/EVA mutate the transcript through TuiState, which marks itself dirty
-    # (mark_layout_dirty), so they own their own repaint.
     if key == "EV" {
         _parse_ev_val(state, val);
         return;
@@ -90,11 +85,6 @@ def ipc_apply_line(state: TuiState, key: str, val: str) {
         return;
     }
 
-    # The rest are scalar status fields painted in the header/footer; a change to
-    # any of them must repaint. Marking dirty once here -- where the field is
-    # actually written -- follows the same "owner sets the flag" rule as the
-    # input/scroll handlers and the transcript mutators, so the render gate can
-    # stay a plain `dirty` check (no special-casing in ipc_parse_frame).
     if key == "STATUS" {
         state.status = val;
     } elif key == "ACTIVE" {
@@ -111,12 +101,6 @@ def ipc_apply_line(state: TuiState, key: str, val: str) {
     state.dirty = True;
 }
 
-# Parse one already-assembled frame `blob` (KEY:VALUE lines joined by "\n", the
-# trailing "---" optional) into `state`. Transport-agnostic: the subprocess path
-# (ipc_read_frame_v2) builds the blob from the pipe; the in-process host passes
-# the exact same text from tui_apply_frame. Always returns True (an empty/hb
-# frame is a no-op); EOF detection stays in the pipe reader. Reuses _unescape /
-# _parse_ev_val / ipc_apply_line unchanged.
 def ipc_parse_frame(state: TuiState, blob: str) -> bool {
     lines: list[str] = [];
     for raw in blob.split("\n") {
@@ -162,10 +146,6 @@ def ipc_parse_frame(state: TuiState, blob: str) -> bool {
         ipc_apply_line(state, key, val);
     }
 
-    # No blanket dirty set here: each ipc_apply_line either writes a status field
-    # (and marks dirty) or delegates to a TuiState mutator (which marks dirty via
-    # mark_layout_dirty). A frame that changes nothing on screen leaves the gate
-    # alone instead of forcing a needless repaint.
     return True;
 }
 
@@ -192,10 +172,6 @@ def ipc_read_frame_v2(state: TuiState) -> bool {
     return ipc_parse_frame(state, blob);
 }
 
-# In-process command sink. Native enqueues command strings here when there is no
-# IPC pipe fd; the sv host drains them via tui_next_command(). Must be
-# an `obj` glob with list/cursor FIELDS -- bare scalar globs don't persist writes
-# across :pub calls in NA codegen (jaseci-labs/jaseci#6816).
 obj CmdQueue {
     has items: list[str] = [],
         cursor: int = 0;
@@ -204,8 +180,6 @@ obj CmdQueue {
         self.items.append(cmd);
     }
 
-    # FIFO drain: next queued command, "" when empty. Compacts on drain so the
-    # backing list does not grow unbounded across the session.
     def pop_next -> str {
         if self.cursor >= len(self.items) {
             self.items = [];
@@ -223,11 +197,8 @@ obj CmdQueue {
     }
 }
 
-# Pure object construction is safe in glob init (no libc).
 glob cmd_queue: CmdQueue = CmdQueue();
 
-# fd >= 0: write the command to the pipe (subprocess transport). fd < 0: enqueue
-# into cmd_queue for the in-process host to pull (same command grammar).
 def ipc_send_cmd(fd: int, cmd: str) {
     if fd < 0 {
         cmd_queue.push(cmd);
@@ -236,15 +207,10 @@ def ipc_send_cmd(fd: int, cmd: str) {
     tty_write(fd, cmd + "\n");
 }
 
-# Pull the next queued in-process command (FIFO), "" when drained. The sv host
-# calls this in a loop after tui_handle_key and feeds each line to
-# _dispatch_cmd -- the exact SEND:/STOP/RESET/QUIT/APPLY: grammar as the pipe.
 def ipc_next_command -> str {
     return cmd_queue.pop_next();
 }
 
-# Drop any queued commands. Called from tui_init so idempotent re-init in the
-# same process does not inherit undrained lines from a prior session.
 def ipc_clear_cmd_queue {
     cmd_queue.clear();
 }

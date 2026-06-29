@@ -1466,10 +1466,8 @@ impl JacAPIServer.postinit -> None {
     self.scheduler = Scheduler.instance();
     if self.port > 0 {
         self.server = Jac.create_server(self, '0.0.0.0', self.port);
-        # Note: Jac.create_server updates self.port if a different port was used
     } elif self.port == 0 and os.environ.get("JAC_ALLOW_EPHEMERAL_PORT") == "1" {
         self.server = Jac.create_server(self, '127.0.0.1', 0);
-        # OS-assigned port; self.port updated by create_server
     } else {
         self.server = None;
     }
@@ -2220,8 +2218,6 @@ impl JacAPIServer.start(
             console.print(file=sys.stderr);
         }
         write_server_ready_file(self.port);
-        # Call the ready callback with actual port (e.g., to print startup banner)
-        # Try new signature (with port) first, fall back to old signature for cached code
         if on_ready {
             try {
                 on_ready(self.port);
@@ -2239,7 +2235,6 @@ impl JacAPIServer.start(
     }
 }
 
-"""Write the bound port to JAC_SERVER_READY_FILE when set (e.g. `jac ai --tui`)."""
 impl write_server_ready_file(port: int) -> None {
     import from pathlib { Path }
     ready_file = os.environ.get("JAC_SERVER_READY_FILE", "");
@@ -2250,7 +2245,6 @@ impl write_server_ready_file(port: int) -> None {
     }
 }
 
-"""Print comprehensive documentation for all endpoints that would be generated."""
 impl print_endpoint_docs(server: JacAPIServer) -> None {
     server.introspector.load();
     functions = server.introspector.get_functions();

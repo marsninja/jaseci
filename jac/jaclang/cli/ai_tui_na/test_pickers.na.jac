@@ -1,17 +1,3 @@
-"""Headless logic tests for the phase-6 overlay pickers and phase-7 autocomplete.
-
-Pure-logic only: exercises SelectList filtering/navigation/key handling and the
-command/model/file item builders without opening a terminal, so it runs in CI
-with no controlling TTY. Build + run:
-
-  jac nacompile test_pickers.na.jac -o bin/test_pickers && ./bin/test_pickers
-
-All work lives in run_tests(); `with entry` only invokes it. Keeping the body in
-a function (not directly under `with entry`) stops the jac formatter from
-hoisting locals into module globals. Output goes to fd 1 via tty_write (print is
-lint-banned). Exits 0 when every check passes, 1 otherwise.
-"""
-
 import sys;
 
 import from .libc_tty { tty_write }
@@ -45,11 +31,6 @@ def _has_value(items: list[SelectItem], value: str) -> bool {
 }
 
 def run_tests -> int {
-    # Alive marker on stderr (fd 2), before any logic runs. Lets CI distinguish
-    # the failure mode when the binary exits non-zero with no stdout:
-    #   marker + checks visible  → an assertion failed (see the FAIL lines)
-    #   marker, then checks stop → crash mid-logic (right after the last `ok`)
-    #   marker only / none       → crash in startup/init or the stdout path
     tty_write(2, "test_pickers: run_tests reached\n");
     emit("test_pickers");
     fails: int = 0;
@@ -65,7 +46,6 @@ def run_tests -> int {
     ];
     state.files = ["src/app.jac", "src/util.jac", "README.md", "docs/guide.md"];
 
-    # palette entries
     pal = palette_commands(state);
     fails += check("palette exposes /model", _has_value(pal, "open_model"));
     fails += check("palette exposes /files", _has_value(pal, "open_file"));
@@ -85,7 +65,6 @@ def run_tests -> int {
         "resolve /models -> open_model", resolve_slash_line("/models") == "open_model"
     );
 
-    # model items mirror the presets and flag the current model
     models = model_items(state);
     fails += check(
         "model_items count matches presets", len(models) == len(state.model_presets)
@@ -102,12 +81,10 @@ def run_tests -> int {
     }
     fails += check("model_items marks current model", cur_marked);
 
-    # file items map the cached file list
     files = file_items(state);
     fails += check("file_items count matches cache", len(files) == 4);
     fails += check("file_items carries paths", files[0].value == "src/app.jac");
 
-    # SelectList substring filter
     sl = SelectList();
     sl.reset_items(file_items(state));
     sl.set_filter("util");
@@ -119,7 +96,6 @@ def run_tests -> int {
     sl.set_filter("");
     fails += check("empty filter restores all", len(sl.filtered) == 4);
 
-    # navigation wraps
     sl.selected = 0;
     sl.move_up();
     fails += check("move_up from top wraps to last", sl.selected == 3);
@@ -128,7 +104,6 @@ def run_tests -> int {
     sl.move_down();
     fails += check("move_down advances", sl.selected == 1);
 
-    # handle_key actions
     sl2 = SelectList();
     sl2.reset_items(model_items(state));
     fails += check("typing filters (changed)", sl2.handle_key("g") == "changed");
@@ -140,13 +115,11 @@ def run_tests -> int {
     sl2.handle_key("\177");
     fails += check("backspace clears filter char", sl2.filter_text == "");
 
-    # current() bounds
     sl3 = SelectList();
     empty: list[SelectItem] = [];
     sl3.reset_items(empty);
     fails += check("current() is None when empty", sl3.current() is None);
 
-    # Autocomplete: fuzzy_score
     fails += check("fuzzy empty query -> 0", fuzzy_score("", "model") == 0);
     fails += check("fuzzy no match -> -9999", fuzzy_score("xyz", "model") == -9999);
     fails += check(
@@ -161,16 +134,13 @@ def run_tests -> int {
         fuzzy_score("mo", "model") < fuzzy_score("mo", "macro")
     );
 
-    # Autocomplete: ac_update slash trigger
     ac_s = TuiState();
     ac_s.files = ["src/app.jac", "src/util.jac", "README.md", "docs/api.md"];
     ac_s.model_presets = ["anthropic/claude-sonnet-4-6"];
 
-    # Empty editor -> no AC
     ac_update(ac_s);
     fails += check("ac: empty editor -> inactive", not ac_s.ac.active);
 
-    # Type "/" -> slash trigger with all 6 commands
     ac_s.editor.lines = ["/"];
     ac_s.editor.cursor_col = 1;
     ac_update(ac_s);
@@ -178,7 +148,6 @@ def run_tests -> int {
     fails += check("ac: / kind=slash", ac_s.ac.kind == "slash");
     fails += check("ac: / -> 6 commands", len(ac_s.ac.items) == 6);
 
-    # Type "/m" -> only /model matches
     ac_s2 = TuiState();
     ac_s2.files = ["src/app.jac"];
     ac_s2.editor.lines = ["/m"];
@@ -195,7 +164,6 @@ def run_tests -> int {
     }
     fails += check("ac: /m -> /model in items", has_model);
 
-    # No match -> dismissed
     ac_s3 = TuiState();
     ac_s3.files = [];
     ac_s3.editor.lines = ["/zzz"];
@@ -203,7 +171,6 @@ def run_tests -> int {
     ac_update(ac_s3);
     fails += check("ac: /zzz -> dismissed", not ac_s3.ac.active);
 
-    # Autocomplete: at_file trigger
     ac_f = TuiState();
     ac_f.files = ["src/app.jac", "src/util.jac", "README.md"];
     ac_f.editor.lines = ["look at @src"];
@@ -213,7 +180,6 @@ def run_tests -> int {
     fails += check("ac: @src kind=at_file", ac_f.ac.kind == "at_file");
     fails += check("ac: @src -> 2 file matches", len(ac_f.ac.items) == 2);
 
-    # No files match -> inactive
     ac_f2 = TuiState();
     ac_f2.files = ["src/app.jac"];
     ac_f2.editor.lines = ["@zzz"];
@@ -221,7 +187,6 @@ def run_tests -> int {
     ac_update(ac_f2);
     fails += check("ac: @zzz no files -> inactive", not ac_f2.ac.active);
 
-    # Autocomplete: navigation
     ac_n = TuiState();
     ac_n.files = [];
     ac_n.editor.lines = ["/"];
@@ -236,7 +201,6 @@ def run_tests -> int {
     ac_n.ac.dismiss();
     fails += check("ac nav: dismiss clears active", not ac_n.ac.active);
 
-    # Autocomplete: ac_apply slash
     ac_ap = TuiState();
     ac_ap.files = [];
     ac_ap.editor.lines = ["/mo"];
@@ -249,7 +213,6 @@ def run_tests -> int {
     fails += check("ac apply: cursor after insertion", ac_ap.editor.cursor_col == 7);
     fails += check("ac apply: ac dismissed", not ac_ap.ac.active);
 
-    # Autocomplete: ac_apply at_file
     ac_af = TuiState();
     ac_af.files = ["src/app.jac", "src/util.jac"];
     ac_af.editor.lines = ["check @app"];

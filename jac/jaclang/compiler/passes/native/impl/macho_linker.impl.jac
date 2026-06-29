@@ -131,13 +131,9 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
     if n == 0 {
         return bytes([0, 0]);
     }
-    # Sort by descending name length. dyld scans children edges in order and
-    # commits to the FIRST edge whose label is a prefix of the query — so a
-    # shorter name that is a prefix of a longer one (e.g. `_tui_render` being
-    # a prefix of `_tui_render_buf`) must come AFTER the longer name. Sorting
-    # by descending length guarantees this for any pair of symbols.
+
     symbols = sorted(symbols, key=lambda x : -len(x[0]));
-    # Terminal node bytes per symbol are independent of placement.
+
     term_nodes: list[bytes] = [];
     for (name, addr) in symbols {
         info = _encode_uleb128(EXPORT_SYMBOL_FLAGS_KIND_REGULAR) + _encode_uleb128(
@@ -705,15 +701,7 @@ impl MachOLinker.build_executable -> bytes {
         or sec.name == "__eh_frame" {
             continue;
         }
-        # Accept both S_ATTR_PURE_INSTRUCTIONS (0x80000000) and
-        # S_ATTR_SOME_INSTRUCTIONS (0x400) as code markers.  Native macOS arm64
-        # LLVM at -O2 may emit cold code in sections (e.g. __TEXT:__text_cold)
-        # that carry only S_ATTR_SOME_INSTRUCTIONS; insisting on PURE_INSTRUCTIONS
-        # alone causes those sections to be misclassified as rodata, which places
-        # the symbols at the wrong virtual address in the export trie (causing
-        # dlsym to return a garbage pointer) or drops them if the section name
-        # falls outside __TEXT/__DATA (causing dlsym to fail with "symbol not
-        # found").
+
         _code_attr = S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS;
         is_text = (sec.flags & _code_attr) != 0;
         is_rodata = sec.segname == "__TEXT" and not is_text and len(sec.data) > 0;
@@ -1602,9 +1590,7 @@ impl MachOLinker.build_shared_object -> bytes {
         or sec.name == "__eh_frame" {
             continue;
         }
-        # Accept S_ATTR_SOME_INSTRUCTIONS (0x400) in addition to PURE (0x80000000)
-        # so cold/split code sections on native macOS arm64 are classified as code
-        # and their symbols reach the export trie with the correct virtual address.
+
         _code_attr = S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS;
         is_text = (sec.flags & _code_attr) != 0;
         is_rodata = sec.segname == "__TEXT" and not is_text and len(sec.data) > 0;
