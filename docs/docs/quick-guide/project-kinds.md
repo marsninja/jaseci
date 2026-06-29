@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/ins
 This installs the self-contained `jac` binary -- no Python, pip, or uv required.
 
 !!! tip "`jac run` is kind-aware"
-    Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's codespace), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `native-app`), **serve** server kinds (`api-service`, `fullstack`, ...), or **build** artifact kinds (`native-binary`, `shared-library`, `pypi-package`, `npm-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it. The explicit verbs shown in each recipe below are those primitives.
+    Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's codespace), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it. The explicit verbs shown in each recipe below are those primitives.
 
 ## The recipes at a glance
 
@@ -23,11 +23,11 @@ Jac is also batteries-included -- it bundles LLVM, ships its own native linker, 
 |---|:--:|:--:|:--:|:--:|:--:|:--:|---|
 | [CLI tool](#cli-tool) | ● | | | | | | -- |
 | [Native binary](#native-binary) | | | ● | | | | -- |
-| [API service](#api-service) | ● | | | ● | | | -- |
+| [API service](#service) | ● | | | ● | | | -- |
 | [Microservices](#microservices) | ● ×N | | | ● | | | -- |
 | [Python package (PyPI)](#python-package-pypi) | ● | | | | wheel | | twine¹ |
-| [npm package (npmjs.com)](#npm-package) | | ● | | | npm | | npm³ |
-| [Shared library (C ABI)](#shared-library-c-abi) | | | ● | | .so/.dll | | -- |
+| [npm package (npmjs.com)](#js-package) | | ● | | | npm | | npm³ |
+| [Shared library (C ABI)](#native-lib-c-abi) | | | ● | | .so/.dll | | -- |
 | [Full-stack app](#full-stack-app) | ● | ● | | ● | | | -- |
 | [In-browser native (wasm)](#in-browser-native-wasm) | | ● | ● | ● | | | -- |
 | [Desktop app](#desktop-app) | ● | ● | | ● | | desktop | WebKit² |
@@ -274,7 +274,7 @@ The generated `package.json` wires in `@jaseci/runtime` automatically for JSX/re
 
 ### Shared library (C ABI)
 
-The native counterpart to the [Python](#python-package-pypi) and [npm](#npm-package) packages: an `na` module compiled to a **C-ABI shared library** (`.so` / `.dylib` / `.dll`) that *any* language with a C FFI -- C, C++, Rust, Go (`cgo`), Python (`ctypes`) -- can link or `dlopen`. It's the mirror image of `import from "lib.so"` (calling C *from* Jac): here you expose Jac *to* C. Like the other packages it has no entry point; the public surface is whatever you mark `:pub`.
+The native counterpart to the [Python](#python-package-pypi) and [npm](#js-package) packages: an `na` module compiled to a **C-ABI shared library** (`.so` / `.dylib` / `.dll`) that *any* language with a C FFI -- C, C++, Rust, Go (`cgo`), Python (`ctypes`) -- can link or `dlopen`. It's the mirror image of `import from "lib.so"` (calling C *from* Jac): here you expose Jac *to* C. Like the other packages it has no entry point; the public surface is whatever you mark `:pub`.
 
 ```jac
 # mathlib.na.jac
@@ -435,7 +435,7 @@ cl {
 
 It uses the same `jac.toml` as the [full-stack app](#full-stack-app) (React deps + `[plugins.client]`).
 
-Set `kind = "client"` in `jac.toml` so the toolchain treats it as a client-only app (no backend):
+Set `kind = "web-static"` in `jac.toml` so the toolchain treats it as a client-only app (no backend):
 
 ```bash
 jac start          # builds the cl bundle + na->wasm, serves on http://localhost:8000
@@ -475,7 +475,7 @@ Window title and size are configured under `[plugins.desktop]` in `jac.toml`.
 
 ### Mobile app (webview)
 
-Ship the same client bundle to Android/iOS via **Capacitor**, which wraps it in a native webview. The mobile app is the *frontend only* -- it talks to your Jac server over HTTP, so deploy the backend separately (e.g. as an [API service](#api-service)).
+Ship the same client bundle to Android/iOS via **Capacitor**, which wraps it in a native webview. The mobile app is the *frontend only* -- it talks to your Jac server over HTTP, so deploy the backend separately (e.g. as an [API service](#service)).
 
 ```bash
 # prerequisites: Node.js; Android: JDK + Android SDK; iOS (macOS): Xcode
