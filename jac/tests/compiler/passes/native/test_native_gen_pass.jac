@@ -2863,7 +2863,6 @@ test "nacompile auto-promoted .jac links a bundled na_stdlib import (#7013 Findi
             f"stdout: {comp.stdout[-600:]}\nstderr: {comp.stderr[-600:]}"
         );
         assert os.path.exists(out) , "nacompile produced no binary";
-
         # Only a Linux x86_64 host can execute the produced ELF. A missing merge
         # leaves `__jac_glob_init_zlib_na_*` an undefined symbol, so the loader
         # aborts before `main` -- a clean run with the right CRC proves the merge.

@@ -70,15 +70,7 @@ impl BoundaryAnalysisPass._resolve_native_module(
     return src_mod_str;
 }
 
-impl BoundaryAnalysisPass._in_native_module -> bool {
-    # The containing module compiles to the native backend -- either because it
-    # is a `.na.jac` file, or because `jac nacompile`/`run --autonative` is
-    # auto-promoting this very file to native. In both cases an `import from
-    # <na_stdlib> { ... }` is a native cross-module import: its IR (and each
-    # module's `__jac_glob_init_<safe>` initializer, which the entry point calls)
-    # must be merged into the binary. Without the auto-promote arm a plain `.jac`
-    # left those bindings off `native_cross_module_imports`, so the merge was
-    # skipped and the initializer stayed an undefined symbol (#7013 Finding 2).
+impl BoundaryAnalysisPass._in_native_module(self: BoundaryAnalysisPass) -> bool {
     import os;
     import from jaclang.jac0core.ext_registry { is_native_module }
     if not (self.ir_in and self.ir_in.loc) {
@@ -94,7 +86,7 @@ impl BoundaryAnalysisPass._in_native_module -> bool {
         and self.prog._auto_promote_target
         and mod_path
     ) {
-        return os.path.abspath(mod_path) == os.path.abspath(
+        return os.path.realpath(mod_path) == os.path.realpath(
             self.prog._auto_promote_target
         );
     }
