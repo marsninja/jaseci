@@ -114,6 +114,9 @@ obj TargetFactory {
     """Create a target by name string (lazy loading for non-web targets)."""
     def create(name: str, project_dir: Path) -> ClientTarget;
 
+    """Create a target by TargetType enum (preferred)."""
+    def create_by_type(target_type: TargetType, project_dir: Path) -> ClientTarget;
+
     """Get list of available target names as strings."""
     def get_available_target_names -> list[str];
 }
