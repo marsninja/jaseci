@@ -52,6 +52,34 @@ glob CAPABILITY_SPECS: dict[str, dict[str, any]] = {
          "deploy.k8s": {
              "context": "deploy",
              "deps": {"kubernetes": ">=34.1.0,<35.0.0", "docker": ">=7.1.0,<8.0.0"}
+         },
+         "llm": {
+             "context": "runtime",
+             "deps": {
+                 # SECURITY: litellm 1.82.7+ was compromised and yanked from PyPI.
+                 "litellm": ">=1.70.0,<=1.82.6",
+                 "pillow": ">=12.0.0,<13.0.0",
+                 "httpx": ">=0.27.0",
+                 "loguru": ">=0.7.2,<0.8.0"
+             }
+         },
+         "llm.local": {
+             "context": "runtime",
+             "requires": ["llm"],
+             "deps": {
+                 "llama-cpp-python": ">=0.2.90",
+                 "huggingface_hub": ">=0.24.0"
+             }
+         },
+         "llm.mcp": {
+             "context": "runtime",
+             "requires": ["llm"],
+             "deps": {"mcp": ">=1.0.0"}
+         },
+         "llm.video": {
+             "context": "runtime",
+             "requires": ["llm"],
+             "deps": {"opencv-python-headless": ">=4.10.0,<5.0.0"}
          }
      };
 
@@ -270,11 +298,39 @@ def resolve_closures(cap_names: set[str]) -> dict[str, CapabilityClosure] {
     };
 }
 
+"""Capabilities implied by a project's [plugins.byllm] configuration.
+
+Presence of the byllm plugin section implies the `llm` capability (litellm +
+pillow). A `local:` default model or a [plugins.byllm.local] table additionally
+implies the in-process llama.cpp runtime (`llm.local`). mcp/video capabilities
+are usage-driven rather than config-driven, so they are declared explicitly via
+`jac add` rather than inferred here.
+"""
+def byllm_intent_capabilities(config: JacConfig) -> set[str] {
+    caps: set[str] = set();
+    if config is None {
+        return caps;
+    }
+    byllm = config.plugins.get("byllm") if isinstance(config.plugins, dict) else None;
+    if not isinstance(byllm, dict) {
+        return caps;
+    }
+    caps.add("llm");
+    model = byllm.get("model");
+    default_model = model.get("default_model", "") if isinstance(model, dict) else "";
+    if (isinstance(default_model, str) and default_model.startswith("local:"))
+    or isinstance(byllm.get("local"), dict) {
+        caps.add("llm.local");
+    }
+    return caps;
+}
+
 def resolve_config_closures(
     config: JacConfig, action: str = "serve", scale: bool = False
 ) -> dict[str, CapabilityClosure] {
     intent = scale_intent_from_config(config);
     caps = derive_capabilities(intent, command_capabilities(action, scale));
+    caps |= byllm_intent_capabilities(config);
     return resolve_closures(caps);
 }
 
@@ -320,4 +376,32 @@ def package_missing_error(package: str) -> str {
         );
     }
     return f"'{package}' is missing. {missing_capability_error(cap)}";
+}
+
+"""Raise a capability-oriented error if an optional dependency is missing.
+
+`capability` is a capability name from the registry above (e.g. "data.mongo",
+"llm", "deploy.k8s"); the actionable install guidance is sourced from there, so
+the dependency taxonomy lives in exactly one place instead of being duplicated
+as per-shim extras strings. Shared by the built-in scale and byllm subsystems.
+"""
+def require_optional(package: str, capability: str) {
+    try {
+        __import__(package);
+    } except (ImportError, ValueError) {
+        raise ImportError(
+            f"'{package}' is required for this feature. "
+            f"{missing_capability_error(capability)}"
+        );
+    }
+}
+
+"""Check if an optional dependency is installed without raising."""
+def is_optional_available(package: str) -> bool {
+    try {
+        __import__(package);
+        return True;
+    } except (ImportError, ValueError) {
+        return False;
+    }
 }
