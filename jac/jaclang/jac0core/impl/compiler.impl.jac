@@ -49,7 +49,16 @@ impl _SetupProgress.is_active.getter -> bool {
 impl JacCompiler.internal_program.getter -> JacProgram {
     if (self._internal_program is None) {
         import from jaclang.jac0core.program { JacProgram }
-        self._internal_program = JacProgram();
+        prog = JacProgram();
+        # Back-link the internal program to THIS compiler. Without it, anything
+        # that calls internal_program._get_compiler() (notably the type
+        # evaluator resolving imports) would spin up a *second* JacCompiler with
+        # its own internal_program hub -- a forked module cache that no
+        # end-of-unit release ever reaches. Binding it here keeps each compiler
+        # to a single internal hub without forcing a process-wide singleton
+        # (which would break per-program isolation, e.g. the language server).
+        prog._compiler = self;
+        self._internal_program = prog;
     }
     return self._internal_program;
 }

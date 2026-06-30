@@ -208,6 +208,14 @@ test "compiler separates internal from user modules" {
     Jac.compiler = None;
     Jac.program = None;
 
+    # The module hub is a transient per-unit working set that is released at the
+    # end of each compilation unit (see JacProgram.release_compile_closure). This
+    # test inspects the hubs *after* the run to assert internal/user separation,
+    # so disable end-of-unit eviction for the duration -- the separation
+    # invariant is independent of the eviction policy.
+    old_no_evict = os.environ.get("JAC_NO_UNIT_EVICT");
+    os.environ["JAC_NO_UNIT_EVICT"] = "1";
+
     try {
         captured_output = io.StringIO();
         sys.stdout = captured_output;
@@ -240,6 +248,11 @@ test "compiler separates internal from user modules" {
         os.unlink(user_file);
         Jac.compiler = old_compiler;
         Jac.program = old_program;
+        if old_no_evict is None {
+            os.environ.pop("JAC_NO_UNIT_EVICT", None);
+        } else {
+            os.environ["JAC_NO_UNIT_EVICT"] = old_no_evict;
+        }
     }
 }
 

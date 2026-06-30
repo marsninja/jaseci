@@ -180,6 +180,36 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
     }
 }
 
+impl JacProgram.release_compile_closure(self: JacProgram) -> None {
+    # Compilation-unit lifetime: once a top-level unit's bytecode is produced
+    # (and its .jir written), its transitive AST closure is no longer needed --
+    # any later unit that imports into this closure re-materializes the symbols
+    # it needs from the .jir cache on demand. Dropping the closure here keeps
+    # resident memory bounded by the *active* unit's closure instead of the
+    # cumulative union of every unit ever compiled in this process. The .jir
+    # cache (bytecode + symbol-bearing serialized unitree + native/interop
+    # sections) is the durable cross-unit channel; the in-memory hub is just a
+    # within-unit working set.
+    import os;
+    if os.environ.get("JAC_NO_UNIT_EVICT") {
+        return;
+    }
+    self.mod.hub.clear();
+    self._hub_cache_times.clear();
+    self._dependents.clear();
+    # The type evaluator's per-module caches strong-reference unitree nodes, so
+    # the hub clear above frees nothing until these are dropped too.
+    self.type_evaluator = None;
+    # Diagnostics are the sneaky pin: every Alert carries a CodeLocInfo whose
+    # .first_tok is a *live* unitree node, so a single accumulated warning keeps
+    # an entire module's AST reachable (Alert -> loc -> tok -> sym -> ... ->
+    # Module). They accumulate for the whole process and dwarf the hub itself.
+    # By release time the consumer has already surfaced them (raised on errors,
+    # printed warnings), so drop them here to actually free the closure.
+    self.errors_had.clear();
+    self.warnings_had.clear();
+}
+
 impl JacProgram._search_hubs(self: JacProgram) -> list[dict] {
     hubs: list[dict] = [self.mod.hub];
     internal = self._get_compiler().internal_program;

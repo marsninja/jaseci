@@ -80,6 +80,11 @@ def compile_and_extract(jac_path: str) -> bytes | None {
 
     program = JacProgram();
     code = compiler.get_bytecode(full_target=jac_path, target_program=program);
+    # End-of-unit: this file is fully compiled and its bytecode captured, so its
+    # AST closure can be released before moving to the next file. This is what
+    # keeps the precompile's resident memory bounded by a single file's closure
+    # instead of the cumulative union of every file in the package.
+    compiler.internal_program.release_compile_closure();
     if code is None {
         return None;
     }

@@ -306,6 +306,22 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                         f"Native wrapper install failed for {file_path}: {e}"
                     )
 
+        # Compilation-unit lifetime: the module's bytecode has been executed and
+        # its native wrappers installed, so its in-memory AST closure is no
+        # longer needed. Drop it here -- the natural end-of-unit boundary --
+        # rather than letting a long-lived process (boot, precompile, LSP)
+        # accumulate the union of every module's AST. Symbols needed by later
+        # imports re-materialize from the .jir cache on demand; native engines
+        # live in _native_cache, which release_compile_closure() preserves.
+        if "JAC_NO_UNIT_EVICT" not in os.environ:
+            try:
+                program.release_compile_closure()
+                internal = compiler.internal_program
+                if internal is not program:
+                    internal.release_compile_closure()
+            except Exception:
+                pass
+
     def get_code(self, fullname: str) -> object | None:
         """Get the code object for a module.
 
