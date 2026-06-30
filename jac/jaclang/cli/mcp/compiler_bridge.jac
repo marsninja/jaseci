@@ -37,8 +37,4 @@ obj CompilerBridge {
     static def create_project(
         name: str, template: str = "cli", directory: str = ""
     ) -> dict[str, any];
-
-    static def start_server(
-        filename: str, port: int = 8000, faux: bool = False
-    ) -> dict[str, any];
 }
