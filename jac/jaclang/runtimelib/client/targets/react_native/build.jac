@@ -97,10 +97,16 @@ def stage_compiled_entry(compiled_dir: Path, rn_dir: Path, entry_module: str) ->
     }
 
     staged_tree = rn_dir / "jac-src";
+    staged_tmp = rn_dir / ".jac-src.tmp";
+
+    if staged_tmp.exists() {
+        shutil.rmtree(staged_tmp);
+    }
+    shutil.copytree(compiled_dir, staged_tmp);
     if staged_tree.exists() {
         shutil.rmtree(staged_tree);
     }
-    shutil.copytree(compiled_dir, staged_tree);
+    os.replace(staged_tmp, staged_tree);
 
     dest = rn_dir / "jac-app.js";
     dest.write_text(
@@ -363,7 +369,7 @@ def strip_css_imports(compiled_dir: Path) -> int {
     import re;
 
     css_import_pattern = re.compile(
-        r"^import\s+(?:[^'\"\n]*?\sfrom\s+)?['\"][^'\"\n]+\.(?:css|scss|sass|less)['\"]\s*;\s*$",
+        r"^[^\S\n]*import\s+(?:[^'\"\n]*?\sfrom\s+)?['\"][^'\"\n]+\.(?:css|scss|sass|less)['\"]\s*;?\s*(?://[^\n]*)?$",
         re.MULTILINE
     );
     css_asset_extensions = {".css", ".scss", ".sass", ".less"};

@@ -560,11 +560,11 @@ impl __nativeRoutes(props: dict = {}) -> JsxElement {
         lambda -> list {
             out = [];
             _collectNativeRoutes(props.children, "/", [], out);
-            _cacheNativeRoutes(out);
             return out;
         },
         []
     );
+    React.useEffect(lambda { _cacheNativeRoutes(routes); }, [routes]);
 
     screens = React.useMemo(
         lambda -> list {
@@ -791,11 +791,11 @@ impl __removeLocalStorageAsync(key: str) -> None {
 }
 
 impl __primeNativeTokenCache -> None {
+    if not globalThis.__jacNativeStorageCache__ {
+        globalThis.__jacNativeStorageCache__ = {};
+    }
     try {
         token = await SecureStore.getItemAsync("jac_token");
-        if not globalThis.__jacNativeStorageCache__ {
-            globalThis.__jacNativeStorageCache__ = {};
-        }
         globalThis.__jacNativeStorageCache__["jac_token"] = token or "";
     } except Exception as e {
         console.warn("[jac-native-runtime] __primeNativeTokenCache failed", e);

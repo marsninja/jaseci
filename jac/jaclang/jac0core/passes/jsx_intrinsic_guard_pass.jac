@@ -52,7 +52,7 @@ class JsxIntrinsicGuardPass(UniPass) {
             }
         }
 
-        if mod_path.endswith('.cl.jac') {
+        if mod_path.endswith('.cl.jac') and not mod_path.endswith('.native.cl.jac') {
             return;
         }
 
