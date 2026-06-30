@@ -1,5 +1,3 @@
-"""Web client runtime for Jac (D9 — imports core, adds DOM/router adapters)."""
-
 import from 'react' { * as React }
 import from 'react' { useState as reactUseState, useEffect as reactUseEffect }
 import from 'react-dom/client' { * as ReactDOM }

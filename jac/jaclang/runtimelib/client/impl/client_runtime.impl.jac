@@ -1,4 +1,3 @@
-# Web-only runtime (D9). Shared logic lives in client_runtime_core.
 impl __jacWirePlatformAdapters -> None {
     globalThis.__jacGetRenderer__ = __jacGetRenderer;
     globalThis.__jacGetApiBaseUrl__ = __getApiBaseUrl;

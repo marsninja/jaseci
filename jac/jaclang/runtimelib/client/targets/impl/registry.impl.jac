@@ -10,6 +10,12 @@ impl TargetRegistry.get_all -> list[ClientTarget] {
     return list(self._targets.values());
 }
 
+impl TargetRegistry.clear -> None {
+    self._targets = {};
+}
+
+impl TargetFactory.clear_cache -> None { }
+
 impl TargetFactory.create(name: str, project_dir: Path) -> ClientTarget {
     import from jaclang.runtimelib.client.targets.registry { get_target_registry }
     registry = get_target_registry();

@@ -1,4 +1,3 @@
-# React Native runtime (D9). Shared logic lives in client_runtime_core.
 impl __jacWirePlatformAdapters -> None {
     globalThis.__jacGetRenderer__ = __jacGetRenderer;
     globalThis.__jacGetApiBaseUrl__ = __getApiBaseUrl;
@@ -68,9 +67,6 @@ impl __jacNativeCreate(tag: any, props: dict = {}, children: any = []) -> JsxEle
         return React.createElement.apply(React, args);
     }
     if tag == "button" {
-        # A web <button> cascades font/color to its label text; RNPressable
-        # does not. Forward the element's text-style props to the inner
-        # RNText so `<button style={{color: "white"}}>` works on native too.
         text_props = {"style": _textStyleFrom(adapted["style"])};
         textChild = React.createElement.apply(
             React, _prepend_args(RNText, text_props, flat)
@@ -134,9 +130,6 @@ impl _adaptProps(tag: str, props: dict) -> dict {
         } elif key == "onClick" {
             out["onPress"] = value;
         } elif key == "onChange" {
-            # RN's ``onChangeText`` passes a bare string; web-style handlers
-            # expect an event shape ``{ target: { value } }``. Wrap the user
-            # handler so ``(e) => setState(e.target.value)`` works on native.
             user_on_change = value;
             out["onChangeText"] = lambda text: any { user_on_change(
                 {"target": {"value": text}}
@@ -158,13 +151,6 @@ impl _adaptProps(tag: str, props: dict) -> dict {
     return out;
 }
 
-"""Extract RNText-compatible style props from a (possibly array) style.
-
-``RNView``/``RNPressable`` ignore text props like ``color`` and
-``fontSize`` — those only take effect on ``RNText``. ``button``/``Link``
-render their label inside an inner ``RNText``, so we lift the text-relevant
-keys from the element's style onto that label to match web cascade.
-"""
 impl _textStyleFrom(style: any) -> dict {
     out = {};
     if style == None or style == undefined {
@@ -346,16 +332,7 @@ impl _buildRouteName(path: str) -> str {
     if normalized == "/" {
         return "root";
     }
-    # The name is a pure function of the path -- stable regardless of route
-    # insertion order -- so cached names never go stale relative to the
-    # rendered tree. The leading "/" is stripped ("/users" -> "users") but
-    # internal "/" is preserved as the separator so "/users/profile" ->
-    # "users/profile" stays distinct from "/users-profile" -> "users-profile".
-    # The old "_"-join + "-"->"_" flattening collided those and required a
-    # positional index from route enumeration to disambiguate; that index
-    # shifted whenever a route was inserted between existing ones.
-    # ":" (param marker) -> "$" keeps the param convention while remaining a
-    # valid, unique React Navigation screen key.
+
     return normalized[1:].replace(":", "$");
 }
 
@@ -579,11 +556,6 @@ impl __nativeRouter(props: dict = {}) -> JsxElement {
 }
 
 impl __nativeRoutes(props: dict = {}) -> JsxElement {
-    # The route tree is static for the lifetime of the navigator, so it is
-    # collected (and the global route cache populated) exactly once via
-    # ``useMemo``. Running ``_collectNativeRoutes`` unconditionally on every
-    # render re-traverses every ``<Route>`` and overwrites
-    # ``globalThis.__jacNativeRouteDefs__`` each time a parent re-renders.
     routes = React.useMemo(
         lambda -> list {
             out = [];
@@ -593,12 +565,7 @@ impl __nativeRoutes(props: dict = {}) -> JsxElement {
         },
         []
     );
-    # ``_makeNativeRouteScreen`` returns a fresh component ref each call, so
-    # building ``screens`` inline on every render would hand React Navigation
-    # a new ``component`` identity for the active screen and force a remount
-    # (resetting its local state). Memoize on the stable ``routes`` array so
-    # each Screen's component is created exactly once. Both ``useMemo`` calls
-    # stay above the early return below to keep hook order consistent.
+
     screens = React.useMemo(
         lambda -> list {
             out = [];
@@ -661,9 +628,7 @@ impl __nativeLink(props: dict = {}) -> JsxElement {
         nav_fn(to, {"replace": props.replace == True});
     };
     children = _toChildrenArray(props.children or to);
-    # Forward text-style props (color/fontSize/...) to the label text so a
-    # styled <Link style={{color: "#2563eb"}}> renders a colored link, not
-    # default-black text inside an unstyled Pressable.
+
     label = React.createElement.apply(
         React, _prepend_args(RNText, {"style": _textStyleFrom(rest["style"])}, children)
     );
@@ -765,12 +730,6 @@ impl __getApiBaseUrl -> str {
 }
 
 impl __getLocalStorage(key: str) -> str {
-    # Synchronous read contract backed by an async-only SecureStore.
-    # On a cache miss this returns "" immediately and populates the cache
-    # via a fire-and-forget promise; the *next* call returns the real value.
-    # This produces a cold-start race for any synchronous caller (notably
-    # jacIsLoggedIn -> AuthGuard) until the cache is primed. See
-    # __primeNativeTokenCache for the partial mitigation.
     if not globalThis.__jacNativeStorageCache__ {
         globalThis.__jacNativeStorageCache__ = {};
     }
@@ -832,10 +791,6 @@ impl __removeLocalStorageAsync(key: str) -> None {
 }
 
 impl __primeNativeTokenCache -> None {
-    # Partial mitigation for the __getLocalStorage cold-start race, scoped to
-    # the auth token only. Because this is async, callers that don't await it
-    # (e.g. __jacInstallErrorHandlers invoked at module top level in App.tsx)
-    # can still run the first render before the cache is populated.
     try {
         token = await SecureStore.getItemAsync("jac_token");
         if not globalThis.__jacNativeStorageCache__ {
@@ -845,15 +800,11 @@ impl __primeNativeTokenCache -> None {
     } except Exception as e {
         console.warn("[jac-native-runtime] __primeNativeTokenCache failed", e);
     }
-    # Mark priming complete (even on failure — a missing token is a valid
-    # "logged out" answer) so gated callers like AuthGuard stop waiting.
+
     globalThis.__jacNativeTokenPrimed__ = True;
 }
 
 impl __ensureNativeTokenPrimed -> any {
-    # Return a single shared promise for the in-flight prime so concurrent
-    # callers (AuthGuard mounts, error-handler install) all await the same
-    # SecureStore read instead of racing independent ones.
     if not globalThis.__jacNativeTokenPrimePromise__ {
         globalThis.__jacNativeTokenPrimePromise__ = __primeNativeTokenCache();
     }
@@ -861,11 +812,6 @@ impl __ensureNativeTokenPrimed -> any {
 }
 
 impl AuthGuard(redirect: str = "/login") -> JsxElement {
-    # The token cache is primed asynchronously from SecureStore. A synchronous
-    # ``jacIsLoggedIn()`` on the first cold-start render would see an empty
-    # cache and bounce an already-authenticated user to ``/login``. Gate the
-    # auth decision on the shared prime promise: render nothing until it
-    # resolves, then decide against a populated cache.
     [ready, setReady] = useState(globalThis.__jacNativeTokenPrimed__ == True);
     React.useEffect(
         lambda {
@@ -1175,9 +1121,6 @@ impl JacForm(props: dict) -> JsxElement {
                 RNPressable,
                 {
                     "onPress": lambda {
-                        # Computed key: ``{fieldName: ...}`` would store the
-                        # literal key ``"fieldName"``; assign via subscript so
-                        # the variable's value (this field's name) is used.
                         next_visible = Object.assign({}, passwordVisible);
                         next_visible[fieldName] = not is_visible;
                         setPasswordVisible(next_visible);

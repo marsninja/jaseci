@@ -437,16 +437,18 @@ test "target selection keeps web and native entry/runtime paths separate" {
     # RN uses Expo registerRootComponent; web keeps web entry-generator wiring.
     rn_build_src = _targets_dir / "react_native" / "build.jac";
     rn_impl_src = _targets_dir / "impl" / "react_native_target.impl.jac";
+    web_entry_src = _client_dir / "entry_generators" / "web_entry.jac";
     web_compiler_impl = _client_dir / "impl" / "compiler.impl.jac";
 
     rn_build_content = rn_build_src.read_text();
     rn_impl_content = rn_impl_src.read_text();
+    web_entry_content = web_entry_src.read_text();
     web_content = web_compiler_impl.read_text();
 
     assert 'get_entry_generator("native")' not in rn_build_content;
     assert "registerRootComponent(App)" in rn_build_content;
     assert 'runtime_filename="client_runtime_native.cl.jac"' in rn_impl_content;
-    assert 'get_entry_generator("web")' in web_content;
+    assert 'register_entry_generator("web"' in web_entry_content;
     # Web compile path should not force native runtime.
     assert 'runtime_filename="client_runtime_native.cl.jac"' not in web_content;
 }
@@ -1109,13 +1111,28 @@ test "node tooling manifest install falls back to bun when npm missing" {
         return r;
     }
 
+    def _fake_get_bun -> str {
+        return "bun";
+    }
+
     with tempfile.TemporaryDirectory() as tmp {
         with unittest.mock.patch("subprocess.run", side_effect=_fake_run) {
-            run_manifest_install(Path(tmp));
+            with unittest.mock.patch(
+                "jaclang.runtimelib.client.targets.node_tooling_common.get_bun",
+                side_effect=_fake_get_bun
+            ) {
+                run_manifest_install(Path(tmp));
+            }
         }
     }
     assert ["npm", "--version"] in calls;
-    assert ["bun", "install"] in calls;
+    install_cmds = [
+        c
+        for c in calls
+        if len(c) == 2 and c[1] == "install"
+    ];
+    assert len(install_cmds) == 1;
+    assert install_cmds[0][0].endswith("bun") or install_cmds[0][0] == "bun";
     assert ["npm", "install"] not in calls;
 }
 

@@ -1,5 +1,3 @@
-"""React Native client runtime (D9 — imports core, adds RN adapters)."""
-
 import from 'react' { * as React }
 import from 'react' { useState as reactUseState, useEffect as reactUseEffect }
 import from 'react-native' {
@@ -44,13 +42,6 @@ glob _UNMAPPED_WARNED = {},
      _JAC_NATIVE_OUTLET_CONTEXT = React.createContext(None),
      _JAC_NATIVE_STACK = jacCreateNativeStackNavigator();
 
-# Public runtime aliases. Declared as a block-level ``glob:pub`` (mirroring
-# the web runtime) so EVERY entry is exported. The per-name ``:pub`` form on
-# a plain ``glob`` silently dropped aliases whose RHS is an imported binding
-# (``useState``/``useEffect``) or a call expression (``JacSchema``) from the
-# emitted ``export {...}``, leaving ``@jac/runtime`` without ``useState`` on
-# native — components compiled with ``has`` state then crashed with
-# "useState is not a function".
 glob:pub useState = reactUseState,
      useEffect = reactUseEffect,
      Router = __nativeRouter,

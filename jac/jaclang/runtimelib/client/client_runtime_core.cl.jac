@@ -1,15 +1,7 @@
-"""Platform-agnostic Jac client runtime (D9 core).
-
-Imported and bundled into ``compiled/client_runtime.js`` together with either
-``client_runtime.cl.jac`` (web) or ``client_runtime_native.cl.jac`` (RN).
-Do not import this module from user apps — use ``@jac/runtime``.
-"""
-
 import from 'react' { * as React }
 import from 'react-hook-form' { useForm }
 import from '@hookform/resolvers/zod' { zodResolver }
 
-# Renderer dispatch (R3) — default renderer is platform-specific.
 def:pub __jacJsx(tag: any, props: dict = {}, children: any = []) -> JsxElement;
 def:pub __jacRegisterRenderer(renderer: any) -> None;
 

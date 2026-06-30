@@ -1,6 +1,5 @@
 import from jaclang.cli.console { console }
 
-"""Resolve the core client runtime directory (D9 runtime lives here)."""
 def _jac_client_plugin_dir -> Path {
     import importlib;
     client_pkg = importlib.import_module("jaclang.runtimelib.client");
@@ -13,12 +12,10 @@ def _jac_client_plugin_dir -> Path {
     return Path(paths[0]);
 }
 
-"""Default web runtime path for the D9 split (core + platform)."""
 def jac_client_runtime_path -> Path {
     return _jac_client_plugin_dir() / "client_runtime.cl.jac";
 }
 
-"""Get the client build directory from project config."""
 impl JacClientCompiler._get_client_dir(self: JacClientCompiler) -> Path {
     try {
         import from jaclang.project.config { get_config }
@@ -30,7 +27,6 @@ impl JacClientCompiler._get_client_dir(self: JacClientCompiler) -> Path {
     return self.project_dir / '.jac' / 'client';
 }
 
-"""Convert a .jac relative path string to .js, handling compound extensions."""
 impl JacClientCompiler._jac_path_to_js(self: JacClientCompiler, rel_str: str) -> str {
     rel_str = rel_str.replace('\\', '/');
     for compound_ext in self.COMPOUND_EXTENSIONS {
@@ -42,13 +38,6 @@ impl JacClientCompiler._jac_path_to_js(self: JacClientCompiler, rel_str: str) ->
     return result.replace('\\', '/');
 }
 
-"""Compile module and dependencies into the compiled/ directory.
-
-This is the platform-neutral half of what ``ViteCompiler.compile`` used to do —
-it does *not* write the web ``_entry.js``. Bundler-specific orchestrators
-(``ViteCompiler`` for web, future ``MetroCompiler`` for native) layer their
-entry generation on top of this output.
-"""
 impl JacClientCompiler.compile(
     self: JacClientCompiler,
     module: ModuleType,
@@ -88,7 +77,6 @@ impl JacClientCompiler.compile(
     return (client_exports, client_globals);
 }
 
-"""Copy assets from root assets/ folder to compiled/assets/."""
 impl JacClientCompiler.copy_root_assets(self: JacClientCompiler) -> None {
     root_assets_dir = self.project_dir / 'assets';
     compiled_assets_dir = self.compiled_dir / 'assets';
@@ -100,7 +88,6 @@ impl JacClientCompiler.copy_root_assets(self: JacClientCompiler) -> None {
     }
 }
 
-"""Copy an asset file to the compiled directory."""
 impl JacClientCompiler._copy_asset_file(
     self: JacClientCompiler, asset_path: Path, source_root: Path
 ) -> None {
@@ -123,7 +110,6 @@ impl JacClientCompiler._copy_asset_file(
     }
 }
 
-"""Copy a TypeScript file to the compiled directory."""
 impl JacClientCompiler._copy_ts_file(
     self: JacClientCompiler, ts_path: Path, source_root: Path
 ) -> None {
@@ -143,7 +129,6 @@ impl JacClientCompiler._copy_ts_file(
     } except (FileNotFoundError, OSError) { }
 }
 
-"""Copy a JavaScript file to the compiled directory."""
 impl JacClientCompiler._copy_js_file(
     self: JacClientCompiler, js_path: Path, source_root: Path
 ) -> None {
@@ -160,7 +145,6 @@ impl JacClientCompiler._copy_js_file(
     } except FileNotFoundError { }
 }
 
-"""Recursively compile/copy .jac/.js imports into compiled/."""
 impl JacClientCompiler.compile_dependencies_recursively(
     self: JacClientCompiler,
     module_path: Path,
@@ -221,7 +205,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
     output_path.parent.mkdir(parents=True, exist_ok=True);
     source_header = f"/* Source: {module_path} */\n";
     output_path.write_text(source_header + combined_js, encoding='utf-8');
-    # Source map generation: matches the .jac → .js mapping the runtime expects.
+
     try {
         import from jaclang.runtimelib.source_mapping { generate_source_map_json }
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
@@ -302,7 +286,6 @@ impl JacClientCompiler.compile_dependencies_recursively(
     }
 }
 
-"""Collect top-level ``import`` lines from compiled JS."""
 def _extract_import_lines(js_code: str) -> list[str] {
     imports: list[str] = [];
     for line in js_code.split('\n') {
@@ -314,7 +297,6 @@ def _extract_import_lines(js_code: str) -> list[str] {
     return imports;
 }
 
-"""Return the ``const _jac = { ... };`` preamble from compiled JS, if present."""
 def _extract_jac_preamble(js_code: str) -> str {
     start = js_code.find('const _jac =');
     if start < 0 {
@@ -344,17 +326,9 @@ def _extract_jac_preamble(js_code: str) -> str {
     return '';
 }
 
-"""Drop imports, ``_jac`` preamble, and export from a compiled runtime module.
-
-Important: keep *all* remaining top-level runtime declarations (``let``/``const``)
-because native runtime helpers rely on them (e.g. tag maps and prop adapters).
-Older logic sliced from the first ``function`` token and accidentally discarded
-those declarations.
-"""
 def _extract_function_bodies(js_code: str) -> str {
     stripped = _strip_esm_export_line(js_code);
 
-    # Remove all ESM imports; runtime imports are merged separately.
     body_lines: list[str] = [];
     for line in stripped.split('\n') {
         if line.strip().startswith('import ') {
@@ -364,8 +338,6 @@ def _extract_function_bodies(js_code: str) -> str {
     }
     body = '\n'.join(body_lines);
 
-    # Remove the Jac helper preamble from the body; we include exactly one
-    # preamble via `_bundle_runtime_js`.
     jac_preamble = _extract_jac_preamble(body);
     if jac_preamble {
         body = body.replace(jac_preamble, '', 1);
@@ -374,7 +346,6 @@ def _extract_function_bodies(js_code: str) -> str {
     return body;
 }
 
-"""Merge import lines from two modules, dropping core cross-imports."""
 def _merge_runtime_imports(platform_js: str, core_js: str) -> str {
     seen: set[str] = set();
     merged: list[str] = [];
@@ -391,7 +362,6 @@ def _merge_runtime_imports(platform_js: str, core_js: str) -> str {
     return '\n'.join(merged);
 }
 
-"""Remove the trailing ESM ``export { ... };`` line from compiled runtime JS."""
 def _strip_esm_export_line(js_code: str) -> str {
     lines = js_code.split('\n');
     filtered: list[str] = [];
@@ -405,7 +375,6 @@ def _strip_esm_export_line(js_code: str) -> str {
     return '\n'.join(filtered);
 }
 
-"""Bundle D9 core + platform runtime into a single ``client_runtime.js``."""
 def _bundle_runtime_js(core_js: str, platform_js: str, export_names: list[str]) -> str {
     imports = _merge_runtime_imports(platform_js, core_js);
     jac_preamble = _extract_jac_preamble(platform_js);
@@ -433,10 +402,6 @@ def _bundle_runtime_js(core_js: str, platform_js: str, export_names: list[str]) 
     return '\n'.join(parts) + '\n';
 }
 
-"""Compile client runtime utilities. ``runtime_filename`` controls which
-platform sibling of ``client_runtime.cl.jac`` is compiled (web vs. RN).
-Always bundles ``client_runtime_core.cl.jac`` first (D9).
-"""
 impl JacClientCompiler.compile_runtime_utils(
     self: JacClientCompiler, runtime_filename: str = "client_runtime.cl.jac"
 ) -> tuple[str, list[str]] {
@@ -472,13 +437,7 @@ impl JacClientCompiler.compile_runtime_utils(
     (self.compiled_dir / 'client_runtime.js').write_text(
         runtimeutils_js, encoding='utf-8'
     );
-    # Stage plugin-relative runtime deps the bundle still imports. The runtime
-    # bundle inlines only core + platform; a sibling import such as
-    # ``html_tag_map`` (pulled in by the native runtime) would otherwise dangle
-    # in the staged native ``jac-src`` tree (Metro: "Unable to resolve
-    # ./.../html_tag_map.js"). Compile each to the exact relative path the
-    # bundle imports so ``shutil.copytree`` stages it for Metro. No-op for the
-    # web runtime, which does not import these siblings.
+
     import re;
     import json;
     import importlib;
@@ -486,10 +445,7 @@ impl JacClientCompiler.compile_runtime_utils(
         r'from\s+[\'"](\./[^\'"]*html_tag_map\.js)[\'"]', runtimeutils_js
     ) {
         rel = _m.group(1)[2:];
-        # ``html_tag_map`` is a plain ``.jac`` module (constant string arrays);
-        # the ES codegen only emits JS for ``.cl.jac`` client modules, so
-        # ``compile_module`` returns empty here. Generate the ESM module from
-        # the Python-imported values instead — robust and self-contained.
+
         htm = importlib.import_module(
             "jaclang.runtimelib.client.targets.react_native.html_tag_map"
         );
@@ -506,15 +462,11 @@ impl JacClientCompiler.compile_runtime_utils(
         dep_out.parent.mkdir(parents=True, exist_ok=True);
         dep_out.write_text(dep_js, encoding='utf-8');
     }
-    # Emit the mobUI ``@jac/ui`` primitive module alongside the runtime. Doing
-    # it here (rather than in ``compile()``) covers BOTH the web ViteCompiler
-    # path — which calls ``compile_runtime_utils`` directly — and the native
-    # path, so ``compiled/client_ui.js`` always exists for the ``@jac/ui`` alias.
+
     self.compile_ui_utils();
     return (runtimeutils_js, all_exports);
 }
 
-"""Compile PWA runtime utilities (only when PWA is enabled)."""
 impl JacClientCompiler.compile_pwa_runtime(
     self: JacClientCompiler
 ) -> tuple[str, list[str]] {
@@ -538,11 +490,6 @@ impl JacClientCompiler.compile_pwa_runtime(
     return (pwa_js, all_exports);
 }
 
-"""Compile the mobUI ``@jac/ui`` primitive module to ``compiled/client_ui.js``.
-
-Emitted as a plain ESM re-export module so the bundler's ``@jac/ui`` alias
-resolves to it directly. No-op if the source file is missing.
-"""
 impl JacClientCompiler.compile_ui_utils(
     self: JacClientCompiler
 ) -> tuple[str, list[str]] {
@@ -563,7 +510,6 @@ impl JacClientCompiler.compile_ui_utils(
     return (ui_js, glob_names);
 }
 
-"""Scan pages/ directory, compile page files, generate _routes.js manifest."""
 impl JacClientCompiler._scan_and_compile_pages(
     self: JacClientCompiler,
     visited: (set[Path] | None) = None,
@@ -595,7 +541,6 @@ impl JacClientCompiler._scan_and_compile_pages(
     return True;
 }
 
-"""Generate _routes.js manifest from previously scanned route entries."""
 impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> None {
     scanner = self._route_scanner;
     routes = scanner._routes;
@@ -650,7 +595,6 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> Non
     manifest_path.write_text("\n".join(lines), encoding='utf-8');
 }
 
-"""Initialize the platform-neutral Jac client compiler."""
 impl JacClientCompiler.init(
     self: JacClientCompiler,
     project_dir: Path,

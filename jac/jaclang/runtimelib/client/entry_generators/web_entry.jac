@@ -1,29 +1,5 @@
-"""Shared builders for the React web entry scripts.
-
-A Jac client app's bundle is a per-module `<name>.js` that *exports* an `app`
-component but never renders it. A separate entry script imports `app`, wraps
-it in `JacClientErrorBoundary`, calls `createRoot`, and mounts at `#root`.
-That script is generated from at least three places (eject, HMR, the
-ViteCompiler), so the canonical body lives here — every coordinated change
-to the boundary wiring (e.g. adding `onError`) only touches one location.
-
-This module also owns the web error-overlay entry bootstrap and the
-``register_web_entry_generators`` hook that registers both generators with
-the core entry-generator registry, mirroring the parity contract already
-established by ``native_entry.jac``.
-"""
-
 import from jaclang.runtimelib.entry_generators { register_entry_generator }
 
-"""Build the entry script that mounts an exported `app` under
-`JacClientErrorBoundary`.
-
-Args:
-    entry_module: Module basename (no extension) whose `app` export to mount.
-    install_global_handlers: Emit `__jacInstallErrorHandlers()`. Pass False
-        from HMR re-mounts where the handlers were installed by the initial
-        bundle and still bound to `window`.
-"""
 def build_simple_react_entry_script(
     entry_module: str, install_global_handlers: bool = True
 ) -> str {
@@ -59,20 +35,6 @@ def build_simple_react_entry_script(
     return "\n".join(lines);
 }
 
-"""Build the file-based-routing entry script for React.
-
-Unlike `build_simple_react_entry_script` (which mounts a single exported `app`),
-this assembles a `<BrowserRouter><Routes>...` tree from the generated
-`./_routes.js` manifest — `routes` (an array of `{path, element, auth}`) and
-`layouts` (a prefix→component map). Public routes mount directly; `auth: true`
-routes mount under an `AuthGuard` that redirects unauthenticated visits to
-`auth_redirect`. A root layout (`layouts["/"]`) wraps everything when present, and
-the entry module's top-level `app` export wraps the router when `has_app_wrapper`.
-
-Preact rides this same builder unchanged — its Vite config aliases `react` /
-`react-dom` / `react-router-dom` onto `preact/compat`, so `createRoot` and friends
-resolve through compat at bundle time.
-"""
 def build_pages_react_entry_script(
     entry_module: str, auth_redirect: str, has_app_wrapper: bool
 ) -> str {
@@ -103,9 +65,7 @@ def build_pages_react_entry_script(
             ''
         ]
     );
-    # AuthGuard is a runtime function compiled with plain parameters (not React
-    # props destructuring), so wrap it in a component that passes the redirect
-    # string directly.
+
     lines.extend(
         [
             f'function _AuthGuardRoute() {{ return AuthGuard("{auth_redirect}"); }}',
@@ -152,11 +112,6 @@ def build_pages_react_entry_script(
     return "\n".join(lines);
 }
 
-"""Build the web HMR error-overlay entry script.
-
-Renders the ``errorOverlay`` component from ``@jac/runtime`` at ``#root`` so
-the dev server can show compile errors in-browser without a full reload.
-"""
 def build_web_error_overlay_entry_script(file_path: str, errors: str) -> str {
     return (
         'import React from "react";\n'
@@ -168,13 +123,6 @@ def build_web_error_overlay_entry_script(file_path: str, errors: str) -> str {
     );
 }
 
-"""Register the web entry generators with the core registry.
-
-Mirrors ``register_native_entry_generators`` in ``native_entry.jac`` so both
-targets expose the same registration contract. Called lazily by
-``_ensure_builtin_web`` / ``_ensure_builtin_web_error_overlay`` in
-``entry_generators.jac`` and eagerly by tests.
-"""
 def register_web_entry_generators {
     register_entry_generator("web", build_simple_react_entry_script);
     register_entry_generator("web:error_overlay", build_web_error_overlay_entry_script);

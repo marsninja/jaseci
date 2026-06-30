@@ -1,6 +1,3 @@
-# D9: platform-agnostic client runtime. Web/native impl files supply
-# ``__jacSeedEndpointEffects``, ``__jacHandleWalkerUnauthorized``, and
-# ``__jacDefaultErrorReportUrl`` plus storage / API-base-url adapters.
 impl __jacJsx(tag: any, props: dict = {}, children: any = []) -> JsxElement {
     return globalThis.__jacGetRenderer__().create(tag, props, children);
 }
