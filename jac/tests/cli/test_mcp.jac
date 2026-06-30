@@ -119,6 +119,31 @@ test "engine returns no response for notifications (messages without an id)" {
     assert reply is None;
 }
 
+test "engine returns Invalid Request for a request with id but no method" {
+    import from jaclang.cli.mcp.protocol { build_engine }
+    engine = build_engine();
+    resp = engine.handle_message({"jsonrpc": "2.0", "id": 7});
+    assert resp["error"]["code"] == -32600;
+    # A method-less object without an id is a malformed notification: dropped.
+    assert engine.handle_message({"jsonrpc": "2.0"}) is None;
+}
+
+test "all-notification batch yields no reply, mixed batch returns only requests" {
+    import from jaclang.cli.mcp.protocol { build_engine, _process }
+    engine = build_engine();
+    all_notifs = [
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "method": "notifications/cancelled"}
+    ];
+    assert _process(engine, all_notifs) is None;
+    mixed = [
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "id": 1, "method": "ping"}
+    ];
+    out = _process(engine, mixed);
+    assert isinstance(out, list) and len(out) == 1 and out[0]["id"] == 1;
+}
+
 test "engine surfaces method-not-found and invalid-params as JSON-RPC errors" {
     import from jaclang.cli.mcp.protocol { build_engine }
     engine = build_engine();

@@ -30,7 +30,7 @@ impl McpEngine.handle_message(msg: dict) -> dict | None {
         params = {};
     }
     if method is None {
-        return None;
+        return _error_response(msg_id, -32600, "Invalid Request") if has_id else None;
     }
     try {
         result = self._dispatch(str(method), params);
@@ -266,6 +266,10 @@ def _process(engine: McpEngine, msg: any) -> any {
             if r is not None {
                 responses.append(r);
             }
+        }
+
+        if not responses {
+            return None;
         }
         return responses;
     }
