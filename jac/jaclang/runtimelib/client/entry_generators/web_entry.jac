@@ -113,7 +113,11 @@ def build_pages_react_entry_script(
 }
 
 def build_web_error_overlay_entry_script(file_path: str, errors: str) -> str {
-    safe_path = file_path.replace("\\", "\\\\").replace('"', '\\"');
+    safe_path = file_path.replace("\\", "\\\\").replace('"', '\\"').replace(
+        "\n", "\\n"
+    ).replace(
+        "\r", "\\r"
+    );
     safe_errors = errors.replace("\\", "\\\\").replace("`", "\\`").replace(
         "${", "\\${"
     );

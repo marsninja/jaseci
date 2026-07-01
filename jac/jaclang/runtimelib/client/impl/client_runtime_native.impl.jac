@@ -11,10 +11,13 @@ impl __jacWirePlatformAdapters -> None {
         }
         return {};
     };
-    globalThis.__jacHandleWalkerUnauthorized__ = lambda { console.warn(
-        "[jac-native-runtime] Walker returned 401; cleared token. "
-        "App should redirect to login."
-    ); };
+    globalThis.__jacHandleWalkerUnauthorized__ = lambda {
+        console.warn(
+            "[jac-native-runtime] Walker returned 401; cleared token. "
+            "Redirecting to login."
+        );
+        navigate("/login");
+    };
     globalThis.__jacDefaultErrorReportUrl__ = lambda -> str { return ""; };
 }
 

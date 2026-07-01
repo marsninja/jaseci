@@ -98,15 +98,22 @@ def stage_compiled_entry(compiled_dir: Path, rn_dir: Path, entry_module: str) ->
 
     staged_tree = rn_dir / "jac-src";
     staged_tmp = rn_dir / ".jac-src.tmp";
+    staged_old = rn_dir / ".jac-src.old";
 
     if staged_tmp.exists() {
         shutil.rmtree(staged_tmp);
     }
+    if staged_old.exists() {
+        shutil.rmtree(staged_old);
+    }
     shutil.copytree(compiled_dir, staged_tmp);
     if staged_tree.exists() {
-        shutil.rmtree(staged_tree);
+        os.rename(staged_tree, staged_old);
     }
-    os.replace(staged_tmp, staged_tree);
+    os.rename(staged_tmp, staged_tree);
+    if staged_old.exists() {
+        shutil.rmtree(staged_old);
+    }
 
     dest = rn_dir / "jac-app.js";
     dest.write_text(
@@ -368,9 +375,13 @@ def lint_native_incompatible_usage(compiled_dir: Path) -> dict[(str, list[str])]
 def strip_css_imports(compiled_dir: Path) -> int {
     import re;
 
-    css_import_pattern = re.compile(
+    css_single_pattern = re.compile(
         r"^[^\S\n]*import\s+(?:[^'\"\n]*?\sfrom\s+)?['\"][^'\"\n]+\.(?:css|scss|sass|less)['\"]\s*;?\s*(?://[^\n]*)?$",
         re.MULTILINE
+    );
+    css_multi_pattern = re.compile(
+        r"import\s+\{[^{}]*\}\s*from\s+['\"][^'\"]+\.(?:css|scss|sass|less)['\"]\s*;?",
+        re.DOTALL
     );
     css_asset_extensions = {".css", ".scss", ".sass", ".less"};
     stripped_total = 0;
@@ -382,11 +393,16 @@ def strip_css_imports(compiled_dir: Path) -> int {
         } except Exception {
             continue;
         }
-        matches = css_import_pattern.findall(text);
-        if len(matches) > 0 {
-            new_text = css_import_pattern.sub("", text);
+        single_matches = css_single_pattern.findall(text);
+        new_text = css_single_pattern.sub("", text) if single_matches else text;
+        multi_matches = css_multi_pattern.findall(new_text);
+        if multi_matches {
+            new_text = css_multi_pattern.sub("", new_text);
+        }
+        total_matches = len(single_matches) + len(multi_matches);
+        if total_matches > 0 {
             js_file.write_text(new_text, encoding="utf-8");
-            stripped_total += len(matches);
+            stripped_total += total_matches;
         }
     }
 
