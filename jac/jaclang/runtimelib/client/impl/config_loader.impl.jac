@@ -94,9 +94,9 @@ def _migrate_legacy_meta_packages(
     return (npm_deps, npm_dev_deps, migrated);
 }
 
-def _clear_node_modules(project_dir: Path | None) {
-    if project_dir is not None {
-        node_modules: Path = project_dir / '.jac' / 'client' / 'node_modules';
+def _clear_node_modules(client_dir: Path | None) {
+    if client_dir is not None {
+        node_modules: Path = client_dir / 'node_modules';
         if node_modules.exists() {
             shutil.rmtree(node_modules);
             console.print("  Reinstalling dependencies...\n");
@@ -217,7 +217,7 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
         needs_reinstall = needs_reinstall or added;
 
         if needs_reinstall {
-            _clear_node_modules(self.project_dir);
+            _clear_node_modules(self.get_jac_config().get_client_dir());
         }
     }
     merged_npm_deps = {** npm_deps, ** target_scoped_npm_deps};

@@ -201,7 +201,9 @@ test "react native target exposes the documented surface" {
     assert hasattr(target, "start");
     assert target.name == "react-native";
     assert target.config_section == "react_native";
-    assert "mobile-rn" in str(target.output_dir);
+    # RN computes APK/IPA paths per-platform via resolve_rn_project_dir; it
+    # doesn't use the static output_dir field, so it inherits None from base.
+    assert target.output_dir is None;
 }
 
 test "native runtime file ships parallel to the web runtime" {
