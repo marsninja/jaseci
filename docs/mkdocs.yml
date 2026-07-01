@@ -3,6 +3,9 @@ site_url: https://docs.jaseci.org
 repo_url: https://github.com/Jaseci-Labs/jaseci
 edit_uri: edit/main/docs/docs
 use_directory_urls: true
+validation:
+  links:
+    anchors: warn   # broken #anchors fail `mkdocs build --strict`
 exclude_docs: |
   community/release_notes/unreleased/
 nav:
@@ -47,11 +50,16 @@ nav:
           - Structured Outputs: "tutorials/ai/structured-outputs.md"
           - Agentic AI: "tutorials/ai/agentic.md"
           - Multimodal: "tutorials/ai/multimodal.md"
+          - AI-Assisted Development (MCP): "tutorials/ai/mcp-quickstart.md"
       - Desktop & Mobile Tutorials:
           - Desktop App: "tutorials/fullstack/desktop.md"
           - Mobile App: "tutorials/fullstack/mobile.md"
       - Native Tutorials:
           - Build a Chess Engine: "tutorials/native/chess.md"
+          - WebAssembly in the Browser: "tutorials/native/wasm.md"
+      - Package & Extend:
+          - Publish a Library: "tutorials/extend/publish-a-library.md"
+          - Build a Jac Plugin: "tutorials/extend/build-a-plugin.md"
       - Ship It — Deploy & Scale:
           - Local API Server: "tutorials/production/local.md"
           - Microservices with sv import: "tutorials/production/microservices.md"
