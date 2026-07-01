@@ -109,7 +109,6 @@ nav:
       - Codebase Guide: "community/codebase-guide.md"
       - FAQ: "quick-guide/faq.md"
       - Breaking Changes: "community/breaking-changes.md"
-      - PR Leaderboard: "community/contributors.md"
       - Jac Playground: https://playground.jaseci.org/cl/app
       - Release Notes:
           - Jaclang: "community/release_notes/jaclang.md"
@@ -307,7 +306,8 @@ plugins:
         quick-guide/next-steps.md: quick-guide/faq.md
         reference/language/index.md: reference/language/foundation.md
         tutorials/roadmap.md: quick-guide/index.md
-        community/top_contributors.md: community/contributors.md
+        community/top_contributors.md: community/contributing.md
+        community/contributors.md: community/contributing.md
 
         # Documentation restructure redirects
         full-docs-guide.md: reference/index.md
