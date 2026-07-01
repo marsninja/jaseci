@@ -46,19 +46,19 @@ jobs:
         # and (for the native backend) the per-target LLVM release.
         include:
           # zig_target pins each Linux binary's glibc floor regardless of the
-          # runner's glibc, so the asset runs on that floor+. x86_64 is floored at
-          # 2.17 (matching CPython/PBS): the launcher + pyembed are zig pins, and the
-          # LLVMPY_* shim now links the libc++ LLVM slice with `zig c++` at the same
-          # 2.17 (build.zig linuxShim, #7082) -- previously the shim's host-g++ link
-          # forced GLIBC_2.38. aarch64 stays at 2.34 until an aarch64 libc++ slice
-          # lets its shim drop too (the shim, not the launcher, is the floor). macOS
-          # omits zig_target and builds host-native.
+          # runner's glibc, so the asset runs on that floor+. Both Linux legs are
+          # floored at 2.17 (matching CPython/PBS manylinux2014): the launcher +
+          # pyembed are zig pins, and the LLVMPY_* shim links its libc++ LLVM
+          # slice with `zig c++` at the same 2.17 (build.zig linuxShim, #7082) --
+          # a host-g++ link would force the runner's glibc instead (the shim, not
+          # the launcher, is the floor). The verify step below asserts the floor
+          # from this value. macOS omits zig_target and builds host-native.
           - os: ubuntu-latest
             platform: linux-x86_64
             zig_target: x86_64-linux-gnu.2.17
           - os: ubuntu-24.04-arm
             platform: linux-aarch64
-            zig_target: aarch64-linux-gnu.2.34
+            zig_target: aarch64-linux-gnu.2.17
           # No macos-x86_64 (Intel) leg: the native (na) backend statically links
           # a pinned LLVM release, and LLVM ships no macOS-x64 prebuilt for 20.1.8
           # (only Linux-X64/ARM64 + macOS-ARM64). Apple Silicon is covered by
@@ -146,20 +146,11 @@ jobs:
             fi
           }
           check zig-out/bin/jac
-          if [ "${{ matrix.platform }}" = "linux-aarch64" ]; then
-            # The aarch64 shim is still host-g++-linked against the stock
-            # libstdc++ slice (no aarch64 libc++ slice published yet, #7082), so
-            # its real floor is the RUNNER's glibc, above the launcher's pin --
-            # asserting it would always fail. Drop this branch when llvm_release
-            # .zig flips aarch64 to the `aarch64-linux-libcxx` slice.
-            echo "::warning::aarch64 shim floor not enforced (host g++ link; its floor is the runner glibc, not $FLOOR)"
-          else
-            # Materialize the shim as an install artifact if the build didn't place it.
-            SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.so"
-            [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
-            [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
-            check "$SHIM"
-          fi
+          # Materialize the shim as an install artifact if the build didn't place it.
+          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.so"
+          [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
+          [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
+          check "$SHIM"
 
       - name: Package asset (+ checksum, ad-hoc codesign on macOS)
         id: pkg

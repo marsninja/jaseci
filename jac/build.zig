@@ -436,14 +436,15 @@ fn addLlvmShim(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
 /// statically (no -static-libstdc++ needed), and the libc++ slice is configured
 /// with zlib/zstd/libxml2 OFF, so the shim references only the libc trio. This is
 /// what drops libjacllvm.so from requiring GLIBC_2.38 to a clean 2.17 floor
-/// (#7082). Today that's x86_64.
+/// (#7082). Both Linux targets (x86_64, aarch64) use libc++ slices today.
 ///
-/// A stock slice (today: aarch64, no libc++ slice yet) takes the system
-/// g++/libstdc++ path: it must be compiled + linked with g++ to match the
-/// archives' `std::__cxx11::*` ABI (a libc++ build leaves LLVM's API calls
-/// unresolved), `-static-libstdc++ -static-libgcc` bundles the C++ runtime, and
-/// the stock archives still reference zlib/zstd/libxml2. Lowering aarch64 to 2.17
-/// is gated on its libc++ slice. Returns the emitted .so as a LazyPath.
+/// A stock (libstdc++) slice takes the system g++/libstdc++ path: it must be
+/// compiled + linked with g++ to match the archives' `std::__cxx11::*` ABI (a
+/// libc++ build leaves LLVM's API calls unresolved), `-static-libstdc++
+/// -static-libgcc` bundles the C++ runtime, and the stock archives still
+/// reference zlib/zstd/libxml2. No pinned Linux target uses this path anymore;
+/// it is kept for linking official LLVM releases (e.g. a new platform before its
+/// libc++ slice exists). Returns the emitted .so as a LazyPath.
 fn linuxShim(
     b: *std.Build,
     target: std.Build.ResolvedTarget,

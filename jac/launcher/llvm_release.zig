@@ -40,14 +40,14 @@ pub fn llvmRelease(os: std.Target.Os.Tag, arch: std.Target.Cpu.Arch) ?LlvmReleas
                 .manifest_sha256 = "6c227bfc95829729a93b8af44eeae182489df5a2bb16fd5bb5fe9b36d8877d54",
                 .zip_size = 667452266,
             },
-            // Stock libstdc++ slice; switches to `aarch64-linux-libcxx` (and the
-            // shim to the zig c++/2.17 path, automatically via isLibcxx) once
-            // that slice publishes (#7082 follow-up).
+            // libc++ slice, same zig c++ @ 2.17 build as x86_64 (built natively
+            // on ubuntu-24.04-arm, llvm-slice#4); isLibcxx routes the shim to
+            // the zig c++/2.17 link path. Closes the #7082 aarch64 follow-up.
             .aarch64 => .{
-                .dirname = "LLVM-22.1.8-Linux-ARM64",
-                .triple = "aarch64-linux",
-                .manifest_sha256 = "b1aae9c16de5feff6fd4441f0bf32671b27c6dda98382ee389d305db6351e598",
-                .zip_size = 932506999,
+                .dirname = "LLVM-22.1.8-Linux-ARM64-libcxx",
+                .triple = "aarch64-linux-libcxx",
+                .manifest_sha256 = "0315f2d83f4cab6cc5e0ef94b5d6999306109b27d0955549e7af46897ca28c34",
+                .zip_size = 462054429,
             },
             else => null,
         },
