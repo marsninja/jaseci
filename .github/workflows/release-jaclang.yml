@@ -122,21 +122,19 @@ jobs:
           printf 'with entry { print("ok"); }\n' > "$WORK/h.jac"
           env -i HOME="$WORK" PATH=/usr/bin:/bin "$BIN" run "$WORK/h.jac" | grep -q ok
 
-      - name: Verify glibc floor (x86_64 = 2.17)
-        if: matrix.platform == 'linux-x86_64'
+      - name: Verify glibc floor (from zig_target)
+        if: runner.os == 'Linux'
         working-directory: jac
+        env:
+          ZIG_TARGET: ${{ matrix.zig_target }}
         # Guards #7082: the shipped launcher and the LLVMPY_* shim must not reference
-        # a glibc symbol newer than the 2.17 floor. The shim used to need GLIBC_2.38
-        # because its host-g++ link ignored -Dtarget; it now links the libc++ LLVM
-        # slice with `zig c++` at this same 2.17. objdump -T lists each undefined
-        # symbol's GLIBC_x.y version tag; assert the maximum is <= 2.17.
+        # a glibc symbol newer than the advertised floor -- which is exactly the
+        # matrix zig_target's suffix (x86_64-linux-gnu.2.17 -> 2.17), so there is no
+        # second place to keep a floor number in sync. objdump -T lists each
+        # undefined symbol's GLIBC_x.y version tag; assert the maximum is <= floor.
         run: |
           set -euxo pipefail
-          # Materialize the shim as an install artifact if the build didn't place it.
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.so"
-          [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
-          [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
-          FLOOR="2.17"
+          FLOOR="${ZIG_TARGET##*gnu.}"
           check() {
             local f="$1" hi
             [ -f "$f" ] || { echo "::error::missing $f"; exit 1; }
@@ -148,7 +146,20 @@ jobs:
             fi
           }
           check zig-out/bin/jac
-          check "$SHIM"
+          if [ "${{ matrix.platform }}" = "linux-aarch64" ]; then
+            # The aarch64 shim is still host-g++-linked against the stock
+            # libstdc++ slice (no aarch64 libc++ slice published yet, #7082), so
+            # its real floor is the RUNNER's glibc, above the launcher's pin --
+            # asserting it would always fail. Drop this branch when llvm_release
+            # .zig flips aarch64 to the `aarch64-linux-libcxx` slice.
+            echo "::warning::aarch64 shim floor not enforced (host g++ link; its floor is the runner glibc, not $FLOOR)"
+          else
+            # Materialize the shim as an install artifact if the build didn't place it.
+            SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.so"
+            [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
+            [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
+            check "$SHIM"
+          fi
 
       - name: Package asset (+ checksum, ad-hoc codesign on macOS)
         id: pkg
