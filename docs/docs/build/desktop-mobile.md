@@ -21,13 +21,15 @@ Window title and size are configured under `[plugins.desktop]` in `jac.toml`. On
 Ship the same client bundle to mobile via **Capacitor**, which wraps it in a native webview. The mobile app is the *frontend only* -- it talks to your Jac server over HTTP, so deploy the backend separately (e.g. as a [backend service](backend-apis.md#service)):
 
 ```bash
-# prerequisites: Node.js; Android: JDK + Android SDK; iOS (macOS): Xcode
+# prerequisites: Android: JDK + Android SDK; iOS (macOS): Xcode (Node.js optional -- bundled Bun is used when absent)
 jac setup mobile --platform android               # one-time scaffold
 jac start main.jac --client mobile --dev          # live reload on device/emulator
 jac build --client mobile --platform android      # → app-debug.apk
 ```
 
 Use `--platform ios` on macOS to produce an Xcode project. App name and id are set under `[plugins.client.mobile]`.
+
+For **platform-native views** instead of a webview, there is also a beta [React Native target](../reference/plugins/jac-client.md#react-native-target-beta) (`--client react-native`, Expo/Metro-based).
 
 ## Your learning path
 

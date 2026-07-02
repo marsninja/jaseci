@@ -245,9 +245,9 @@ A React Native app is a **mobUI** project -- one source tree that compiles to bo
 
 | `@jac/ui` | Replaces HTML |
 |-----------|---------------|
-| `View` | `div`, `section`, `main`, `header`, `footer`, `nav`, `aside` |
+| `View` | `div`, `section`, `main`, `article`, `header`, `footer`, `nav`, `aside` |
 | `Text` | `span`, `p`, `h1`-`h6`, `label`, `strong`, `em`, `small` |
-| `Pressable` / `Button` | `button`, `a` |
+| `Pressable` | `button`, `a` |
 | `TextInput` | `input`, `textarea` |
 | `Image` | `img` |
 | `ScrollView` | `ul`, `ol`, scroll areas |
@@ -311,11 +311,10 @@ The same source builds for web (`jac build`) and native (`jac build --client rea
 ### Development
 
 ```bash
-jac start main.jac --client react-native --dev                     # Android (default)
-jac start main.jac --client react-native --dev --platform ios      # iOS (macOS)
+jac start main.jac --client react-native --dev
 ```
 
-This launches the Jac backend, compiles `.cl.jac` to JS, and runs `npx expo start`. Editing a `.cl.jac` file recompiles and Metro Fast Refreshes the device. Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`); `adb reverse` is auto-attempted for Android.
+This launches the Jac backend, compiles `.cl.jac` to JS, and runs `expo start` (via `npx`, `bunx`, or the bundled Bun). Metro serves both platforms -- pick the device in the Expo CLI (press `a` for Android, `i` for the iOS simulator) or scan the QR code in Expo Go. Editing a `.cl.jac` file recompiles and Metro Fast Refreshes the device. Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`, override with `JAC_RN_DEV_HOST`); Metro defaults to port `8081` (`JAC_RN_METRO_PORT`); `adb reverse` is auto-attempted for Android.
 
 ### Production build
 
@@ -356,7 +355,7 @@ See the [jac-client Reference -> EAS Update (OTA)](../../reference/plugins/jac-c
 
 ### Platform-specific files
 
-When you need platform-exclusive native modules, add a `.native.cl.jac` variant alongside a `.cl.jac` module. The compiler picks up the `.native.cl.jac` file when `--client react-native` is selected and falls back to `.cl.jac` otherwise. This is a last resort -- prefer the `@jac/ui` vocabulary and `Platform.select` for divergence.
+When you need platform-exclusive native modules, add a `.native.cl.jac` variant alongside a `.cl.jac` module. The compiler picks up the `.native.cl.jac` file when `--client react-native` is selected and falls back to `.cl.jac` otherwise. This is a last resort -- prefer components from the `@jac/ui` vocabulary, which absorb platform divergence internally. (A `Platform.select` one-liner API is planned but not yet part of `@jac/ui`.)
 
 ### What carries over
 

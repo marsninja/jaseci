@@ -1773,7 +1773,7 @@ jac setup <target> [-p PLATFORM]
 | Option | Description |
 |--------|-------------|
 | `target` | Target to setup (`desktop`, `mobile`, `pwa`, `react-native`) |
-| `-p, --platform` | Mobile / React Native setup platform (`android`, `ios`, `all`) |
+| `-p, --platform` | Mobile (Capacitor) setup platform (`android`, `ios`, `all`); the React Native scaffold is platform-neutral |
 
 **Examples:**
 
@@ -1935,8 +1935,9 @@ A React Native app is a **mobUI** project: one source tree that compiles to both
 jac setup react-native
 
 # 2. Development: Fast Refresh on device/emulator
-jac start main.jac --client react-native --dev                     # Android (default)
-jac start main.jac --client react-native --dev --platform ios      # iOS (macOS)
+jac start main.jac --client react-native --dev
+# Metro serves both platforms; pick the device in the Expo CLI
+# (press `a` for Android, `i` for iOS simulator) or scan the QR in Expo Go.
 
 # 3. Build for Android
 jac build --client react-native --platform android
@@ -1945,11 +1946,15 @@ jac build --client react-native --platform android
 jac build --client react-native --platform ios
 ```
 
+**Dev-loop knobs:** Metro defaults to port `8081` (override with `JAC_RN_METRO_PORT`); the device-visible host is auto-detected from your LAN IPv4 (override with `JAC_RN_DEV_HOST`). Each `--dev` run starts Metro with `--clear`, so warm starts re-bundle from scratch.
+
 **Output:**
 
-- Android: APK via `gradlew assembleDebug` (or EAS Build)
-- iOS: `.app` bundle via `xcodebuild` on macOS (installed with `simctl`); a
-  distributable `.ipa` comes from the EAS Build path
+- Android: APK via `gradlew assembleDebug` (or EAS Build with `android_builder = "eas"`)
+- iOS: simulator `.app` bundle via `xcodebuild` on macOS -- `jac build` prints the
+  `xcrun simctl install booted <app>` command, and `jac start --client react-native`
+  builds, installs, and launches it for you; a distributable `.ipa` comes from the
+  EAS Build path (`ios_builder = "eas"`)
 
 **Configuration** via `[plugins.client.react_native]` in `jac.toml`:
 
@@ -1957,6 +1962,10 @@ jac build --client react-native --platform ios
 [plugins.client.react_native]
 project_dir = ".jac/mobile-rn"   # Expo project location (under the .jac build root; override to relocate)
 release = false                  # true for release variants
+default_platform = "android"     # platform used by plain `jac start --client react-native`
+android_builder = "gradle"       # "gradle" (local) or "eas" (EAS Build)
+ios_builder = "xcodebuild"       # "xcodebuild" (local, macOS) or "eas" (EAS Build)
+eas_profile = ""                 # "" -> "production" (release) / "preview" (debug)
 # EAS Update (OTA) -- opt-in, see "EAS Update (OTA)" below
 eas_update = false               # true to publish an update after each build
 eas_update_branch = ""           # "" -> "production" (release) / "preview" (debug)
@@ -1989,6 +1998,7 @@ client_kind = "mobui"
 | `eas_update` | bool | `false` | Run `eas update` after a successful build. Also accepts the legacy alias `ota_update`. |
 | `eas_update_branch` | str | `""` | Update branch name. Empty falls back to `production` for release builds, `preview` for debug. Legacy alias: `ota_update_branch`. |
 | `eas_update_message` | str | `""` | Commit message for the update. Empty passes `--auto` (EAS derives one from the git log). |
+| `eas_profile` | str | `""` | Build profile for `eas build`. Empty falls back to `production` for release builds, `preview` for debug. |
 
 **One-time setup** (run inside `.jac/mobile-rn/`):
 
@@ -2036,14 +2046,15 @@ Authors choose per project -- or ship both targets from one repo while keeping s
 |-----------|---------------|---------------------|-------------------|
 | `View` | `div`, `section`, `main`, `article`, `header`, `footer`, `nav`, `aside` | `View` | RNW `View` |
 | `Text` | `span`, `p`, `h1`-`h6`, `label`, `strong`, `em`, `small` | `Text` | RNW `Text` |
-| `Pressable` / `Button` | `button`, `a` | `Pressable` | RNW `Pressable` |
+| `Pressable` | `button`, `a` | `Pressable` | RNW `Pressable` |
 | `TextInput` | `input`, `textarea` | `TextInput` | RNW `TextInput` |
 | `Image` | `img` | `Image` | RNW `Image` |
 | `ScrollView` | `ul`, `ol`, scroll areas | `ScrollView` | RNW `ScrollView` |
-| `List` | (flat lists) | `FlatList` | RNW `FlatList` |
+| `Animated` / `Easing` | (CSS transitions) | `Animated` / `Easing` | RNW `Animated` / `Easing` |
+| `useWindowDimensions` | (media queries) | `useWindowDimensions` | RNW `useWindowDimensions` |
 | `StyleSheet` | CSS / `className` | `StyleSheet.create` | RNW `StyleSheet` |
 
-Styling is React Native's model only: `style={{...}}` objects over a flexbox subset, plus an optional design-token/theme object. No CSS files, no `className`, by construction rather than by lint.
+Styling is React Native's model only: `style={{...}}` objects over a flexbox subset, plus an optional design-token/theme object. HTML tags are rejected at compile time (E1105); CSS imports are warned about and stripped from native builds (`.css` files never reach Metro).
 
 !!! note "Web builds need `react-native-web`"
     On the web target, `@jac/ui` lowers to DOM through `react-native-web`. Declare it under `[dependencies.npm]` in `jac.toml` (the mobUI examples do); the bundler only aliases `react-native` to `react-native-web` when the dependency is present, so plain web projects that never touch `@jac/ui` are unaffected.
@@ -2085,7 +2096,7 @@ error[E1105]: JSX tag '<div>' is not in scope in a mobUI project; use View inste
 - **Uppercase components** (`<Card>`, `<Image>`) are always allowed.
 - **Lowercase components that resolve to an in-scope symbol are allowed** (e.g. a local `counter` component used as `<counter .../>`).
 - Only unresolved lowercase names (`div`, `span`, ...) are rejected.
-- **`.cl.jac` web-boundary files are exempt** (raw HTML stays valid where the code can only run in a browser), as are modules outside the project root (framework and third-party code). The kind is discovered from each module's own project `jac.toml`, never the process cwd.
+- **`.cl.jac` web-boundary files are exempt** (raw HTML stays valid where the code can only run in a browser) -- but `.native.cl.jac` files are not, since they target React Native. Modules outside the project root (framework and third-party code) are exempt too. The kind is discovered from each module's own project `jac.toml`, never the process cwd.
 
 See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics reference. Web projects (`client_kind` unset) are unaffected -- HTML tags remain valid there.
 
@@ -2094,8 +2105,7 @@ See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics 
 Platform differences are handled in priority order:
 
 1. **The vocabulary absorbs divergence** (primary). Components own their platform differences internally -- `ScrollView`, `Image`, and future additions present one API and branch inside `@jac/ui`. Authors see a single component.
-2. **`Platform` API** (rare). `Platform.os` / `Platform.select({...})` exported from `@jac/ui` for one-line conditional values.
-3. **`.native.cl.jac` platform files** (last resort). Reserved for wrapping platform-exclusive native modules. The compiler checks for a `.native.cl.jac` variant when `--client react-native` is selected and falls back to `.cl.jac` when not found.
+2. **`.native.cl.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `mobui_littlex`'s `icon.cl.jac` / `icon.native.cl.jac` split. The compiler picks the `.native.cl.jac` variant when `--client react-native` is selected and falls back to `.cl.jac` when not found. (A `Platform.os` / `Platform.select` one-liner API is planned but not yet part of `@jac/ui`.)
 
 #### What carries over from web
 
