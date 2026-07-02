@@ -175,7 +175,7 @@ jobs:
           printf 'with entry { print("ok"); }\n' > "$WORK/h.jac"
           env -i HOME="$WORK" PATH=/usr/bin:/bin "$BIN" run "$WORK/h.jac" | grep -q ok
 
-      - name: Package asset (+ checksum, ad-hoc codesign on macOS)
+      - name: Package asset (+ checksum)
         id: pkg
         working-directory: jac
         run: |
@@ -183,9 +183,13 @@ jobs:
           ASSET="jac-dev-${{ matrix.platform }}"
           mkdir -p dist
           cp zig-out/bin/jac "dist/$ASSET"
-          # No `|| true`: a signing failure should fail the job, not silently
-          # ship a binary that was never re-signed after the copy.
-          if [ "$RUNNER_OS" = "macOS" ]; then codesign --force --sign - "dist/$ASSET"; fi
+          # No codesign on macOS, deliberately: the binary is a Mach-O stub
+          # with the payload tarball appended (launcher/pack.zig), and codesign
+          # rejects any file with data past the Mach-O end ("main executable
+          # failed strict validation"). Re-signing is also unnecessary -- the
+          # zig linker ad-hoc signs the stub, that signature is content-based
+          # so it survives cp, and the smoke test above already executed these
+          # exact bytes on this runner.
           ( cd dist && shasum -a 256 "$ASSET" > "$ASSET.sha256" )
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
