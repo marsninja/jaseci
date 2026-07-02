@@ -43,42 +43,42 @@ import from .tui_core {
     tui_render_once,
     _sync_size
 }
+import from .runtime { TuiRuntime }
 
-glob host_state: TuiState = TuiState(),
-     host_diff: DiffEngine = DiffEngine();
+glob rt: TuiRuntime = TuiRuntime();
 
 def:pub tui_init(project: str, files_env: str, presets_env: str, tty_dev: str) -> int {
-    ipc_clear_cmd_queue();
-    host_state.reset_events();
-    host_state.files = [];
-    host_state.model_presets = [];
-    host_state.quit_flag = False;
+    ipc_clear_cmd_queue(rt.cmd_queue);
+    rt.state.reset_events();
+    rt.state.files = [];
+    rt.state.model_presets = [];
+    rt.state.quit_flag = False;
 
-    host_state.ipc_fd = -1;
+    rt.state.ipc_fd = -1;
 
-    host_state.status = "idle";
-    host_state.active = "";
-    host_state.model_name = "";
-    host_state.needs_key = False;
-    host_state.key_env = "";
-    host_state.editor.clear();
-    host_state.overlay_active = False;
-    host_state.overlay_kind = "palette";
-    host_state.overlay_filter = "";
-    host_diff.invalidate();
+    rt.state.status = "idle";
+    rt.state.active = "";
+    rt.state.model_name = "";
+    rt.state.needs_key = False;
+    rt.state.key_env = "";
+    rt.state.editor.clear();
+    rt.state.overlay_active = False;
+    rt.state.overlay_kind = "palette";
+    rt.state.overlay_filter = "";
+    rt.diff.invalidate();
 
     fd: int = tty_open_dev(tty_dev);
     if fd < 0 {
         return 1;
     }
-    host_state.render_fd = fd;
-    tui_populate_state(host_state, project, files_env, presets_env);
-    tui_enter_screen(host_state);
+    rt.state.render_fd = fd;
+    tui_populate_state(rt.state, project, files_env, presets_env);
+    tui_enter_screen(rt.state);
     return 0;
 }
 
 def:pub tui_apply_frame(blob: str) -> int {
-    ok = ipc_parse_frame(host_state, blob);
+    ok = ipc_parse_frame(rt.state, blob);
     if ok {
         return 0;
     }
@@ -95,50 +95,50 @@ def:pub tui_handle_key -> int {
     if len(raw) == 0 {
         return 0;
     }
-    quit = handle_key(parse_key(raw), host_state, host_state.ipc_fd);
+    quit = handle_key(parse_key(raw), rt);
     if quit {
-        host_state.quit_flag = True;
+        rt.state.quit_flag = True;
         return 1;
     }
     return 0;
 }
 
 def:pub tui_next_command -> str {
-    return ipc_next_command();
+    return ipc_next_command(rt.cmd_queue);
 }
 
 def:pub tui_quit_requested -> int {
-    if host_state.quit_flag {
+    if rt.state.quit_flag {
         return 1;
     }
     return 0;
 }
 
 def:pub tui_render -> int {
-    if host_state.render_fd < 0 {
+    if rt.state.render_fd < 0 {
         return 0;
     }
 
-    _sync_size(host_state);
-    if tui_render_once(host_state, host_diff) {
+    _sync_size(rt.state);
+    if tui_render_once(rt) {
         return 1;
     }
     return 0;
 }
 
 def:pub tui_render_buf -> str {
-    host_diff.invalidate();
-    host_state.dirty = True;
-    saved_fd = host_state.render_fd;
-    host_state.render_fd = -1;
-    tui_render_once(host_state, host_diff);
-    host_state.render_fd = saved_fd;
-    return diff_take_buf();
+    rt.diff.invalidate();
+    rt.state.dirty = True;
+    saved_fd = rt.state.render_fd;
+    rt.state.render_fd = -1;
+    tui_render_once(rt);
+    rt.state.render_fd = saved_fd;
+    return diff_take_buf(rt.paint_buf);
 }
 
 def:pub tui_shutdown -> int {
-    if host_state.render_fd >= 0 {
-        tui_leave_screen(host_state);
+    if rt.state.render_fd >= 0 {
+        tui_leave_screen(rt.state);
     }
     tty_close();
     return 0;

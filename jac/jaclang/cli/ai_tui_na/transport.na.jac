@@ -52,7 +52,7 @@ obj Transport {
     }
 
     def send_cmd(cmd: str) { }
-    def flush_outbound_cmds { }
+    def flush_outbound_cmds(cmd_queue: CmdQueue) { }
     def stdin_eof -> bool {
         return False;
     }

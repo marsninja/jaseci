@@ -3,23 +3,15 @@ import os;
 
 import from .ipc { ipc_send_cmd }
 import from .ipc_schema { IPC_CMD_SEND }
-import from .diff { DiffEngine }
-import from .state { TuiState }
 import from .transport { TtyFdTransport }
 import from .tui_loop { tui_loop_once }
 import from .tui_core { tui_setup, tui_teardown }
+import from .runtime { TuiRuntime }
 
-glob args = sys.argv;
-
-glob state: TuiState = TuiState(),
-     diff_engine: DiffEngine = DiffEngine(),
-     tty_transport: TtyFdTransport = TtyFdTransport();
-
-glob proj = os.getenv("JAC_AI_UI_PROJECT");
-
-glob files_env = os.getenv("JAC_AI_UI_FILES");
-
-glob presets_env = os.getenv("JAC_AI_UI_MODEL_PRESETS");
+glob args = sys.argv,
+     proj = os.getenv("JAC_AI_UI_PROJECT"),
+     files_env = os.getenv("JAC_AI_UI_FILES"),
+     presets_env = os.getenv("JAC_AI_UI_MODEL_PRESETS");
 
 def _run {
     proj_s: str = "";
@@ -35,20 +27,22 @@ def _run {
         presets_s = presets_env;
     }
 
-    if tui_setup(state, proj_s, files_s, presets_s) < 0 {
+    rt = TuiRuntime();
+    rt.transport = TtyFdTransport();
+    if tui_setup(rt.state, proj_s, files_s, presets_s) < 0 {
         sys.exit(1);
     }
 
     if len(args) > 1 {
         initial = args[1].strip();
         if len(initial) > 0 {
-            ipc_send_cmd(state.ipc_fd, IPC_CMD_SEND + ":" + initial);
+            ipc_send_cmd(rt.cmd_queue, rt.state.ipc_fd, IPC_CMD_SEND + ":" + initial);
         }
     }
 
-    while tui_loop_once(state, diff_engine, tty_transport) { }
+    while tui_loop_once(rt) { }
 
-    tui_teardown(state);
+    tui_teardown(rt.state);
 }
 
 with entry {

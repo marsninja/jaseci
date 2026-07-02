@@ -7,6 +7,7 @@ import from .commands {
     command_dispatch,
     apply_model
 }
+import from .runtime { TuiRuntime }
 import from .editor { editor_insert_text }
 import from .select_list { SelectItem }
 import from .width { visible_width, ansi_trunc, ansi_pad }
@@ -73,7 +74,8 @@ def overlay_close(state: TuiState) {
     state.dirty = True;
 }
 
-def overlay_handle_key(k: Key, state: TuiState, ipc_fd: int) -> bool {
+def overlay_handle_key(k: Key, rt: TuiRuntime) -> bool {
+    state = rt.state;
     sl = state.select_list;
     action = sl.handle_key(k);
     if action == "cancel" {
@@ -93,7 +95,7 @@ def overlay_handle_key(k: Key, state: TuiState, ipc_fd: int) -> bool {
         kind = state.overlay_kind;
 
         if kind == "model" {
-            apply_model(item.value, state, ipc_fd);
+            apply_model(item.value, rt);
             overlay_close(state);
             return False;
         }
@@ -104,7 +106,7 @@ def overlay_handle_key(k: Key, state: TuiState, ipc_fd: int) -> bool {
             return False;
         }
 
-        result = command_dispatch(item.value, state, ipc_fd);
+        result = command_dispatch(item.value, rt);
         if result == "open_model" {
             overlay_open_model(state);
             return False;

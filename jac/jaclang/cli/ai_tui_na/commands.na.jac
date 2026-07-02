@@ -8,6 +8,7 @@ import from .ipc_schema {
     IPC_CMD_QUIT,
     IPC_CMD_APPLY
 }
+import from .runtime { TuiRuntime }
 
 obj CmdDef {
     has value: str = "",
@@ -218,7 +219,8 @@ def resolve_slash_line(text: str) -> str {
     return "";
 }
 
-def command_dispatch(cmd: str, state: TuiState, ipc_fd: int) -> str {
+def command_dispatch(cmd: str, rt: TuiRuntime) -> str {
+    state = rt.state;
     d = _find_def(cmd);
     if d is None {
         return "";
@@ -243,13 +245,13 @@ def command_dispatch(cmd: str, state: TuiState, ipc_fd: int) -> str {
         return "handled";
     }
     if d.kind == "ipc_reset" {
-        ipc_send_cmd(ipc_fd, d.ipc_name);
+        ipc_send_cmd(rt.cmd_queue, state.ipc_fd, d.ipc_name);
         state.reset_events();
         state.dirty = True;
         return "handled";
     }
     if d.kind == "ipc" {
-        ipc_send_cmd(ipc_fd, d.ipc_name);
+        ipc_send_cmd(rt.cmd_queue, state.ipc_fd, d.ipc_name);
         if d.ipc_name == IPC_CMD_QUIT {
             return "quit";
         }
@@ -259,21 +261,22 @@ def command_dispatch(cmd: str, state: TuiState, ipc_fd: int) -> str {
     return "";
 }
 
-def slash_submit(text: str, state: TuiState, ipc_fd: int) -> str {
+def slash_submit(text: str, rt: TuiRuntime) -> str {
+    state = rt.state;
     if text.startswith("/settings ") {
         args = text[10:].strip();
-        ipc_send_cmd(ipc_fd, IPC_CMD_APPLY + ":" + args);
+        ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_APPLY + ":" + args);
         return "handled";
     }
     value = resolve_slash_line(text);
     if len(value) == 0 {
         return "";
     }
-    return command_dispatch(value, state, ipc_fd);
+    return command_dispatch(value, rt);
 }
 
-def run_command(cmd: str, state: TuiState, ipc_fd: int) -> bool {
-    return command_dispatch(cmd, state, ipc_fd) == "quit";
+def run_command(cmd: str, rt: TuiRuntime) -> bool {
+    return command_dispatch(cmd, rt) == "quit";
 }
 
 def palette_commands(state: TuiState) -> list[SelectItem] {
@@ -344,7 +347,8 @@ def file_items(state: TuiState) -> list[SelectItem] {
     return items;
 }
 
-def apply_model(model: str, state: TuiState, ipc_fd: int) {
-    ipc_send_cmd(ipc_fd, IPC_CMD_APPLY + ":model=" + model);
+def apply_model(model: str, rt: TuiRuntime) {
+    state = rt.state;
+    ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_APPLY + ":model=" + model);
     state.dirty = True;
 }

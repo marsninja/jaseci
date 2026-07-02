@@ -4,9 +4,10 @@ import from .select_list { SelectList, SelectItem }
 import from .ipc { ipc_clear_cmd_queue, ipc_next_command }
 import from .diff { DiffEngine }
 import from .terminal_image { term_hyperlink, image_rows }
-import from .transport { TtyFdTransport }
+import from .transport { TtyFdTransport, CmdQueue }
 import from .tui_loop { tui_loop_once }
 import from .tui_core { tui_populate_state, tui_enter_screen, tui_leave_screen }
+import from .runtime { TuiRuntime }
 
 import os;
 
@@ -91,18 +92,16 @@ obj EmbedPyTransport(TtyFdTransport) {
         return _agent_poll(self.py_dict);
     }
 
-    def flush_outbound_cmds {
-        cmd: str = ipc_next_command();
+    def flush_outbound_cmds(cmd_queue: CmdQueue) {
+        cmd: str = ipc_next_command(cmd_queue);
         while len(cmd) > 0 {
             _agent_send(self.py_dict, cmd);
-            cmd = ipc_next_command();
+            cmd = ipc_next_command(cmd_queue);
         }
     }
 }
 
-glob host_state: TuiState = TuiState(),
-     host_diff: DiffEngine = DiffEngine(),
-     embed_transport: EmbedPyTransport = EmbedPyTransport();
+glob embed_transport: EmbedPyTransport = EmbedPyTransport();
 
 
 def _run_embed -> None {
@@ -142,26 +141,29 @@ def _run_embed -> None {
         return;
     }
 
-    ipc_clear_cmd_queue();
-    host_state.ipc_fd = -1;
+    rt = TuiRuntime();
+    rt.transport = embed_transport;
+    state = rt.state;
+    ipc_clear_cmd_queue(rt.cmd_queue);
+    state.ipc_fd = -1;
     fd: int = tty_open();
     if fd < 0 {
         jpy_PyRun_SimpleString("_agent_stop()");
         return;
     }
-    host_state.render_fd = fd;
-    tui_populate_state(host_state, proj_s, files_s, presets_s);
-    tui_enter_screen(host_state);
+    state.render_fd = fd;
+    tui_populate_state(state, proj_s, files_s, presets_s);
+    tui_enter_screen(state);
     embed_transport.py_dict = d;
     embed_transport.stdin_eof = False;
 
     ts: int = jpy_PyEval_SaveThread();
 
-    while tui_loop_once(host_state, host_diff, embed_transport) { }
+    while tui_loop_once(rt) { }
 
     jpy_PyEval_RestoreThread(ts);
     jpy_PyRun_SimpleString("_agent_stop()");
-    tui_leave_screen(host_state);
+    tui_leave_screen(state);
     tty_close();
     jpy_Py_Finalize();
 }

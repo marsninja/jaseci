@@ -1,6 +1,7 @@
 import from .state { TuiState }
 import from .ipc { ipc_send_cmd }
 import from .ipc_schema { IPC_CMD_SEND, IPC_CMD_STOP, IPC_CMD_RESET, IPC_CMD_QUIT }
+import from .runtime { TuiRuntime }
 import from .keys {
     Key,
     parse_key,
@@ -77,7 +78,8 @@ def _editor_max_rows(state: TuiState) -> int {
     return m;
 }
 
-def _handle_submit(state: TuiState, ipc_fd: int) -> bool {
+def _handle_submit(rt: TuiRuntime) -> bool {
+    state = rt.state;
     ed = state.editor;
 
     if len(ed.lines) > 0 {
@@ -97,7 +99,7 @@ def _handle_submit(state: TuiState, ipc_fd: int) -> bool {
         return False;
     }
 
-    result = slash_submit(text, state, ipc_fd);
+    result = slash_submit(text, rt);
     if result == "quit" {
         return True;
     }
@@ -120,17 +122,18 @@ def _handle_submit(state: TuiState, ipc_fd: int) -> bool {
     state.upsert_event(-1, "user", text, "");
     state.scroll_to_bottom();
 
-    ipc_send_cmd(ipc_fd, IPC_CMD_SEND + ":" + text);
+    ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_SEND + ":" + text);
     return False;
 }
 
-def handle_key(k: Key, state: TuiState, ipc_fd: int) -> bool {
+def handle_key(k: Key, rt: TuiRuntime) -> bool {
+    state = rt.state;
     if k.kind == KK_UNKNOWN {
         return False;
     }
 
     if overlay_is_active(state) {
-        return overlay_handle_key(k, state, ipc_fd);
+        return overlay_handle_key(k, rt);
     }
 
     ed = state.editor;
@@ -168,7 +171,7 @@ def handle_key(k: Key, state: TuiState, ipc_fd: int) -> bool {
             ac_apply(state);
             editor_update_scroll(ed, ew, emr);
             if ac_kind == "slash" {
-                return _handle_submit(state, ipc_fd);
+                return _handle_submit(rt);
             }
             return False;
         }
@@ -180,16 +183,16 @@ def handle_key(k: Key, state: TuiState, ipc_fd: int) -> bool {
     if k.kind == KK_CTRL {
         ch = chr(k.code);
         if ch == "c" or ch == "q" {
-            ipc_send_cmd(ipc_fd, IPC_CMD_QUIT);
+            ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_QUIT);
             return True;
         }
         if ch == "g" {
-            ipc_send_cmd(ipc_fd, IPC_CMD_STOP);
+            ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_STOP);
             state.dirty = True;
             return False;
         }
         if ch == "r" {
-            ipc_send_cmd(ipc_fd, IPC_CMD_RESET);
+            ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_RESET);
             state.reset_events();
             state.dirty = True;
             return False;
@@ -247,7 +250,7 @@ def handle_key(k: Key, state: TuiState, ipc_fd: int) -> bool {
     }
 
     if k.kind == KK_ENTER {
-        return _handle_submit(state, ipc_fd);
+        return _handle_submit(rt);
     }
 
     if k.kind == KK_BACKSPACE {

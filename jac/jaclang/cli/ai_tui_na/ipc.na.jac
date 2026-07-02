@@ -16,18 +16,16 @@ import from .ipc_schema {
 import from .transport { CmdQueue }
 import from .libc_tty { tty_read_line }
 
-glob _cmd_queue: CmdQueue = CmdQueue();
-
-def ipc_send_cmd(fd: int, cmd: str) {
-    _cmd_queue.send(fd, cmd);
+def ipc_send_cmd(cmd_queue: CmdQueue, fd: int, cmd: str) {
+    cmd_queue.send(fd, cmd);
 }
 
-def ipc_next_command -> str {
-    return _cmd_queue.drain();
+def ipc_next_command(cmd_queue: CmdQueue) -> str {
+    return cmd_queue.drain();
 }
 
-def ipc_clear_cmd_queue {
-    _cmd_queue.clear();
+def ipc_clear_cmd_queue(cmd_queue: CmdQueue) {
+    cmd_queue.clear();
 }
 
 def _unescape(s: str) -> str {

@@ -21,6 +21,7 @@ import from .terminal {
 import from .state { TuiState }
 import from .screen { screen_render }
 import from .diff { DiffEngine }
+import from .runtime { TuiRuntime }
 
 def _sync_size(state: TuiState) {
     tty_update_size();
@@ -74,16 +75,17 @@ def tui_leave_screen(state: TuiState) {
     term_leave_alt_screen(state.render_fd);
 }
 
-def tui_render_once(state: TuiState, diff_engine: DiffEngine) -> bool {
+def tui_render_once(rt: TuiRuntime) -> bool {
+    state = rt.state;
     if not state.dirty {
         return False;
     }
     if state.overlay_full_redraw {
-        diff_engine.invalidate();
+        rt.diff.invalidate();
         state.overlay_full_redraw = False;
     }
     lines = screen_render(state, state.term_cols, state.term_rows);
-    diff_engine.paint(lines, state.term_cols, state.render_fd);
+    rt.diff.paint(lines, state.term_cols, state.render_fd, rt.paint_buf);
     state.dirty = False;
     return True;
 }
