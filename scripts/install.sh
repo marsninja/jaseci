@@ -198,9 +198,24 @@ ensure_on_path() {
 
 # --- Version resolution ---
 
+# GET an api.github.com URL, authenticated when a token is available.
+# Unauthenticated api.github.com allows only 60 requests/hour per source IP;
+# shared CI runner IPs exhaust that constantly (the release workflow's
+# install.sh verify step exports GH_TOKEN for exactly this reason). End users
+# stay anonymous. Asset downloads (browser_download_url) are not API calls and
+# never send the token.
+api_get() {
+    local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+    if [[ -n "$token" ]]; then
+        curl -fsSL -H "Authorization: Bearer ${token}" "$1"
+    else
+        curl -fsSL "$1"
+    fi
+}
+
 get_latest_version() {
     local response
-    response=$(curl -fsSL "${GITHUB_API}/releases/latest" 2>/dev/null) || {
+    response=$(api_get "${GITHUB_API}/releases/latest" 2>/dev/null) || {
         err "Failed to query GitHub API for latest release."
         err "Check your internet connection or specify a version with --version."
         exit 1
@@ -222,7 +237,7 @@ get_latest_version() {
 resolve_jaclang_version_from_release() {
     local release_tag="$1"
     local response
-    response=$(curl -fsSL "${GITHUB_API}/releases/tags/v${release_tag}" 2>/dev/null) || {
+    response=$(api_get "${GITHUB_API}/releases/tags/v${release_tag}" 2>/dev/null) || {
         err "Failed to query GitHub API for release v${release_tag}."
         exit 1
     }
