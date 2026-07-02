@@ -6,6 +6,23 @@ impl __jacRegisterRenderer(renderer: any) -> None {
     globalThis.__jacRenderer__ = renderer;
 }
 
+impl JacAwaiting(props: dict) -> JsxElement {
+    return React.createElement(
+        React.Suspense, {"fallback": props.fallback}, props.children
+    );
+}
+
+async def _awaitPlatformReady -> None {
+    # Platforms with asynchronous credential storage (React Native /
+    # SecureStore) publish a readiness promise; awaiting it here keeps
+    # early walker/function calls from going out before the auth token is
+    # primed. Web wires nothing, so this is a no-op there.
+    ready = globalThis.__jacPlatformReady__;
+    if ready {
+        await ready;
+    }
+}
+
 impl __createJacSchema(zodLib: any) -> any {
     handler = {
         "apply": lambda target: any , thisArg: any , argumentsList: any -> any { return zodLib.object.apply(
@@ -117,6 +134,7 @@ impl __invalidateEndpoint(endpoint_key: str) -> None {
 }
 
 impl __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any {
+    await _awaitPlatformReady();
     token = globalThis.__jacGetLocalStorage__("jac_token");
     base_url = globalThis.__jacGetApiBaseUrl__();
     url = f"{base_url}/walker/{`walker}";
@@ -148,6 +166,7 @@ impl __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any {
 }
 
 impl __doFuncFetch(function_name: str, args: dict) -> any {
+    await _awaitPlatformReady();
     token = globalThis.__jacGetLocalStorage__("jac_token");
     base_url = globalThis.__jacGetApiBaseUrl__();
     headers = {"Content-Type": "application/json"};

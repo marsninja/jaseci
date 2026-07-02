@@ -19,15 +19,10 @@ glob _client_dir = (
 
 def _register_client_targets {
     import from jaclang.runtimelib.client.targets.register { register_targets }
-    import from jaclang.runtimelib.client.targets.registry {
-        get_target_factory,
-        get_target_registry
-    }
+    import from jaclang.runtimelib.client.targets.registry { get_target_registry }
 
     registry = get_target_registry();
     registry.clear();
-    factory = get_target_factory();
-    factory.clear_cache();
     register_targets();
 }
 

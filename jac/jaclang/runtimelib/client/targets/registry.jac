@@ -83,7 +83,6 @@ obj TargetFactory {
     def create(name: str, project_dir: Path) -> ClientTarget;
     def create_by_type(target_type: TargetType, project_dir: Path) -> ClientTarget;
     def get_available_target_names -> list[str];
-    def clear_cache -> None;
 }
 
 glob _registry: TargetRegistry | None = None,

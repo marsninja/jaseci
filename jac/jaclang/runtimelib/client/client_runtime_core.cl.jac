@@ -4,6 +4,7 @@ import from '@hookform/resolvers/zod' { zodResolver }
 
 def:pub __jacJsx(tag: any, props: dict = {}, children: any = []) -> JsxElement;
 def:pub __jacRegisterRenderer(renderer: any) -> None;
+def:pub JacAwaiting(props: dict) -> JsxElement;
 
 def:pub __createJacSchema(zodLib: any) -> any;
 async def:pub __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any;

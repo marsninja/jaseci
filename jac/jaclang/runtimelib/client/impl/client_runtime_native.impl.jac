@@ -1,6 +1,10 @@
 impl __jacWirePlatformAdapters -> None {
     globalThis.__jacGetRenderer__ = __jacGetRenderer;
     globalThis.__jacGetApiBaseUrl__ = __getApiBaseUrl;
+    # Token reads are synchronous but SecureStore is async: start priming
+    # now and let the core fetch paths await readiness so early walker
+    # calls never go out unauthenticated.
+    globalThis.__jacPlatformReady__ = __ensureNativeTokenPrimed();
     globalThis.__jacGetLocalStorage__ = __getLocalStorage;
     globalThis.__jacSetLocalStorage__ = __setLocalStorage;
     globalThis.__jacRemoveLocalStorage__ = __removeLocalStorage;
@@ -739,11 +743,15 @@ impl __getApiBaseUrl -> str {
     return "";
 }
 
-impl __getLocalStorage(key: str) -> str {
+def _nativeStorageCache -> dict {
     if not globalThis.__jacNativeStorageCache__ {
         globalThis.__jacNativeStorageCache__ = {};
     }
-    cache = globalThis.__jacNativeStorageCache__;
+    return globalThis.__jacNativeStorageCache__;
+}
+
+impl __getLocalStorage(key: str) -> str {
+    cache = _nativeStorageCache();
     if key in cache {
         return cache[key];
     }
@@ -756,20 +764,14 @@ impl __getLocalStorage(key: str) -> str {
 }
 
 impl __setLocalStorage(key: str, value: str) -> None {
-    if not globalThis.__jacNativeStorageCache__ {
-        globalThis.__jacNativeStorageCache__ = {};
-    }
-    globalThis.__jacNativeStorageCache__[key] = value;
+    _nativeStorageCache()[key] = value;
     SecureStore.setItemAsync(key, value).catch(
         lambda e: any { console.warn("SecureStore.setItemAsync failed", e); }
     );
 }
 
 impl __removeLocalStorage(key: str) -> None {
-    if not globalThis.__jacNativeStorageCache__ {
-        globalThis.__jacNativeStorageCache__ = {};
-    }
-    Reflect.deleteProperty(globalThis.__jacNativeStorageCache__, key);
+    Reflect.deleteProperty(_nativeStorageCache(), key);
     SecureStore.deleteItemAsync(key).catch(
         lambda e: any { console.warn("SecureStore.deleteItemAsync failed", e); }
     );
@@ -777,36 +779,25 @@ impl __removeLocalStorage(key: str) -> None {
 
 impl __getLocalStorageAsync(key: str) -> str {
     val = await SecureStore.getItemAsync(key);
-    if not globalThis.__jacNativeStorageCache__ {
-        globalThis.__jacNativeStorageCache__ = {};
-    }
-    globalThis.__jacNativeStorageCache__[key] = val or "";
+    _nativeStorageCache()[key] = val or "";
     return val or "";
 }
 
 impl __setLocalStorageAsync(key: str, value: str) -> None {
-    if not globalThis.__jacNativeStorageCache__ {
-        globalThis.__jacNativeStorageCache__ = {};
-    }
-    globalThis.__jacNativeStorageCache__[key] = value;
+    _nativeStorageCache()[key] = value;
     await SecureStore.setItemAsync(key, value);
 }
 
 impl __removeLocalStorageAsync(key: str) -> None {
-    if not globalThis.__jacNativeStorageCache__ {
-        globalThis.__jacNativeStorageCache__ = {};
-    }
-    Reflect.deleteProperty(globalThis.__jacNativeStorageCache__, key);
+    Reflect.deleteProperty(_nativeStorageCache(), key);
     await SecureStore.deleteItemAsync(key);
 }
 
 impl __primeNativeTokenCache -> None {
-    if not globalThis.__jacNativeStorageCache__ {
-        globalThis.__jacNativeStorageCache__ = {};
-    }
+    cache = _nativeStorageCache();
     try {
         token = await SecureStore.getItemAsync("jac_token");
-        globalThis.__jacNativeStorageCache__["jac_token"] = token or "";
+        cache["jac_token"] = token or "";
     } except Exception as e {
         console.warn("[jac-native-runtime] __primeNativeTokenCache failed", e);
     }
@@ -887,12 +878,6 @@ impl ErrorFallback(error: str, resetErrorBoundary: any) -> JsxElement {
     );
 }
 
-impl JacAwaiting(props: dict) -> JsxElement {
-    return React.createElement(
-        React.Suspense, {"fallback": props.fallback}, props.children
-    );
-}
-
 impl errorOverlay(filePath: str, errors: str) -> JsxElement {
     return React.createElement(
         RNView,
@@ -918,6 +903,35 @@ impl errorOverlay(filePath: str, errors: str) -> JsxElement {
     );
 }
 
+def _unwrapZodSchema(schema_obj: any, depth: int = 0) -> any {
+    max_depth = 10;
+    if not schema_obj or not schema_obj._def or depth >= max_depth {
+        return schema_obj;
+    }
+    type_value = schema_obj._def.type;
+    if type_value == "optional" and schema_obj._def.innerType {
+        return _unwrapZodSchema(schema_obj._def.innerType, depth + 1);
+    }
+    if type_value == "default" and schema_obj._def.innerType {
+        return _unwrapZodSchema(schema_obj._def.innerType, depth + 1);
+    }
+    if schema_obj._def.checks and schema_obj._def.schema {
+        return _unwrapZodSchema(schema_obj._def.schema, depth + 1);
+    }
+    return schema_obj;
+}
+
+def _getEnumOptions(field_schema: any) -> list {
+    unwrapped = _unwrapZodSchema(field_schema);
+    if unwrapped and unwrapped._def and unwrapped._def.entries {
+        return Object.keys(unwrapped._def.entries);
+    }
+    if unwrapped and unwrapped.def and unwrapped.def.entries {
+        return Object.keys(unwrapped.def.entries);
+    }
+    return [];
+}
+
 impl JacForm(props: dict) -> JsxElement {
     schema = props.schema;
     onSubmit = props.onSubmit;
@@ -937,33 +951,6 @@ impl JacForm(props: dict) -> JsxElement {
     isSubmitting = form.formState.isSubmitting;
     isDirty = form.formState.isDirty;
     [passwordVisible, setPasswordVisible] = useState({});
-    def _unwrapZodSchema(schema_obj: any, depth: int = 0) -> any {
-        max_depth = 10;
-        if not schema_obj or not schema_obj._def or depth >= max_depth {
-            return schema_obj;
-        }
-        type_value = schema_obj._def.type;
-        if type_value == "optional" and schema_obj._def.innerType {
-            return _unwrapZodSchema(schema_obj._def.innerType, depth + 1);
-        }
-        if type_value == "default" and schema_obj._def.innerType {
-            return _unwrapZodSchema(schema_obj._def.innerType, depth + 1);
-        }
-        if schema_obj._def.checks and schema_obj._def.schema {
-            return _unwrapZodSchema(schema_obj._def.schema, depth + 1);
-        }
-        return schema_obj;
-    }
-    def _getEnumOptions(field_schema: any) -> list {
-        unwrapped = _unwrapZodSchema(field_schema);
-        if unwrapped and unwrapped._def and unwrapped._def.entries {
-            return Object.keys(unwrapped._def.entries);
-        }
-        if unwrapped and unwrapped.def and unwrapped.def.entries {
-            return Object.keys(unwrapped.def.entries);
-        }
-        return [];
-    }
     def _fieldErrorMessage(field_name: str) -> str {
         err = errors[field_name] if errors and errors[field_name] else None;
         if not err {

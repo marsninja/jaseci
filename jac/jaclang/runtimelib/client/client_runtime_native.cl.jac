@@ -100,7 +100,6 @@ async def:pub __primeNativeTokenCache -> None;
 def:pub __ensureNativeTokenPrimed -> any;
 def:pub AuthGuard(redirect: str = "/login") -> JsxElement;
 def:pub ErrorFallback(error: str, resetErrorBoundary: any) -> JsxElement;
-def:pub JacAwaiting(props: dict) -> JsxElement;
 def:pub errorOverlay(filePath: str, errors: str) -> JsxElement;
 def:pub JacForm(props: dict) -> JsxElement;
 def:pub __jacInstallErrorHandlers -> None;
