@@ -131,9 +131,6 @@ def main {
     out_dir = precompiled_dir / pyver;
     out_dir.mkdir(parents=True, exist_ok=True);
 
-    # A seeded _precompiled (previous build) may carry trees for other python
-    # versions and .jir files for since-deleted sources; drop both so the
-    # bundle ships exactly the current module set.
     for stale_dir in sorted(precompiled_dir.iterdir()) {
         if stale_dir.is_dir() and stale_dir.name != pyver {
             shutil.rmtree(stale_dir, ignore_errors=True);
@@ -164,11 +161,6 @@ def main {
         sys.stderr.flush();
 
         try {
-            # Up-to-date check: a seeded .jir whose embedded module key matches
-            # the recomputed key was compiled from identical source with the
-            # same jaclang/python/format versions -- the exact criterion the
-            # runtime uses to accept a bundled JIR -- so recompiling it can
-            # only reproduce the same bytecode.
             if jir_path.is_file()
             and jir_matches_source(jir_path.read_bytes(), jac_path) {
                 reused += 1;

@@ -29,12 +29,9 @@ class JacClientCompiler {
             'AuthGuard',
             'JacClientErrorBoundary'
         ];
-        # .native.cl.jac must come before .cl.jac so Header.native.cl.jac
-        # maps to Header.js, not Header.native.js.
+
         COMPOUND_EXTENSIONS = ['.native.cl.jac', CLIENT_SUFFIX] + list(ANNEX_SUFFIXES);
-        # Targets whose platform runtime (bundled with client_runtime_core)
-        # lives in this plugin dir. Web has no entry here: its runtime is
-        # emitted by the ViteCompiler pipeline.
+
         PLATFORM_RUNTIME_FILES = {"react-native": "client_runtime_native.cl.jac"};
     }
 

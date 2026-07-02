@@ -3,9 +3,6 @@ import from jaclang.cli.console { console }
 impl ViteCompiler.compile(
     self: ViteCompiler, module: ModuleType, module_path: Path
 ) -> tuple[list[str], list[str]] {
-    # The target-agnostic work (module + dependency + page compilation, PWA
-    # runtime, root assets) is delegated to the shared engine; only the
-    # web-specific steps live here.
     (client_exports, client_globals) = self.jac_client_compiler.compile(
         module, module_path, target_name="web"
     );

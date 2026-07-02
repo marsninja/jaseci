@@ -43,10 +43,6 @@ def supported_rn_html_tags -> frozenset {
 }
 
 def rn_tag_suggestions -> dict[str, str] {
-    # Per-tag fix-it advice derived from the canonical sets above; consumed
-    # by JsxIntrinsicGuardPass (E1105). List containers suggest ScrollView
-    # even though the runtime renders them as View: scrollable content is
-    # almost always what a ported <ul>/<ol> wants on native.
     suggestions: dict[str, str] = {};
     for tag in RN_HTML_VIEW_TAGS {
         suggestions[tag] = "View";

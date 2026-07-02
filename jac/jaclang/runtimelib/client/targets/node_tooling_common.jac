@@ -18,10 +18,6 @@ def check_command_available(
 }
 
 def resolve_node_runner -> list[str] {
-    # Argv prefix for running a package binary (`<bundled bun> x expo ...`).
-    # All JS tooling runs on the bun bundled with the jac binary -- Node.js
-    # is never consulted, so behavior is identical on every machine. Set
-    # JAC_BUN to substitute a specific bun binary.
     return [_require_bundled_bun(), "x"];
 }
 

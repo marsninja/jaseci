@@ -417,10 +417,7 @@ impl ViteBundler._generate_vite_config_content(
     ui_alias_str = (
         f'\n      "@jac/mobui": path.resolve(buildDir, "{compiled_ui_relative}"),'
     );
-    # @jac/mobui renders through react-native primitives; on the web that only
-    # works when the project ships react-native-web. Aliasing react-native
-    # unconditionally would break every web build that imports it without
-    # the shim installed.
+
     pkg_deps = self.config_loader.get_package_config().get('dependencies', {});
     if 'react-native-web' in pkg_deps {
         ui_alias_str += '\n      "react-native": "react-native-web",';

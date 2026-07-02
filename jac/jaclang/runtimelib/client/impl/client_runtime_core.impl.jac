@@ -12,11 +12,7 @@ impl JacAwaiting(props: dict) -> JsxElement {
     );
 }
 
-async def _awaitPlatformReady -> None {
-    # Platforms with asynchronous credential storage (React Native /
-    # SecureStore) publish a readiness promise; awaiting it here keeps
-    # early walker/function calls from going out before the auth token is
-    # primed. Web wires nothing, so this is a no-op there.
+async def _awaitPlatformReady {
     ready = globalThis.__jacPlatformReady__;
     if ready {
         await ready;
