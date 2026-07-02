@@ -721,8 +721,8 @@ fn mkPayload(
     // Null in linked-source / standalone packs (dev uses an on-demand copy).
     bun_bin: ?[]const u8,
     skip_precompile: bool,
-    // Skip building the embedded NA TUI renderer (libtui + jac-na-tui). The TUI
-    // then nacompiles on first `jac ai --tui` run using the bundled toolchain --
+    // Skip building the embedded NA TUI host (jac-ai-tui). The TUI then
+    // nacompiles on first `jac ai --tui` run using the bundled toolchain --
     // for faster iteration when the TUI is not under test.
     skip_tui: bool,
     // Bundle byLLM + its LLM stack into the staged site so the shipped binary

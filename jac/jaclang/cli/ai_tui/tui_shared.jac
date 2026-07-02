@@ -203,9 +203,6 @@ def _configure_ui_env(r: any) -> dict {
     old_nctx = os.environ.get("JAC_AI_UI_NCTX", None);
     old_files = os.environ.get("JAC_AI_UI_FILES", None);
     old_presets = os.environ.get("JAC_AI_UI_MODEL_PRESETS", None);
-    old_resume = os.environ.get("JAC_AI_UI_RESUME", None);
-    old_continue = os.environ.get("JAC_AI_UI_CONTINUE", None);
-    old_session = os.environ.get("JAC_AI_UI_SESSION", None);
     old_active = os.environ.get("JAC_AI_UI_ACTIVE", None);
 
     os.environ["JAC_AI_UI_PROJECT"] = project;
@@ -213,10 +210,6 @@ def _configure_ui_env(r: any) -> dict {
     os.environ["JAC_AI_UI_NCTX"] = str(int(r?.n_ctx or 0));
     os.environ["JAC_AI_UI_FILES"] = files_env;
     os.environ["JAC_AI_UI_MODEL_PRESETS"] = presets_env;
-
-    os.environ["JAC_AI_UI_RESUME"] = str(r?.resume or "");
-    os.environ["JAC_AI_UI_CONTINUE"] = "1" if bool(r?.continue_last) else "";
-    os.environ["JAC_AI_UI_SESSION"] = str(r?.session_name or "");
     os.environ["JAC_AI_UI_ACTIVE"] = "1";
 
     def _restore_ui_env {
@@ -225,9 +218,6 @@ def _configure_ui_env(r: any) -> dict {
         _restore_ui_env_var("JAC_AI_UI_NCTX", old_nctx);
         _restore_ui_env_var("JAC_AI_UI_FILES", old_files);
         _restore_ui_env_var("JAC_AI_UI_MODEL_PRESETS", old_presets);
-        _restore_ui_env_var("JAC_AI_UI_RESUME", old_resume);
-        _restore_ui_env_var("JAC_AI_UI_CONTINUE", old_continue);
-        _restore_ui_env_var("JAC_AI_UI_SESSION", old_session);
         _restore_ui_env_var("JAC_AI_UI_ACTIVE", old_active);
     }
 
@@ -475,92 +465,4 @@ def _ensure_embed_host(cli_root: any) -> dict {
         };
     }
     return {"ok": True, "path": artifact, "error": "", "hint": ""};
-}
-
-
-def _ensure_na_artifact(
-    pkg_root: any, artifact_path: str, source_file: str, label: str
-) -> dict {
-    import os;
-    import subprocess;
-    import from jaclang.cli.console { console }
-
-    exists = os.path.exists(artifact_path);
-    force = os.environ.get("JAC_AI_TUI_REBUILD", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "on"
-    );
-    if exists and not force {
-        return {"ok": True, "error": "", "hint": ""};
-    }
-    na_dir = str(pkg_root / "ai_tui_na");
-    build_sh = str(pkg_root / "ai_tui_na" / "build.sh");
-
-    build_script = build_sh;
-    build_cmd = ["bash", build_sh, "--quick"];
-    manual_hint = f"{build_sh} --quick";
-
-    if not os.path.isfile(source_file) or not os.path.isfile(build_script) {
-        if exists {
-            return {"ok": True, "error": "", "hint": ""};
-        }
-        return {
-            "ok": False,
-            "error": f"{label} not found at {artifact_path}",
-            "hint": f"Build it with: {manual_hint}",
-
-        };
-    }
-    if force and exists {
-        console.print(
-            f"[tui] JAC_AI_TUI_REBUILD set; recompiling {label} ...", style="dim"
-        );
-    } else {
-        console.print(f"[tui] {label} missing; compiling (first run) ...", style="dim");
-    }
-    build_env = dict(os.environ);
-    jac_bin = _resolve_jac_build_bin(pkg_root);
-    if jac_bin {
-        build_env["JAC_BIN"] = jac_bin;
-    }
-    try {
-        res = subprocess.run(
-            build_cmd,
-            cwd=na_dir,
-            env=build_env,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        );
-        if res.returncode != 0 {
-            detail = (res.stderr or res.stdout or "").strip();
-            if detail {
-                console.error(detail);
-            }
-            return {
-                "ok": False,
-                "error": f"{label} compile failed",
-                "hint": f"Run manually: {manual_hint}",
-
-            };
-        }
-    } except Exception as e {
-        return {
-            "ok": False,
-            "error": f"{label} compile failed: {e}",
-            "hint": f"Run manually: {manual_hint}",
-
-        };
-    }
-    if not os.path.exists(artifact_path) {
-        return {
-            "ok": False,
-            "error": f"{label} not found at {artifact_path} after compile",
-            "hint": f"Run manually: {manual_hint}",
-
-        };
-    }
-    return {"ok": True, "error": "", "hint": ""};
 }

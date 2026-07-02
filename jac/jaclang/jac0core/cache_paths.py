@@ -15,7 +15,6 @@ back to the project's ``.jac/cache`` when inside a project.
 Platform roots (Linux examples; macOS uses ``~/Library/Caches`` and Windows
 uses ``%LOCALAPPDATA%/jac/cache`` in place of ``~/.cache/jac``):
     JIR module cache:    ~/.cache/jac/jir/
-    AI session store:    ~/.cache/jac/ai/
 
 $XDG_CACHE_HOME is honored on Linux.
 """
@@ -28,7 +27,7 @@ from pathlib import Path
 def _platform_cache_base() -> Path:
     """The OS-appropriate cache base, before any ``jac/...`` suffix is applied.
 
-    Shared by every global cache dir (JIR, bootstrap bytecode, AI sessions) so
+    Shared by every global cache dir (JIR, bootstrap bytecode) so
     the win/darwin/linux resolution rule lives in exactly one place.
     """
     if sys.platform == "win32":
@@ -47,19 +46,6 @@ def get_jir_cache_dir() -> Path:
         # platform's AppData/.../cache convention.
         return _platform_cache_base() / "jac" / "cache" / "jir"
     return _platform_cache_base() / "jac" / "jir"
-
-
-def get_ai_session_cache_dir() -> Path:
-    """Return the global cache directory for ``jac ai`` conversation sessions.
-
-    Sits alongside the JIR cache under the same platform-resolved root, so all
-    of jac's on-disk caches live in one tree (see the cache centralization in
-    #6709). Callers may honor a ``JAC_AI_CACHE`` env override on top of this
-    default; this function owns only the platform default.
-    """
-    if sys.platform == "win32":
-        return _platform_cache_base() / "jac" / "cache" / "ai"
-    return _platform_cache_base() / "jac" / "ai"
 
 
 def get_bootstrap_cache_dir() -> Path:

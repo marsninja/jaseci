@@ -298,21 +298,6 @@ obj TurnStats {
 }
 
 
-obj SessionStore {
-    has root_dir: str = "";
-
-    def list_sessions(cwd: str = "") -> list[dict];
-    def load(id: str) -> dict | None;
-    def save(record: dict) -> None;
-    def delete(id: str) -> bool;
-    def create(cwd: str, name: str = "") -> dict;
-    def most_recent(cwd: str) -> dict | None;
-    def resolve_by_name(cwd: str, name: str) -> dict | None;
-    def _dir -> str;
-    def _path(id: str) -> str;
-}
-
-
 obj Prompt {
     static def for_phase(state_ty: type, objective: str, ledger: Ledger) -> str;
 }

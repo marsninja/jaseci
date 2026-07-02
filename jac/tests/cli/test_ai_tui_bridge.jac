@@ -126,9 +126,6 @@ test "_configure_ui_env restore unwinds every mutated JAC_AI_UI_* key" {
         "JAC_AI_UI_NCTX": "8192",
         "JAC_AI_UI_FILES": "old.txt",
         "JAC_AI_UI_MODEL_PRESETS": "preset-a",
-        "JAC_AI_UI_RESUME": "sess-1",
-        "JAC_AI_UI_CONTINUE": "1",
-        "JAC_AI_UI_SESSION": "named",
         "JAC_AI_UI_ACTIVE": "0",
 
     };
@@ -136,19 +133,10 @@ test "_configure_ui_env restore unwinds every mutated JAC_AI_UI_* key" {
         os.environ[key] = value;
     }
     env = configure(
-        AgentRequest(
-            tui=True,
-            cwd=os.getcwd(),
-            model="new-model",
-            n_ctx=4096,
-            resume="sess-2",
-            continue_last=True,
-            session_name="fresh",
-        )
+        AgentRequest(tui=True, cwd=os.getcwd(), model="new-model", n_ctx=4096,)
     );
     assert os.environ.get("JAC_AI_UI_ACTIVE") == "1";
     assert os.environ.get("JAC_AI_UI_MODEL") == "new-model";
-    assert os.environ.get("JAC_AI_UI_RESUME") == "sess-2";
     env["restore"]();
     for (key, value) in prior.items() {
         assert os.environ.get(key) == value , (
@@ -167,9 +155,6 @@ test "_configure_ui_env restore removes keys that were unset before configure" {
         "JAC_AI_UI_NCTX",
         "JAC_AI_UI_FILES",
         "JAC_AI_UI_MODEL_PRESETS",
-        "JAC_AI_UI_RESUME",
-        "JAC_AI_UI_CONTINUE",
-        "JAC_AI_UI_SESSION",
         "JAC_AI_UI_ACTIVE",
 
     ];

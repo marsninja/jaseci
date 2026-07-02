@@ -4,15 +4,28 @@ on:
     branches: [main]
     paths:
       - 'jac/jaclang/cli/ai_tui_na/**'
+      - 'jac/launcher/pyembed.zig'
+      - 'jac/build.zig'
       - '.github/workflows/test-tui-macos.yml'
       - '.github/actions/setup-jac/**'
   pull_request:
     branches: [main]
     paths:
       - 'jac/jaclang/cli/ai_tui_na/**'
+      - 'jac/launcher/pyembed.zig'
+      - 'jac/build.zig'
       - '.github/workflows/test-tui-macos.yml'
       - '.github/actions/setup-jac/**'
   workflow_dispatch:
+
+# Cross-compile the SOLE shipped TUI backend (the embed host,
+# ai_tui_na/host_embed.na.jac -> bin/jac-ai-tui) to Darwin on a Linux runner and
+# assert the result is a well-formed Mach-O that links libSystem. This replaces
+# the retired in-process backend's gate (build.sh -> libtui.dylib): the embed
+# host imports `jacpyembed`, so its cross-compile also needs a Darwin
+# libjacpyembed.dylib shim, produced up front via `zig build pyembed -Dtarget`.
+# A Darwin binary cannot run on Linux, so the gate is static (file + load-command
+# assertions), matching what the old workflow could verify for the darwin artifact.
 
 jobs:
   test-macos-cross-compile:
@@ -26,138 +39,64 @@ jobs:
       - name: Set up jac (build the binary, cached)
         uses: ./.github/actions/setup-jac
 
-      - name: Cross-compile NA TUI → Darwin (--target darwin)
-        working-directory: jac/jaclang/cli/ai_tui_na
-        run: JAC_AI_TUI_TARGET=darwin bash build.sh --quick
+      # setup-jac only installs zig on a binary-cache miss; the shim cross-compile
+      # below needs zig regardless, so set it up explicitly.
+      - name: Set up Zig 0.16.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+          use-cache: false
 
-      - name: Assert libtui.dylib is Mach-O 64-bit
+      - name: Cross-compile the libjacpyembed shim -> Darwin arm64
+        working-directory: jac
+        run: zig build pyembed -Dtarget=aarch64-macos --summary all
+
+      - name: Assert the shim is Mach-O arm64
+        working-directory: jac/jaclang/runtimelib/client/targets/desktop/native
+        run: |
+          FILE_OUT="$(file libjacpyembed.dylib)"
+          echo "file: $FILE_OUT"
+          echo "$FILE_OUT" | grep -q "Mach-O 64-bit" \
+            || { echo "FAIL: shim not Mach-O 64-bit"; exit 1; }
+          echo "$FILE_OUT" | grep -q "arm64" \
+            || { echo "FAIL: shim not arm64"; exit 1; }
+          echo "ok: shim is Mach-O 64-bit arm64"
+
+      - name: Cross-compile the embed TUI host -> Darwin (host_embed.na.jac)
+        working-directory: jac/jaclang/cli/ai_tui_na
+        run: JAC_AI_TUI_TARGET=darwin bash build_embed.sh --no-trailer
+
+      - name: Assert bin/jac-ai-tui is Mach-O 64-bit
         working-directory: jac/jaclang/cli/ai_tui_na
         run: |
-          FILE_OUT="$(file bin/libtui.dylib)"
+          FILE_OUT="$(file bin/jac-ai-tui)"
           echo "file: $FILE_OUT"
           echo "$FILE_OUT" | grep -q "Mach-O 64-bit" \
             || { echo "FAIL: not Mach-O 64-bit"; exit 1; }
           echo "ok: Mach-O 64-bit confirmed"
 
-      - name: Assert libtui.dylib links libSystem
+      - name: Assert bin/jac-ai-tui links libSystem
         working-directory: jac/jaclang/cli/ai_tui_na
         run: |
           # strings is always available on Linux and reads Mach-O bytes fine;
           # /usr/lib/libSystem.B.dylib appears verbatim in the LC_LOAD_DYLIB cmd.
-          if strings bin/libtui.dylib | grep -q "libSystem"; then
+          if strings bin/jac-ai-tui | grep -q "libSystem"; then
             echo "ok: libSystem load command present (strings)"
           else
             # Last-resort: byte search via Python (no external deps).
-            python3 -c "import sys; data=open('bin/libtui.dylib','rb').read(); assert b'libSystem' in data, 'libSystem not found'; print('ok: libSystem found in dylib binary (byte search)')"
+            python3 - <<'PY'
+            data = open("bin/jac-ai-tui", "rb").read()
+            if b"libSystem.B.dylib" not in data:
+              raise SystemExit("FAIL: no libSystem load command in bin/jac-ai-tui")
+            print("ok: libSystem load command present (byte search)")
+          PY
           fi
 
-      - name: Assert jac-na-tui is Mach-O 64-bit
+      - name: Assert the staged shim is beside the host
         working-directory: jac/jaclang/cli/ai_tui_na
         run: |
-          FILE_OUT="$(file bin/jac-na-tui)"
-          echo "file: $FILE_OUT"
-          echo "$FILE_OUT" | grep -q "Mach-O 64-bit" \
-            || { echo "FAIL: jac-na-tui is not Mach-O 64-bit"; exit 1; }
-          echo "ok: jac-na-tui is Mach-O 64-bit"
-  test-macos-native:
-    runs-on: macos-latest
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Set up jac (build the binary, cached)
-        uses: ./.github/actions/setup-jac
-
-      - name: Build NA TUI (native macOS)
-        working-directory: jac/jaclang/cli/ai_tui_na
-        run: bash build.sh --quick
-
-      - name: Verify libtui.dylib is codesigned
-        working-directory: jac/jaclang/cli/ai_tui_na
-        run: |
-          codesign --verify --verbose bin/libtui.dylib \
-            || { echo "FAIL: libtui.dylib not properly signed"; exit 1; }
-          echo "ok: codesign verify passed"
-
-      - name: Assert libtui.dylib export trie is complete
-        working-directory: jac/jaclang/cli/ai_tui_na
-        run: |
-          python3 - << 'PYEOF'
-          import struct, sys
-
-          def parse_uleb128(data, offset):
-              result = 0; shift = 0
-              while True:
-                  b = data[offset]; offset += 1
-                  result |= (b & 0x7F) << shift; shift += 7
-                  if (b & 0x80) == 0: break
-              return result, offset
-
-          def traverse_trie(data, offset, prefix, results):
-              if offset >= len(data): return
-              terminal_size, pos = parse_uleb128(data, offset)
-              has_terminal = terminal_size > 0
-              pos += terminal_size
-              if pos >= len(data): return
-              child_count = data[pos]; pos += 1
-              for _ in range(child_count):
-                  end = data.index(0, pos)
-                  edge = data[pos:end].decode('utf-8', 'replace'); pos = end + 1
-                  child_offset, pos = parse_uleb128(data, pos)
-                  traverse_trie(data, child_offset, prefix + edge, results)
-              if has_terminal:
-                  results.append(prefix)
-
-          data = open('bin/libtui.dylib', 'rb').read()
-          ncmds = struct.unpack_from('<I', data, 16)[0]
-          pos = 32; exports = []
-          for _ in range(ncmds):
-              cmd, cmdsize = struct.unpack_from('<II', data, pos)
-              if cmd in (0x22, 0x80000022):  # LC_DYLD_INFO / LC_DYLD_INFO_ONLY
-                  export_off = struct.unpack_from('<I', data, pos+40)[0]
-                  export_sz  = struct.unpack_from('<I', data, pos+44)[0]
-                  if export_sz > 0:
-                      traverse_trie(data[export_off:export_off+export_sz], 0, '', exports)
-              elif cmd == 0x80000033:  # LC_DYLD_EXPORTS_TRIE
-                  off, sz = struct.unpack_from('<II', data, pos+8)
-                  if sz > 0:
-                      traverse_trie(data[off:off+sz], 0, '', exports)
-              pos += cmdsize
-
-          required = ['_tui_init', '_tui_apply_frame', '_tui_wait_key',
-                      '_tui_handle_key', '_tui_next_command', '_tui_quit_requested',
-                      '_tui_render', '_tui_render_buf', '_tui_shutdown',
-                      '_jac_retain', '_jac_release']
-          print(f"Export trie: {len(exports)} symbols: {exports}")
-          missing = [s for s in required if s not in exports]
-          if missing:
-              print(f"FAIL: missing from export trie: {missing}", file=sys.stderr)
-              sys.exit(1)
-          print("ok: all required exports in trie")
-          PYEOF
-
-      - name: Headless host gate (ctypes CDLL load + frame parse)
-        working-directory: jac/jaclang/cli/ai_tui_na
-        run: jac run test_host.jac
-
-      - name: Picker logic tests
-        working-directory: jac/jaclang/cli/ai_tui_na
-        run: |
-          # test_pickers imports `.libc_tty`, whose shared backend
-          # (tty/libc_tty_base.na.jac) in turn imports `.tty_plat`. build.sh
-          # --quick removes its staged copies on exit, so stage both halves
-          # here before compiling: the darwin platform module -> tty_plat.na.jac
-          # and the shared logic -> libc_tty.na.jac. The trap removes both on
-          # any exit so the source tree stays clean.
-          cp tty/tty_plat.darwin.na.jac tty_plat.na.jac
-          cp tty/libc_tty_base.na.jac libc_tty.na.jac
-          trap 'rm -f tty_plat.na.jac libc_tty.na.jac' EXIT
-          jac nacompile test_pickers.na.jac -o bin/test_pickers
-          codesign --sign - bin/test_pickers
-          ./bin/test_pickers
-
-      - name: PTY termios harness (Darwin flag-table + raw-mode gate)
-        working-directory: jac/jaclang/cli/ai_tui_na
-        run: jac run test_tty_darwin.jac
+          test -f bin/libjacpyembed.dylib \
+            || { echo "FAIL: bin/libjacpyembed.dylib not staged"; exit 1; }
+          file bin/libjacpyembed.dylib | grep -q "Mach-O 64-bit" \
+            || { echo "FAIL: staged shim not Mach-O 64-bit"; exit 1; }
+          echo "ok: Darwin shim staged $ORIGIN-adjacent to the host"

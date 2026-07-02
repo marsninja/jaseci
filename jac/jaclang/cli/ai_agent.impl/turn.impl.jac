@@ -62,8 +62,6 @@ impl run_turn(message: str) {
             "has_run": True
         };
     }
-
-    _save_session(message, session.stats, session.phases);
 }
 
 impl verify_and_continue(max_rounds: int = 3) {
@@ -124,40 +122,11 @@ impl run_agent(req: AgentRequest) -> int {
     }
     initial_prompt = str(r.prompt);
 
-    if not _resolve_session(r) {
-        return 1;
-    }
-
-    _led = _session_record.get("ledger", {});
-    resuming = bool(
-        _session_record.get("turns") or _led.get("changes") or _led.get("notes")
-    );
-
     if r.model or r.n_ctx > 0 {
         agent_model = build_model(str(r.model), int(r.n_ctx));
-    } elif resuming and _session_record.get("model") {
-        rec_n_ctx = int(_session_record.get("cfg", {}).get("n_ctx", agent.cfg.n_ctx));
-        agent_model = build_model(str(_session_record["model"]), rec_n_ctx);
     }
     agent.view.print_banner();
-    if resuming {
-        _restore_session_state(_session_record);
-        n_turns = len(_session_record.get("turns", []));
-        label = str(_session_record.get("name") or _session_record.get("id", ""));
-        console.print(
-            f"  resumed session {label} -- {n_turns} prior turn(s), "
-            f"{len(
-                _session_record["ledger"].get("changes", [])
-            )} change(s) remembered.",
-            style="bold green"
-        );
-
-        _print_scrollback(_session_record);
-    } else {
-        reset_session();
-    }
-
-    _save_session();
+    reset_session();
 
     if initial_prompt {
         try {

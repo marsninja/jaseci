@@ -121,37 +121,8 @@ impl _install_ui_provider_capture(target_bus: any = None) -> None {
     _ui_output_capture_installed = True;
 }
 
-def _emit_scrollback_to_bus(record: dict) {
-    turns = record.get("turns", []);
-    if not turns {
-        return;
-    }
-    label = str(record.get("name") or record.get("id", ""));
-    n = len(turns);
-    agent.bus.emit(
-        "system",
-        {"text": f"Resumed session {label} — {n} prior turn(s).", "historical": True}
-    );
-    for t in turns {
-        obj_text = str(t.get("objective", "")).strip();
-        if obj_text {
-            agent.bus.emit("user", {"text": obj_text, "historical": True});
-        }
-        phases = t.get("phases", []);
-        if phases {
-            last = phases[-1];
-            ans = str(last.get("answer", "")).strip();
-            if ans {
-                agent.bus.emit(
-                    "answer", {"text": truncate(ans, 1200), "historical": True}
-                );
-            }
-        }
-    }
-}
-
 impl ui_configure -> None {
-    global agent_model,_session_store,_session_record;
+    global agent_model;
 
     proj = os.environ.get("JAC_AI_UI_PROJECT") or os.getcwd();
     agent.ws.cwd = os.path.normpath(proj);
@@ -171,49 +142,7 @@ impl ui_configure -> None {
 
     agent.ws.ci = CodeIntelligence(proj_dir=agent.ws.cwd, lazy=True);
 
-    cwd = agent.ws.cwd;
-    resume_id = os.environ.get("JAC_AI_UI_RESUME", "").strip();
-    cont = os.environ.get("JAC_AI_UI_CONTINUE", "") == "1";
-    session_name = os.environ.get("JAC_AI_UI_SESSION", "").strip();
-    selectors = sum([bool(resume_id), cont, bool(session_name)]);
-    store = SessionStore();
-    record: dict | None = None;
-    if selectors > 1 {
-        agent.bus.emit(
-            "error",
-            {
-                "text": "--resume, --continue, and --session are mutually exclusive; starting a fresh session."
-            }
-        );
-    } else {
-        if resume_id {
-            record = store.load(resume_id);
-        } elif cont {
-            record = store.most_recent(cwd);
-        } elif session_name {
-            record = store.resolve_by_name(cwd, session_name);
-            if record is None {
-                record = store.create(cwd, session_name);
-            }
-        }
-    }
-    if record is None {
-        record = store.create(cwd);
-    }
-    _session_store = store;
-    _session_record = record;
-    _led = _session_record.get("ledger", {});
-    resuming = bool(
-        _session_record.get("turns") or _led.get("changes") or _led.get("notes")
-    );
-    if resuming {
-        _restore_session_state(_session_record);
-        _emit_scrollback_to_bus(_session_record);
-    } else {
-        reset_session();
-    }
-
-    _save_session();
+    reset_session();
 
     agent.cfg.n_ctx = n_ctx;
     try {
