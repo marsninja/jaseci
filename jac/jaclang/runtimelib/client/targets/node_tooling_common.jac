@@ -17,18 +17,28 @@ def check_command_available(
     return (False, None);
 }
 
-def resolve_npx_or_bunx -> str {
+def resolve_node_runner -> list[str] {
+    # Argv prefix for running a package binary (`npx expo ...`,
+    # `bunx expo ...`, or `<bundled bun> x expo ...`). System tooling is
+    # preferred when present (it shares the user's cache and env); the bun
+    # bundled with the jac binary makes the fallback hermetic, so no
+    # Node.js install is required. Same policy as resolve_package_manager.
     (ok, _) = check_command_available(["npx", "--version"]);
     if ok {
-        return "npx";
+        return ["npx"];
     }
     (ok, _) = check_command_available(["bunx", "--version"]);
     if ok {
-        return "bunx";
+        return ["bunx"];
+    }
+    bun_path = get_bun();
+    if bun_path is not None {
+        return [bun_path, "x"];
     }
     raise RuntimeError(
-        "npx or bunx not found. Install Node.js (https://nodejs.org) "
-        "or Bun (https://bun.sh)."
+        "No JS package runner found: npx/bunx are not on PATH and the "
+        "bundled bun is missing (shipped binaries include it; for a source "
+        "checkout run `zig build fetch-bun`, or set JAC_BUN)."
     );
 }
 

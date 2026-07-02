@@ -678,6 +678,9 @@ test "build_expo_start_argv emits expected metro flags" {
     assert "--port" in argv;
     assert "8081" in argv;
     assert "--clear" in argv;
+    # The runner prefix (npx / bunx / bundled `bun x`) comes first; expo is
+    # the tool being run, never the executable itself.
+    assert argv.index("expo") >= 1;
 
     argv2 = build_expo_start_argv(9090, clear_cache=False);
     assert "9090" in argv2;
@@ -980,8 +983,8 @@ test "expo prebuild runs even when native tree and prebuild state exist" {
             json.dumps({"expo": {"plugins": ["expo-camera"]}}), encoding="utf-8"
         );
         with unittest.mock.patch(
-            "jaclang.runtimelib.client.targets.react_native.build.resolve_npx",
-            return_value="npx"
+            "jaclang.runtimelib.client.targets.react_native.build.resolve_node_runner",
+            return_value=["npx"]
         ), unittest.mock.patch("subprocess.run", side_effect=_fake_run) {
             run_expo_prebuild(rn_dir, "android");
         }

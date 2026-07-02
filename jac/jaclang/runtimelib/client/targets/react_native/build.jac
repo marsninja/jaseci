@@ -7,7 +7,7 @@ import from jaclang.cli.console { console }
 import from jaclang.runtimelib.client.targets.build_common { artifact_mtime }
 import from jaclang.runtimelib.client.targets.react_native.common {
     SUBPROCESS_TIMEOUT_BUILD,
-    resolve_npx
+    resolve_node_runner
 }
 import from jaclang.runtimelib.client.targets.react_native.html_tag_map {
     supported_rn_html_tags
@@ -457,8 +457,13 @@ def run_expo_prebuild(rn_dir: Path, platform: str = "android") {
             f"Unsupported Expo prebuild platform '{platform}'. Use android or ios."
         );
     }
-    npx = resolve_npx();
-    cmd = [npx, "expo", "prebuild", "--platform", plat, "--no-install"];
+    cmd = resolve_node_runner() + [
+        "expo",
+        "prebuild",
+        "--platform",
+        plat,
+        "--no-install"
+    ];
     console.print(f"  Running expo prebuild: {' '.join(cmd)}", style="muted");
     subprocess.run(
         cmd,
@@ -641,14 +646,12 @@ def run_eas_local_build(
     if plat not in ["android", "ios"] {
         raise ValueError(f"Unsupported EAS platform '{platform}'");
     }
-    npx = resolve_npx();
     ext = ".ipa" if plat == "ios" else ".apk";
     mode = "release" if release else "debug";
     out_dir = rn_dir / "dist";
     out_dir.mkdir(parents=True, exist_ok=True);
     out_file = out_dir / f"{plat}-{mode}-local{ext}";
-    cmd = [
-        npx,
+    cmd = resolve_node_runner() + [
         "eas",
         "build",
         "--platform",
@@ -686,9 +689,7 @@ def run_eas_local_build(
 }
 
 def run_eas_update_opt_in(rn_dir: Path, platform: str, branch: str, message: str = "") {
-    npx = resolve_npx();
-    cmd = [
-        npx,
+    cmd = resolve_node_runner() + [
         "eas",
         "update",
         "--branch",

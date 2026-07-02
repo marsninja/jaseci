@@ -6,7 +6,7 @@ import from typing { Any, Optional, cast }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.watcher { FileChangeEvent }
 import from jaclang.runtimelib.client.targets.react_native.common {
-    resolve_npx,
+    resolve_node_runner,
     resolve_rn_project_dir
 }
 import from jaclang.runtimelib.client.targets.react_native.build {
@@ -147,7 +147,12 @@ def rn_hmr_on_jac_changed(
 }
 
 def build_expo_start_argv(metro_port: int, clear_cache: bool = True) -> list[str] {
-    argv: list[str] = [resolve_npx(), "expo", "start", "--port", str(metro_port)];
+    argv: list[str] = resolve_node_runner() + [
+        "expo",
+        "start",
+        "--port",
+        str(metro_port)
+    ];
     if clear_cache {
         argv.append("--clear");
     }

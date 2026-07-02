@@ -8,7 +8,7 @@ This tutorial walks you through shipping an existing Jac full-stack app as a nat
 > **Prerequisites**
 >
 > - Completed: [Project Setup](setup.md) -- you have a working `jac start` web app
-> - Installed: Node.js (or Bun)
+> - Installed: Node.js *(optional -- the Bun runtime bundled with `jac` is used when Node/npx is absent)*
 > - **Android**: Java/JDK 21+, Android SDK (via [Android Studio](https://developer.android.com/studio))
 > - **iOS** (macOS only): Xcode, Xcode Command Line Tools, [CocoaPods](https://cocoapods.org/)
 > - Time: ~15 minutes for setup, longer on first build

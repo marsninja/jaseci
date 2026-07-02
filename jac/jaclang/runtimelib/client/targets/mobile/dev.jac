@@ -6,9 +6,9 @@ import from typing { Any, cast }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.watcher { FileChangeEvent }
 import from jaclang.runtimelib.client.config_loader { JacClientConfig }
-import from jaclang.runtimelib.client.targets.mobile.common {
-    SUBPROCESS_TIMEOUT_SHORT,
-    _resolve_npx
+import from jaclang.runtimelib.client.targets.mobile.common { SUBPROCESS_TIMEOUT_SHORT }
+import from jaclang.runtimelib.client.targets.node_tooling_common {
+    resolve_node_runner
 }
 import from jaclang.runtimelib.client.targets.client_dev_common {
     assert_port_available,
@@ -140,8 +140,7 @@ def _restore_capacitor_config(project_dir: Path, original: str | None) -> None {
 def _run_cap_run_live_reload(
     project_dir: Path, plat: str, _lr_host: str, _lr_port: int
 ) -> int {
-    npx = _resolve_npx();
-    cmd = [npx, "cap", "run", plat];
+    cmd = resolve_node_runner() + ["cap", "run", plat];
     console.print(f"  Running: {' '.join(cmd)}", style="muted");
     console.print("  (Press Ctrl+C to stop)\n", style="muted");
     result = subprocess.run(cmd, cwd=project_dir, check=False);
