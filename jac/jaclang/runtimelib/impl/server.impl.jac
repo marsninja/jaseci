@@ -1699,6 +1699,11 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
         def _do_GET(self: JacRequestHandler) -> None {
             parsed_path = urlparse(self.path);
             path = parsed_path.path;
+
+            if path in ('/healthz', '/healthz/live', '/healthz/ready') {
+                Jac.send_json(self, 200, {'status': 'ok'});
+                return;
+            }
             if (path == '/static/client.js') {
                 try {
                     Jac.send_javascript(self, Jac.get_client_js(server.introspector));

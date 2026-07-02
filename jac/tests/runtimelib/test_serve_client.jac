@@ -2195,3 +2195,18 @@ test "missing guest root anchor is healed with a fresh root" {
         client.close();
     }
 }
+
+"""/healthz must answer on the stdlib server: the sv sibling orchestration
+polls it to decide a spawned service is up, and on k8s it doubles as the
+liveness/readiness probe surface."""
+test "stdlib server answers health endpoints" {
+    with TemporaryDirectory() as tmpdir {
+        client = make_client(tmpdir);
+        for path in ["/healthz", "/healthz/live", "/healthz/ready"] {
+            resp = client.get(path);
+            assert resp.status_code == 200 , f"{path} should be 200: {resp.text}";
+            assert resp.json().get("status") == "ok" , f"{path} body: {resp.text}";
+        }
+        client.close();
+    }
+}
