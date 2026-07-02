@@ -77,6 +77,30 @@ impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
     }
 }
 
+impl UserManager.reset_root(username: str) -> (str | None) {
+    import from jaclang.jac0core.constructs { Root }
+    self._ensure_connection();
+    assert self._conn is not None;
+    with self._lock {
+        cursor = self._conn.execute(
+            "SELECT 1 FROM users WHERE username = ?", (username, )
+        );
+        if not cursor.fetchone() {
+            return None;
+        }
+        user_root = Root();
+        root_anchor = user_root.__jac__;
+        Jac.save(root_anchor);
+        Jac.commit(root_anchor);
+        root_id = root_anchor.id.hex;
+        self._conn.execute(
+            "UPDATE users SET root_id = ? WHERE username = ?", (root_id, username)
+        );
+        self._conn.commit();
+        return root_id;
+    }
+}
+
 impl UserManager.authenticate(
     username: str, password: str
 ) -> (dict[(str, str)] | None) {
@@ -243,6 +267,40 @@ async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, 
     return (req_ctx, token);
 }
 
+async def _abegin_user_request_context(
+    user_manager: UserManager, username: str
+) -> tuple[(ExecutionContext, Any, str)] | dict[str, JsonValue] {
+    import from jaclang.runtimelib.exceptions { MissingAnchorError }
+    root_id = await user_manager.aget_root_id(username);
+    if not root_id {
+        return {'error': 'User not found'};
+    }
+    try {
+        (ctx, token) = await _begin_request_context(root_id);
+        return (ctx, token, root_id);
+    } except MissingAnchorError {
+        if username != Con.GUEST.value {
+            raise RuntimeError(
+                f"Root anchor {root_id} for user '{username}' does not "
+                "exist in the anchor store. The data store was likely "
+                "reset or migrated out from under the users db; restore "
+                "it or re-register the user."
+            );
+        }
+        import logging;
+        logging.getLogger('jaclang.serve').warning(
+            f"Guest root anchor {root_id} is missing from the anchor store; "
+            "minting a fresh guest root."
+        );
+        healed_id = await asyncio.to_thread(user_manager.reset_root, username);
+        if not healed_id {
+            return {'error': 'User not found'};
+        }
+        (ctx, token) = await _begin_request_context(healed_id);
+        return (ctx, token, healed_id);
+    }
+}
+
 def _deserialize_wire_args(args: dict[(str, Any)]) {
     for (k, v) in list(args.items()) {
         if isinstance(v, dict) and '__type__' in v {
@@ -309,11 +367,11 @@ impl ExecutionManager._finalize_call_response(
 async def _run_function_with_occ(
     mgr: ExecutionManager, args: dict[(str, Any)], username: str, run_attempt: Callable
 ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
-    root_id = await mgr.user_manager.aget_root_id(username);
-    if not root_id {
-        return {'error': 'User not found'};
+    resolved = await _abegin_user_request_context(mgr.user_manager, username);
+    if isinstance(resolved, dict) {
+        return resolved;
     }
-    (ctx, req_token) = await _begin_request_context(root_id);
+    (ctx, req_token, root_id) = resolved;
     try {
         _deserialize_wire_args(args);
         (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
@@ -407,13 +465,13 @@ impl ExecutionManager.spawn_walker_sync(
     walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
 ) -> dict[str, JsonValue] {
     import from jaclang.jac0core.constructs { NodeArchetype }
-    root_id = await self.user_manager.aget_root_id(username);
-    if not root_id {
-        return {'error': 'User not found'};
-    }
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
-    (ctx, req_token) = await _begin_request_context(root_id);
+    resolved = await _abegin_user_request_context(self.user_manager, username);
+    if isinstance(resolved, dict) {
+        return resolved;
+    }
+    (ctx, req_token, root_id) = resolved;
 
     try {
         (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();
@@ -480,13 +538,13 @@ impl ExecutionManager.spawn_walker_async(
     walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
 ) -> dict[str, JsonValue] {
     import from jaclang.jac0core.constructs { NodeArchetype }
-    root_id = await self.user_manager.aget_root_id(username);
-    if not root_id {
-        return {'error': 'User not found'};
-    }
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
-    (ctx, req_token) = await _begin_request_context(root_id);
+    resolved = await _abegin_user_request_context(self.user_manager, username);
+    if isinstance(resolved, dict) {
+        return resolved;
+    }
+    (ctx, req_token, root_id) = resolved;
 
     try {
         (occ_mode, occ_max, occ_backoff_ms) = _occ_policy();

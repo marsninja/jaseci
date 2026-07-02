@@ -2156,6 +2156,42 @@ test "orphaned user root returns 500 json instead of dropping the connection" {
         assert resp.status_code == 500 , f"expected a 500 error envelope, got {resp.status_code}: {resp.text}";
         body = resp.json();
         assert "error" in body , f"500 body should carry an error: {resp.text}";
+        # Registered users are NOT healed: silently minting a new root would
+        # mask real data loss. The error names the problem instead.
+        assert "does not exist in the anchor store" in str(body.get("error")) , f"error should explain the missing root anchor: {resp.text}";
+        client.close();
+    }
+}
+
+"""The guest account is anonymous: when its persisted root anchor is gone
+from the anchor store (stale state from an older runtime), the server heals
+it in place by minting a fresh guest root instead of failing every
+unauthenticated request."""
+test "missing guest root anchor is healed with a fresh root" {
+    with TemporaryDirectory() as tmpdir {
+        client = JacTestClient.from_file(
+            fixture_abs_path("serve_shared_root.jac"), base_path=tmpdir
+        );
+        # Anonymous call creates the __guest__ user with a valid root.
+        first = client.post("/walker/whereami", json={});
+        assert first.ok , f"anonymous walker call should work: {first.text}";
+        # Point the guest row at a root anchor that does not exist.
+        um = client.user_manager;
+        um._ensure_connection();
+        um._conn.execute(
+            "UPDATE users SET root_id = ? WHERE username = ?",
+            ("feedfacefeedfacefeedfacefeedface", "__guest__")
+        );
+        um._conn.commit();
+        healed = client.post("/walker/whereami", json={});
+        assert healed.ok , f"guest request should heal, got {healed.status_code}: {healed.text}";
+        row = um._conn.execute(
+            "SELECT root_id FROM users WHERE username = ?", ("__guest__", )
+        ).fetchone();
+        assert row[0] != "feedfacefeedfacefeedfacefeedface" , "guest root_id should have been replaced by the heal";
+        # And the healed root keeps working on subsequent requests.
+        again = client.post("/walker/whereami", json={});
+        assert again.ok , f"healed guest root should persist: {again.text}";
         client.close();
     }
 }
