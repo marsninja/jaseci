@@ -1,3 +1,10 @@
+def idiv(a: int, b: int) -> int {
+    if b <= 0 {
+        return 0;
+    }
+    return a // b;
+}
+
 def _is_csi_final(c: int) -> bool {
     return c >= 64 and c <= 126;
 }

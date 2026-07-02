@@ -1,28 +1,42 @@
 import os;
 
-import from "/usr/lib/libSystem.B.dylib" {
-    def open(path: str, flags: i32, mode: i32) -> i32;  def close(fd: i32) -> i32;  def read(
-        fd: i32, buf: str, count: i32
-    ) -> i32;  def write(fd: i32, buf: str, count: i32) -> i32;  def dup2(
-        oldfd: i32, newfd: i32
-    ) -> i32;  def fcntl(fd: i32, cmd: i32, arg: i32) -> i32;  def ioctl(
-        fd: i32, request: i64, arg: str
-    ) -> i32;  def tcgetattr(fd: i32, term: str) -> i32;  def tcsetattr(
-        fd: i32, opt: i32, term: str
-    ) -> i32;  def poll(fds: str, nfds: i32, timeout: i32) -> i32;  def calloc(
-        n: int, sz: int
-    ) -> int;  def free(p: int) -> None;  def memset(s: int, c: i32, n: int) -> int;  def memcpy(
-        dst: int, src: str, n: int
-    ) -> int;
+import from .tty_plat {
+    open,
+    close,
+    read,
+    write,
+    dup2,
+    fcntl,
+    ioctl,
+    tcgetattr,
+    tcsetattr,
+    poll,
+    calloc,
+    free,
+    memset,
+    memcpy,
+    O_NONBLOCK,
+    TIOCGWINSZ,
+    IXON,
+    ECHONL,
+    ICANON,
+    ISIG,
+    IEXTEN,
+    CSIZE,
+    PARENB,
+    CS8,
+    TERMIOS_SZ,
+    VMIN_OFF,
+    VMIN_VAL,
+    VTIME_OFF,
+    VTIME_VAL
 }
 
 glob O_RDWR: int = 2,
-     O_NONBLOCK: int = 4,
      F_GETFL: int = 3,
      F_SETFL: int = 4,
      F_DUPFD: int = 10,
      TCSANOW: int = 0,
-     TIOCGWINSZ: int = 0x40087468,
      POLLIN: int = 1,
      IGNBRK: int = 0x00000001,
      BRKINT: int = 0x00000002,
@@ -31,17 +45,8 @@ glob O_RDWR: int = 2,
      INLCR: int = 0x00000040,
      IGNCR: int = 0x00000080,
      ICRNL: int = 0x00000100,
-     IXON: int = 0x00000200,
      OPOST: int = 0x00000001,
-     ECHO: int = 0x00000008,
-     ECHONL: int = 0x00000010,
-     ICANON: int = 0x00000100,
-     ISIG: int = 0x00000080,
-     IEXTEN: int = 0x00000400,
-     CSIZE: int = 0x00000300,
-     PARENB: int = 0x00001000,
-     CS8: int = 0x00000300,
-     TERMIOS_SZ: int = 44;
+     ECHO: int = 0x00000008;
 
 obj TtyCtx {
     has fd: int = -1,
@@ -93,8 +98,8 @@ def build_raw_termios(saved: str) -> str {
     poke_u32(p, 8, cflag);
     poke_u32(p, 12, lflag);
 
-    memset(p + 32, 1, 1);
-    memset(p + 33, 0, 1);
+    memset(p + VMIN_OFF, VMIN_VAL, 1);
+    memset(p + VTIME_OFF, VTIME_VAL, 1);
     out: str = p;
     return out;
 }

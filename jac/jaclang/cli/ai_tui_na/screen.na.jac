@@ -2,7 +2,7 @@ import from .state { TuiState, DisplayRow, EditorState, EventKind, TuiStatus }
 import from .feed { build_rows }
 import from .overlay { overlay_build_modal, overlay_composite }
 import from .terminal { ansi_sgr, ansi_reset, term_spaces, term_dashes }
-import from .width { visible_width, ansi_trunc, ansi_pad }
+import from .width { visible_width, ansi_trunc, ansi_pad, idiv }
 import from .theme {
     TH_BG_R,
     TH_BG_G,
@@ -10,22 +10,110 @@ import from .theme {
     TH_BORDER_R,
     TH_BORDER_G,
     TH_BORDER_B,
+    TH_TITLE_R,
+    TH_TITLE_G,
+    TH_TITLE_B,
+    TH_CWD_R,
+    TH_CWD_G,
+    TH_CWD_B,
+    TH_MODEL_R,
+    TH_MODEL_G,
+    TH_MODEL_B,
+    TH_USER_R,
+    TH_USER_G,
+    TH_USER_B,
+    TH_USER_BG_R,
+    TH_USER_BG_G,
+    TH_USER_BG_B,
+    TH_ANSWER_R,
+    TH_ANSWER_G,
+    TH_ANSWER_B,
+    TH_REASON_R,
+    TH_REASON_G,
+    TH_REASON_B,
+    TH_SYSTEM_R,
+    TH_SYSTEM_G,
+    TH_SYSTEM_B,
+    TH_LOGO_R,
+    TH_LOGO_G,
+    TH_LOGO_B,
+    TH_ERROR_R,
+    TH_ERROR_G,
+    TH_ERROR_B,
+    TH_PHASE_R,
+    TH_PHASE_G,
+    TH_PHASE_B,
+    TH_CALL_R,
+    TH_CALL_G,
+    TH_CALL_B,
+    TH_RESULT_R,
+    TH_RESULT_G,
+    TH_RESULT_B,
+    TH_AC_SEL_BG_R,
+    TH_AC_SEL_BG_G,
+    TH_AC_SEL_BG_B,
+    TH_AC_SEL_DESC_R,
+    TH_AC_SEL_DESC_G,
+    TH_AC_SEL_DESC_B,
+    TH_AC_DESC_R,
+    TH_AC_DESC_G,
+    TH_AC_DESC_B,
     TH_BOLD,
-    TH_DIM
+    TH_DIM,
+    TH_DIM_ITALIC,
+    TH_NONE
 }
 
-glob _SB: str = "\033[0;38;2;70;70;100;48;2;18;18;28m",
-     _ST: str = "\033[0;1;38;2;204;0;204;48;2;18;18;28m",
-     _SC: str = "\033[0;38;2;86;182;194;48;2;18;18;28m",
-     _SM: str = "\033[0;2;38;2;120;120;120;48;2;18;18;28m",
-     _SR: str = "\033[0m",
-     _USER_MSG: str = "\033[0;1;38;2;255;255;255;48;2;26;26;46m",
-     _REASON_MSG: str = "\033[0;2;3;38;2;160;160;160;48;2;18;18;28m";
+glob _SB: str = ansi_sgr(
+         TH_BORDER_R, TH_BORDER_G, TH_BORDER_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+     ),
+     _ST: str = ansi_sgr(
+         TH_TITLE_R, TH_TITLE_G, TH_TITLE_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+     ),
+     _SC: str = ansi_sgr(
+         TH_CWD_R, TH_CWD_G, TH_CWD_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+     ),
+     _SM: str = ansi_sgr(
+         TH_MODEL_R, TH_MODEL_G, TH_MODEL_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM
+     ),
+     _SR: str = ansi_reset(),
+     _USER_MSG: str = ansi_sgr(
+         TH_USER_R,
+         TH_USER_G,
+         TH_USER_B,
+         TH_USER_BG_R,
+         TH_USER_BG_G,
+         TH_USER_BG_B,
+         TH_BOLD
+     ),
+     _REASON_MSG: str = ansi_sgr(
+         TH_REASON_R, TH_REASON_G, TH_REASON_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM_ITALIC
+     );
 
-glob _AC_SEL: str = "\033[0;1;38;2;255;255;255;48;2;36;36;60m",
-     _AC_SEL_DESC: str = "\033[0;38;2;180;180;220;48;2;36;36;60m",
-     _AC_NORM: str = "\033[0;38;2;140;140;140;48;2;18;18;28m",
-     _AC_NORM_DESC: str = "\033[0;2;38;2;100;100;100;48;2;18;18;28m";
+glob _AC_SEL: str = ansi_sgr(
+         TH_USER_R,
+         TH_USER_G,
+         TH_USER_B,
+         TH_AC_SEL_BG_R,
+         TH_AC_SEL_BG_G,
+         TH_AC_SEL_BG_B,
+         TH_BOLD
+     ),
+     _AC_SEL_DESC: str = ansi_sgr(
+         TH_AC_SEL_DESC_R,
+         TH_AC_SEL_DESC_G,
+         TH_AC_SEL_DESC_B,
+         TH_AC_SEL_BG_R,
+         TH_AC_SEL_BG_G,
+         TH_AC_SEL_BG_B,
+         TH_NONE
+     ),
+     _AC_NORM: str = ansi_sgr(
+         TH_RESULT_R, TH_RESULT_G, TH_RESULT_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+     ),
+     _AC_NORM_DESC: str = ansi_sgr(
+         TH_AC_DESC_R, TH_AC_DESC_G, TH_AC_DESC_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM
+     );
 
 def _cwd_short(cwd: str) -> str {
     slen = len(cwd);
@@ -58,33 +146,49 @@ def _cwd_short(cwd: str) -> str {
 
 def _kind_sgr(kind: EventKind) -> str {
     if kind == EventKind.USER {
-        return ansi_sgr(255, 255, 255, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD);
+        return ansi_sgr(
+            TH_USER_R, TH_USER_G, TH_USER_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+        );
     }
     if kind == EventKind.ANSWER {
-        return ansi_sgr(220, 220, 220, TH_BG_R, TH_BG_G, TH_BG_B, 0);
+        return ansi_sgr(
+            TH_ANSWER_R, TH_ANSWER_G, TH_ANSWER_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+        );
     }
     if kind == EventKind.REASONING {
         return _REASON_MSG;
     }
     if kind == EventKind.SYSTEM {
-        return ansi_sgr(86, 182, 194, TH_BG_R, TH_BG_G, TH_BG_B, 0);
+        return ansi_sgr(
+            TH_SYSTEM_R, TH_SYSTEM_G, TH_SYSTEM_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+        );
     }
     if kind == EventKind.LOGO {
-        return ansi_sgr(86, 182, 194, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD);
+        return ansi_sgr(
+            TH_LOGO_R, TH_LOGO_G, TH_LOGO_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+        );
     }
     if kind == EventKind.ERROR {
-        return ansi_sgr(255, 80, 80, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD);
+        return ansi_sgr(
+            TH_ERROR_R, TH_ERROR_G, TH_ERROR_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+        );
     }
     if kind == EventKind.PHASE {
-        return ansi_sgr(255, 210, 60, TH_BG_R, TH_BG_G, TH_BG_B, 0);
+        return ansi_sgr(
+            TH_PHASE_R, TH_PHASE_G, TH_PHASE_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+        );
     }
     if kind == EventKind.CALL {
-        return ansi_sgr(204, 119, 255, TH_BG_R, TH_BG_G, TH_BG_B, 0);
+        return ansi_sgr(
+            TH_CALL_R, TH_CALL_G, TH_CALL_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+        );
     }
     if kind == EventKind.TOOL_RESULT {
-        return ansi_sgr(140, 140, 140, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM);
+        return ansi_sgr(
+            TH_RESULT_R, TH_RESULT_G, TH_RESULT_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM
+        );
     }
-    return ansi_sgr(200, 200, 200, TH_BG_R, TH_BG_G, TH_BG_B, 0);
+    return ansi_sgr(200, 200, 200, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE);
 }
 
 def _status_footer_row(state: TuiState, cols: int) -> str {
@@ -127,7 +231,9 @@ def _status_footer_row(state: TuiState, cols: int) -> str {
 
     row: str = _SB + "│ ";
     if act_len > 0 {
-        row = row + ansi_sgr(255, 210, 60, TH_BG_R, TH_BG_G, TH_BG_B, 0) + act_disp;
+        row = row + ansi_sgr(
+            TH_PHASE_R, TH_PHASE_G, TH_PHASE_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+        ) + act_disp;
     }
     row = row + _SB + term_dashes(total_dashes);
     if cwd_len > 0 {
@@ -178,7 +284,7 @@ def _warn_row(env: str, cols: int) -> str {
         f"  Missing API key: {env}  (/settings to configure)", inner_w
     );
     return _SB + "│ " + ansi_sgr(
-        255, 80, 80, TH_BG_R, TH_BG_G, TH_BG_B, 0
+        TH_ERROR_R, TH_ERROR_G, TH_ERROR_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
     ) + warn_text + " " + _SB + "│" + _SR;
 }
 
@@ -231,24 +337,11 @@ def _ac_item_row(label: str, desc: str, selected: bool, cols: int) -> str {
     return row;
 }
 
-def _idiv_s(a: int, b: int) -> int {
-    if b <= 0 {
-        return 0;
-    }
-    result: int = 0;
-    rem: int = a;
-    while rem >= b {
-        rem = rem - b;
-        result = result + 1;
-    }
-    return result;
-}
-
 def _ed_vl_count(line_len: int, width: int) -> int {
     if width <= 0 or line_len == 0 {
         return 1;
     }
-    return _idiv_s(line_len + width - 1, width);
+    return idiv(line_len + width - 1, width);
 }
 
 def _ed_total_vlines(ed: EditorState, width: int) -> int {
@@ -271,11 +364,17 @@ def _editor_rows(
     }
 
     if is_running {
-        prompt_sgr = ansi_sgr(120, 120, 120, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM);
+        prompt_sgr = ansi_sgr(
+            TH_MODEL_R, TH_MODEL_G, TH_MODEL_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM
+        );
     } else {
-        prompt_sgr = ansi_sgr(255, 255, 255, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD);
+        prompt_sgr = ansi_sgr(
+            TH_USER_R, TH_USER_G, TH_USER_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+        );
     }
-    text_sgr = ansi_sgr(220, 220, 220, TH_BG_R, TH_BG_G, TH_BG_B, 0);
+    text_sgr = ansi_sgr(
+        TH_ANSWER_R, TH_ANSWER_G, TH_ANSWER_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_NONE
+    );
     cursor_sgr: str = "\033[7m";
 
     vis_texts: list[str] = [];
@@ -300,7 +399,7 @@ def _editor_rows(
             vis_texts.append(chunk);
 
             if i == ed.cursor_line {
-                cur_vsubline = _idiv_s(ed.cursor_col, text_w);
+                cur_vsubline = idiv(ed.cursor_col, text_w);
                 if cur_vsubline == j {
                     vcol = ed.cursor_col - j * text_w;
                     vis_cursor_cols.append(vcol);

@@ -17,9 +17,6 @@ import from .transport { CmdQueue }
 import from .libc_tty { tty_read_line }
 import from .blob_reader { read_blob }
 
-# Wire -> enum boundary parsers. The backend emits free-form kind/status
-# strings over IPC; convert once here so the rest of the TUI handles only
-# typed enum values. Unknown values collapse to the UNKNOWN member.
 def parse_event_kind(s: str) -> EventKind {
     if s == "user" {
         return EventKind.USER;
@@ -235,10 +232,10 @@ def ipc_read_frame_v2(state: TuiState) -> bool {
     }
     first = raw.strip();
 
-    blob, eof = read_blob(first);
-    if eof and len(blob) == 0 {
+    result = read_blob(first);
+    if result.eof and len(result.text) == 0 {
         return False;
     }
 
-    return ipc_parse_frame(state, blob);
+    return ipc_parse_frame(state, result.text);
 }

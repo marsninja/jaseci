@@ -76,8 +76,8 @@ case "${JAC_AI_TUI_TARGET:-}" in
 esac
 
 case "$TTY" in
-    linux)  LIBNAME=libtui.so;    STAGE=tty/libc_tty.linux.na.jac  ;;
-    darwin) LIBNAME=libtui.dylib; STAGE=tty/libc_tty.darwin.na.jac ;;
+    linux)  LIBNAME=libtui.so;    PLAT=tty/tty_plat.linux.na.jac  ;;
+    darwin) LIBNAME=libtui.dylib; PLAT=tty/tty_plat.darwin.na.jac ;;
 esac
 
 BINNAME="jac-na-tui"
@@ -94,12 +94,16 @@ esac
 
 echo "==> TTY backend: $TTY  shared-lib: $LIBNAME"
 
-# ── stage the platform TTY module ───────────────────────────────────────────
-# libc_tty.na.jac is gitignored; tui.na.jac / host.na.jac import it statically.
-# Copy the right platform file before nacompile, remove it on exit (trap fires
-# on both normal and error exits so the build tree stays clean on failure too).
-cp "$STAGE" libc_tty.na.jac
-trap "rm -f libc_tty.na.jac" EXIT
+# ── stage the split TTY backend ────────────────────────────────────────────
+# The backend is a shared logic module (tty/libc_tty_base.na.jac) plus a tiny
+# per-platform bindings+constants module (tty/tty_plat.<os>.na.jac). Stage both
+# before nacompile: the shared module -> libc_tty.na.jac (imported statically by
+# tui.na.jac / host.na.jac), the platform module -> tty_plat.na.jac (imported by
+# libc_tty_base). Both are gitignored build artifacts; the trap removes them on
+# any exit so the source tree stays clean on failure too.
+cp "$PLAT" tty_plat.na.jac
+cp tty/libc_tty_base.na.jac libc_tty.na.jac
+trap "rm -f tty_plat.na.jac libc_tty.na.jac" EXIT
 
 mkdir -p bin
 

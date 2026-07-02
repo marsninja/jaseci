@@ -84,11 +84,11 @@ obj TtyFdTransport(Transport) {
         }
 
         first = raw.strip();
-        blob, eof = read_blob(first);
-        if eof {
+        result = read_blob(first);
+        if result.eof {
             self.stdin_eof = True;
         }
-        return blob;
+        return result.text;
     }
 
     def send_cmd(cmd: str) { }

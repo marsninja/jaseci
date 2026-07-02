@@ -1,24 +1,25 @@
 import from .terminal { ansi_sgr }
 import from .width { visible_width, ansi_trunc, ansi_pad }
 import from .state { DisplayRow, EventKind }
-
-glob _TC_R: int = 204,
-     _TC_G: int = 119,
-     _TC_B: int = 255;
-glob _TR_OK_R: int = 80,
-     _TR_OK_G: int = 200,
-     _TR_OK_B: int = 80;
-glob _TR_ERR_R: int = 255,
-     _TR_ERR_G: int = 80,
-     _TR_ERR_B: int = 80;
-glob _TC_ARG_R: int = 160,
-     _TC_ARG_G: int = 160,
-     _TC_ARG_B: int = 160;
-glob _TB_BG_R: int = 18,
-     _TB_BG_G: int = 18,
-     _TB_BG_B: int = 28;
-glob _TB_BOLD: int = 1,
-     _TB_DIM: int = 2;
+import from .theme {
+    TH_BG_R,
+    TH_BG_G,
+    TH_BG_B,
+    TH_CALL_R,
+    TH_CALL_G,
+    TH_CALL_B,
+    TH_REASON_R,
+    TH_REASON_G,
+    TH_REASON_B,
+    TH_ERROR_R,
+    TH_ERROR_G,
+    TH_ERROR_B,
+    TH_STATUS_OK_R,
+    TH_STATUS_OK_G,
+    TH_STATUS_OK_B,
+    TH_BOLD,
+    TH_DIM
+}
 
 def tool_call_rows(tool_name: str, text: str, width: int, out: list[DisplayRow]) {
     name = tool_name;
@@ -26,9 +27,11 @@ def tool_call_rows(tool_name: str, text: str, width: int, out: list[DisplayRow])
         name = "tool";
     }
 
-    name_sgr = ansi_sgr(_TC_R, _TC_G, _TC_B, _TB_BG_R, _TB_BG_G, _TB_BG_B, _TB_BOLD);
+    name_sgr = ansi_sgr(
+        TH_CALL_R, TH_CALL_G, TH_CALL_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+    );
     arg_sgr = ansi_sgr(
-        _TC_ARG_R, _TC_ARG_G, _TC_ARG_B, _TB_BG_R, _TB_BG_G, _TB_BG_B, _TB_DIM
+        TH_REASON_R, TH_REASON_G, TH_REASON_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM
     );
 
     name_vis = visible_width(name);
@@ -56,19 +59,19 @@ def tool_result_rows(tool_name: str, text: str, width: int, out: list[DisplayRow
     is_err = len(text) == 0;
 
     icon_str: str = "✓ ";
-    icon_r: int = _TR_OK_R;
-    icon_g: int = _TR_OK_G;
-    icon_b: int = _TR_OK_B;
+    icon_r: int = TH_STATUS_OK_R;
+    icon_g: int = TH_STATUS_OK_G;
+    icon_b: int = TH_STATUS_OK_B;
     if is_err {
         icon_str = "✗ ";
-        icon_r = _TR_ERR_R;
-        icon_g = _TR_ERR_G;
-        icon_b = _TR_ERR_B;
+        icon_r = TH_ERROR_R;
+        icon_g = TH_ERROR_G;
+        icon_b = TH_ERROR_B;
     }
 
-    icon_sgr = ansi_sgr(icon_r, icon_g, icon_b, _TB_BG_R, _TB_BG_G, _TB_BG_B, _TB_BOLD);
+    icon_sgr = ansi_sgr(icon_r, icon_g, icon_b, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD);
     cont_sgr = ansi_sgr(
-        _TC_ARG_R, _TC_ARG_G, _TC_ARG_B, _TB_BG_R, _TB_BG_G, _TB_BG_B, _TB_DIM
+        TH_REASON_R, TH_REASON_G, TH_REASON_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM
     );
 
     body = text;

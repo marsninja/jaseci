@@ -1,7 +1,12 @@
 import from .ipc_schema { IPC_LEN, IPC_SEP }
 import from .libc_tty { tty_read_line }
 
-def read_blob(first_line: str) -> (str, bool) {
+obj BlobResult {
+    has text: str = "",
+        eof: bool = False;
+}
+
+def read_blob(first_line: str) -> BlobResult {
     expected_lines: int = -1;
     colon_at = first_line.find(":");
     if colon_at >= 0 and first_line[:colon_at] == IPC_LEN {
@@ -17,7 +22,7 @@ def read_blob(first_line: str) -> (str, bool) {
         while n < expected_lines {
             raw = tty_read_line();
             if len(raw) == 0 {
-                return (blob, True);
+                return BlobResult(text=blob, eof=True);
             }
             line = raw.strip();
             if len(blob) > 0 {
@@ -35,7 +40,7 @@ def read_blob(first_line: str) -> (str, bool) {
         while True {
             raw = tty_read_line();
             if len(raw) == 0 {
-                return (blob, True);
+                return BlobResult(text=blob, eof=True);
             }
             line = raw.strip();
             if line == IPC_SEP {
@@ -49,5 +54,5 @@ def read_blob(first_line: str) -> (str, bool) {
             }
         }
     }
-    return (blob, False);
+    return BlobResult(text=blob, eof=False);
 }

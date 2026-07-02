@@ -145,10 +145,15 @@ jobs:
       - name: Picker logic tests
         working-directory: jac/jaclang/cli/ai_tui_na
         run: |
-          # test_pickers imports `.libc_tty`; stage the darwin backend (build.sh
-          # --quick removes its staged copy on exit) before compiling.
-          cp tty/libc_tty.darwin.na.jac libc_tty.na.jac
-          trap 'rm -f libc_tty.na.jac' EXIT
+          # test_pickers imports `.libc_tty`, whose shared backend
+          # (tty/libc_tty_base.na.jac) in turn imports `.tty_plat`. build.sh
+          # --quick removes its staged copies on exit, so stage both halves
+          # here before compiling: the darwin platform module -> tty_plat.na.jac
+          # and the shared logic -> libc_tty.na.jac. The trap removes both on
+          # any exit so the source tree stays clean.
+          cp tty/tty_plat.darwin.na.jac tty_plat.na.jac
+          cp tty/libc_tty_base.na.jac libc_tty.na.jac
+          trap 'rm -f tty_plat.na.jac libc_tty.na.jac' EXIT
           jac nacompile test_pickers.na.jac -o bin/test_pickers
           codesign --sign - bin/test_pickers
           ./bin/test_pickers

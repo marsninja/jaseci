@@ -25,6 +25,10 @@ glob TH_SYSTEM_R: int = 86,
      TH_SYSTEM_G: int = 182,
      TH_SYSTEM_B: int = 194;
 
+glob TH_LOGO_R: int = 86,
+     TH_LOGO_G: int = 182,
+     TH_LOGO_B: int = 194;
+
 glob TH_ERROR_R: int = 255,
      TH_ERROR_G: int = 80,
      TH_ERROR_B: int = 80;
@@ -51,6 +55,16 @@ glob TH_MODEL_R: int = 120,
      TH_MODEL_G: int = 120,
      TH_MODEL_B: int = 120;
 
+glob TH_AC_SEL_BG_R: int = 36,
+     TH_AC_SEL_BG_G: int = 36,
+     TH_AC_SEL_BG_B: int = 60;
+glob TH_AC_SEL_DESC_R: int = 180,
+     TH_AC_SEL_DESC_G: int = 180,
+     TH_AC_SEL_DESC_B: int = 220;
+glob TH_AC_DESC_R: int = 100,
+     TH_AC_DESC_G: int = 100,
+     TH_AC_DESC_B: int = 100;
+
 glob TH_STATUS_IDLE_R: int = 140,
      TH_STATUS_IDLE_G: int = 140,
      TH_STATUS_IDLE_B: int = 140;
@@ -63,6 +77,34 @@ glob TH_STATUS_OK_R: int = 80,
 glob TH_STATUS_STOP_R: int = 255,
      TH_STATUS_STOP_G: int = 80,
      TH_STATUS_STOP_B: int = 80;
+
+glob TH_MD_H1_R: int = 255,
+     TH_MD_H1_G: int = 215,
+     TH_MD_H1_B: int = 100;
+glob TH_MD_H2_R: int = 130,
+     TH_MD_H2_G: int = 200,
+     TH_MD_H2_B: int = 255;
+glob TH_MD_H3_R: int = 150,
+     TH_MD_H3_G: int = 220,
+     TH_MD_H3_B: int = 180;
+glob TH_MD_CODE_R: int = 190,
+     TH_MD_CODE_G: int = 190,
+     TH_MD_CODE_B: int = 210;
+glob TH_MD_CODE_BG_R: int = 28,
+     TH_MD_CODE_BG_G: int = 28,
+     TH_MD_CODE_BG_B: int = 45;
+glob TH_MD_FENCE_R: int = 100,
+     TH_MD_FENCE_G: int = 100,
+     TH_MD_FENCE_B: int = 140;
+glob TH_MD_BQ_R: int = 170,
+     TH_MD_BQ_G: int = 190,
+     TH_MD_BQ_B: int = 210;
+glob TH_MD_BQ_BAR_R: int = 80,
+     TH_MD_BQ_BAR_G: int = 120,
+     TH_MD_BQ_BAR_B: int = 160;
+glob TH_MD_HR_R: int = 70,
+     TH_MD_HR_G: int = 70,
+     TH_MD_HR_B: int = 100;
 
 glob TH_NONE: int = 0,
      TH_BOLD: int = 1,

@@ -1,17 +1,5 @@
 import from .state { EditorState }
-
-def _idiv(a: int, b: int) -> int {
-    if b <= 0 {
-        return 0;
-    }
-    result: int = 0;
-    rem: int = a;
-    while rem >= b {
-        rem = rem - b;
-        result = result + 1;
-    }
-    return result;
-}
+import from .width { idiv }
 
 def _vl_count(line_len: int, width: int) -> int {
     if width <= 0 {
@@ -20,7 +8,7 @@ def _vl_count(line_len: int, width: int) -> int {
     if line_len == 0 {
         return 1;
     }
-    return _idiv(line_len + width - 1, width);
+    return idiv(line_len + width - 1, width);
 }
 
 def _total_vlines_before(lines: list[str], before_idx: int, width: int) -> int {
@@ -35,7 +23,7 @@ def _total_vlines_before(lines: list[str], before_idx: int, width: int) -> int {
 
 def _cursor_global_vl(ed: EditorState, width: int) -> int {
     before = _total_vlines_before(ed.lines, ed.cursor_line, width);
-    return before + _idiv(ed.cursor_col, width);
+    return before + idiv(ed.cursor_col, width);
 }
 
 def _total_vlines(lines: list[str], width: int) -> int {
@@ -73,7 +61,7 @@ def editor_is_on_first_vline(ed: EditorState, width: int) -> bool {
     if width <= 0 {
         return True;
     }
-    return _idiv(ed.cursor_col, width) == 0;
+    return idiv(ed.cursor_col, width) == 0;
 }
 
 def editor_is_on_last_vline(ed: EditorState, width: int) -> bool {
@@ -87,7 +75,7 @@ def editor_is_on_last_vline(ed: EditorState, width: int) -> bool {
         return True;
     }
     last_vsubline = _vl_count(last_len, width) - 1;
-    cur_vsubline = _idiv(ed.cursor_col, width);
+    cur_vsubline = idiv(ed.cursor_col, width);
     return cur_vsubline >= last_vsubline;
 }
 
@@ -213,7 +201,7 @@ def editor_move_up(ed: EditorState, width: int) {
     if width <= 0 {
         return;
     }
-    cur_vsubline = _idiv(ed.cursor_col, width);
+    cur_vsubline = idiv(ed.cursor_col, width);
     cur_vcol = ed.cursor_col - cur_vsubline * width;
 
     if cur_vsubline > 0 {
@@ -247,7 +235,7 @@ def editor_move_down(ed: EditorState, width: int) {
     }
     cur_line = ed.lines[ed.cursor_line];
     cur_len = len(cur_line);
-    cur_vsubline = _idiv(ed.cursor_col, width);
+    cur_vsubline = idiv(ed.cursor_col, width);
     cur_vcol = ed.cursor_col - cur_vsubline * width;
     total_vsublines = _vl_count(cur_len, width);
 

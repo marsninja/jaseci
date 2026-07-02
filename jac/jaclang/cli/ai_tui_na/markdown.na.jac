@@ -1,10 +1,42 @@
 import from .terminal { ansi_sgr, term_spaces, term_dashes }
 import from .width { visible_width, ansi_pad }
 import from .terminal_image { term_hyperlink }
-
-glob _BG_R: int = 18,
-     _BG_G: int = 18,
-     _BG_B: int = 28;
+import from .theme {
+    TH_BG_R,
+    TH_BG_G,
+    TH_BG_B,
+    TH_MD_H1_R,
+    TH_MD_H1_G,
+    TH_MD_H1_B,
+    TH_MD_H2_R,
+    TH_MD_H2_G,
+    TH_MD_H2_B,
+    TH_MD_H3_R,
+    TH_MD_H3_G,
+    TH_MD_H3_B,
+    TH_MD_CODE_R,
+    TH_MD_CODE_G,
+    TH_MD_CODE_B,
+    TH_MD_CODE_BG_R,
+    TH_MD_CODE_BG_G,
+    TH_MD_CODE_BG_B,
+    TH_MD_FENCE_R,
+    TH_MD_FENCE_G,
+    TH_MD_FENCE_B,
+    TH_MD_BQ_R,
+    TH_MD_BQ_G,
+    TH_MD_BQ_B,
+    TH_MD_BQ_BAR_R,
+    TH_MD_BQ_BAR_G,
+    TH_MD_BQ_BAR_B,
+    TH_MD_HR_R,
+    TH_MD_HR_G,
+    TH_MD_HR_B,
+    TH_NONE,
+    TH_BOLD,
+    TH_DIM,
+    TH_ITALIC
+}
 
 def _md_is_blank(s: str) -> bool {
     i: int = 0;
@@ -266,17 +298,45 @@ def _md_append(src: list[str], dst: list[str]) {
 }
 
 def md_render(text: str, width: int, r: int, g: int, b: int, attrs: int) -> list[str] {
-    base_sgr = ansi_sgr(r, g, b, _BG_R, _BG_G, _BG_B, attrs);
+    base_sgr = ansi_sgr(r, g, b, TH_BG_R, TH_BG_G, TH_BG_B, attrs);
     result: list[str] = [];
 
-    h1_sgr = ansi_sgr(255, 215, 100, _BG_R, _BG_G, _BG_B, 1);
-    h2_sgr = ansi_sgr(130, 200, 255, _BG_R, _BG_G, _BG_B, 1);
-    h3_sgr = ansi_sgr(150, 220, 180, _BG_R, _BG_G, _BG_B, 1);
-    code_line_sgr = ansi_sgr(190, 190, 210, 28, 28, 45, 0);
-    code_fence_sgr = ansi_sgr(100, 100, 140, _BG_R, _BG_G, _BG_B, 2);
-    bq_text_sgr = ansi_sgr(170, 190, 210, _BG_R, _BG_G, _BG_B, 4);
-    bq_bar_sgr = ansi_sgr(80, 120, 160, _BG_R, _BG_G, _BG_B, 0);
-    hr_sgr = ansi_sgr(70, 70, 100, _BG_R, _BG_G, _BG_B, 2);
+    h1_sgr = ansi_sgr(
+        TH_MD_H1_R, TH_MD_H1_G, TH_MD_H1_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+    );
+    h2_sgr = ansi_sgr(
+        TH_MD_H2_R, TH_MD_H2_G, TH_MD_H2_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+    );
+    h3_sgr = ansi_sgr(
+        TH_MD_H3_R, TH_MD_H3_G, TH_MD_H3_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD
+    );
+    code_line_sgr = ansi_sgr(
+        TH_MD_CODE_R,
+        TH_MD_CODE_G,
+        TH_MD_CODE_B,
+        TH_MD_CODE_BG_R,
+        TH_MD_CODE_BG_G,
+        TH_MD_CODE_BG_B,
+        TH_NONE
+    );
+    code_fence_sgr = ansi_sgr(
+        TH_MD_FENCE_R, TH_MD_FENCE_G, TH_MD_FENCE_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM
+    );
+    bq_text_sgr = ansi_sgr(
+        TH_MD_BQ_R, TH_MD_BQ_G, TH_MD_BQ_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_ITALIC
+    );
+    bq_bar_sgr = ansi_sgr(
+        TH_MD_BQ_BAR_R,
+        TH_MD_BQ_BAR_G,
+        TH_MD_BQ_BAR_B,
+        TH_BG_R,
+        TH_BG_G,
+        TH_BG_B,
+        TH_NONE
+    );
+    hr_sgr = ansi_sgr(
+        TH_MD_HR_R, TH_MD_HR_G, TH_MD_HR_B, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM
+    );
 
     lines = text.split("\n");
     in_fence: bool = False;

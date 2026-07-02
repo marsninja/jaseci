@@ -95,8 +95,8 @@ case "${JAC_AI_TUI_TARGET:-}" in
         ;;
 esac
 case "$TTY" in
-    linux)  STAGE=tty/libc_tty.linux.na.jac;  SHIM=libjacpyembed.so    ;;
-    darwin) STAGE=tty/libc_tty.darwin.na.jac; SHIM=libjacpyembed.dylib ;;
+    linux)  PLAT=tty/tty_plat.linux.na.jac;  SHIM=libjacpyembed.so    ;;
+    darwin) PLAT=tty/tty_plat.darwin.na.jac; SHIM=libjacpyembed.dylib ;;
 esac
 
 XFLAGS=""
@@ -118,13 +118,17 @@ if [ ! -f "$SHIM_SRC" ]; then
     exit 1
 fi
 
-# ── stage the platform TTY module + the shim into the compile dir ─────────────
-# host_embed.na.jac imports .libc_tty statically and `import from jacpyembed`;
-# nacompile resolves both from its cwd (= this dir). Both are gitignored build
-# scratch -- the trap removes them on any exit so the source tree stays clean.
-cp "$STAGE" libc_tty.na.jac
+# ── stage the split TTY backend + the shim into the compile dir ──────────────
+# The TTY backend is a shared logic module (tty/libc_tty_base.na.jac) plus a
+# per-platform bindings+constants module (tty/tty_plat.<os>.na.jac). Stage both:
+# shared -> libc_tty.na.jac (host_embed.na.jac imports .libc_tty statically),
+# platform -> tty_plat.na.jac (imported by libc_tty_base). host_embed also does
+# `import from jacpyembed`; nacompile resolves both from its cwd (= this dir).
+# All three are gitignored build scratch -- the trap removes them on any exit.
+cp "$PLAT" tty_plat.na.jac
+cp tty/libc_tty_base.na.jac libc_tty.na.jac
 cp "$SHIM_SRC" "$SHIM"
-trap "rm -f libc_tty.na.jac '$SCRIPT_DIR/$SHIM'" EXIT
+trap "rm -f tty_plat.na.jac libc_tty.na.jac '$SCRIPT_DIR/$SHIM'" EXIT
 
 mkdir -p bin
 
