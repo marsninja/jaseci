@@ -66,9 +66,6 @@ def build_pages_react_entry_script(
 
     lines.extend(
         [
-            # AuthGuard is a compiled Jac function taking the redirect path as
-            # a positional string, not a props-consuming React component, so
-            # it needs a wrapper component rather than createElement props.
             f'function _AuthGuardRoute() {{ return AuthGuard("{auth_redirect}"); }}',
             'const authGuardElement = React.createElement(_AuthGuardRoute, null);',
             '',
@@ -114,9 +111,6 @@ def build_pages_react_entry_script(
 }
 
 def build_web_error_overlay_entry_script(file_path: str, errors: str) -> str {
-    # Both values are compiler/filesystem strings interpolated into generated
-    # JS: the path lands in a double-quoted literal, the errors in a template
-    # literal, so each needs its own escape set.
     safe_path = file_path.replace("\\", "\\\\").replace('"', '\\"').replace(
         "\n", "\\n"
     ).replace(

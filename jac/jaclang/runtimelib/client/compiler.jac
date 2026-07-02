@@ -1,10 +1,3 @@
-"""Web (Vite) client compiler.
-
-The target-agnostic compilation engine lives in JacClientCompiler
-(module/page compilation, dependency walking, asset copying, source maps);
-ViteCompiler owns only the web-specific steps: the browser runtime bundle,
-the desktop SDK module, the Vite entry file, and the Vite bundling itself.
-"""
 import contextlib;
 import from collections.abc { Callable }
 import from pathlib { Path }

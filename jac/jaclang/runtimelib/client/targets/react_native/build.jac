@@ -42,9 +42,6 @@ def _iter_user_js_files(compiled_dir: Path) -> list[Path] {
 }
 
 def read_user_js_sources(compiled_dir: Path) -> list[tuple[Path, str]] {
-    # One tree walk + read shared by the read-only lints; callers that run
-    # several lints back-to-back pass the same list instead of re-reading
-    # the whole compiled tree per lint.
     sources = [];
     for js_file in _iter_user_js_files(compiled_dir) {
         try {
@@ -127,8 +124,6 @@ def stage_compiled_entry(compiled_dir: Path, rn_dir: Path, entry_module: str) ->
     try {
         os.rename(staged_tmp, staged_tree);
     } except BaseException {
-        # Never leave the project without a jac-src tree: put the previous
-        # staging back if the swap failed after the first rename.
         if staged_old.exists() and not staged_tree.exists() {
             os.rename(staged_old, staged_tree);
         }
@@ -402,9 +397,7 @@ def strip_css_imports(compiled_dir: Path) -> int {
         r"^[^\S\n]*import\s+(?:[^'\"\n]*?\sfrom\s+)?['\"][^'\"\n]+\.(?:css|scss|sass|less)['\"]\s*;?\s*(?://[^\n]*)?$",
         re.MULTILINE
     );
-    # Bindings (braced, default, or namespace) may span lines in compiled
-    # output; they can never contain quotes or semicolons, which keeps the
-    # lazy match from jumping across statements or into string literals.
+
     css_multi_pattern = re.compile(
         r"import\s+(?:[^;'\"]*?\sfrom\s+)?['\"][^'\"\n]+\.(?:css|scss|sass|less)['\"]\s*;?",
         re.DOTALL

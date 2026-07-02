@@ -137,12 +137,6 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
 glob _client_kind_probe_active: bool = False;
 
 def _module_client_kind(source_path: str) -> str {
-    # The owning project's client_kind participates in the module key so
-    # flipping `[project] client_kind` in jac.toml invalidates bytecode
-    # compiled under the other kind (mobUI diagnostics such as E1105 only
-    # run when the module actually recompiles). Reentrancy-guarded: during
-    # bootstrap, before jaclang.project itself is compiled, every module
-    # keys as the default "web".
     global _client_kind_probe_active;
     if _client_kind_probe_active {
         return "web";

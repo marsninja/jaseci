@@ -1,9 +1,7 @@
 impl __jacWirePlatformAdapters -> None {
     globalThis.__jacGetRenderer__ = __jacGetRenderer;
     globalThis.__jacGetApiBaseUrl__ = __getApiBaseUrl;
-    # Token reads are synchronous but SecureStore is async: start priming
-    # now and let the core fetch paths await readiness so early walker
-    # calls never go out unauthenticated.
+
     globalThis.__jacPlatformReady__ = __ensureNativeTokenPrimed();
     globalThis.__jacGetLocalStorage__ = __getLocalStorage;
     globalThis.__jacSetLocalStorage__ = __setLocalStorage;
@@ -568,8 +566,7 @@ impl __nativeRouter(props: dict = {}) -> JsxElement {
         pending = globalThis.__jacPendingNavigation__;
         if pending {
             globalThis.__jacPendingNavigation__ = None;
-            # Queued redirects (e.g. a 401 during mount) predate any user
-            # navigation, so replace rather than push.
+
             _performNavigation(nav_ref.current, pending, {"replace": True});
         }
     }
@@ -731,8 +728,6 @@ impl navigate(path: str) -> None {
     nav_ref = globalThis.__jacNativeNavigationRef__;
     nav = nav_ref.current if nav_ref and nav_ref.current else None;
     if nav == None {
-        # The container is not ready yet (e.g. a walker 401 fired during
-        # mount). Queue the target; __nativeRouter flushes it onReady.
         globalThis.__jacPendingNavigation__ = path;
         return;
     }

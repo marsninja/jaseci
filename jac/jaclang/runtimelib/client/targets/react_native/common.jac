@@ -28,8 +28,6 @@ def run_manifest_install(project_dir: Path) {
 def resolve_rn_project_dir(
     project_dir: Path, client_cfg: (JacClientConfig | None) = None
 ) -> Path {
-    # Callers that already hold a JacClientConfig pass it in so one build/dev
-    # invocation parses jac.toml once instead of per helper call.
     if client_cfg is None {
         client_cfg = JacClientConfig(project_dir);
     }

@@ -401,10 +401,7 @@ impl JacClientCompiler.compile_runtime_utils(
     import re;
     import json;
     import importlib;
-    # The compiled runtime imports the RN tag map as a relative JS module;
-    # regenerate it inside the compiled dir from the canonical Jac module.
-    # All list constants are exported so adding a tag set to html_tag_map
-    # never silently breaks the native bundle.
+
     for _m in re.finditer(
         r'from\s+[\'"]((?:\./)?[^\'"]*html_tag_map\.js)[\'"]', runtimeutils_js
     ) {
@@ -480,9 +477,6 @@ impl JacClientCompiler._write_source_map(
         raw_js = mod.gen.js or '';
         raw_start = full_output.find(raw_js) if raw_js else -1;
         if raw_start < 0 {
-            # The emitted JS was transformed beyond prepending (imports
-            # rewritten, bodies merged); a line map offset would be wrong,
-            # and a wrong map is worse than none.
             return;
         }
         header_lines = full_output[:raw_start].count('\n');
