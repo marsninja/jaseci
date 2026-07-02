@@ -1,6 +1,13 @@
 import from .state { TuiState, AcItem }
 import from .select_list { SelectItem }
 import from .ipc { ipc_send_cmd }
+import from .ipc_schema {
+    IPC_CMD_SEND,
+    IPC_CMD_STOP,
+    IPC_CMD_RESET,
+    IPC_CMD_QUIT,
+    IPC_CMD_APPLY
+}
 
 obj CmdDef {
     has value: str = "",
@@ -115,7 +122,7 @@ def _cmd_defs -> list[CmdDef] {
         "",
         "Stop the current turn",
         "ipc",
-        "STOP",
+        IPC_CMD_STOP,
         True,
         True,
         True,
@@ -128,7 +135,7 @@ def _cmd_defs -> list[CmdDef] {
         "",
         "Clear transcript and reset session",
         "ipc_reset",
-        "RESET",
+        IPC_CMD_RESET,
         True,
         True,
         False,
@@ -141,7 +148,7 @@ def _cmd_defs -> list[CmdDef] {
         "",
         "Clear transcript and reset session",
         "ipc_reset",
-        "RESET",
+        IPC_CMD_RESET,
         True,
         True,
         False,
@@ -154,7 +161,7 @@ def _cmd_defs -> list[CmdDef] {
         "/exit",
         "Exit jac ai TUI",
         "ipc",
-        "QUIT",
+        IPC_CMD_QUIT,
         True,
         True,
         False,
@@ -167,7 +174,7 @@ def _cmd_defs -> list[CmdDef] {
             slash_labels=labels_q,
             description="Exit jac ai TUI",
             kind="ipc",
-            ipc_name="QUIT",
+            ipc_name=IPC_CMD_QUIT,
             slash_ac=False,
             palette=False,
             running_only=False,
@@ -243,7 +250,7 @@ def command_dispatch(cmd: str, state: TuiState, ipc_fd: int) -> str {
     }
     if d.kind == "ipc" {
         ipc_send_cmd(ipc_fd, d.ipc_name);
-        if d.ipc_name == "QUIT" {
+        if d.ipc_name == IPC_CMD_QUIT {
             return "quit";
         }
         state.dirty = True;
@@ -255,7 +262,7 @@ def command_dispatch(cmd: str, state: TuiState, ipc_fd: int) -> str {
 def slash_submit(text: str, state: TuiState, ipc_fd: int) -> str {
     if text.startswith("/settings ") {
         args = text[10:].strip();
-        ipc_send_cmd(ipc_fd, f"APPLY:{args}");
+        ipc_send_cmd(ipc_fd, IPC_CMD_APPLY + ":" + args);
         return "handled";
     }
     value = resolve_slash_line(text);
@@ -338,6 +345,6 @@ def file_items(state: TuiState) -> list[SelectItem] {
 }
 
 def apply_model(model: str, state: TuiState, ipc_fd: int) {
-    ipc_send_cmd(ipc_fd, f"APPLY:model={model}");
+    ipc_send_cmd(ipc_fd, IPC_CMD_APPLY + ":model=" + model);
     state.dirty = True;
 }

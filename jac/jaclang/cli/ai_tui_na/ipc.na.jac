@@ -1,6 +1,34 @@
 import from .state { TuiState }
+import from .ipc_schema {
+    IPC_TYPE,
+    IPC_STATUS,
+    IPC_ACTIVE,
+    IPC_MODEL,
+    IPC_NEEDS_KEY,
+    IPC_KEY_ENV,
+    IPC_EV,
+    IPC_EVA,
+    IPC_LEN,
+    IPC_FTYPE_FULL,
+    IPC_FTYPE_HB,
+    IPC_SEP
+}
+import from .transport { Transport }
+import from .libc_tty { tty_read_line }
 
-import from .libc_tty { tty_read_line, tty_write }
+glob _transport: Transport = Transport();
+
+def ipc_send_cmd(fd: int, cmd: str) {
+    _transport.send(fd, cmd);
+}
+
+def ipc_next_command -> str {
+    return _transport.drain();
+}
+
+def ipc_clear_cmd_queue {
+    _transport.clear();
+}
 
 def _unescape(s: str) -> str {
     result: str = "";
@@ -76,24 +104,24 @@ def _parse_eva_val(state: TuiState, val: str) -> None {
 }
 
 def ipc_apply_line(state: TuiState, key: str, val: str) {
-    if key == "EV" {
+    if key == IPC_EV {
         _parse_ev_val(state, val);
         return;
     }
-    if key == "EVA" {
+    if key == IPC_EVA {
         _parse_eva_val(state, val);
         return;
     }
 
-    if key == "STATUS" {
+    if key == IPC_STATUS {
         state.status = val;
-    } elif key == "ACTIVE" {
+    } elif key == IPC_ACTIVE {
         state.active = val;
-    } elif key == "MODEL" {
+    } elif key == IPC_MODEL {
         state.model_name = val;
-    } elif key == "NEEDS_KEY" {
+    } elif key == IPC_NEEDS_KEY {
         state.needs_key = val == "1";
-    } elif key == "KEY_ENV" {
+    } elif key == IPC_KEY_ENV {
         state.key_env = val;
     } else {
         return;
@@ -105,7 +133,11 @@ def ipc_parse_frame(state: TuiState, blob: str) -> bool {
     lines: list[str] = [];
     for raw in blob.split("\n") {
         line = raw.strip();
-        if line == "---" {
+        if line == IPC_SEP {
+            continue;
+        }
+        colon_at = line.find(":");
+        if colon_at >= 0 and line[:colon_at] == IPC_LEN {
             continue;
         }
         if len(line) > 0 {
@@ -119,30 +151,31 @@ def ipc_parse_frame(state: TuiState, blob: str) -> bool {
 
     frame_type: str = "";
     for line in lines {
-        if line.startswith("TYPE:") {
-            frame_type = line[5:];
+        colon_at = line.find(":");
+        if colon_at >= 0 and line[:colon_at] == IPC_TYPE {
+            frame_type = line[colon_at + 1:];
             break;
         }
     }
 
-    if frame_type == "hb" {
+    if frame_type == IPC_FTYPE_HB {
         return True;
     }
 
-    if frame_type == "full" {
+    if frame_type == IPC_FTYPE_FULL {
         state.reset_events();
     }
 
     for line in lines {
-        if line.startswith("TYPE:") {
+        colon_at = line.find(":");
+        if colon_at < 0 {
             continue;
         }
-        idx = line.find(":");
-        if idx < 0 {
+        key = line[:colon_at];
+        if key == IPC_TYPE {
             continue;
         }
-        key = line[:idx];
-        val = line[idx + 1:];
+        val = line[colon_at + 1:];
         ipc_apply_line(state, key, val);
     }
 
@@ -150,67 +183,58 @@ def ipc_parse_frame(state: TuiState, blob: str) -> bool {
 }
 
 def ipc_read_frame_v2(state: TuiState) -> bool {
+    raw = tty_read_line();
+    if len(raw) == 0 {
+        return False;
+    }
+    first = raw.strip();
+
+    expected_lines: int = -1;
+    colon_at = first.find(":");
+    if colon_at >= 0 and first[:colon_at] == IPC_LEN {
+        try {
+            expected_lines = int(first[colon_at + 1:]);
+        } except Exception { }
+    }
+
     blob: str = "";
 
-    while True {
-        raw = tty_read_line();
-        if len(raw) == 0 {
-            return False;
-        }
-        line = raw.strip();
-        if line == "---" {
-            break;
-        }
-        if len(line) > 0 {
+    if expected_lines >= 0 {
+        n: int = 0;
+        while n < expected_lines {
+            raw2 = tty_read_line();
+            if len(raw2) == 0 {
+                return False;
+            }
+            line = raw2.strip();
             if len(blob) > 0 {
                 blob = blob + "\n";
             }
             blob = blob + line;
+            n = n + 1;
+        }
+        tty_read_line();
+    } else {
+        if first != IPC_SEP and len(first) > 0 {
+            blob = first;
+        }
+        while True {
+            raw2 = tty_read_line();
+            if len(raw2) == 0 {
+                return False;
+            }
+            line = raw2.strip();
+            if line == IPC_SEP {
+                break;
+            }
+            if len(line) > 0 {
+                if len(blob) > 0 {
+                    blob = blob + "\n";
+                }
+                blob = blob + line;
+            }
         }
     }
 
     return ipc_parse_frame(state, blob);
-}
-
-obj CmdQueue {
-    has items: list[str] = [],
-        cursor: int = 0;
-
-    def push(cmd: str) {
-        self.items.append(cmd);
-    }
-
-    def pop_next -> str {
-        if self.cursor >= len(self.items) {
-            self.items = [];
-            self.cursor = 0;
-            return "";
-        }
-        cmd = self.items[self.cursor];
-        self.cursor = self.cursor + 1;
-        return cmd;
-    }
-
-    def clear {
-        self.items = [];
-        self.cursor = 0;
-    }
-}
-
-glob cmd_queue: CmdQueue = CmdQueue();
-
-def ipc_send_cmd(fd: int, cmd: str) {
-    if fd < 0 {
-        cmd_queue.push(cmd);
-        return;
-    }
-    tty_write(fd, cmd + "\n");
-}
-
-def ipc_next_command -> str {
-    return cmd_queue.pop_next();
-}
-
-def ipc_clear_cmd_queue {
-    cmd_queue.clear();
 }

@@ -1,5 +1,6 @@
 import from .state { TuiState }
 import from .ipc { ipc_send_cmd }
+import from .ipc_schema { IPC_CMD_SEND, IPC_CMD_STOP, IPC_CMD_RESET, IPC_CMD_QUIT }
 import from .autocomplete { ac_update, ac_apply }
 import from .overlay {
     overlay_is_active,
@@ -108,7 +109,7 @@ def _handle_submit(state: TuiState, ipc_fd: int) -> bool {
     state.upsert_event(-1, "user", text, "");
     state.scroll_to_bottom();
 
-    ipc_send_cmd(ipc_fd, f"SEND:{text}");
+    ipc_send_cmd(ipc_fd, IPC_CMD_SEND + ":" + text);
     return False;
 }
 
@@ -169,18 +170,18 @@ def handle_key(key: str, state: TuiState, ipc_fd: int) -> bool {
     }
 
     if code == 3 or code == 17 {
-        ipc_send_cmd(ipc_fd, "QUIT");
+        ipc_send_cmd(ipc_fd, IPC_CMD_QUIT);
         return True;
     }
 
     if code == 7 {
-        ipc_send_cmd(ipc_fd, "STOP");
+        ipc_send_cmd(ipc_fd, IPC_CMD_STOP);
         state.dirty = True;
         return False;
     }
 
     if code == 18 {
-        ipc_send_cmd(ipc_fd, "RESET");
+        ipc_send_cmd(ipc_fd, IPC_CMD_RESET);
         state.reset_events();
         state.dirty = True;
         return False;

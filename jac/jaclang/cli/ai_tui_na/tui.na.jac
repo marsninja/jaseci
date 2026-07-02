@@ -30,6 +30,7 @@ import from .state { TuiState }
 
 import from .select_list { SelectList, SelectItem }
 import from .ipc { ipc_read_frame_v2, ipc_send_cmd }
+import from .ipc_schema { IPC_CMD_SEND }
 import from .screen { screen_render }
 import from .diff { DiffEngine }
 import from .input { handle_key }
@@ -68,7 +69,7 @@ def _run {
     if len(args) > 1 {
         initial = args[1].strip();
         if len(initial) > 0 {
-            ipc_send_cmd(state.ipc_fd, f"SEND:{initial}");
+            ipc_send_cmd(state.ipc_fd, IPC_CMD_SEND + ":" + initial);
         }
     }
 

@@ -1,3 +1,24 @@
+import from jaclang.cli.ai_tui.ipc_schema {
+    FIELD_TYPE,
+    FIELD_STATUS,
+    FIELD_ACTIVE,
+    FIELD_MODEL,
+    FIELD_NEEDS_KEY,
+    FIELD_KEY_ENV,
+    FIELD_EV,
+    FIELD_EVA,
+    FIELD_LEN,
+    FTYPE_FULL,
+    FTYPE_DELTA,
+    FTYPE_HB,
+    CMD_SEND,
+    CMD_STOP,
+    CMD_RESET,
+    CMD_QUIT,
+    CMD_APPLY,
+    FRAME_SEP
+}
+
 def _debug_log(msg: str) -> None {
     import os;
     import time;
@@ -25,22 +46,22 @@ def _ev_line(ev: dict) -> str {
     ev_kind = str(ev.get("kind", ""));
     ev_node = str(ev.get("node", ""));
     ev_text = _esc_text(str(ev.get("text", "")));
-    return f"EV:{ev_id}:{ev_kind}:{ev_node}:{ev_text}";
+    return f"{FIELD_EV}:{ev_id}:{ev_kind}:{ev_node}:{ev_text}";
 }
 
 
 def _frame_blob(frame: dict) -> str {
     parts = [];
     if frame.get("full") {
-        parts.append("TYPE:full");
+        parts.append(f"{FIELD_TYPE}:{FTYPE_FULL}");
     } else {
-        parts.append("TYPE:delta");
+        parts.append(f"{FIELD_TYPE}:{FTYPE_DELTA}");
     }
-    parts.append(f"STATUS:{frame.get('status', '')}");
-    parts.append(f"ACTIVE:{frame.get('active', '')}");
-    parts.append(f"MODEL:{frame.get('model_name', '')}");
-    parts.append(f"NEEDS_KEY:{'1' if frame.get('needs_key') else '0'}");
-    parts.append(f"KEY_ENV:{frame.get('key_env', '')}");
+    parts.append(f"{FIELD_STATUS}:{frame.get('status', '')}");
+    parts.append(f"{FIELD_ACTIVE}:{frame.get('active', '')}");
+    parts.append(f"{FIELD_MODEL}:{frame.get('model_name', '')}");
+    parts.append(f"{FIELD_NEEDS_KEY}:{'1' if frame.get('needs_key') else '0'}");
+    parts.append(f"{FIELD_KEY_ENV}:{frame.get('key_env', '')}");
 
     if frame.get("full") {
         for ev in (frame.get("events") or []) {
@@ -51,14 +72,14 @@ def _frame_blob(frame: dict) -> str {
         delta = ev.get("_delta");
         if delta is not None {
             ev_id = str(ev.get("id", 0));
-            parts.append(f"EVA:{ev_id}:{_esc_text(delta)}");
+            parts.append(f"{FIELD_EVA}:{ev_id}:{_esc_text(delta)}");
         } else {
             parts.append(_ev_line(ev));
         }
     }
 
-    parts.append("---");
-    return "\n".join(parts);
+    body = "\n".join(parts);
+    return f"{FIELD_LEN}:{len(parts)}\n{body}\n{FRAME_SEP}";
 }
 
 
@@ -223,29 +244,32 @@ def _configure_ui_env(r: any) -> dict {
 def _dispatch_cmd(line: str, stop_evt: any, proc: any) {
     import from jaclang.cli.ai_agent { ui_send, ui_stop, ui_reset, ui_apply_settings }
 
-    if line.startswith("SEND:") {
-        prompt = line[5:];
+    send_prefix = CMD_SEND + ":";
+    apply_prefix = CMD_APPLY + ":";
+
+    if line.startswith(send_prefix) {
+        prompt = line[len(send_prefix):];
         try {
             ok = ui_send(prompt);
             _debug_log(f"ui_send({prompt!r}) -> {ok}");
         } except Exception as e {
             _debug_log(f"ui_send({prompt!r}) error: {e}");
         }
-    } elif line == "STOP" {
+    } elif line == CMD_STOP {
         try {
             ui_stop();
             _debug_log("ui_stop()");
         } except Exception as e {
             _debug_log(f"ui_stop error: {e}");
         }
-    } elif line == "RESET" {
+    } elif line == CMD_RESET {
         try {
             ui_reset();
             _debug_log("ui_reset()");
         } except Exception as e {
             _debug_log(f"ui_reset error: {e}");
         }
-    } elif line == "QUIT" {
+    } elif line == CMD_QUIT {
         stop_evt.set();
         try {
             ui_stop();
@@ -261,8 +285,8 @@ def _dispatch_cmd(line: str, stop_evt: any, proc: any) {
                 _debug_log(f"proc.terminate error: {e}");
             }
         }
-    } elif line.startswith("APPLY:") {
-        args_str = line[6:];
+    } elif line.startswith(apply_prefix) {
+        args_str = line[len(apply_prefix):];
         settings: dict = {};
         for part in args_str.split(",") {
             eq = part.find("=");
