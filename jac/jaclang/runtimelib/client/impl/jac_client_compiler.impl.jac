@@ -124,7 +124,9 @@ impl JacClientCompiler._copy_ts_file(
         }
         output_path.parent.mkdir(parents=True, exist_ok=True);
         output_path.write_text(ts_code, encoding='utf-8');
-    } except (FileNotFoundError, OSError) { }
+    } except (FileNotFoundError, OSError) as e {
+        console.warning(f"Failed to copy TS dependency '{ts_path}': {e}");
+    }
 }
 
 impl JacClientCompiler._copy_js_file(
@@ -140,7 +142,9 @@ impl JacClientCompiler._copy_js_file(
         }
         output_path.parent.mkdir(parents=True, exist_ok=True);
         output_path.write_text(js_code, encoding='utf-8');
-    } except FileNotFoundError { }
+    } except (FileNotFoundError, OSError) as e {
+        console.warning(f"Failed to copy JS dependency '{js_path}': {e}");
+    }
 }
 
 impl JacClientCompiler.compile_dependencies_recursively(
@@ -397,22 +401,33 @@ impl JacClientCompiler.compile_runtime_utils(
     import re;
     import json;
     import importlib;
+    # The compiled runtime imports the RN tag map as a relative JS module;
+    # regenerate it inside the compiled dir from the canonical Jac module.
+    # All list constants are exported so adding a tag set to html_tag_map
+    # never silently breaks the native bundle.
     for _m in re.finditer(
-        r'from\s+[\'"](\./[^\'"]*html_tag_map\.js)[\'"]', runtimeutils_js
+        r'from\s+[\'"]((?:\./)?[^\'"]*html_tag_map\.js)[\'"]', runtimeutils_js
     ) {
-        rel = _m.group(1)[2:];
-
+        rel = _m.group(1);
+        if rel.startswith('./') {
+            rel = rel[2:];
+        }
+        if '..' in Path(rel).parts {
+            console.warning(
+                f"Skipping html_tag_map re-export for specifier outside the "
+                f"compiled dir: {_m.group(1)}"
+            );
+            continue;
+        }
         htm = importlib.import_module(
             "jaclang.runtimelib.client.targets.react_native.html_tag_map"
         );
         dep_js = "";
-        for const_name in [
-            "RN_HTML_VIEW_TAGS",
-            "RN_HTML_TEXT_TAGS",
-            "RN_HTML_SPECIAL_TAGS"
-        ] {
-            vals = list(getattr(htm, const_name, []));
-            dep_js += f"export const {const_name} = {json.dumps(vals)};\n";
+        for const_name in sorted(dir(htm)) {
+            vals = getattr(htm, const_name, None);
+            if const_name.startswith("RN_") and isinstance(vals, list) {
+                dep_js += f"export const {const_name} = {json.dumps(vals)};\n";
+            }
         }
         dep_out = self.compiled_dir / rel;
         dep_out.parent.mkdir(parents=True, exist_ok=True);
@@ -464,7 +479,13 @@ impl JacClientCompiler._write_source_map(
 
         raw_js = mod.gen.js or '';
         raw_start = full_output.find(raw_js) if raw_js else -1;
-        header_lines = full_output[:raw_start].count('\n') if (raw_start > 0) else 0;
+        if raw_start < 0 {
+            # The emitted JS was transformed beyond prepending (imports
+            # rewritten, bodies merged); a line map offset would be wrong,
+            # and a wrong map is worse than none.
+            return;
+        }
+        header_lines = full_output[:raw_start].count('\n');
         if header_lines > 0 {
             line_map = [
                 (out + header_lines, src_l, src_c) for (out, src_l, src_c) in line_map

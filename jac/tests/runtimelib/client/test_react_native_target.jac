@@ -979,6 +979,10 @@ test "client config supports target-scoped npm table for react native" {
         assert "react" in deps;
         assert deps["react-native"] == "0.76.6";
         assert deps["expo-secure-store"] == "~14.0.1";
+        # The scope table itself must never leak into package.json as a
+        # dict-valued dependency (invalid npm manifest).
+        assert "react_native" not in deps;
+        assert all(isinstance(v, str) for v in deps.values());
     }
 }
 
@@ -1606,8 +1610,8 @@ test "build source includes iOS start helper" {
 
 test "config helpers support ios_builder and release" {
     import tempfile;
+    import from jaclang.runtimelib.client.config_loader { JacClientConfig }
     import from jaclang.runtimelib.client.targets.react_native.config {
-        _load_react_native_config,
         _resolve_rn_ios_builder,
         _resolve_rn_android_builder,
         _resolve_rn_release,
@@ -1620,7 +1624,7 @@ test "config helpers support ios_builder and release" {
     with tempfile.TemporaryDirectory() as tmp {
         project_dir = Path(tmp);
         # Defaults: no config → xcodebuild for iOS, gradle for Android, debug.
-        cfg = _load_react_native_config(project_dir);
+        cfg = JacClientConfig(project_dir).get_react_native_config();
         assert _resolve_rn_ios_builder(cfg) == "xcodebuild";
         assert _resolve_rn_android_builder(cfg) == "gradle";
         assert _resolve_rn_release(cfg) == False;
@@ -1644,7 +1648,7 @@ test "config helpers support ios_builder and release" {
             'eas_update_message = "RN release"\n'
         );
         (project_dir / "jac.toml").write_text(toml_content, encoding="utf-8");
-        cfg2 = _load_react_native_config(project_dir);
+        cfg2 = JacClientConfig(project_dir).get_react_native_config();
         assert _resolve_rn_ios_builder(cfg2) == "eas";
         assert _resolve_rn_android_builder(cfg2) == "eas";
         assert _resolve_rn_release(cfg2) == True;

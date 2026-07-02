@@ -25,8 +25,14 @@ def run_manifest_install(project_dir: Path) {
     _node_run_manifest_install(project_dir);
 }
 
-def resolve_rn_project_dir(project_dir: Path) -> Path {
-    client_cfg = JacClientConfig(project_dir);
+def resolve_rn_project_dir(
+    project_dir: Path, client_cfg: (JacClientConfig | None) = None
+) -> Path {
+    # Callers that already hold a JacClientConfig pass it in so one build/dev
+    # invocation parses jac.toml once instead of per helper call.
+    if client_cfg is None {
+        client_cfg = JacClientConfig(project_dir);
+    }
     rn_cfg = client_cfg.get_react_native_config();
     custom = str(rn_cfg.get("project_dir", "") or "").strip();
     if custom {

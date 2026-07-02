@@ -12,6 +12,7 @@ import from jaclang.runtimelib.client.targets.react_native.common {
 import from jaclang.runtimelib.client.targets.react_native.build {
     lint_native_incompatible_usage,
     lint_unmapped_tags,
+    read_user_js_sources,
     stage_native_image_assets,
     stage_compiled_entry,
     strip_css_imports,
@@ -113,10 +114,9 @@ def rn_hmr_on_jac_changed(
         compiled_dir = compiler.compiled_dir;
         if compiled_dir is not None {
             try {
-                lint_unmapped_tags(compiled_dir);
-            } except Exception { }
-            try {
-                lint_native_incompatible_usage(compiled_dir);
+                js_sources = read_user_js_sources(compiled_dir);
+                lint_unmapped_tags(compiled_dir, sources=js_sources);
+                lint_native_incompatible_usage(compiled_dir, sources=js_sources);
             } except Exception { }
             try {
                 strip_css_imports(compiled_dir);

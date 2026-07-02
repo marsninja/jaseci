@@ -41,6 +41,21 @@ def _iter_user_js_files(compiled_dir: Path) -> list[Path] {
     return files;
 }
 
+def read_user_js_sources(compiled_dir: Path) -> list[tuple[Path, str]] {
+    # One tree walk + read shared by the read-only lints; callers that run
+    # several lints back-to-back pass the same list instead of re-reading
+    # the whole compiled tree per lint.
+    sources = [];
+    for js_file in _iter_user_js_files(compiled_dir) {
+        try {
+            sources.append((js_file, js_file.read_text(encoding="utf-8")));
+        } except Exception {
+            continue;
+        }
+    }
+    return sources;
+}
+
 def _is_relative_img_src(src: str) -> bool {
     txt = str(src or "").strip();
     if txt == "" {
@@ -109,7 +124,16 @@ def stage_compiled_entry(compiled_dir: Path, rn_dir: Path, entry_module: str) ->
     if staged_tree.exists() {
         os.rename(staged_tree, staged_old);
     }
-    os.rename(staged_tmp, staged_tree);
+    try {
+        os.rename(staged_tmp, staged_tree);
+    } except BaseException {
+        # Never leave the project without a jac-src tree: put the previous
+        # staging back if the swap failed after the first rename.
+        if staged_old.exists() and not staged_tree.exists() {
+            os.rename(staged_old, staged_tree);
+        }
+        raise;
+    }
     if staged_old.exists() {
         shutil.rmtree(staged_old);
     }
@@ -226,16 +250,16 @@ def stage_native_image_assets(js_tree_dir: Path, rn_dir: Path) {
     };
 }
 
-def lint_unmapped_tags(compiled_dir: Path) -> list[str] {
+def lint_unmapped_tags(
+    compiled_dir: Path, sources: (list[tuple[Path, str]] | None) = None
+) -> list[str] {
     import re;
     pattern = re.compile(r'__jacJsx\(\s*[\'"]([a-z][a-zA-Z0-9]*)[\'"]');
     seen_unmapped: set[str] = set();
-    for js_file in _iter_user_js_files(compiled_dir) {
-        try {
-            text = js_file.read_text(encoding="utf-8");
-        } except Exception {
-            continue;
-        }
+    if sources is None {
+        sources = read_user_js_sources(compiled_dir);
+    }
+    for (js_file, text) in sources {
         for match in pattern.finditer(text) {
             tag = match.group(1);
             if tag not in supported_rn_html_tags() {
@@ -259,7 +283,9 @@ def lint_unmapped_tags(compiled_dir: Path) -> list[str] {
     return unmapped;
 }
 
-def lint_native_incompatible_usage(compiled_dir: Path) -> dict[(str, list[str])] {
+def lint_native_incompatible_usage(
+    compiled_dir: Path, sources: (list[tuple[Path, str]] | None) = None
+) -> dict[(str, list[str])] {
     import re;
 
     css_pattern = re.compile(
@@ -278,12 +304,10 @@ def lint_native_incompatible_usage(compiled_dir: Path) -> dict[(str, list[str])]
         );
     }
 
-    for js_file in _iter_user_js_files(compiled_dir) {
-        try {
-            text = js_file.read_text(encoding="utf-8");
-        } except Exception {
-            continue;
-        }
+    if sources is None {
+        sources = read_user_js_sources(compiled_dir);
+    }
+    for (js_file, text) in sources {
         for m in css_pattern.finditer(text) {
             css_hits.add(m.group(1));
         }
@@ -436,7 +460,13 @@ def run_expo_prebuild(rn_dir: Path, platform: str = "android") {
     npx = resolve_npx();
     cmd = [npx, "expo", "prebuild", "--platform", plat, "--no-install"];
     console.print(f"  Running expo prebuild: {' '.join(cmd)}", style="muted");
-    subprocess.run(cmd, cwd=rn_dir, check=True, capture_output=False);
+    subprocess.run(
+        cmd,
+        cwd=rn_dir,
+        check=True,
+        capture_output=False,
+        timeout=SUBPROCESS_TIMEOUT_BUILD
+    );
     console.print("  ✔ Expo prebuild complete", style="success");
 }
 
@@ -678,7 +708,13 @@ def run_eas_update_opt_in(rn_dir: Path, platform: str, branch: str, message: str
         style="muted"
     );
     console.print(f"  Running EAS update: {' '.join(cmd)}", style="muted");
-    subprocess.run(cmd, cwd=rn_dir, check=True, capture_output=False);
+    subprocess.run(
+        cmd,
+        cwd=rn_dir,
+        check=True,
+        capture_output=False,
+        timeout=SUBPROCESS_TIMEOUT_BUILD
+    );
 }
 
 def _find_first_workspace_or_project(ios_dir: Path) -> Path | None {

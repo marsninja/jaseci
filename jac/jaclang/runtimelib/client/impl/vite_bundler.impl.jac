@@ -423,29 +423,27 @@ impl ViteBundler._generate_vite_config_content(
     }
 
     if entry_relative.endswith('/build/main.js') {
-        compiled_utils_relative = entry_relative[:-13] + '/compiled/client_runtime.js';
-        compiled_pwa_relative = entry_relative[:-13] + '/compiled/pwa_runtime.js';
-        compiled_desktop_relative = entry_relative[:-13] + '/compiled/desktop_api.js';
-        compiled_ui_relative = entry_relative[:-13] + '/compiled/client_ui.js';
-        compiled_assets_relative = entry_relative[:-13] + '/compiled/assets';
-    } elif entry_relative.endswith('build/main.js') {
-        compiled_utils_relative = 'compiled/client_runtime.js';
-        compiled_pwa_relative = 'compiled/pwa_runtime.js';
-        compiled_desktop_relative = 'compiled/desktop_api.js';
-        compiled_ui_relative = 'compiled/client_ui.js';
-        compiled_assets_relative = 'compiled/assets';
+        compiled_base = entry_relative[:-13] + '/compiled';
     } else {
-        compiled_utils_relative = 'compiled/client_runtime.js';
-        compiled_pwa_relative = 'compiled/pwa_runtime.js';
-        compiled_desktop_relative = 'compiled/desktop_api.js';
-        compiled_ui_relative = 'compiled/client_ui.js';
-        compiled_assets_relative = 'compiled/assets';
+        compiled_base = 'compiled';
     }
+    compiled_utils_relative = f"{compiled_base}/client_runtime.js";
+    compiled_pwa_relative = f"{compiled_base}/pwa_runtime.js";
+    compiled_desktop_relative = f"{compiled_base}/desktop_api.js";
+    compiled_ui_relative = f"{compiled_base}/client_ui.js";
+    compiled_assets_relative = f"{compiled_base}/assets";
 
     ui_alias_str = (
         f'\n      "@jac/ui": path.resolve(buildDir, "{compiled_ui_relative}"),'
-        f'\n      "react-native": "react-native-web",'
     );
+    # @jac/ui renders through react-native primitives; on the web that only
+    # works when the project ships react-native-web. Aliasing react-native
+    # unconditionally would break every web build that imports it without
+    # the shim installed.
+    pkg_deps = self.config_loader.get_package_config().get('dependencies', {});
+    if 'react-native-web' in pkg_deps {
+        ui_alias_str += '\n      "react-native": "react-native-web",';
+    }
 
     pwa_alias_str = '';
     if self.config_loader.is_pwa_enabled() {

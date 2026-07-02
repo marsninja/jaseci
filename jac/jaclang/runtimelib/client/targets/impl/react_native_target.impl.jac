@@ -19,6 +19,7 @@ import from jaclang.runtimelib.client.targets.react_native.scaffold {
 import from jaclang.runtimelib.client.targets.react_native.build {
     lint_native_incompatible_usage,
     lint_unmapped_tags,
+    read_user_js_sources,
     run_expo_prebuild,
     run_gradle_assemble,
     run_eas_local_build,
@@ -29,8 +30,8 @@ import from jaclang.runtimelib.client.targets.react_native.build {
     strip_css_imports,
     write_native_entry
 }
+import from jaclang.runtimelib.client.config_loader { JacClientConfig }
 import from jaclang.runtimelib.client.targets.react_native.config {
-    _load_react_native_config,
     _resolve_rn_android_builder,
     _resolve_rn_eas_profile,
     _resolve_rn_eas_update_branch,
@@ -125,11 +126,12 @@ impl ReactNativeTarget.build(
             "Use --platform android or --platform ios."
         );
     }
-    rn_cfg = _load_react_native_config(project_dir);
+    client_cfg = JacClientConfig(project_dir);
+    rn_cfg = client_cfg.get_react_native_config();
     release = _resolve_rn_release(rn_cfg);
     build_label = "release" if release else "debug";
     ios_builder = _resolve_rn_ios_builder(rn_cfg);
-    rn_dir = resolve_rn_project_dir(project_dir);
+    rn_dir = resolve_rn_project_dir(project_dir, client_cfg);
 
     console.print(
         f"\n📱 Building React Native app ({plat}, {build_label})", style="bold"
@@ -163,8 +165,9 @@ impl ReactNativeTarget.build(
 
     (_, compiled_dir) = self._compile_native_jac_modules(entry_file);
 
-    lint_unmapped_tags(compiled_dir);
-    lint_native_incompatible_usage(compiled_dir);
+    js_sources = read_user_js_sources(compiled_dir);
+    lint_unmapped_tags(compiled_dir, sources=js_sources);
+    lint_native_incompatible_usage(compiled_dir, sources=js_sources);
     strip_css_imports(compiled_dir);
 
     entry_module: str = entry_file.stem;
@@ -265,8 +268,9 @@ impl ReactNativeTarget.dev(
     );
 
     (jac_compiler, compiled_dir) = self._compile_native_jac_modules(entry_file);
-    lint_unmapped_tags(compiled_dir);
-    lint_native_incompatible_usage(compiled_dir);
+    js_sources = read_user_js_sources(compiled_dir);
+    lint_unmapped_tags(compiled_dir, sources=js_sources);
+    lint_native_incompatible_usage(compiled_dir, sources=js_sources);
     strip_css_imports(compiled_dir);
 
     entry_module: str = entry_file.stem;
@@ -373,7 +377,7 @@ impl ReactNativeTarget.start(
         normalize_rn_platform
     }
 
-    rn_cfg = _load_react_native_config(project_dir);
+    rn_cfg = JacClientConfig(project_dir).get_react_native_config();
     default_plat = str(rn_cfg.get("default_platform", "") or "android").strip().lower();
     plat = normalize_rn_platform(default_plat);
 

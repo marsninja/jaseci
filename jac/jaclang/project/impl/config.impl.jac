@@ -388,10 +388,14 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
 impl JacConfig.get_plugin_deps(dep_type: str) -> dict[str, any] {
     deps = self.plugin_dependencies.get(dep_type, {});
 
+    # Nested tables are scopes ("dev", per-target sections like
+    # "react_native"), not dependencies; only name -> version-string pairs
+    # are direct deps. Leaking a table here would put a dict into a
+    # generated package.json.
     return {
         k: v
         for (k, v) in deps.items()
-        if k != "dev"
+        if k != "dev" and not isinstance(v, dict)
     };
 }
 
