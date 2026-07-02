@@ -203,48 +203,9 @@ impl JacClientCompiler.compile_dependencies_recursively(
     output_path.parent.mkdir(parents=True, exist_ok=True);
     source_header = f"/* Source: {module_path} */\n";
     output_path.write_text(source_header + combined_js, encoding='utf-8');
-
-    try {
-        import from jaclang.runtimelib.source_mapping { generate_source_map_json }
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        hub_key = str(module_path);
-        hub_mod = Jac.program.mod.hub.get(hub_key);
-        if hub_mod and hub_mod.gen.es_ast {
-            import from jaclang.compiler.passes.ecmascript.es_unparse {
-                es_to_js_with_map
-            }
-            (_, line_map) = es_to_js_with_map(hub_mod.gen.es_ast);
-            if line_map {
-                raw_js = hub_mod.gen.js or '';
-                full_output = source_header + combined_js;
-                raw_start_idx = full_output.find(raw_js);
-                if raw_start_idx > 0 {
-                    prefix = full_output[:raw_start_idx];
-                    header_lines = prefix.count('\n');
-                } else {
-                    header_lines = 0;
-                }
-                if header_lines > 0 {
-                    line_map = [
-                        (out + header_lines, src_l, src_c)
-                        for (out, src_l, src_c) in line_map
-                    ];
-                }
-                map_json = generate_source_map_json(
-                    source_file=str(module_path),
-                    output_file=output_path.name,
-                    line_map=line_map
-                );
-                map_path = output_path.parent / f"{output_path.name}.map";
-                map_path.write_text(map_json, encoding='utf-8');
-                with open(output_path, 'a', encoding='utf-8') as f {
-                    f.write(f"\n//# sourceMappingURL={output_path.name}.map\n");
-                }
-            }
-        }
-    } except Exception as e {
-        console.warning(f"Failed to generate source map for '{module_path}': {e}");
-    }
+    self._write_source_map(
+        mod, str(module_path), output_path, source_header + combined_js
+    );
     if (not manifest or not manifest.imports) {
         return;
     }
@@ -465,10 +426,6 @@ impl JacClientCompiler.compile_runtime_utils(
 impl JacClientCompiler.compile_pwa_runtime(
     self: JacClientCompiler
 ) -> tuple[str, list[str]] {
-    runtime_path = self.runtime_path;
-    if runtime_path is None {
-        return ('', []);
-    }
     import jaclang;
     pwa_runtime_path: Path = (
         Path(jaclang.__file__).parent / "runtimelib" / "pwa_runtime.cl.jac"
@@ -481,8 +438,49 @@ impl JacClientCompiler.compile_pwa_runtime(
     glob_names = list(pwa_manifest.globals) if pwa_manifest else [];
     all_exports = sorted(set(pwa_exports_list + glob_names));
     self.compiled_dir.mkdir(parents=True, exist_ok=True);
-    (self.compiled_dir / 'pwa_runtime.js').write_text(pwa_js, encoding='utf-8');
+    pwa_out = self.compiled_dir / 'pwa_runtime.js';
+    pwa_out.write_text(pwa_js, encoding='utf-8');
+    self._write_source_map(mod, str(pwa_runtime_path), pwa_out, pwa_js);
     return (pwa_js, all_exports);
+}
+
+impl JacClientCompiler._write_source_map(
+    self: JacClientCompiler,
+    mod: Any,
+    source_file: str,
+    output_path: Path,
+    full_output: str
+) -> None {
+    if (not mod or not mod.gen.es_ast) {
+        return;
+    }
+    try {
+        import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js_with_map }
+        import from jaclang.runtimelib.source_mapping { generate_source_map_json }
+        (_, line_map) = es_to_js_with_map(mod.gen.es_ast);
+        if not line_map {
+            return;
+        }
+
+        raw_js = mod.gen.js or '';
+        raw_start = full_output.find(raw_js) if raw_js else -1;
+        header_lines = full_output[:raw_start].count('\n') if (raw_start > 0) else 0;
+        if header_lines > 0 {
+            line_map = [
+                (out + header_lines, src_l, src_c) for (out, src_l, src_c) in line_map
+            ];
+        }
+        map_json = generate_source_map_json(
+            source_file=source_file, output_file=output_path.name, line_map=line_map
+        );
+        map_path = output_path.parent / f"{output_path.name}.map";
+        map_path.write_text(map_json, encoding='utf-8');
+        with open(output_path, 'a', encoding='utf-8') as f {
+            f.write(f"\n//# sourceMappingURL={output_path.name}.map\n");
+        }
+    } except Exception as e {
+        console.warning(f"Failed to generate source map for '{source_file}': {e}");
+    }
 }
 
 impl JacClientCompiler.compile_ui_utils(

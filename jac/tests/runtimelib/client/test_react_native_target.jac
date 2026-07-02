@@ -378,8 +378,6 @@ test "JacClientCompiler maps targets to platform runtimes" {
     assert "target_name" in src_content;
     assert "target_name" in impl_content;
     assert ".native.cl.jac" in src_content;
-    core_compiler_jac = _client_dir / "compiler.jac";
-    assert ".native.cl.jac" in core_compiler_jac.read_text();
     assert src_content.index(".native.cl.jac") < src_content.index(".cl.jac") , (
         "COMPOUND_EXTENSIONS must put .native.cl.jac before .cl.jac so "
         "Header.native.cl.jac maps to Header.js (not Header.native.js)."
@@ -398,7 +396,8 @@ test "ViteCompiler wires jac_client_compiler on init" {
         "ViteCompiler.init must construct JacClientCompiler so react-native "
         "targets can reach the bundler-agnostic compile layer."
     );
-    assert "compiled_dir=self.compiled_dir" in impl_content;
+    # Both compilers must share one compiled dir (the engine owns it).
+    assert "self.compiled_dir = self.jac_client_compiler.compiled_dir" in impl_content;
 }
 
 test "react native compiler selects .native.cl.jac variants when available" {

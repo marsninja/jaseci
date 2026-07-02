@@ -8,6 +8,7 @@ import from jaclang.runtimelib.client.asset_processor { AssetProcessor }
 import from jaclang.runtimelib.client.import_processor { ImportProcessor }
 import from jaclang.runtimelib.client.jac_to_js { JacToJSCompiler }
 import from jaclang.runtimelib.client.route_scanner { RouteScanner, RouteEntry }
+import from jaclang.jac0core.ext_registry { CLIENT_SUFFIX, ANNEX_SUFFIXES }
 
 with entry {
     if TYPE_CHECKING { }
@@ -28,7 +29,9 @@ class JacClientCompiler {
             'AuthGuard',
             'JacClientErrorBoundary'
         ];
-        COMPOUND_EXTENSIONS = ['.native.cl.jac', '.cl.jac', '.impl.jac', '.test.jac'];
+        # .native.cl.jac must come before .cl.jac so Header.native.cl.jac
+        # maps to Header.js, not Header.native.js.
+        COMPOUND_EXTENSIONS = ['.native.cl.jac', CLIENT_SUFFIX] + list(ANNEX_SUFFIXES);
         # Targets whose platform runtime (bundled with client_runtime_core)
         # lives in this plugin dir. Web has no entry here: its runtime is
         # emitted by the ViteCompiler pipeline.
@@ -85,6 +88,14 @@ class JacClientCompiler {
     ) -> bool;
 
     def _generate_routes_manifest(self: JacClientCompiler) -> None;
+    def _write_source_map(
+        self: JacClientCompiler,
+        mod: Any,
+        source_file: str,
+        output_path: Path,
+        full_output: str
+    ) -> None;
+
     def compile(
         self: JacClientCompiler,
         module: ModuleType,
