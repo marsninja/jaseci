@@ -1474,7 +1474,12 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
 
 impl JacServe.sv_service_call(module_name: str, func_name: str, args: dict) -> any {
     import from jaclang.runtimelib { sv_client }
-    import from jaclang.runtimelib.sv_sse { consume_sse_stream }
+
+    import from jaclang.runtimelib.sv_sse {
+        sv_http_post,
+        wrap_sse_keepalive,
+        wrap_sse_keepalive_conn
+    }
 
     func_label = f"{module_name}.{func_name}";
 
@@ -1484,7 +1489,7 @@ impl JacServe.sv_service_call(module_name: str, func_name: str, args: dict) -> a
         resp = stream_cm.__enter__();
         ct = resp.headers.get("content-type", "");
         if ct.startswith("text/event-stream") {
-            return _wrap_sse_keepalive(stream_cm, resp, None, func_label);
+            return wrap_sse_keepalive(stream_cm, resp, None, func_label);
         }
         try {
             resp.read();
@@ -1495,13 +1500,13 @@ impl JacServe.sv_service_call(module_name: str, func_name: str, args: dict) -> a
     } else {
         import json;
         url = sv_client.resolve_url(module_name);
-        (resp, conn) = _sv_http_post(url, f"/function/{func_name}", args);
+        (resp, conn) = sv_http_post(url, f"/function/{func_name}", args);
         ct = resp.headers.get("Content-Type", "") or "";
         if ct.startswith("text/event-stream") {
             if conn.sock is not None {
                 conn.sock.settimeout(None);
             }
-            return _wrap_sse_keepalive_conn(resp, conn, func_label);
+            return wrap_sse_keepalive_conn(resp, conn, func_label);
         }
         try {
             data = json.loads(resp.read().decode('utf-8'));
@@ -1529,6 +1534,7 @@ impl JacServe.sv_walker_call(
     module_name: str, walker_name: str, args: dict, stub_cls: any
 ) -> any {
     import from jaclang.runtimelib { sv_client }
+    import from jaclang.runtimelib.sv_sse { sv_http_post }
 
     label = f"{module_name}.{walker_name}";
 
@@ -1539,7 +1545,7 @@ impl JacServe.sv_walker_call(
     } else {
         import json;
         url = sv_client.resolve_url(module_name);
-        (resp, conn) = _sv_http_post(url, f"/walker/{walker_name}", args);
+        (resp, conn) = sv_http_post(url, f"/walker/{walker_name}", args);
         try {
             data = json.loads(resp.read().decode('utf-8'));
         } finally {
@@ -1571,73 +1577,6 @@ impl JacServe.sv_walker_call(
     );
 }
 
-
-def _sv_http_post(url: str, path: str, args: dict) -> tuple {
-    import json;
-    import http.client;
-    import from urllib.parse { urlparse }
-    parsed = urlparse(url);
-    conn = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=30);
-    conn.request(
-        "POST",
-        path,
-        body=json.dumps(args),
-        headers={'Content-Type': 'application/json', 'Accept': 'application/json'}
-    );
-    return (conn.getresponse(), conn);
-}
-
-
-obj _SSELineReader {
-    has resp: any;
-
-    def iter_lines -> any {
-        for raw in iter(self.resp.readline, b"") {
-            yield raw.rstrip(b"\n");
-        }
-    }
-}
-
-
-def _wrap_sse_keepalive_conn(resp: any, conn: any, func_label: str) -> any {
-    import from jaclang.runtimelib.sv_sse { consume_sse_stream }
-    try {
-        for ev in consume_sse_stream(_SSELineReader(resp=resp), func_label) {
-            yield ev;
-        }
-    } finally {
-        try {
-            conn.close();
-        } except Exception {
-            ;
-        }
-    }
-}
-
-
-def _wrap_sse_keepalive(
-    stream_cm: any, resp: any, client: any, func_label: str
-) -> any {
-    import from jaclang.runtimelib.sv_sse { consume_sse_stream }
-    try {
-        for ev in consume_sse_stream(resp, func_label) {
-            yield ev;
-        }
-    } finally {
-        try {
-            stream_cm.__exit__(None, None, None);
-        } except Exception {
-            ;
-        }
-        if client {
-            try {
-                client.close();
-            } except Exception {
-                ;
-            }
-        }
-    }
-}
 
 impl JacServe.get_sv_registry -> dict[str, str] {
     import from jaclang.runtimelib { sv_client }
