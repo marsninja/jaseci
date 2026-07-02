@@ -48,7 +48,9 @@ jobs:
     steps:
       # Check out the release tag, not the caller's ref, so a recovery run
       # after main advanced still builds the release's own source.
-      - uses: actions/checkout@v4
+      # SHA-pinned: this job holds contents:write and ships user-downloaded
+      # binaries, so a re-pointed tag on the action must not reach it.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ inputs.tag || github.event.release.tag_name }}
 

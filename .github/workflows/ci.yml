@@ -41,6 +41,7 @@ jobs:
             core:
               - 'jac/**'
               - '.github/workflows/ci.yml'
+              - '.github/actions/setup-jac/**'
             scale:
               - 'jac/jaclang/scale/**'
             byllm:
@@ -58,7 +59,7 @@ jobs:
   build-jac:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up jac (build the binary once, cached)
         uses: ./.github/actions/setup-jac
@@ -137,10 +138,11 @@ jobs:
 
   # Compiler half of the full repo suite, via the binary's own test runner.
   test-compiler:
-    needs: build-jac
+    needs: [changes, build-jac]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Restore typeshed stdlib stubs into the checkout
         uses: actions/download-artifact@v4
         with:
@@ -181,10 +183,11 @@ jobs:
 
   # Everything except the compiler tests.
   test-runtime:
-    needs: build-jac
+    needs: [changes, build-jac]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Download the jac binary
         uses: actions/download-artifact@v4
         with:
@@ -228,7 +231,7 @@ jobs:
   jac-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
           fetch-depth: 0
@@ -352,7 +355,7 @@ jobs:
     if: ${{ github.event_name != 'push' || needs.changes.outputs.docs == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           submodules: true
@@ -1073,7 +1076,7 @@ jobs:
       JAC_NO_DEV_SOURCE: ""
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: true
 

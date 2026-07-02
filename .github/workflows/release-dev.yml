@@ -21,7 +21,9 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # SHA-pinned: this workflow holds contents:write and ships user-downloaded
+      # binaries, so a re-pointed tag on the action must not reach it.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
 
@@ -59,7 +61,7 @@ jobs:
             platform: macos-aarch64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       # The LLVMPY_* shim is the most expensive artifact and depends only on
       # native/**, build.zig, and the pinned LLVM slice; same cache key as
