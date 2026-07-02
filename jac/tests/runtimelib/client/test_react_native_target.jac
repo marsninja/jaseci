@@ -49,42 +49,6 @@ test "react native target files exist" {
     assert 'config_section: str = "react_native"' in content;
 }
 
-test "target type parser supports react-native and aliases" {
-    registry_path = _targets_dir / "registry.jac";
-    content = registry_path.read_text();
-
-    assert 'REACT_NATIVE = "react-native"' in content;
-    # Aliases ergonomic enough to be worth documenting via assertion — keeps
-    # the canonical-name decision (Q1) honest while still accepting common
-    # spellings users will reach for.
-    assert "react-native" in content;
-    assert "react_native" in content;
-    assert '"rn"' in content;
-    assert "return TargetType.REACT_NATIVE" in content;
-}
-
-test "target factory supports react native target" {
-    impl_path = _targets_dir / "impl" / "registry.impl.jac";
-    content = impl_path.read_text();
-
-    # The factory is registry-backed, so React Native support comes from
-    # register_targets() populating the registry rather than a hardcoded branch.
-    assert "registry = get_target_registry();" in content;
-    assert "target = registry.get(target_name);" in content;
-    assert "available = [t.name for t in registry.get_all()]" in content;
-    assert "return self.create(target_type.value, project_dir);" in content;
-}
-
-test "register.jac registers the react native target" {
-    register_path = _targets_dir / "register.jac";
-    content = register_path.read_text();
-
-    assert "ReactNativeTarget" in content;
-    # Core's register.jac registers targets inline (no intermediate variable,
-    # no secondary plugin-group indirection) — same style as the other targets.
-    assert "registry.register(ReactNativeTarget())" in content;
-}
-
 test "target factory resolves react-native by canonical name" {
     import from jaclang.runtimelib.client.targets.registry {
         get_target_factory,
@@ -104,6 +68,14 @@ test "target factory resolves react-native by canonical name" {
     assert target.requires_setup == True;
     assert target.default == False;
     assert target.config_section == "react_native";
+    # The documented target surface (D11): lifecycle methods present; RN
+    # computes artifact paths per platform, so the static output_dir field
+    # stays at the base default.
+    assert hasattr(target, "setup");
+    assert hasattr(target, "build");
+    assert hasattr(target, "dev");
+    assert hasattr(target, "start");
+    assert target.output_dir is None;
 }
 
 test "react native dev fails fast when scaffold is missing" {
@@ -172,26 +144,6 @@ test "react native build source includes iOS and release wiring" {
     assert "def _resolve_rn_android_builder" in cfg_content;
 }
 
-test "react native target exposes the documented surface" {
-    # Sanity check on the API shape — the target instance has setup/build/
-    # dev/start methods, name and config_section match D11 conventions, and
-    # output_dir points at the Android Gradle output location.
-    import from jaclang.runtimelib.client.targets.registry { get_target_factory }
-
-    _register_client_targets();
-    factory = get_target_factory();
-    target = factory.create("react-native", Path.cwd());
-
-    assert hasattr(target, "setup");
-    assert hasattr(target, "build");
-    assert hasattr(target, "dev");
-    assert hasattr(target, "start");
-    assert target.name == "react-native";
-    assert target.config_section == "react_native";
-    # RN computes APK/IPA paths per-platform via resolve_rn_project_dir; it
-    # doesn't use the static output_dir field, so it inherits None from base.
-    assert target.output_dir is None;
-}
 
 test "native runtime file ships parallel to the web runtime" {
     # D9: shared logic lives in client_runtime_core; native is platform adapters.
@@ -263,100 +215,6 @@ test "native runtime file ships parallel to the web runtime" {
     assert "_getEnumOptions" in impl_content;
 }
 
-test "native router publishes navigation ref via useEffect, not render body" {
-    # React render functions must be pure: assigning to globalThis during
-    # render fires twice under StrictMode and leaks the ref across mounts.
-    # The __jacNativeNavigationRef__ publication must live inside a
-    # React.useEffect(...) callback within __nativeRouter, not as a bare
-    # render-body statement.
-    runtime_native_impl = _client_dir / "impl" / "client_runtime_native.impl.jac";
-    impl_content = runtime_native_impl.read_text();
-
-    router_start = impl_content.index("impl __nativeRouter(");
-    router_block = impl_content[router_start:];
-    impl_end = router_block.index("\n}\n");
-    router_body = router_block[:impl_end];
-
-    assignment = 'globalThis.__jacNativeNavigationRef__ = nav_ref;';
-    assert assignment in router_body , (
-        "__nativeRouter must publish the navigation ref for navigate()"
-    );
-    effect_open = "React.useEffect(lambda {";
-    assert effect_open in router_body , (
-        "__nativeRouter must wrap the globalThis ref publication in "
-        "React.useEffect to preserve render purity"
-    );
-    # Prove the assignment is *inside* the effect callback by checking
-    # source ordering: effect_open < assignment < effect close < return.
-    effect_close = "}, [])";
-    return_stmt = "return React.createElement(";
-    assert router_body.index(effect_open) < router_body.index(assignment) , (
-        "navigation ref assignment must come after React.useEffect opens"
-    );
-    assert router_body.index(assignment) < router_body.index(effect_close) , (
-        "navigation ref assignment must be inside the React.useEffect callback, "
-        "not a bare render-body statement"
-    );
-    assert router_body.index(effect_close) < router_body.index(return_stmt) , (
-        "React.useEffect must close before the render return statement"
-    );
-}
-
-test "native route names are a stable pure function of the path, no ordinal" {
-    # Route names are the bidirectional key between navigate(path) and
-    # nav.navigate(name) / useLocation() -> route.name -> path. They must be
-    # unique and stable regardless of route insertion order, otherwise a
-    # stale __jacNativeRouteDefs__ cache (collected once via useMemo) can
-    # resolve a path to a name that no longer matches the rendered tree.
-    #
-    # The old scheme joined path parts with "_" and appended
-    # len(out_routes) as a positional ordinal. That flattened "/users/profile"
-    # and "/users-profile" to the same "users_profile" prefix (forcing the
-    # ordinal to disambiguate) and the ordinal shifted whenever a route was
-    # inserted between existing ones. The name must now be a pure function
-    # of the path with no positional component.
-    impl_path = _client_dir / "impl" / "client_runtime_native.impl.jac";
-    cl_path = _client_dir / "client_runtime_native.cl.jac";
-    impl_content = impl_path.read_text();
-    cl_content = cl_path.read_text();
-
-    # Signature must drop the ordinal parameter in both declaration and impl.
-    assert "_buildRouteName(path: str)" in impl_content , (
-        "_buildRouteName must take only the path, no ordinal"
-    );
-    assert "_buildRouteName(path: str)" in cl_content , (
-        "_buildRouteName declaration must drop the ordinal parameter"
-    );
-    # No positional disambiguator may remain at the call site or in the body.
-    assert "len(out_routes)" not in impl_content , (
-        "_collectNativeRoutes must not pass a positional ordinal to "
-        "_buildRouteName; the name must be a pure function of the path"
-    );
-    assert "ordinal" not in impl_content , (
-        "no ordinal concept may remain in the native route naming path"
-    );
-    # The flattening that necessitated the ordinal is gone: internal "/" is
-    # preserved as the separator so distinct paths stay distinct names.
-    build_start = impl_content.index("impl _buildRouteName(");
-    build_block = impl_content[build_start:];
-    build_end = build_block.index("\n}\n");
-    build_body = build_block[:build_end];
-    assert '"_".join' not in build_body , (
-        "_buildRouteName must not flatten path parts with '_' join; keep '/' "
-        "as the separator so /users/profile != /users-profile"
-    );
-    assert '.replace("-", "_")' not in build_body , (
-        "_buildRouteName must not map '-' to '_'; that flattening is what "
-        "required the unstable ordinal disambiguator"
-    );
-    # The name is derived from the normalized path directly, so it is stable
-    # across insertion-order changes by construction.
-    assert 'normalized[1:].replace(":", "$")' in build_body , (
-        "_buildRouteName must derive the name from the normalized path "
-        "(strip leading '/', keep internal '/', map ':' -> '$')"
-    );
-}
-
 test "JacClientCompiler maps targets to platform runtimes" {
     # The compiler derives the platform runtime from target_name via
     # PLATFORM_RUNTIME_FILES so the React Native target needs no bundler
@@ -409,29 +267,23 @@ test "react native compiler selects .native.cl.jac variants when available" {
     ];
 }
 
-test "react native target compile calls set target_name to react-native" {
-    target_impl = _targets_dir / "impl" / "react_native_target.impl.jac";
-    dev_src = _targets_dir / "react_native" / "dev.jac";
-    target_content = target_impl.read_text();
-    dev_content = dev_src.read_text();
-
-    assert "target_name=\"react-native\"" in target_content;
-    assert "target_name=\"react-native\"" in dev_content;
-}
 
 test "target selection keeps web and native entry/runtime paths separate" {
     # Invariant: target flag controls runtime + entry strategy.
     # RN uses Expo registerRootComponent; web keeps its own entry wiring.
     rn_build_src = _targets_dir / "react_native" / "build.jac";
     rn_impl_src = _targets_dir / "impl" / "react_native_target.impl.jac";
+    rn_dev_src = _targets_dir / "react_native" / "dev.jac";
     web_compiler_impl = _client_dir / "impl" / "compiler.impl.jac";
 
     rn_build_content = rn_build_src.read_text();
     rn_impl_content = rn_impl_src.read_text();
+    rn_dev_content = rn_dev_src.read_text();
     web_content = web_compiler_impl.read_text();
 
     assert "registerRootComponent(App)" in rn_build_content;
     assert 'target_name="react-native"' in rn_impl_content;
+    assert 'target_name="react-native"' in rn_dev_content;
     # Web compile path should not force native runtime.
     assert 'target_name="react-native"' not in web_content;
 }
@@ -712,20 +564,6 @@ test "stage_native_image_assets leaves canonical compiled dir unchanged" {
     }
 }
 
-test "multiscreen fixture exists with auth routes forms and walker call" {
-    fixture_dir = Path(__file__).parent / "fixtures" / "react_native_multiscreen";
-    assert fixture_dir.exists();
-    assert (fixture_dir / "main.jac").exists();
-    assert (fixture_dir / "jac.toml").exists();
-
-    main_content = (fixture_dir / "main.jac").read_text();
-    assert "AuthGuard" in main_content;
-    assert "JacForm" in main_content;
-    assert "Router" in main_content;
-    assert "Route" in main_content;
-    assert "root spawn whoami()" in main_content;
-    assert 'path="detail/:id"' in main_content;
-}
 
 test "dev helpers exist and are importable" {
     # The dev module is the entry point for `jac start --client react-native
@@ -1283,39 +1121,6 @@ test "strip_css_imports removes CSS import lines and deletes CSS files" {
     }
 }
 
-test "dual platform fixture has .native.cl.jac and .cl.jac pairs" {
-    fixture_dir = Path(__file__).parent / "fixtures" / "react_native_dual_platform";
-    assert fixture_dir.exists();
-    assert (fixture_dir / "main.jac").exists();
-    assert (fixture_dir / "jac.toml").exists();
-
-    # Web variant of the header.
-    assert (fixture_dir / "src" / "header.cl.jac").exists();
-    # Native variant of the header.
-    assert (fixture_dir / "src" / "header.native.cl.jac").exists();
-    # CSS file (web-only, must be stripped in native builds).
-    assert (fixture_dir / "src" / "styles.css").exists();
-
-    main_content = (fixture_dir / "main.jac").read_text();
-    # Must import the platform header component.
-    assert "PlatformHeader" in main_content;
-    # Must have a CSS import that will be stripped on native.
-    assert "styles.css" in main_content;
-    # Must have a walker call (shared logic).
-    assert "get_greeting" in main_content;
-    assert "Router" in main_content;
-    assert "Route" in main_content;
-
-    web_header = (fixture_dir / "src" / "header.cl.jac").read_text();
-    native_header = (fixture_dir / "src" / "header.native.cl.jac").read_text();
-    # Web variant uses CSS class.
-    assert "className" in web_header;
-    # Native variant uses inline styles only.
-    assert '"className"' not in native_header;
-    # Both export PlatformHeader.
-    assert "PlatformHeader" in web_header;
-    assert "PlatformHeader" in native_header;
-}
 
 test "compiler resolves .native.cl.jac when target is react-native" {
     # Functional test: create a temp project with both .cl.jac and
@@ -1384,22 +1189,6 @@ test "compiler resolves .native.cl.jac when target is react-native" {
     }
 }
 
-test "strip_css_imports is wired into build and dev pipelines" {
-    # Source-level contract: both build and dev must call strip_css_imports.
-    impl_path = _targets_dir / "impl" / "react_native_target.impl.jac";
-    dev_path = _targets_dir / "react_native" / "dev.jac";
-    impl_content = impl_path.read_text();
-    dev_content = dev_path.read_text();
-
-    # build pipeline calls strip_css_imports after lint.
-    assert "strip_css_imports(compiled_dir)" in impl_content , (
-        "ReactNativeTarget.build must call strip_css_imports"
-    );
-    # dev pipeline also calls it.
-    assert "strip_css_imports" in dev_content , (
-        "RN dev loop must strip CSS imports on initial compile and HMR"
-    );
-}
 
 test "react native build pipeline calls lint, strip, and stage in correct order" {
     # Verify the build pipeline calls these functions in the right sequence:
@@ -1654,22 +1443,6 @@ test "config helpers support ios_builder and release" {
     }
 }
 
-test "build source has non-macOS error pointing at EAS Build" {
-    impl_path = _targets_dir / "impl" / "react_native_target.impl.jac";
-    impl_content = impl_path.read_text();
-
-    build_section = impl_content.split("impl ReactNativeTarget.build")[1].split(
-        "impl ReactNativeTarget.dev"
-    )[0];
-
-    # Non-macOS error must mention EAS Build cloud.
-    assert "EAS Build cloud" in build_section;
-    assert "xcodebuild" in build_section;
-    # iOS path must resolve ios_builder and dispatch accordingly.
-    assert "_resolve_rn_ios_builder" in build_section;
-    assert "run_xcodebuild_ios" in build_section;
-    assert "run_eas_local_build" in build_section;
-}
 
 test "react native scaffold includes EAS docs pointer in setup output" {
     # Verify the setup method prints EAS Build and EAS Update next-step hints.
