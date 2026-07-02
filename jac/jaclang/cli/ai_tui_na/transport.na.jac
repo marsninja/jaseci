@@ -6,7 +6,7 @@ import from .libc_tty {
     tty_read_key,
     tty_read_line
 }
-import from .ipc_schema { IPC_LEN, IPC_SEP }
+import from .blob_reader { read_blob }
 
 obj CmdQueue {
     has _items: list[str] = [],
@@ -84,50 +84,9 @@ obj TtyFdTransport(Transport) {
         }
 
         first = raw.strip();
-        expected_lines: int = -1;
-        colon_at = first.find(":");
-        if colon_at >= 0 and first[:colon_at] == IPC_LEN {
-            try {
-                expected_lines = int(first[colon_at + 1:]);
-            } except Exception { }
-        }
-        blob: str = "";
-        if expected_lines >= 0 {
-            n: int = 0;
-            while n < expected_lines {
-                raw2 = tty_read_line();
-                if len(raw2) == 0 {
-                    self.stdin_eof = True;
-                    return "";
-                }
-                line = raw2.strip();
-                if len(blob) > 0 {
-                    blob = blob + "\n";
-                }
-                blob = blob + line;
-                n = n + 1;
-            }
-            tty_read_line();
-        } else {
-            if first != IPC_SEP and len(first) > 0 {
-                blob = first;
-            }
-            while True {
-                raw2 = tty_read_line();
-                if len(raw2) == 0 {
-                    break;
-                }
-                line = raw2.strip();
-                if line == IPC_SEP {
-                    break;
-                }
-                if len(line) > 0 {
-                    if len(blob) > 0 {
-                        blob = blob + "\n";
-                    }
-                    blob = blob + line;
-                }
-            }
+        blob, eof = read_blob(first);
+        if eof {
+            self.stdin_eof = True;
         }
         return blob;
     }

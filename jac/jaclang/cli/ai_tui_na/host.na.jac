@@ -21,7 +21,7 @@ import from .terminal {
     term_enable_mouse,
     term_disable_mouse
 }
-import from .state { TuiState }
+import from .state { TuiState, TuiStatus, OverlayKind }
 
 import from .select_list { SelectList, SelectItem }
 import from .ipc {
@@ -56,14 +56,14 @@ def:pub tui_init(project: str, files_env: str, presets_env: str, tty_dev: str) -
 
     rt.state.ipc_fd = -1;
 
-    rt.state.status = "idle";
+    rt.state.status = TuiStatus.IDLE;
     rt.state.active = "";
     rt.state.model_name = "";
     rt.state.needs_key = False;
     rt.state.key_env = "";
     rt.state.editor.clear();
     rt.state.overlay_active = False;
-    rt.state.overlay_kind = "palette";
+    rt.state.overlay_kind = OverlayKind.PALETTE;
     rt.state.overlay_filter = "";
     rt.diff.invalidate();
 

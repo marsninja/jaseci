@@ -1,4 +1,4 @@
-import from .state { TuiState, AcItem }
+import from .state { TuiState, AcItem, TuiStatus }
 import from .select_list { SelectItem }
 import from .ipc { ipc_send_cmd }
 import from .ipc_schema {
@@ -10,16 +10,69 @@ import from .ipc_schema {
 }
 import from .runtime { TuiRuntime }
 
+enum CmdKind {
+    NONE = 0,
+    OVERLAY = 1,
+    SCROLL_BOTTOM = 2,
+    SCROLL_TOP = 3,
+    IPC_RESET = 4,
+    IPC = 5,
+}
+
 obj CmdDef {
     has value: str = "",
         slash_labels: list[str] = [],
         description: str = "",
-        kind: str = "",
+        kind: CmdKind = CmdKind.NONE,
         ipc_name: str = "",
         slash_ac: bool = False,
         palette: bool = False,
         running_only: bool = False,
         palette_label: str = "";
+
+    def execute(rt: TuiRuntime) -> str {
+        state = rt.state;
+
+        if self.kind == CmdKind.OVERLAY {
+            if self.value == "open_model" {
+                return "open_model";
+            }
+            if self.value == "open_file" {
+                return "open_file";
+            }
+            return "";
+        }
+
+        if self.kind == CmdKind.SCROLL_BOTTOM {
+            state.scroll_to_bottom();
+            return "handled";
+        }
+
+        if self.kind == CmdKind.SCROLL_TOP {
+            state.viewport_top = 0;
+            state.follow_tail = False;
+            state.dirty = True;
+            return "handled";
+        }
+
+        if self.kind == CmdKind.IPC_RESET {
+            ipc_send_cmd(rt.cmd_queue, state.ipc_fd, self.ipc_name);
+            state.reset_events();
+            state.dirty = True;
+            return "handled";
+        }
+
+        if self.kind == CmdKind.IPC {
+            ipc_send_cmd(rt.cmd_queue, state.ipc_fd, self.ipc_name);
+            if self.ipc_name == IPC_CMD_QUIT {
+                return "quit";
+            }
+            state.dirty = True;
+            return "handled";
+        }
+
+        return "";
+    }
 }
 
 glob _CMD_DEFS_CACHE: list[CmdDef] = [];
@@ -30,7 +83,7 @@ def _push_cmd(
     slash_a: str,
     slash_b: str,
     description: str,
-    kind: str,
+    kind: CmdKind,
     ipc_name: str,
     slash_ac: bool,
     palette: bool,
@@ -70,7 +123,7 @@ def _cmd_defs -> list[CmdDef] {
         "/model",
         "/models",
         "Switch the active model",
-        "overlay",
+        CmdKind.OVERLAY,
         "",
         True,
         True,
@@ -83,7 +136,7 @@ def _cmd_defs -> list[CmdDef] {
         "/file",
         "/files",
         "Insert a project file reference",
-        "overlay",
+        CmdKind.OVERLAY,
         "",
         True,
         True,
@@ -96,7 +149,7 @@ def _cmd_defs -> list[CmdDef] {
         "",
         "",
         "Follow latest transcript rows",
-        "scroll_bottom",
+        CmdKind.SCROLL_BOTTOM,
         "",
         False,
         True,
@@ -109,7 +162,7 @@ def _cmd_defs -> list[CmdDef] {
         "",
         "",
         "Jump to oldest visible rows",
-        "scroll_top",
+        CmdKind.SCROLL_TOP,
         "",
         False,
         True,
@@ -122,7 +175,7 @@ def _cmd_defs -> list[CmdDef] {
         "/stop",
         "",
         "Stop the current turn",
-        "ipc",
+        CmdKind.IPC,
         IPC_CMD_STOP,
         True,
         True,
@@ -135,7 +188,7 @@ def _cmd_defs -> list[CmdDef] {
         "/clear",
         "",
         "Clear transcript and reset session",
-        "ipc_reset",
+        CmdKind.IPC_RESET,
         IPC_CMD_RESET,
         True,
         True,
@@ -148,7 +201,7 @@ def _cmd_defs -> list[CmdDef] {
         "/reset",
         "",
         "Clear transcript and reset session",
-        "ipc_reset",
+        CmdKind.IPC_RESET,
         IPC_CMD_RESET,
         True,
         True,
@@ -161,7 +214,7 @@ def _cmd_defs -> list[CmdDef] {
         "/quit",
         "/exit",
         "Exit jac ai TUI",
-        "ipc",
+        CmdKind.IPC,
         IPC_CMD_QUIT,
         True,
         True,
@@ -174,7 +227,7 @@ def _cmd_defs -> list[CmdDef] {
             value="/quit",
             slash_labels=labels_q,
             description="Exit jac ai TUI",
-            kind="ipc",
+            kind=CmdKind.IPC,
             ipc_name=IPC_CMD_QUIT,
             slash_ac=False,
             palette=False,
@@ -220,45 +273,11 @@ def resolve_slash_line(text: str) -> str {
 }
 
 def command_dispatch(cmd: str, rt: TuiRuntime) -> str {
-    state = rt.state;
     d = _find_def(cmd);
     if d is None {
         return "";
     }
-    if d.kind == "overlay" {
-        if d.value == "open_model" {
-            return "open_model";
-        }
-        if d.value == "open_file" {
-            return "open_file";
-        }
-        return "";
-    }
-    if d.kind == "scroll_bottom" {
-        state.scroll_to_bottom();
-        return "handled";
-    }
-    if d.kind == "scroll_top" {
-        state.viewport_top = 0;
-        state.follow_tail = False;
-        state.dirty = True;
-        return "handled";
-    }
-    if d.kind == "ipc_reset" {
-        ipc_send_cmd(rt.cmd_queue, state.ipc_fd, d.ipc_name);
-        state.reset_events();
-        state.dirty = True;
-        return "handled";
-    }
-    if d.kind == "ipc" {
-        ipc_send_cmd(rt.cmd_queue, state.ipc_fd, d.ipc_name);
-        if d.ipc_name == IPC_CMD_QUIT {
-            return "quit";
-        }
-        state.dirty = True;
-        return "handled";
-    }
-    return "";
+    return d.execute(rt);
 }
 
 def slash_submit(text: str, rt: TuiRuntime) -> str {
@@ -286,7 +305,7 @@ def palette_commands(state: TuiState) -> list[SelectItem] {
     while i < len(defs) {
         d = defs[i];
         if d.palette {
-            if d.running_only and state.status != "running" {
+            if d.running_only and state.status != TuiStatus.RUNNING {
                 i = i + 1;
                 continue;
             }
@@ -309,7 +328,7 @@ def slash_ac_catalog(state: TuiState) -> list[AcItem] {
         d = defs[i];
         if d.slash_ac {
             label = d.slash_labels[0];
-            if d.kind == "overlay" and len(d.palette_label) > 0 {
+            if d.kind == CmdKind.OVERLAY and len(d.palette_label) > 0 {
                 label = d.palette_label;
             }
             items.append(AcItem(value=label, label=label, description=d.description));

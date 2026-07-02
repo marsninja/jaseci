@@ -1,4 +1,4 @@
-import from .state { TuiState }
+import from .state { TuiState, EventKind, TuiStatus }
 import from .ipc_schema {
     IPC_TYPE,
     IPC_STATUS,
@@ -6,15 +6,63 @@ import from .ipc_schema {
     IPC_MODEL,
     IPC_NEEDS_KEY,
     IPC_KEY_ENV,
+    IPC_LEN,
     IPC_EV,
     IPC_EVA,
-    IPC_LEN,
     IPC_FTYPE_FULL,
     IPC_FTYPE_HB,
     IPC_SEP
 }
 import from .transport { CmdQueue }
 import from .libc_tty { tty_read_line }
+import from .blob_reader { read_blob }
+
+# Wire -> enum boundary parsers. The backend emits free-form kind/status
+# strings over IPC; convert once here so the rest of the TUI handles only
+# typed enum values. Unknown values collapse to the UNKNOWN member.
+def parse_event_kind(s: str) -> EventKind {
+    if s == "user" {
+        return EventKind.USER;
+    }
+    if s == "answer" {
+        return EventKind.ANSWER;
+    }
+    if s == "reasoning" {
+        return EventKind.REASONING;
+    }
+    if s == "system" {
+        return EventKind.SYSTEM;
+    }
+    if s == "logo" {
+        return EventKind.LOGO;
+    }
+    if s == "error" {
+        return EventKind.ERROR;
+    }
+    if s == "phase" {
+        return EventKind.PHASE;
+    }
+    if s == "call" {
+        return EventKind.CALL;
+    }
+    if s == "tool_result" {
+        return EventKind.TOOL_RESULT;
+    }
+    if s == "img" {
+        return EventKind.IMG;
+    }
+    return EventKind.UNKNOWN;
+}
+
+def parse_tui_status(s: str) -> TuiStatus {
+    if s == "idle" {
+        return TuiStatus.IDLE;
+    }
+    if s == "running" {
+        return TuiStatus.RUNNING;
+    }
+    return TuiStatus.UNKNOWN;
+}
 
 def ipc_send_cmd(cmd_queue: CmdQueue, fd: int, cmd: str) {
     cmd_queue.send(fd, cmd);
@@ -81,7 +129,7 @@ def _parse_ev_val(state: TuiState, val: str) -> None {
         ev_id = int(id_str);
     } except Exception { }
 
-    state.upsert_event(ev_id, kind, text, node_name);
+    state.upsert_event(ev_id, parse_event_kind(kind), text, node_name);
 }
 
 def _parse_eva_val(state: TuiState, val: str) -> None {
@@ -112,7 +160,7 @@ def ipc_apply_line(state: TuiState, key: str, val: str) {
     }
 
     if key == IPC_STATUS {
-        state.status = val;
+        state.status = parse_tui_status(val);
     } elif key == IPC_ACTIVE {
         state.active = val;
     } elif key == IPC_MODEL {
@@ -187,51 +235,9 @@ def ipc_read_frame_v2(state: TuiState) -> bool {
     }
     first = raw.strip();
 
-    expected_lines: int = -1;
-    colon_at = first.find(":");
-    if colon_at >= 0 and first[:colon_at] == IPC_LEN {
-        try {
-            expected_lines = int(first[colon_at + 1:]);
-        } except Exception { }
-    }
-
-    blob: str = "";
-
-    if expected_lines >= 0 {
-        n: int = 0;
-        while n < expected_lines {
-            raw2 = tty_read_line();
-            if len(raw2) == 0 {
-                return False;
-            }
-            line = raw2.strip();
-            if len(blob) > 0 {
-                blob = blob + "\n";
-            }
-            blob = blob + line;
-            n = n + 1;
-        }
-        tty_read_line();
-    } else {
-        if first != IPC_SEP and len(first) > 0 {
-            blob = first;
-        }
-        while True {
-            raw2 = tty_read_line();
-            if len(raw2) == 0 {
-                return False;
-            }
-            line = raw2.strip();
-            if line == IPC_SEP {
-                break;
-            }
-            if len(line) > 0 {
-                if len(blob) > 0 {
-                    blob = blob + "\n";
-                }
-                blob = blob + line;
-            }
-        }
+    blob, eof = read_blob(first);
+    if eof and len(blob) == 0 {
+        return False;
     }
 
     return ipc_parse_frame(state, blob);

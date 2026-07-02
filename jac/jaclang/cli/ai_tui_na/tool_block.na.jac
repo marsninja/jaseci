@@ -1,6 +1,6 @@
 import from .terminal { ansi_sgr }
 import from .width { visible_width, ansi_trunc, ansi_pad }
-import from .state { DisplayRow }
+import from .state { DisplayRow, EventKind }
 
 glob _TC_R: int = 204,
      _TC_G: int = 119,
@@ -46,7 +46,9 @@ def tool_call_rows(tool_name: str, text: str, width: int, out: list[DisplayRow])
     row = ansi_pad(row, width);
     row = row + "\033[0m";
     out.append(
-        DisplayRow(text=row, kind="call", is_continuation=False, pre_styled=True)
+        DisplayRow(
+            text=row, kind=EventKind.CALL, is_continuation=False, pre_styled=True
+        )
     );
 }
 
@@ -90,7 +92,10 @@ def tool_result_rows(tool_name: str, text: str, width: int, out: list[DisplayRow
             row = row + "\033[0m";
             out.append(
                 DisplayRow(
-                    text=row, kind="tool_result", is_continuation=False, pre_styled=True
+                    text=row,
+                    kind=EventKind.TOOL_RESULT,
+                    is_continuation=False,
+                    pre_styled=True
                 )
             );
         } else {
@@ -99,7 +104,10 @@ def tool_result_rows(tool_name: str, text: str, width: int, out: list[DisplayRow
             row = row + "\033[0m";
             out.append(
                 DisplayRow(
-                    text=row, kind="tool_result", is_continuation=True, pre_styled=True
+                    text=row,
+                    kind=EventKind.TOOL_RESULT,
+                    is_continuation=True,
+                    pre_styled=True
                 )
             );
         }

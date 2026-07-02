@@ -69,18 +69,18 @@ impl build_model(model_override: str = "", n_ctx: int = 0) -> Model {
     return Model(model_name=name, config=cfg);
 }
 
-impl _model_needs_key(name: str) -> tuple[bool, str] {
+impl _model_needs_key(name: str) -> KeyRequirement {
     if not name or name.startswith("local:") {
-        return (False, "");
+        return KeyRequirement();
     }
 
     if agent.cfg.api_key {
-        return (False, "");
+        return KeyRequirement();
     }
     try {
         toml_key = str(_byllm_config().get_model_config().get("api_key", "") or "");
         if toml_key {
-            return (False, "");
+            return KeyRequirement();
         }
     } except Exception { }
 
@@ -90,16 +90,16 @@ impl _model_needs_key(name: str) -> tuple[bool, str] {
         ll: any = litellm;
         info: any = ll.validate_environment(name);
         if info.get("keys_in_environment") {
-            return (False, "");
+            return KeyRequirement();
         }
         missing: list = list(info.get("missing_keys", []) or []);
         for k in missing {
             if str(k).endswith("_API_KEY") {
-                return (True, str(k));
+                return KeyRequirement(needed=True, env=str(k));
             }
         }
     } except Exception { }
-    return (False, "");
+    return KeyRequirement();
 }
 
 impl _refresh_key_status -> None {
@@ -109,8 +109,8 @@ impl _refresh_key_status -> None {
     } except Exception {
         name = "";
     }
-    (needs, env) = _model_needs_key(name);
-    agent.bus.needs_key = needs;
-    agent.bus.key_env = env;
+    req = _model_needs_key(name);
+    agent.bus.needs_key = req.needed;
+    agent.bus.key_env = req.env;
     agent.bus.model_name = name;
 }

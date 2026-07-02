@@ -1,31 +1,11 @@
-import from .state { TuiState }
+import from .state { TuiState, EventKind, TuiStatus, AcKind }
 import from .ipc { ipc_send_cmd }
 import from .ipc_schema { IPC_CMD_SEND, IPC_CMD_STOP, IPC_CMD_RESET, IPC_CMD_QUIT }
 import from .runtime { TuiRuntime }
 import from .keys {
     Key,
-    parse_key,
-    KK_UNKNOWN,
-    KK_TAB,
-    KK_ESCAPE,
-    KK_UP,
-    KK_DOWN,
-    KK_ENTER,
-    KK_CTRL,
-    KK_SHIFT_ENTER,
-    KK_BACKSPACE,
-    KK_MOUSE_SCROLL_UP,
-    KK_MOUSE_SCROLL_DOWN,
-    KK_DELETE,
-    KK_LEFT,
-    KK_RIGHT,
-    KK_HOME,
-    KK_END,
-    KK_WORD_LEFT,
-    KK_WORD_RIGHT,
-    KK_PAGE_UP,
-    KK_PAGE_DOWN,
-    KK_CHAR
+    KeyKind,
+    parse_key
 }
 import from .autocomplete { ac_update, ac_apply }
 import from .overlay {
@@ -115,170 +95,133 @@ def _handle_submit(rt: TuiRuntime) -> bool {
         return False;
     }
 
-    if state.status == "running" {
+    if state.status == TuiStatus.RUNNING {
         return False;
     }
 
-    state.upsert_event(-1, "user", text, "");
+    state.upsert_event(-1, EventKind.USER, text, "");
     state.scroll_to_bottom();
 
     ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_SEND + ":" + text);
     return False;
 }
 
-def handle_key(k: Key, rt: TuiRuntime) -> bool {
+# ---------- Per-key-kind handlers (Fix 9: Long Method) ----------
+
+def _handle_ac_key(k: Key, rt: TuiRuntime) -> bool {
+    """Handle keys when autocomplete is active."""
     state = rt.state;
-    if k.kind == KK_UNKNOWN {
-        return False;
-    }
-
-    if overlay_is_active(state) {
-        return overlay_handle_key(k, rt);
-    }
-
     ed = state.editor;
     ew = _editor_width(state);
     emr = _editor_max_rows(state);
 
-    if state.ac.active {
-        if k.kind == KK_TAB {
-            ac_apply(state);
-            editor_update_scroll(ed, ew, emr);
-            state.dirty = True;
-            return False;
-        }
+    if k.kind == KeyKind.TAB {
+        ac_apply(state);
+        editor_update_scroll(ed, ew, emr);
+        state.dirty = True;
+        return False;
+    }
 
-        if k.kind == KK_ESCAPE {
-            state.ac.dismiss();
-            state.dirty = True;
-            return False;
-        }
-
-        if k.kind == KK_UP {
-            state.ac.nav_up();
-            state.dirty = True;
-            return False;
-        }
-
-        if k.kind == KK_DOWN {
-            state.ac.nav_down();
-            state.dirty = True;
-            return False;
-        }
-
-        if k.kind == KK_ENTER {
-            ac_kind = state.ac.kind;
-            ac_apply(state);
-            editor_update_scroll(ed, ew, emr);
-            if ac_kind == "slash" {
-                return _handle_submit(rt);
-            }
-            return False;
-        }
-
+    if k.kind == KeyKind.ESCAPE {
         state.ac.dismiss();
         state.dirty = True;
-    }
-
-    if k.kind == KK_CTRL {
-        ch = chr(k.code);
-        if ch == "c" or ch == "q" {
-            ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_QUIT);
-            return True;
-        }
-        if ch == "g" {
-            ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_STOP);
-            state.dirty = True;
-            return False;
-        }
-        if ch == "r" {
-            ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_RESET);
-            state.reset_events();
-            state.dirty = True;
-            return False;
-        }
-        if ch == "o" {
-            overlay_open_palette(state, "");
-            return False;
-        }
-        if ch == "a" {
-            editor_move_line_start(ed);
-            editor_update_scroll(ed, ew, emr);
-            state.dirty = True;
-            return False;
-        }
-        if ch == "e" {
-            editor_move_line_end(ed);
-            editor_update_scroll(ed, ew, emr);
-            state.dirty = True;
-            return False;
-        }
-        if ch == "k" {
-            editor_delete_to_line_end(ed);
-            editor_update_scroll(ed, ew, emr);
-            state.dirty = True;
-            return False;
-        }
-        if ch == "u" {
-            editor_delete_to_line_start(ed);
-            editor_update_scroll(ed, ew, emr);
-            state.dirty = True;
-            return False;
-        }
-        if ch == "w" {
-            editor_delete_word_back(ed);
-            editor_update_scroll(ed, ew, emr);
-            state.dirty = True;
-            return False;
-        }
         return False;
     }
 
-    if k.kind == KK_TAB {
-        ed_text = ed.get_text();
-        if ed_text.startswith("/") {
-            overlay_open_palette(state, ed_text[1:]);
-            return False;
-        }
-    }
-
-    if k.kind == KK_SHIFT_ENTER {
-        editor_newline(ed);
-        editor_update_scroll(ed, ew, emr);
+    if k.kind == KeyKind.UP {
+        state.ac.nav_up();
         state.dirty = True;
         return False;
     }
 
-    if k.kind == KK_ENTER {
-        return _handle_submit(rt);
-    }
-
-    if k.kind == KK_BACKSPACE {
-        editor_backspace(ed);
-        editor_update_scroll(ed, ew, emr);
-        ac_update(state);
+    if k.kind == KeyKind.DOWN {
+        state.ac.nav_down();
         state.dirty = True;
         return False;
     }
 
-    if k.kind == KK_MOUSE_SCROLL_UP {
-        state.scroll_up(3);
+    if k.kind == KeyKind.ENTER {
+        ac_kind = state.ac.kind;
+        ac_apply(state);
+        editor_update_scroll(ed, ew, emr);
+        if ac_kind == AcKind.SLASH {
+            return _handle_submit(rt);
+        }
         return False;
     }
 
-    if k.kind == KK_MOUSE_SCROLL_DOWN {
-        state.scroll_down(3);
+    # Any other key dismisses autocomplete
+    state.ac.dismiss();
+    state.dirty = True;
+    return False;
+
+def _handle_ctrl_key(k: Key, rt: TuiRuntime) -> bool {
+    """Handle Ctrl+<char> key combinations."""
+    state = rt.state;
+    ed = state.editor;
+    ew = _editor_width(state);
+    emr = _editor_max_rows(state);
+
+    ch = chr(k.code);
+    if ch == "c" or ch == "q" {
+        ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_QUIT);
+        return True;
+    }
+    if ch == "g" {
+        ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_STOP);
+        state.dirty = True;
         return False;
     }
-
-    if k.kind == KK_DELETE {
-        editor_forward_delete(ed);
+    if ch == "r" {
+        ipc_send_cmd(rt.cmd_queue, state.ipc_fd, IPC_CMD_RESET);
+        state.reset_events();
+        state.dirty = True;
+        return False;
+    }
+    if ch == "o" {
+        overlay_open_palette(state, "");
+        return False;
+    }
+    if ch == "a" {
+        editor_move_line_start(ed);
         editor_update_scroll(ed, ew, emr);
         state.dirty = True;
         return False;
     }
+    if ch == "e" {
+        editor_move_line_end(ed);
+        editor_update_scroll(ed, ew, emr);
+        state.dirty = True;
+        return False;
+    }
+    if ch == "k" {
+        editor_delete_to_line_end(ed);
+        editor_update_scroll(ed, ew, emr);
+        state.dirty = True;
+        return False;
+    }
+    if ch == "u" {
+        editor_delete_to_line_start(ed);
+        editor_update_scroll(ed, ew, emr);
+        state.dirty = True;
+        return False;
+    }
+    if ch == "w" {
+        editor_delete_word_back(ed);
+        editor_update_scroll(ed, ew, emr);
+        state.dirty = True;
+        return False;
+    }
+    return False;
 
-    if k.kind == KK_UP {
+def _handle_movement_key(k: Key, rt: TuiRuntime) -> bool {
+    """Handle cursor movement keys (up/down/left/right/home/end/word/page)."""
+    state = rt.state;
+    ed = state.editor;
+    ew = _editor_width(state);
+    emr = _editor_max_rows(state);
+
+    if k.kind == KeyKind.UP {
         if editor_is_on_first_vline(ed, ew) {
             navigated = editor_nav_history(ed, -1);
             if not navigated {
@@ -292,7 +235,7 @@ def handle_key(k: Key, rt: TuiRuntime) -> bool {
         return False;
     }
 
-    if k.kind == KK_DOWN {
+    if k.kind == KeyKind.DOWN {
         if editor_is_on_last_vline(ed, ew) {
             navigated = editor_nav_history(ed, 1);
             if not navigated {
@@ -306,59 +249,113 @@ def handle_key(k: Key, rt: TuiRuntime) -> bool {
         return False;
     }
 
-    if k.kind == KK_LEFT {
+    if k.kind == KeyKind.LEFT {
         editor_move_left(ed);
         editor_update_scroll(ed, ew, emr);
         state.dirty = True;
         return False;
     }
 
-    if k.kind == KK_RIGHT {
+    if k.kind == KeyKind.RIGHT {
         editor_move_right(ed);
         editor_update_scroll(ed, ew, emr);
         state.dirty = True;
         return False;
     }
 
-    if k.kind == KK_HOME {
+    if k.kind == KeyKind.HOME {
         editor_move_line_start(ed);
         editor_update_scroll(ed, ew, emr);
         state.dirty = True;
         return False;
     }
 
-    if k.kind == KK_END {
+    if k.kind == KeyKind.END {
         editor_move_line_end(ed);
         editor_update_scroll(ed, ew, emr);
         state.dirty = True;
         return False;
     }
 
-    if k.kind == KK_WORD_LEFT {
+    if k.kind == KeyKind.WORD_LEFT {
         editor_word_left(ed);
         editor_update_scroll(ed, ew, emr);
         state.dirty = True;
         return False;
     }
 
-    if k.kind == KK_WORD_RIGHT {
+    if k.kind == KeyKind.WORD_RIGHT {
         editor_word_right(ed);
         editor_update_scroll(ed, ew, emr);
         state.dirty = True;
         return False;
     }
 
-    if k.kind == KK_PAGE_UP {
+    if k.kind == KeyKind.PAGE_UP {
         state.scroll_up(state.term_rows - 4);
         return False;
     }
 
-    if k.kind == KK_PAGE_DOWN {
+    if k.kind == KeyKind.PAGE_DOWN {
         state.scroll_down(state.term_rows - 4);
         return False;
     }
 
-    if k.kind == KK_CHAR {
+    return False;
+
+def _handle_edit_key(k: Key, rt: TuiRuntime) -> bool {
+    """Handle text editing keys (enter, backspace, delete, char, etc.)."""
+    state = rt.state;
+    ed = state.editor;
+    ew = _editor_width(state);
+    emr = _editor_max_rows(state);
+
+    if k.kind == KeyKind.TAB {
+        ed_text = ed.get_text();
+        if ed_text.startswith("/") {
+            overlay_open_palette(state, ed_text[1:]);
+            return False;
+        }
+        return False;
+    }
+
+    if k.kind == KeyKind.SHIFT_ENTER {
+        editor_newline(ed);
+        editor_update_scroll(ed, ew, emr);
+        state.dirty = True;
+        return False;
+    }
+
+    if k.kind == KeyKind.ENTER {
+        return _handle_submit(rt);
+    }
+
+    if k.kind == KeyKind.BACKSPACE {
+        editor_backspace(ed);
+        editor_update_scroll(ed, ew, emr);
+        ac_update(state);
+        state.dirty = True;
+        return False;
+    }
+
+    if k.kind == KeyKind.MOUSE_SCROLL_UP {
+        state.scroll_up(3);
+        return False;
+    }
+
+    if k.kind == KeyKind.MOUSE_SCROLL_DOWN {
+        state.scroll_down(3);
+        return False;
+    }
+
+    if k.kind == KeyKind.DELETE {
+        editor_forward_delete(ed);
+        editor_update_scroll(ed, ew, emr);
+        state.dirty = True;
+        return False;
+    }
+
+    if k.kind == KeyKind.CHAR {
         if len(ed.get_text()) < 4096 {
             editor_insert(ed, chr(k.code));
             editor_update_scroll(ed, ew, emr);
@@ -369,4 +366,38 @@ def handle_key(k: Key, rt: TuiRuntime) -> bool {
     }
 
     return False;
+
+def handle_key(k: Key, rt: TuiRuntime) -> bool {
+    """Main key dispatch — delegates to per-kind handlers."""
+    state = rt.state;
+    if k.kind == KeyKind.UNKNOWN {
+        return False;
+    }
+
+    if overlay_is_active(state) {
+        return overlay_handle_key(k, rt);
+    }
+
+    # Autocomplete has priority for most keys
+    if state.ac.active {
+        return _handle_ac_key(k, rt);
+    }
+
+    # Ctrl combinations
+    if k.kind == KeyKind.CTRL {
+        return _handle_ctrl_key(k, rt);
+    }
+
+    # Movement keys
+    result = _handle_movement_key(k, rt);
+    if k.kind == KeyKind.UP or k.kind == KeyKind.DOWN
+    or k.kind == KeyKind.LEFT or k.kind == KeyKind.RIGHT
+    or k.kind == KeyKind.HOME or k.kind == KeyKind.END
+    or k.kind == KeyKind.WORD_LEFT or k.kind == KeyKind.WORD_RIGHT
+    or k.kind == KeyKind.PAGE_UP or k.kind == KeyKind.PAGE_DOWN {
+        return result;
+    }
+
+    # Everything else (editing keys)
+    return _handle_edit_key(k, rt);
 }

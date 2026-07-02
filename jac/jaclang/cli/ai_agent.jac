@@ -27,6 +27,11 @@ obj Workspace {
     def project_errors -> list;
 }
 
+obj PatternCheck {
+    has label: str = "",
+        pattern: str = "";
+}
+
 obj FileTools {
     has ws: Workspace = Workspace(),
         cfg: AgentConfig = AgentConfig();
@@ -89,6 +94,11 @@ obj BrowseTools {
 
 glob _THINK_WIDTH = 40;
 
+obj ReasoningSplit {
+    has prose: str = "",
+        hit: bool = False;
+}
+
 obj TurnRenderer {
     def print_banner;
     def print_help;
@@ -107,7 +117,7 @@ obj TurnRenderer {
     );
 
     def _strip_control(text: str) -> str;
-    def _split_reasoning(raw: str) -> tuple[str, bool];
+    def _split_reasoning(raw: str) -> ReasoningSplit;
     def _result_snippet(text: str, max_lines: int) -> list[str];
     def _fmt_ms(ms: float) -> str;
     def _fmt_gen(ms: float, tokens: int) -> str;
@@ -215,7 +225,12 @@ glob agent_model = build_model();
 
 def truncate(text: str, limit: int = 12000) -> str;
 def confirm(action: str) -> bool;
-def _count_diags(diags: list) -> tuple[int, int];
+obj DiagnosticCounts {
+    has errors: int = 0,
+        warnings: int = 0;
+}
+
+def _count_diags(diags: list) -> DiagnosticCounts;
 def _term_output_enabled -> bool;
 def _term_print(*args: any, **kwargs: any) -> None;
 def register_ui_provider_error(exc: any) -> None;
@@ -538,6 +553,11 @@ glob _MODEL_PRESETS: list[str] = [
          "local:gemma-4-e4b"
      ];
 
-def _model_needs_key(name: str) -> tuple[bool, str];
+obj KeyRequirement {
+    has needed: bool = False,
+        env: str = "";
+}
+
+def _model_needs_key(name: str) -> KeyRequirement;
 
 def _refresh_key_status -> None;

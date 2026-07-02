@@ -1,4 +1,4 @@
-import from .state { TuiState, DisplayRow, EditorState }
+import from .state { TuiState, DisplayRow, EditorState, EventKind, TuiStatus }
 import from .feed { build_rows }
 import from .overlay { overlay_build_modal, overlay_composite }
 import from .terminal { ansi_sgr, ansi_reset, term_spaces, term_dashes }
@@ -56,32 +56,32 @@ def _cwd_short(cwd: str) -> str {
     return "~" + cwd[prev:];
 }
 
-def _kind_sgr(kind: str) -> str {
-    if kind == "user" {
+def _kind_sgr(kind: EventKind) -> str {
+    if kind == EventKind.USER {
         return ansi_sgr(255, 255, 255, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD);
     }
-    if kind == "answer" {
+    if kind == EventKind.ANSWER {
         return ansi_sgr(220, 220, 220, TH_BG_R, TH_BG_G, TH_BG_B, 0);
     }
-    if kind == "reasoning" {
+    if kind == EventKind.REASONING {
         return _REASON_MSG;
     }
-    if kind == "system" {
+    if kind == EventKind.SYSTEM {
         return ansi_sgr(86, 182, 194, TH_BG_R, TH_BG_G, TH_BG_B, 0);
     }
-    if kind == "logo" {
+    if kind == EventKind.LOGO {
         return ansi_sgr(86, 182, 194, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD);
     }
-    if kind == "error" {
+    if kind == EventKind.ERROR {
         return ansi_sgr(255, 80, 80, TH_BG_R, TH_BG_G, TH_BG_B, TH_BOLD);
     }
-    if kind == "phase" {
+    if kind == EventKind.PHASE {
         return ansi_sgr(255, 210, 60, TH_BG_R, TH_BG_G, TH_BG_B, 0);
     }
-    if kind == "call" {
+    if kind == EventKind.CALL {
         return ansi_sgr(204, 119, 255, TH_BG_R, TH_BG_G, TH_BG_B, 0);
     }
-    if kind == "tool_result" {
+    if kind == EventKind.TOOL_RESULT {
         return ansi_sgr(140, 140, 140, TH_BG_R, TH_BG_G, TH_BG_B, TH_DIM);
     }
     return ansi_sgr(200, 200, 200, TH_BG_R, TH_BG_G, TH_BG_B, 0);
@@ -146,7 +146,7 @@ def _divider_row(left: str, right: str, cols: int) -> str {
 }
 
 def _transcript_row(dr: DisplayRow, cols: int) -> str {
-    if dr.kind == "sep" {
+    if dr.kind == EventKind.SEP {
         return _SB + "│" + term_spaces(cols - 2) + "│" + _SR;
     }
 
@@ -156,7 +156,7 @@ def _transcript_row(dr: DisplayRow, cols: int) -> str {
         return _SB + "│ " + dr.text + _SB + " │" + _SR;
     }
 
-    if dr.kind == "user" {
+    if dr.kind == EventKind.USER {
         content_w = inner_w - 1;
         display = ansi_trunc(dr.text, content_w);
         padded = ansi_pad(display, content_w);
@@ -412,7 +412,7 @@ def screen_render(state: TuiState, cols: int, rows: int) -> list[str] {
 
     ed = state.editor;
     editor_h = _editor_height(ed, cols, rows);
-    is_running = state.status == "running";
+    is_running = state.status == TuiStatus.RUNNING;
 
     ac_h: int = 0;
     if state.ac.active {

@@ -1,4 +1,4 @@
-import from .state { TuiState, AcItem, EditorState }
+import from .state { TuiState, AcItem, EditorState, AcKind }
 import from .commands { slash_ac_catalog }
 
 def fuzzy_score(query: str, text: str) -> int {
@@ -70,53 +70,53 @@ def _basename(path: str) -> str {
     return path;
 }
 
-def _sort_items_by_score(
-    vals: list[str], labs: list[str], descs: list[str], scores: list[int]
-) -> list[AcItem] {
-    rem_v = vals;
-    rem_l = labs;
-    rem_d = descs;
-    rem_s = scores;
-    result: list[AcItem] = [];
+obj ScoredEntry {
+    has value: str = "",
+        label: str = "",
+        description: str = "",
+        score: int = 0;
+}
 
-    while len(rem_s) > 0 {
+def _sort_entries_by_score(entries: list[ScoredEntry]) -> list[AcItem] {
+    result: list[AcItem] = [];
+    rem: list[ScoredEntry] = entries;
+
+    while len(rem) > 0 {
         best: int = 0;
         j: int = 1;
-        while j < len(rem_s) {
-            if rem_s[j] < rem_s[best] {
+        while j < len(rem) {
+            if rem[j].score < rem[best].score {
                 best = j;
             }
             j = j + 1;
         }
+        entry = rem[best];
         result.append(
-            AcItem(value=rem_v[best], label=rem_l[best], description=rem_d[best])
+            AcItem(value=entry.value, label=entry.label, description=entry.description)
         );
 
-        nv: list[str] = [];
-        nl: list[str] = [];
-        nd: list[str] = [];
-        ns: list[int] = [];
+        new_rem: list[ScoredEntry] = [];
         k: int = 0;
-        while k < len(rem_s) {
+        while k < len(rem) {
             if k != best {
-                nv.append(rem_v[k]);
-                nl.append(rem_l[k]);
-                nd.append(rem_d[k]);
-                ns.append(rem_s[k]);
+                new_rem.append(rem[k]);
             }
             k = k + 1;
         }
-        rem_v = nv;
-        rem_l = nl;
-        rem_d = nd;
-        rem_s = ns;
+        rem = new_rem;
     }
     return result;
 }
 
-def _extract_trigger(ed: EditorState) -> list[str] {
+obj AutocompleteTrigger {
+    has kind: AcKind = AcKind.NONE,
+        prefix: str = "",
+        query: str = "";
+}
+
+def _extract_trigger(ed: EditorState) -> AutocompleteTrigger {
     if len(ed.lines) == 0 {
-        return ["", "", ""];
+        return AutocompleteTrigger();
     }
 
     cur_line = ed.lines[ed.cursor_line];
@@ -134,9 +134,11 @@ def _extract_trigger(ed: EditorState) -> list[str] {
             j = j + 1;
         }
         if not has_space {
-            return ["slash", before, before[1:]];
+            return AutocompleteTrigger(
+                kind=AcKind.SLASH, prefix=before, query=before[1:]
+            );
         }
-        return ["", "", ""];
+        return AutocompleteTrigger();
     }
 
     j: int = ed.cursor_col - 1;
@@ -145,7 +147,9 @@ def _extract_trigger(ed: EditorState) -> list[str] {
         if c == "@" {
             if j == 0 or cur_line[j - 1] == " " or cur_line[j - 1] == "\t" {
                 prefix = before[j:];
-                return ["at_file", prefix, prefix[1:]];
+                return AutocompleteTrigger(
+                    kind=AcKind.AT_FILE, prefix=prefix, query=prefix[1:]
+                );
             }
             break;
         }
@@ -155,15 +159,12 @@ def _extract_trigger(ed: EditorState) -> list[str] {
         j = j - 1;
     }
 
-    return ["", "", ""];
+    return AutocompleteTrigger();
 }
 
 def _slash_items(query: str, state: TuiState) -> list[AcItem] {
     catalog = slash_ac_catalog(state);
-    vals: list[str] = [];
-    labs: list[str] = [];
-    descs_: list[str] = [];
-    scores: list[int] = [];
+    entries: list[ScoredEntry] = [];
 
     i: int = 0;
     n = len(catalog);
@@ -181,10 +182,9 @@ def _slash_items(query: str, state: TuiState) -> list[AcItem] {
             }
         }
         if matched {
-            vals.append(cmd);
-            labs.append(cmd);
-            descs_.append(desc);
-            scores.append(s);
+            entries.append(
+                ScoredEntry(value=cmd, label=cmd, description=desc, score=s)
+            );
         }
         i = i + 1;
     }
@@ -192,13 +192,16 @@ def _slash_items(query: str, state: TuiState) -> list[AcItem] {
     if len(query) == 0 {
         items: list[AcItem] = [];
         j: int = 0;
-        while j < len(vals) {
-            items.append(AcItem(value=vals[j], label=vals[j], description=descs_[j]));
+        while j < len(entries) {
+            e = entries[j];
+            items.append(
+                AcItem(value=e.value, label=e.label, description=e.description)
+            );
             j = j + 1;
         }
         return items;
     }
-    return _sort_items_by_score(vals, labs, descs_, scores);
+    return _sort_entries_by_score(entries);
 }
 
 def _file_items(state: TuiState, query: str) -> list[AcItem] {
@@ -208,10 +211,7 @@ def _file_items(state: TuiState, query: str) -> list[AcItem] {
         limit = 300;
     }
 
-    vals: list[str] = [];
-    labs: list[str] = [];
-    descs_: list[str] = [];
-    scores: list[int] = [];
+    entries: list[ScoredEntry] = [];
 
     i: int = 0;
     while i < limit {
@@ -232,10 +232,9 @@ def _file_items(state: TuiState, query: str) -> list[AcItem] {
             }
         }
         if matched {
-            vals.append(path);
-            labs.append(base);
-            descs_.append(path);
-            scores.append(s);
+            entries.append(
+                ScoredEntry(value=path, label=base, description=path, score=s)
+            );
         }
         i = i + 1;
     }
@@ -243,14 +242,17 @@ def _file_items(state: TuiState, query: str) -> list[AcItem] {
     if len(query) == 0 {
         items: list[AcItem] = [];
         j: int = 0;
-        while j < len(vals) and j < 20 {
-            items.append(AcItem(value=vals[j], label=labs[j], description=descs_[j]));
+        while j < len(entries) and j < 20 {
+            e = entries[j];
+            items.append(
+                AcItem(value=e.value, label=e.label, description=e.description)
+            );
             j = j + 1;
         }
         return items;
     }
 
-    all_sorted = _sort_items_by_score(vals, labs, descs_, scores);
+    all_sorted = _sort_entries_by_score(entries);
     result: list[AcItem] = [];
     j: int = 0;
     while j < len(all_sorted) and j < 20 {
@@ -262,20 +264,17 @@ def _file_items(state: TuiState, query: str) -> list[AcItem] {
 
 def ac_update(state: TuiState) {
     trigger = _extract_trigger(state.editor);
-    kind = trigger[0];
-    prefix = trigger[1];
-    query = trigger[2];
 
-    if len(kind) == 0 {
+    if trigger.kind == AcKind.NONE {
         state.ac.dismiss();
         return;
     }
 
     items: list[AcItem] = [];
-    if kind == "slash" {
-        items = _slash_items(query, state);
+    if trigger.kind == AcKind.SLASH {
+        items = _slash_items(trigger.query, state);
     } else {
-        items = _file_items(state, query);
+        items = _file_items(state, trigger.query);
     }
 
     if len(items) == 0 {
@@ -283,11 +282,11 @@ def ac_update(state: TuiState) {
         return;
     }
 
-    same_kind = state.ac.active and state.ac.kind == kind;
+    same_kind = state.ac.active and state.ac.kind == trigger.kind;
     state.ac.active = True;
-    state.ac.kind = kind;
-    state.ac.prefix = prefix;
-    state.ac.query = query;
+    state.ac.kind = trigger.kind;
+    state.ac.prefix = trigger.prefix;
+    state.ac.query = trigger.query;
     state.ac.items = items;
     if not same_kind {
         state.ac.selected_idx = 0;
@@ -317,7 +316,7 @@ def ac_apply(state: TuiState) {
     after = cur_line[ed.cursor_col:];
 
     new_text: str = "";
-    if state.ac.kind == "slash" {
+    if state.ac.kind == AcKind.SLASH {
         new_text = item.value + " ";
     } else {
         val = item.value;

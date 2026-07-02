@@ -24,7 +24,7 @@ impl confirm(action: str) -> bool {
     return answer in ("y", "yes");
 }
 
-impl _count_diags(diags: list) -> tuple[int, int] {
+impl _count_diags(diags: list) -> DiagnosticCounts {
     n_err = len(
         [
             d
@@ -32,7 +32,7 @@ impl _count_diags(diags: list) -> tuple[int, int] {
             if d.severity == "error"
         ]
     );
-    return (n_err, len(diags) - n_err);
+    return DiagnosticCounts(errors=n_err, warnings=len(diags) - n_err);
 }
 
 impl _term_output_enabled -> bool {

@@ -20,10 +20,10 @@ impl FileTools.write_feedback(path: str) -> str {
     if not diags {
         return "";
     }
-    (n_err, n_warn) = _count_diags(diags);
+    counts = _count_diags(diags);
     lines = [
-        f"\ncompiler feedback for editing {path} -- {n_err} error(s), "
-        f"{n_warn} warning(s); fix what you introduced (some may be in other "
+        f"\ncompiler feedback for editing {path} -- {counts.errors} error(s), "
+        f"{counts.warnings} warning(s); fix what you introduced (some may be in other "
         "files your edit affects):"
     ];
     for d in diags[:20] {
@@ -55,35 +55,41 @@ impl FileTools._js_drift_error(path: str, content: str) -> str {
         return "";
     }
 
-    checks: list[tuple[str, str]] = [
-        (
-            "`import React` / a React import",
-            "import\\s+React\\b|from\\s+['\"]react['\"]"
+    checks: list[PatternCheck] = [
+        PatternCheck(
+            label="`import React` / a React import",
+            pattern="import\\s+React\\b|from\\s+['\"]react['\"]"
         ),
-        (
-            "`export` (Jac has no export -- a `def:pub` is the public form)",
-            "(?m)^\\s*export\\b"
+        PatternCheck(
+            label="`export` (Jac has no export -- a `def:pub` is the public form)",
+            pattern="(?m)^\\s*export\\b"
         ),
-        ("`function` (use `def`)", "(?m)^\\s*(async\\s+)?function\\b"),
-        (
-            "an arrow function `=>` (use `lambda(x: T) -> R { ... }`)",
-            "(\\w|\\)|\\]|\\})\\s*=>"
+        PatternCheck(
+            label="`function` (use `def`)", pattern="(?m)^\\s*(async\\s+)?function\\b"
         ),
-        (
-            "`const`/`let`/`var` (declare typed: `x: int = 1`)",
-            "(?m)^\\s*(const|let|var)\\s"
+        PatternCheck(
+            label="an arrow function `=>` (use `lambda(x: T) -> R { ... }`)",
+            pattern="(\\w|\\)|\\]|\\})\\s*=>"
         ),
-        ("`this.` (use `self.`; props are function params)", "\\bthis\\."),
-        (
-            "a `constructor(` (a component is `def:pub Name() -> JsxElement`)",
-            "(?m)^\\s*constructor\\s*\\("
+        PatternCheck(
+            label="`const`/`let`/`var` (declare typed: `x: int = 1`)",
+            pattern="(?m)^\\s*(const|let|var)\\s"
         ),
-        ("`===` / `!==` (use `==` / `!=`)", "===|!==")
+        PatternCheck(
+            label="`this.` (use `self.`; props are function params)",
+            pattern="\\bthis\\."
+        ),
+        PatternCheck(
+            label="a `constructor(` (a component is `def:pub Name() -> JsxElement`)",
+            pattern="(?m)^\\s*constructor\\s*\\("
+        ),
+        PatternCheck(label="`===` / `!==` (use `==` / `!=`)", pattern="===|!=="),
+
     ];
     hits: list[str] = [];
-    for (label, pat) in checks {
-        if re.search(pat, content) {
-            hits.append(label);
+    for check in checks {
+        if re.search(check.pattern, content) {
+            hits.append(check.label);
         }
     }
     if not hits {

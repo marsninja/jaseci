@@ -1,15 +1,6 @@
 import from .width { visible_width, ansi_trunc, ansi_pad }
 import from .terminal { ansi_sgr, ansi_reset }
-import from .keys {
-    Key,
-    KK_UP,
-    KK_DOWN,
-    KK_ENTER,
-    KK_ESCAPE,
-    KK_CTRL,
-    KK_BACKSPACE,
-    KK_CHAR
-}
+import from .keys { Key, KeyKind }
 import from .theme {
     TH_BG_R,
     TH_BG_G,
@@ -270,26 +261,26 @@ obj SelectList {
     }
 
     def handle_key(k: Key) -> str {
-        if k.kind == KK_UP {
+        if k.kind == KeyKind.UP {
             self.move_up();
             return "changed";
         }
-        if k.kind == KK_DOWN {
+        if k.kind == KeyKind.DOWN {
             self.move_down();
             return "changed";
         }
 
-        if k.kind == KK_ENTER {
+        if k.kind == KeyKind.ENTER {
             if len(self.filtered) > 0 {
                 return "select";
             }
             return "none";
         }
 
-        if k.kind == KK_ESCAPE {
+        if k.kind == KeyKind.ESCAPE {
             return "cancel";
         }
-        if k.kind == KK_CTRL {
+        if k.kind == KeyKind.CTRL {
             ch = chr(k.code);
             if ch == "c" or ch == "q" {
                 return "cancel";
@@ -297,7 +288,7 @@ obj SelectList {
             return "none";
         }
 
-        if k.kind == KK_BACKSPACE {
+        if k.kind == KeyKind.BACKSPACE {
             if len(self.filter_text) > 0 {
                 self.filter_text = self.filter_text[:len(self.filter_text) - 1];
                 self.set_filter(self.filter_text);
@@ -306,7 +297,7 @@ obj SelectList {
             return "none";
         }
 
-        if k.kind == KK_CHAR {
+        if k.kind == KeyKind.CHAR {
             self.filter_text = self.filter_text + chr(k.code);
             self.set_filter(self.filter_text);
             return "changed";

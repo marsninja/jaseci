@@ -1,38 +1,38 @@
-import from .state { Event, DisplayRow, TuiState }
+import from .state { Event, DisplayRow, TuiState, EventKind }
 import from .markdown { md_render }
 import from .tool_block { tool_call_rows, tool_result_rows }
 import from .terminal_image { image_rows, image_fallback }
 
 def event_prefix(ev: Event) -> str {
     kind = ev.kind;
-    if kind == "user" {
+    if kind == EventKind.USER {
         return "> ";
     }
-    if kind == "answer" {
+    if kind == EventKind.ANSWER {
         return "  ";
     }
-    if kind == "reasoning" {
+    if kind == EventKind.REASONING {
         return "~ ";
     }
-    if kind == "system" {
+    if kind == EventKind.SYSTEM {
         return "* ";
     }
-    if kind == "logo" {
+    if kind == EventKind.LOGO {
         return "";
     }
-    if kind == "error" {
+    if kind == EventKind.ERROR {
         return "! ";
     }
-    if kind == "phase" {
+    if kind == EventKind.PHASE {
         return "> ";
     }
-    if kind == "call" {
+    if kind == EventKind.CALL {
         return "# ";
     }
-    if kind == "tool_result" {
+    if kind == EventKind.TOOL_RESULT {
         return "  | ";
     }
-    if kind == "img" {
+    if kind == EventKind.IMG {
         return "  ";
     }
     return "  ";
@@ -40,7 +40,7 @@ def event_prefix(ev: Event) -> str {
 
 def event_text(ev: Event) -> str {
     kind = ev.kind;
-    if kind == "phase" {
+    if kind == EventKind.PHASE {
         if len(ev.node) > 0 {
             return ev.node;
         }
@@ -53,7 +53,7 @@ def _wrap_line(
     width: int,
     first_pre: str,
     cont_pre: str,
-    kind: str,
+    kind: EventKind,
     out: list[DisplayRow]
 ) -> None {
     af = width - len(first_pre);
@@ -91,7 +91,7 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
     kind = ev.kind;
     body = event_text(ev);
 
-    if kind == "answer" {
+    if kind == EventKind.ANSWER {
         md_rows = md_render(body, width, 220, 220, 220, 0);
         i: int = 0;
         n = len(md_rows);
@@ -105,7 +105,7 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
         }
         return;
     }
-    if kind == "reasoning" {
+    if kind == EventKind.REASONING {
         md_rows = md_render(body, width, 160, 160, 160, 6);
         i: int = 0;
         n = len(md_rows);
@@ -120,16 +120,16 @@ def wrap_event(ev: Event, width: int, out: list[DisplayRow]) {
         return;
     }
 
-    if kind == "call" {
+    if kind == EventKind.CALL {
         tool_call_rows(ev.node, body, width, out);
         return;
     }
-    if kind == "tool_result" {
+    if kind == EventKind.TOOL_RESULT {
         tool_result_rows(ev.node, body, width, out);
         return;
     }
 
-    if kind == "img" {
+    if kind == EventKind.IMG {
         img_mime: str = "image/png";
         img_w: int = 0;
         img_h: int = 0;
@@ -187,7 +187,7 @@ def build_rows(state: TuiState) {
     n = len(state.events);
     while i < n {
         if i > 0 {
-            rows.append(DisplayRow(text="", kind="sep", is_continuation=False));
+            rows.append(DisplayRow(text="", kind=EventKind.SEP, is_continuation=False));
         }
         ev = state.events[i];
 

@@ -1,5 +1,29 @@
 import from .select_list { SelectList }
 
+# Closed option sets for the TUI's kind/status fields. Mirrors the KeyKind
+# pattern in keys.na.jac: keep these as enums so producers/consumers are
+# type-checked instead of sharing magic strings.
+enum EventKind {
+    UNKNOWN = 0,
+    USER = 1,
+    ANSWER = 2,
+    REASONING = 3,
+    SYSTEM = 4,
+    LOGO = 5,
+    ERROR = 6,
+    PHASE = 7,
+    CALL = 8,
+    TOOL_RESULT = 9,
+    IMG = 10,
+    SEP = 11,
+}
+
+enum TuiStatus { IDLE = 0, RUNNING = 1, UNKNOWN = 2, }
+
+enum OverlayKind { PALETTE = 0, MODEL = 1, FILE = 2, }
+
+enum AcKind { NONE = 0, SLASH = 1, AT_FILE = 2, }
+
 obj AcItem {
     has value: str = "",
         label: str = "",
@@ -8,7 +32,7 @@ obj AcItem {
 
 obj AcState {
     has active: bool = False,
-        kind: str = "",
+        kind: AcKind = AcKind.NONE,
         items: list[AcItem] = [],
         selected_idx: int = 0,
         prefix: str = "",
@@ -16,7 +40,7 @@ obj AcState {
 
     def dismiss {
         self.active = False;
-        self.kind = "";
+        self.kind = AcKind.NONE;
         self.items = [];
         self.selected_idx = 0;
         self.prefix = "";
@@ -84,14 +108,14 @@ obj EditorState {
 
 obj DisplayRow {
     has text: str = "",
-        kind: str = "",
+        kind: EventKind = EventKind.UNKNOWN,
         is_continuation: bool = False,
         pre_styled: bool = False;
 }
 
 obj Event {
     has id: int = 0,
-        kind: str = "",
+        kind: EventKind = EventKind.UNKNOWN,
         text: str = "",
         node: str = "",
         cache_text_len: int = -1,
@@ -100,7 +124,7 @@ obj Event {
 }
 
 obj TuiState {
-    has status: str = "idle",
+    has status: TuiStatus = TuiStatus.IDLE,
         active: str = "",
         model_name: str = "",
         needs_key: bool = False,
@@ -120,7 +144,7 @@ obj TuiState {
         layout_dirty: bool = True,
         follow_tail: bool = True,
         overlay_active: bool = False,
-        overlay_kind: str = "palette",
+        overlay_kind: OverlayKind = OverlayKind.PALETTE,
         overlay_title: str = "",
         overlay_filter: str = "",
         overlay_full_redraw: bool = False,
@@ -143,10 +167,10 @@ obj TuiState {
         self.ac.dismiss();
     }
 
-    def upsert_event(ev_id: int, kind: str, text: str, node_name: str) -> None {
-        if kind == "user" and ev_id >= 0 {
+    def upsert_event(ev_id: int, kind: EventKind, text: str, node_name: str) -> None {
+        if kind == EventKind.USER and ev_id >= 0 {
             for ev in self.events {
-                if ev.id == -1 and ev.kind == "user" and ev.text == text {
+                if ev.id == -1 and ev.kind == EventKind.USER and ev.text == text {
                     ev.id = ev_id;
                     if len(node_name) > 0 {
                         ev.node = node_name;

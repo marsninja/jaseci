@@ -1,23 +1,11 @@
 import sys;
 
 import from .libc_tty { tty_write }
-import from .state { TuiState }
+import from .state { TuiState, TuiStatus, AcKind }
 import from .select_list { SelectList, SelectItem }
 import from .commands { palette_commands, model_items, file_items, resolve_slash_line }
 import from .autocomplete { fuzzy_score, ac_update, ac_apply }
-import from .keys {
-    parse_key,
-    KK_UP,
-    KK_DOWN,
-    KK_CTRL,
-    KK_ESCAPE,
-    KK_ENTER,
-    KK_BACKSPACE,
-    KK_CHAR,
-    KK_SHIFT_ENTER,
-    KK_WORD_LEFT,
-    KK_UNKNOWN
-}
+import from .keys { KeyKind, parse_key }
 
 def emit(line: str) {
     tty_write(1, line + "\n");
@@ -64,7 +52,7 @@ def run_tests -> int {
     fails += check("palette exposes /files", _has_value(pal, "open_file"));
     fails += check("palette exposes /quit", _has_value(pal, "/quit"));
     fails += check("palette hides /stop when idle", not _has_value(pal, "/stop"));
-    state.status = "running";
+    state.status = TuiStatus.RUNNING;
     fails += check(
         "palette shows /stop when running", _has_value(palette_commands(state), "/stop")
     );
@@ -137,34 +125,40 @@ def run_tests -> int {
     sl3.reset_items(empty);
     fails += check("current() is None when empty", sl3.current() is None);
 
-    fails += check("parse_key CSI up -> UP", parse_key("\033[A").kind == KK_UP);
-    fails += check("parse_key SS3 up -> UP", parse_key("\033OA").kind == KK_UP);
-    fails += check("parse_key CSI down -> DOWN", parse_key("\033[B").kind == KK_DOWN);
-    fails += check("parse_key SS3 down -> DOWN", parse_key("\033OB").kind == KK_DOWN);
+    fails += check("parse_key CSI up -> UP", parse_key("\033[A").kind == KeyKind.UP);
+    fails += check("parse_key SS3 up -> UP", parse_key("\033OA").kind == KeyKind.UP);
+    fails += check(
+        "parse_key CSI down -> DOWN", parse_key("\033[B").kind == KeyKind.DOWN
+    );
+    fails += check(
+        "parse_key SS3 down -> DOWN", parse_key("\033OB").kind == KeyKind.DOWN
+    );
     fails += check(
         "parse_key ctrl-c -> CTRL c",
-        parse_key("\003").kind == KK_CTRL and parse_key("\003").code == 99
+        parse_key("\003").kind == KeyKind.CTRL and parse_key("\003").code == 99
     );
     fails += check("parse_key ctrl-q -> CTRL q", parse_key("\021").code == 113);
-    fails += check("parse_key bare esc -> ESCAPE", parse_key("\033").kind == KK_ESCAPE);
-    fails += check("parse_key enter -> ENTER", parse_key("\r").kind == KK_ENTER);
     fails += check(
-        "parse_key backspace -> BACKSPACE", parse_key("\177").kind == KK_BACKSPACE
+        "parse_key bare esc -> ESCAPE", parse_key("\033").kind == KeyKind.ESCAPE
+    );
+    fails += check("parse_key enter -> ENTER", parse_key("\r").kind == KeyKind.ENTER);
+    fails += check(
+        "parse_key backspace -> BACKSPACE", parse_key("\177").kind == KeyKind.BACKSPACE
     );
     fails += check(
         "parse_key printable -> CHAR",
-        parse_key("a").kind == KK_CHAR and parse_key("a").code == 97
+        parse_key("a").kind == KeyKind.CHAR and parse_key("a").code == 97
     );
     fails += check(
         "parse_key shift-enter (\\033\\r) -> SHIFT_ENTER",
-        parse_key("\033\r").kind == KK_SHIFT_ENTER
+        parse_key("\033\r").kind == KeyKind.SHIFT_ENTER
     );
     fails += check(
         "parse_key word-left variants -> WORD_LEFT",
-        parse_key("\033[1;5D").kind == KK_WORD_LEFT
-        and parse_key("\033b").kind == KK_WORD_LEFT
+        parse_key("\033[1;5D").kind == KeyKind.WORD_LEFT
+        and parse_key("\033b").kind == KeyKind.WORD_LEFT
     );
-    fails += check("parse_key empty -> UNKNOWN", parse_key("").kind == KK_UNKNOWN);
+    fails += check("parse_key empty -> UNKNOWN", parse_key("").kind == KeyKind.UNKNOWN);
 
     fails += check("fuzzy empty query -> 0", fuzzy_score("", "model") == 0);
     fails += check("fuzzy no match -> -9999", fuzzy_score("xyz", "model") == -9999);
@@ -191,7 +185,7 @@ def run_tests -> int {
     ac_s.editor.cursor_col = 1;
     ac_update(ac_s);
     fails += check("ac: / -> active", ac_s.ac.active);
-    fails += check("ac: / kind=slash", ac_s.ac.kind == "slash");
+    fails += check("ac: / kind=slash", ac_s.ac.kind == AcKind.SLASH);
     fails += check("ac: / -> 6 commands", len(ac_s.ac.items) == 6);
 
     ac_s2 = TuiState();
@@ -223,7 +217,7 @@ def run_tests -> int {
     ac_f.editor.cursor_col = 12;
     ac_update(ac_f);
     fails += check("ac: @src -> active", ac_f.ac.active);
-    fails += check("ac: @src kind=at_file", ac_f.ac.kind == "at_file");
+    fails += check("ac: @src kind=at_file", ac_f.ac.kind == AcKind.AT_FILE);
     fails += check("ac: @src -> 2 file matches", len(ac_f.ac.items) == 2);
 
     ac_f2 = TuiState();

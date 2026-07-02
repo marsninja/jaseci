@@ -93,11 +93,11 @@ impl TurnRenderer._format_health -> str {
     } except Exception {
         return "";
     }
-    (n_err, n_warn) = _count_diags(diags);
-    if n_err == 0 and n_warn == 0 {
+    counts = _count_diags(diags);
+    if counts.errors == 0 and counts.warnings == 0 {
         return "project: clean";
     }
-    return f"project: {n_err} error(s), {n_warn} warning(s)";
+    return f"project: {counts.errors} error(s), {counts.warnings} warning(s)";
 }
 
 impl TurnRenderer.print_stats(
@@ -151,11 +151,11 @@ impl TurnRenderer._strip_control(text: str) -> str {
     return t;
 }
 
-impl TurnRenderer._split_reasoning(raw: str) -> tuple[str, bool] {
+impl TurnRenderer._split_reasoning(raw: str) -> ReasoningSplit {
     mark = "<tool_call>";
     idx = raw.find(mark);
     if idx >= 0 {
-        return (raw[:idx], True);
+        return ReasoningSplit(prose=raw[:idx], hit=True);
     }
     hold = 0;
     k = min(len(raw), len(mark) - 1);
@@ -166,7 +166,7 @@ impl TurnRenderer._split_reasoning(raw: str) -> tuple[str, bool] {
         }
         k -= 1;
     }
-    return (raw[:len(raw) - hold], False);
+    return ReasoningSplit(prose=raw[:len(raw) - hold], hit=False);
 }
 
 impl TurnRenderer._result_snippet(text: str, max_lines: int) -> list[str] {
@@ -326,9 +326,9 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                     step_t0 = time.time();
                 }
                 thought_raw += tok;
-                (prose, hit) = agent.view._split_reasoning(thought_raw);
-                new_raw = prose[prose_shown:];
-                prose_shown = len(prose);
+                split = agent.view._split_reasoning(thought_raw);
+                new_raw = split.prose[prose_shown:];
+                prose_shown = len(split.prose);
                 cleaned = agent.view._strip_control(new_raw);
                 if cleaned {
                     clear_think();
@@ -340,7 +340,7 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                     agent.bus.emit_stream("reasoning", cleaned);
                 }
 
-                if hit and not streamed and is_tty {
+                if split.hit and not streamed and is_tty {
                     out.write(f"\r  ● thinking… {time.time() - step_t0:.1f}s");
                     out.flush();
                     think_on = True;

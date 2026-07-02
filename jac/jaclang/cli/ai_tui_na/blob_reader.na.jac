@@ -1,0 +1,53 @@
+import from .ipc_schema { IPC_LEN, IPC_SEP }
+import from .libc_tty { tty_read_line }
+
+def read_blob(first_line: str) -> (str, bool) {
+    expected_lines: int = -1;
+    colon_at = first_line.find(":");
+    if colon_at >= 0 and first_line[:colon_at] == IPC_LEN {
+        try {
+            expected_lines = int(first_line[colon_at + 1:]);
+        } except Exception { }
+    }
+
+    blob: str = "";
+
+    if expected_lines >= 0 {
+        n: int = 0;
+        while n < expected_lines {
+            raw = tty_read_line();
+            if len(raw) == 0 {
+                return (blob, True);
+            }
+            line = raw.strip();
+            if len(blob) > 0 {
+                blob = blob + "\n";
+            }
+            blob = blob + line;
+            n = n + 1;
+        }
+
+        tty_read_line();
+    } else {
+        if first_line != IPC_SEP and len(first_line) > 0 {
+            blob = first_line;
+        }
+        while True {
+            raw = tty_read_line();
+            if len(raw) == 0 {
+                return (blob, True);
+            }
+            line = raw.strip();
+            if line == IPC_SEP {
+                break;
+            }
+            if len(line) > 0 {
+                if len(blob) > 0 {
+                    blob = blob + "\n";
+                }
+                blob = blob + line;
+            }
+        }
+    }
+    return (blob, False);
+}

@@ -34,13 +34,12 @@ impl run_turn(message: str) {
         );
         tok_per_s = completion / elapsed if (completion > 0 and elapsed > 0) else 0.0;
 
-        n_err = 0;
-        n_warn = 0;
+        diag_counts = DiagnosticCounts();
         health_loaded = False;
         ci = agent.ws.code_intel();
         if ci is not None and ci.is_loaded() {
             try {
-                (n_err, n_warn) = _count_diags(list(ci.diagnostics()));
+                diag_counts = _count_diags(list(ci.diagnostics()));
                 health_loaded = True;
             } except Exception {
                 health_loaded = False;
@@ -57,8 +56,8 @@ impl run_turn(message: str) {
             "tokens_out": completion,
             "cost": cost,
             "tok_per_s": round(tok_per_s, 1),
-            "errors": n_err,
-            "warnings": n_warn,
+            "errors": diag_counts.errors,
+            "warnings": diag_counts.warnings,
             "health_loaded": health_loaded,
             "has_run": True
         };

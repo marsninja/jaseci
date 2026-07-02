@@ -1,4 +1,4 @@
-import from .state { TuiState }
+import from .state { TuiState, OverlayKind }
 import from .keys { Key }
 import from .commands {
     palette_commands,
@@ -31,7 +31,11 @@ def overlay_is_active(state: TuiState) -> bool {
 }
 
 def _overlay_show(
-    state: TuiState, kind: str, title: str, items: list[SelectItem], initial_filter: str
+    state: TuiState,
+    kind: OverlayKind,
+    title: str,
+    items: list[SelectItem],
+    initial_filter: str
 ) {
     sl = state.select_list;
     sl.reset_items(items);
@@ -50,16 +54,16 @@ def _overlay_show(
 
 def overlay_open_palette(state: TuiState, initial_filter: str) {
     _overlay_show(
-        state, "palette", "Commands", palette_commands(state), initial_filter
+        state, OverlayKind.PALETTE, "Commands", palette_commands(state), initial_filter
     );
 }
 
 def overlay_open_model(state: TuiState) {
-    _overlay_show(state, "model", "Select model", model_items(state), "");
+    _overlay_show(state, OverlayKind.MODEL, "Select model", model_items(state), "");
 }
 
 def overlay_open_file(state: TuiState) {
-    _overlay_show(state, "file", "Insert file", file_items(state), "");
+    _overlay_show(state, OverlayKind.FILE, "Insert file", file_items(state), "");
 }
 
 def overlay_close(state: TuiState) {
@@ -67,7 +71,7 @@ def overlay_close(state: TuiState) {
         return;
     }
     state.overlay_active = False;
-    state.overlay_kind = "palette";
+    state.overlay_kind = OverlayKind.PALETTE;
     state.overlay_filter = "";
     state.overlay_title = "";
     state.overlay_full_redraw = True;
@@ -94,13 +98,13 @@ def overlay_handle_key(k: Key, rt: TuiRuntime) -> bool {
         }
         kind = state.overlay_kind;
 
-        if kind == "model" {
+        if kind == OverlayKind.MODEL {
             apply_model(item.value, rt);
             overlay_close(state);
             return False;
         }
 
-        if kind == "file" {
+        if kind == OverlayKind.FILE {
             editor_insert_text(state.editor, f"@{item.value} ");
             overlay_close(state);
             return False;

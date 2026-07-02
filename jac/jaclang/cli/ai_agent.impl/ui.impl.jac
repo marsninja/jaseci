@@ -255,10 +255,10 @@ def _ui_turn_worker(prompt: str) {
             or "401" in msg
             or "unauthorized" in msg
         ) {
-            (_, env) = _model_needs_key(str(agent_model.model_name));
+            key_req = _model_needs_key(str(agent_model.model_name));
             agent.bus.needs_key = True;
-            if env {
-                agent.bus.key_env = env;
+            if key_req.env {
+                agent.bus.key_env = key_req.env;
             }
             agent.bus.publish_full();
         }
