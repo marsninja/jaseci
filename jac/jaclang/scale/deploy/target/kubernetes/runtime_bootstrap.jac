@@ -112,12 +112,27 @@ def runtime_container_env -> list[dict[str, str]] {
 }
 
 
+def _shared_first_boot_install -> str {
+    # Elect one pod via an atomic mkdir lock on the shared PVC to warm the venv + `.jir` cache first; the rest wait then no-op. Best-effort: a timed-out waiter or stale lock just installs itself.
+    lock = f"{APP_MOUNT_PATH}/.jac/.bootstrap.lock";
+    return (
+        f'mkdir -p {APP_MOUNT_PATH}/.jac; '
+        f'if mkdir "{lock}" 2>/dev/null; then '
+        f'jac install; rc=$?; rmdir "{lock}" 2>/dev/null || true; exit $rc; '
+        f'else '
+        f'n=0; while [ -d "{lock}" ] && [ $n -lt 210 ]; do sleep 2; n=$((n+1)); done; '
+        f'rmdir "{lock}" 2>/dev/null || true; jac install; '
+        f'fi'
+    );
+}
+
+
 def build_bootstrap_init_container(
     k8s_config: KubernetesConfig, base_image: str, overlay_source: bool = False
 ) -> dict[str, any] {
     commands = build_runtime_install_commands(k8s_config, overlay_source);
     commands.append(f'cd {APP_MOUNT_PATH}');
-    commands.append('jac install');
+    commands.append(_shared_first_boot_install());
     script = ' && '.join(commands);
     return {
         "name": "jac-bootstrap",
