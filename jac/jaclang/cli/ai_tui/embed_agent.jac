@@ -28,7 +28,7 @@ def _start_real {
 
     def _feed {
         import from jaclang.cli.ai_agent { ui_stream }
-        import from jaclang.cli.ai_tui.tui_shared { _frame_blob }
+        import from jaclang.cli.ai_tui.tui_shared { _frame_blob, _debug_log }
         try {
             for frame in ui_stream() {
                 if _stop.is_set() {
@@ -39,7 +39,24 @@ def _start_real {
                 }
                 _q.put(_frame_blob(frame));
             }
-        } except Exception { }
+        } except Exception as e {
+            _debug_log(f"_feed crashed: {e}");
+            _q.put(
+                _frame_blob(
+                    {
+                        "status": "idle",
+                        "ev": {
+                            "id": -100,
+                            "kind": "error",
+                            "node": "feed",
+                            "text": "agent feed stopped: " + repr(e),
+
+                        },
+
+                    }
+                )
+            );
+        }
     }
 
     Thread(target=_feed, daemon=True).start();
@@ -149,5 +166,8 @@ def stop {
     try {
         import from jaclang.cli.ai_agent { ui_stop }
         ui_stop();
-    } except Exception { }
+    } except Exception as e {
+        import from jaclang.cli.ai_tui.tui_shared { _debug_log }
+        _debug_log(f"stop: ui_stop failed: {e}");
+    }
 }

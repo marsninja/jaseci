@@ -318,6 +318,7 @@ obj TuiState {
                 return;
             }
         }
+        self.upsert_event(ev_id, EventKind.UNKNOWN, delta, "");
     }
 
     def scroll_up(n: int) {
