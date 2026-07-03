@@ -16,7 +16,10 @@ UNIIR_NODE_DOC = "docs/internals/uniir_node.md"
 AST_TOOL = AstTool()
 # Directory basenames to exclude
 EXCLUDE_DIRS = {"__pycache__", ".pytest_cache", ".git", "tests"}
-EXCLUDE_EXTS = {".pyc", ".pyo", ".pyi"}
+# In a sealed binary (#7135) jaclang ships as sourceless .pyc (no .py) beside its
+# JIR modules, so the playground zip MUST carry those .pyc for the in-browser
+# runtime (same CPython 3.14 the .jir target). Only .pyo/.pyi are dropped.
+EXCLUDE_EXTS = {".pyo", ".pyi"}
 # Subdirectory paths within jaclang to exclude entirely
 EXCLUDE_SUBDIRS = {
     os.path.join("compiler", "passes", "native"),
