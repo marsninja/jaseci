@@ -32,7 +32,10 @@ def read_blob(first_line: str) -> BlobResult {
             n = n + 1;
         }
 
-        tty_read_line();
+        sep = tty_read_line();
+        if len(sep) == 0 {
+            return BlobResult(text=blob, eof=True);
+        }
     } else {
         if first_line != IPC_SEP and len(first_line) > 0 {
             blob = first_line;
