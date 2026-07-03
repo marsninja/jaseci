@@ -208,11 +208,8 @@ def seal_bootstrap(
             jir_path = out_dir / jir_rel;
             jir_path.parent.mkdir(parents=True, exist_ok=True);
             jir_path.write_bytes(write_precompiled_jir(bc, "", FLAG_BOOTSTRAP, extra));
-
-            if jac_file.name != "jir_registry.jac" {
-                boot_sources.append(str(jac_file));
-                boot_sources.extend(impl_paths);
-            }
+            boot_sources.append(str(jac_file));
+            boot_sources.extend(impl_paths);
         } except Exception as e {
             console.error(f"BOOTSTRAP FAIL: {jac_file.name} - {e}");
             failed += 1;
@@ -265,8 +262,13 @@ def seal_finalize(
     }
     console.print(f"  Frozen {len(set(boot_sources))} bootstrap source files");
 
+    keep_source = {"jir_registry.jac"};
     manifest_modules: dict[str, dict] = {};
-    sealed_sources: list[str] = list(boot_sources);
+    sealed_sources: list[str] = [
+        s
+        for s in boot_sources
+        if os.path.basename(s) not in keep_source
+    ];
     n_boot = 0;
     for jir in sorted(out_dir.rglob("*.jir")) {
         rel_jir = jir.relative_to(out_dir).as_posix();
@@ -282,7 +284,9 @@ def seal_finalize(
             n_boot += 1;
         }
         manifest_modules[source_rel] = entry;
-        sealed_sources.append(str(pkg_path / source_rel));
+        if os.path.basename(source_rel) not in keep_source {
+            sealed_sources.append(str(pkg_path / source_rel));
+        }
     }
     console.print(f"  Manifest modules: {len(manifest_modules)} ({n_boot} bootstrap)");
 
