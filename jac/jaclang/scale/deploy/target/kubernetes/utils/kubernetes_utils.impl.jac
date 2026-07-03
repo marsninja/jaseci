@@ -103,10 +103,7 @@ impl run_kubectl_command(args: list[str], cwd: str | Path | None = None) -> None
 
     try {
         subprocess.run(
-            ['kubectl', *args],
-            check=True,
-            text=True,
-            cwd=str(cwd) if cwd else None
+            ['kubectl', *args], check=True, text=True, cwd=str(cwd) if cwd else None
         );
     } except subprocess.CalledProcessError as exc {
         raise RuntimeError(

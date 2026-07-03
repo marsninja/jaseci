@@ -156,45 +156,52 @@ pub const Embed = struct {
 
         const cfg = Create() orelse return Error.InitFailed;
         defer Free(cfg);
-        var rc: c_int = 0;
-        rc |= SetStr(cfg, "program_name", exe_z);
-        rc |= SetStr(cfg, "home", pyhome);
-        rc |= SetStrList(cfg, "module_search_paths", search_paths.len, &search_paths);
+        // Check every call as it happens: the config stores only the most
+        // recent error, so accumulating return codes and reporting at the end
+        // could print the wrong failure (or none at all).
+        const check = struct {
+            fn f(get_error: PyInitConfig_GetError_t, c: ?*anyopaque, rc: c_int) Error!void {
+                if (rc == 0) return;
+                var err: ?[*:0]const u8 = null;
+                if (get_error(c, &err) != 0) {
+                    if (err) |msg| std.debug.print("jac (embed): python init failed: {s}\n", .{msg});
+                }
+                return Error.InitFailed;
+            }
+        }.f;
+
+        try check(GetError, cfg, SetStr(cfg, "program_name", exe_z));
+        try check(GetError, cfg, SetStr(cfg, "home", pyhome));
+        try check(GetError, cfg, SetStrList(cfg, "module_search_paths", search_paths.len, &search_paths));
         // Total hermeticity + no-leak (the point of this API): ignore ambient
         // PYTHON* entirely; never read/write user site or bytecode caches.
-        rc |= SetInt(cfg, "use_environment", 0);
-        rc |= SetInt(cfg, "user_site_directory", 0);
-        rc |= SetInt(cfg, "write_bytecode", 0);
+        try check(GetError, cfg, SetInt(cfg, "use_environment", 0));
+        try check(GetError, cfg, SetInt(cfg, "user_site_directory", 0));
+        try check(GetError, cfg, SetInt(cfg, "write_bytecode", 0));
         // Force UTF-8 regardless of locale; pin stdio explicitly too -- utf8_mode
         // alone does not pin stdout/stderr under embedding, so a C/POSIX locale
         // would crash on non-ASCII output.
-        rc |= SetInt(cfg, "utf8_mode", 1);
-        rc |= SetStr(cfg, "stdio_encoding", "utf-8");
+        try check(GetError, cfg, SetInt(cfg, "utf8_mode", 1));
+        try check(GetError, cfg, SetStr(cfg, "stdio_encoding", "utf-8"));
         // PyInitConfig_Create starts from the *isolated* preset, which also turns
         // these off; the previous Py_Initialize/Py_BytesMain bring-up had them on
         // (Ctrl-C -> KeyboardInterrupt, buffered C stdio). Keep that behavior,
         // and keep sys.flags.isolated=0 as apps observed it before.
-        rc |= SetInt(cfg, "install_signal_handlers", 1);
-        rc |= SetInt(cfg, "configure_c_stdio", 1);
-        rc |= SetInt(cfg, "isolated", 0);
+        try check(GetError, cfg, SetInt(cfg, "install_signal_handlers", 1));
+        try check(GetError, cfg, SetInt(cfg, "configure_c_stdio", 1));
+        try check(GetError, cfg, SetInt(cfg, "isolated", 0));
         if (opts.argv) |argv| {
-            rc |= SetStrList(cfg, "argv", argv.len, argv.ptr);
+            try check(GetError, cfg, SetStrList(cfg, "argv", argv.len, argv.ptr));
         }
         // parse_argv=1 == behave like the `python` CLI (worker mode: interpret
         // -c/-m/script from argv). parse_argv=0 == argv verbatim into sys.argv.
         // safe_path=1 in BOTH modes: no cwd/script-dir prepend to sys.path,
         // matching what the env-based bring-up shipped (CLI boot used
         // PySys_SetArgvEx(updatepath=0); worker mode never grew a path0).
-        rc |= SetInt(cfg, "parse_argv", @intFromBool(opts.parse_argv));
-        rc |= SetInt(cfg, "safe_path", 1);
+        try check(GetError, cfg, SetInt(cfg, "parse_argv", @intFromBool(opts.parse_argv)));
+        try check(GetError, cfg, SetInt(cfg, "safe_path", 1));
 
-        if (rc != 0 or InitFromConfig(cfg) != 0) {
-            var err: ?[*:0]const u8 = null;
-            if (GetError(cfg, &err) != 0) {
-                if (err) |msg| std.debug.print("jac (embed): python init failed: {s}\n", .{msg});
-            }
-            return Error.InitFailed;
-        }
+        try check(GetError, cfg, InitFromConfig(cfg));
     }
 };
 

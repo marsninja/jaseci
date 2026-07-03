@@ -12,6 +12,7 @@ init config, never the environment.
 import os;
 import shutil;
 import subprocess;
+import sys;
 import pytest;
 
 
@@ -21,8 +22,12 @@ test "embedded interpreter config is not in the environment" {
         # may legitimately export PYTHONPATH); only the binary must be clean.
         pytest.skip("environment hermeticity is a single-binary guarantee");
     }
-    assert "PYTHONHOME" not in os.environ;
-    assert "PYTHONPATH" not in os.environ;
+    # A user may legitimately have their own PYTHONHOME/PYTHONPATH exported
+    # (the fix passes those through untouched), so assert specifically that the
+    # LAUNCHER's values are absent: the leak was exactly PYTHONHOME pointing at
+    # the bundled runtime (sys.prefix) and PYTHONPATH carrying its dirs.
+    assert os.environ.get("PYTHONHOME") != sys.prefix;
+    assert sys.prefix not in os.environ.get("PYTHONPATH", "");
 }
 
 
@@ -40,6 +45,6 @@ test "a foreign python3 child survives being spawned from jac" {
         capture_output=True,
         text=True
     );
-    assert r.returncode == 0, f"python3 child died: {r.stderr[:200]}";
+    assert r.returncode == 0 , f"python3 child died: {r.stderr[:200]}";
     assert "child ok" in r.stdout;
 }
