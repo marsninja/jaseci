@@ -2261,6 +2261,121 @@ impl run_agent(req: object) -> int {
     return 0;
 }
 
+glob _ui_recent_errors: dict = {},
+     _ui_output_capture_installed = False,
+     _ui_emit_tls: any = None,
+     _ui_capture_bus: any = None,
+     _UI_PROVIDER_DEDUP_S = 2.0;
+
+def _ui_provider_fingerprint(text: str) -> str {
+    t = " ".join(text.strip().lower().split());
+    if t.startswith("provider:") {
+        t = t[len("provider:"):].strip();
+    }
+    if t.startswith("llm ") and ":" in t {
+        (head, _, tail) = t.partition(":");
+        if "error" in head or "failed" in head {
+            t = tail.strip();
+        }
+    }
+    return t[:240];
+}
+
+def _ui_purge_stale_provider_errors(now: float) {
+    stale: list[str] = [];
+    for (key, ts) in _ui_recent_errors.items() {
+        if now - ts > _UI_PROVIDER_DEDUP_S {
+            stale.append(key);
+        }
+    }
+    for key in stale {
+        _ui_recent_errors.pop(key, None);
+    }
+}
+
+def _ui_remember_provider_error(text: str) {
+    now = time.monotonic();
+    _ui_purge_stale_provider_errors(now);
+    _ui_recent_errors[_ui_provider_fingerprint(text)] = now;
+}
+
+def _ui_is_duplicate_provider_error(text: str) -> bool {
+    now = time.monotonic();
+    _ui_purge_stale_provider_errors(now);
+    fp = _ui_provider_fingerprint(text);
+    for (key, ts) in _ui_recent_errors.items() {
+        if now - ts > _UI_PROVIDER_DEDUP_S {
+            continue;
+        }
+        if key in fp or fp in key {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _ui_bus_emit_guarded(kind: str, text: str) {
+    global _ui_emit_tls;
+    if _ui_emit_tls is None {
+        _ui_emit_tls = threading.local();
+    }
+    if getattr(_ui_emit_tls, "active", False) {
+        return;
+    }
+    bus = _ui_capture_bus;
+    if bus is None {
+        return;
+    }
+    if kind == "error" and _ui_is_duplicate_provider_error(text) {
+        return;
+    }
+    _ui_emit_tls.active = True;
+    try {
+        bus.emit(kind, {"text": text});
+        if kind == "error" {
+            _ui_remember_provider_error(text);
+        }
+    } finally {
+        _ui_emit_tls.active = False;
+    }
+}
+
+def _ui_loguru_sink(message: any) {
+    import traceback;
+
+    record = message.record;
+    text = str(record["message"]);
+    exc = record.get("exception");
+    if exc is not None {
+        text += "\n" + "".join(
+            traceback.format_exception(exc.type, exc.value, exc.traceback)
+        );
+    }
+    level_no = int(record["level"].no);
+    kind = "error" if level_no >= 40 else "system";
+    _ui_bus_emit_guarded(kind, f"provider: {text}");
+}
+
+impl register_ui_provider_error(exc: any) -> None {
+    _ui_remember_provider_error(str(exc));
+}
+
+impl _install_ui_provider_capture(target_bus: any = None) -> None {
+    global _ui_output_capture_installed,_ui_capture_bus;
+    _ui_capture_bus = target_bus if target_bus is not None else agent.bus;
+    if _ui_output_capture_installed {
+        return;
+    }
+    import from loguru { logger }
+    logger.remove();
+    logger.add(_ui_loguru_sink, level="WARNING");
+    try {
+        import litellm;
+        litellm.suppress_debug_info = True;
+    } except Exception { }
+    _ui_output_capture_installed = True;
+}
+
 impl ui_configure -> None {
     global agent_model;
 
@@ -2313,7 +2428,11 @@ def _ui_turn_worker(prompt: str) {
             verify_and_continue();
         }
     } except Exception as e {
-        agent.bus.emit("error", {"text": f"agent error: {e}"});
+        err_text = f"provider: {e}";
+        if not _ui_is_duplicate_provider_error(err_text) {
+            agent.bus.emit("error", {"text": err_text});
+        }
+        register_ui_provider_error(e);
 
         msg = str(e).lower();
         if (

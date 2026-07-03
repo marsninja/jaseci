@@ -501,6 +501,9 @@ def ui_apply_settings(
 
 def _run_ui_server(r: any) -> int;
 
+def register_ui_provider_error(exc: any) -> None;
+def _install_ui_provider_capture(target_bus: any = None) -> None;
+
 glob _MODEL_PRESETS: list[str] = [
          "anthropic/claude-opus-4-7",
          "anthropic/claude-sonnet-4-6",
