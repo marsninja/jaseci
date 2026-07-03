@@ -206,16 +206,15 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
 
         return None
 
-    def _sealed_spec(
-        self, fullname: str
-    ) -> importlib.machinery.ModuleSpec | None:
+    def _sealed_spec(self, fullname: str) -> importlib.machinery.ModuleSpec | None:
         found = _sealed.find_module(fullname)
         if found is None:
             return None
         image, kind, entry, src_rel = found
         origin = image.virtual_origin(src_rel)
         is_pkg = (
-            entry.get("package", False) if kind == "jir"
+            entry.get("package", False)
+            if kind == "jir"
             else os.path.basename(src_rel) in ext_registry.INIT_FILES
         )
         spec = importlib.machinery.ModuleSpec(

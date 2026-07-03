@@ -100,7 +100,9 @@ def python_tag() -> str:
     return f"cpython-{sys.version_info.major}{sys.version_info.minor}"
 
 
-def _patch_code_filenames(code: types.CodeType, find: str, replace: str) -> types.CodeType:
+def _patch_code_filenames(
+    code: types.CodeType, find: str, replace: str
+) -> types.CodeType:
     """Recursively rewrite ``co_filename`` (pure-Python twin of
     ``jac0core.compiler.patch_co_filenames_bytes``, which is itself a .jac
     module and therefore unavailable while bootstrapping)."""
@@ -223,8 +225,7 @@ def load_image(precompiled_dir: str | Path) -> SealedImage | None:
     tag = manifest.get("python_tag")
     if tag != python_tag():
         raise RuntimeError(
-            f"sealed image {manifest_path}: built for {tag}, "
-            f"running {python_tag()}"
+            f"sealed image {manifest_path}: built for {tag}, running {python_tag()}"
         )
     if manifest.get("jir_format_version") != JIR_FORMAT_VERSION:
         raise RuntimeError(
