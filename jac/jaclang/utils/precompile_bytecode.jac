@@ -125,53 +125,15 @@ def precompile_unit(
     );
 }
 
-def _annex_files(jac_path: str) -> list[str] {
-    import from jaclang.jac0core.bccache {
-        discover_annex_files,
-        discover_variant_files,
-        discover_style_annex
-    }
-    out: list[str] = [];
-    out.extend(discover_annex_files(jac_path, ext_registry.IMPL_SUFFIX));
-    out.extend(discover_annex_files(jac_path, ext_registry.TEST_SUFFIX));
-    out.extend(discover_variant_files(jac_path));
-    style = discover_style_annex(jac_path);
-    if style is not None {
-        out.append(style);
-    }
-    return out;
-}
-
-def strip_sealed_sources(source_paths: list[str]) -> int {
-    victims: set[str] = set();
-    for jac_path in source_paths {
-        victims.add(jac_path);
-        victims.update(_annex_files(jac_path));
-    }
-    removed = 0;
-    for p in sorted(victims) {
-        try {
-            if os.path.isfile(p) {
-                os.remove(p);
-                removed += 1;
-            }
-        } except OSError { }
-    }
-    return removed;
-}
-
-def seal_bootstrap(
-    pkg_dir: Path, out_dir: Path, embed_src: bool
-) -> tuple[list[str], int] {
+def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     import from jaclang.jac0 {
         compile_jac as jac0_compile,
         discover_impl_files as jac0_impls
     }
     boot_dir = pkg_dir / "jac0core";
-    boot_sources: list[str] = [];
     failed = 0;
     if not boot_dir.is_dir() {
-        return (boot_sources, failed);
+        return failed;
     }
     for jac_file in sorted(boot_dir.rglob("*.jac")) {
         if ext_registry.is_annex(str(jac_file)) {
@@ -208,14 +170,12 @@ def seal_bootstrap(
             jir_path = out_dir / jir_rel;
             jir_path.parent.mkdir(parents=True, exist_ok=True);
             jir_path.write_bytes(write_precompiled_jir(bc, "", FLAG_BOOTSTRAP, extra));
-            boot_sources.append(str(jac_file));
-            boot_sources.extend(impl_paths);
         } except Exception as e {
             console.error(f"BOOTSTRAP FAIL: {jac_file.name} - {e}");
             failed += 1;
         }
     }
-    return (boot_sources, failed);
+    return failed;
 }
 
 def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
@@ -255,20 +215,13 @@ def seal_finalize(
     }
 
     console.print("  Freezing jac0core bootstrap layer...");
-    (boot_sources, boot_failed) = seal_bootstrap(pkg_path, out_dir, embed_src);
+    boot_failed = seal_bootstrap(pkg_path, out_dir, embed_src);
     if boot_failed > 0 {
         console.error(f"Seal aborted: {boot_failed} bootstrap module(s) failed.");
         return 1;
     }
-    console.print(f"  Frozen {len(set(boot_sources))} bootstrap source files");
 
-    keep_source = {"jir_registry.jac"};
     manifest_modules: dict[str, dict] = {};
-    sealed_sources: list[str] = [
-        s
-        for s in boot_sources
-        if os.path.basename(s) not in keep_source
-    ];
     n_boot = 0;
     for jir in sorted(out_dir.rglob("*.jir")) {
         rel_jir = jir.relative_to(out_dir).as_posix();
@@ -284,17 +237,11 @@ def seal_finalize(
             n_boot += 1;
         }
         manifest_modules[source_rel] = entry;
-        if os.path.basename(source_rel) not in keep_source {
-            sealed_sources.append(str(pkg_path / source_rel));
-        }
     }
     console.print(f"  Manifest modules: {len(manifest_modules)} ({n_boot} bootstrap)");
 
     write_manifest(precompiled_dir, pkg_name, pyver, manifest_modules);
     console.print(f"  Manifest: {precompiled_dir / MANIFEST_NAME}");
-
-    removed = strip_sealed_sources(sealed_sources);
-    console.print(f"  Stripped {removed} sealed .jac source files");
     return 0;
 }
 

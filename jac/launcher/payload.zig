@@ -1075,13 +1075,6 @@ fn mkPayload(
 
     try stageTree(io, gpa, a, pbs_py_dir, site, stage, musl_dir, wasm_libc_dir);
 
-    // A sealed payload is fully source-free: after the .jac sources are stripped
-    // (precompiler --seal), compile the bundled CPython stdlib + jaclang .py to
-    // sourceless unchecked-hash .pyc and drop the .py too (#7135 phase E).
-    if (seal) {
-        try sourcelessPy(io, gpa, a, parent_env, py, pbs_py_dir, stage);
-    }
-
     log("==> packing tar | gzip", .{});
     try tarGzDir(io, gpa, a, stage, out);
     log("==> payload: {s}", .{out});
@@ -1202,73 +1195,6 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     }
 }
 
-/// Compile the staged tree to sourceless unchecked-hash .pyc (PEP 552) and drop
-/// the .py, so the payload ships bytecode-only Python too (#7135 phase E). Runs
-/// `compileall` with `--invalidation-mode unchecked-hash` (the pinned bundled
-/// CPython never revalidates), then relocates each `X/__pycache__/m.cpython-*.pyc`
-/// to the sourceless `X/m.pyc` and removes `X/m.py`. Best-effort per file; a
-/// compile failure leaves that module as .py (still importable).
-fn sourcelessPy(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Environ.Map, py: []const u8, pbs_py_dir: []const u8, stage: []const u8) !void {
-    log("==> compiling stdlib + jaclang .py -> sourceless .pyc (#7135 phase E)", .{});
-    const stdlib = try std.fmt.allocPrint(a, "{s}/python/lib/python{s}", .{ stage, py_ver });
-    // Scope: the stdlib and jaclang itself. Deliberately NOT the pip-installed
-    // site-packages (pytest / pytest-xdist / execnet / ...): execnet ships its
-    // own functions to xdist workers via inspect.getsource, so stripping its .py
-    // hard-fails `jac test`. Those are dev tooling off the hot path, so keeping
-    // their source is harmless. jaclang's own tree is the source-free target.
-    const jaclang = try std.fmt.allocPrint(a, "{s}/site/jaclang", .{stage});
-
-    var env = try cloneEnv(gpa, parent_env);
-    defer env.deinit();
-    try env.put("PYTHONHOME", try std.fmt.allocPrint(a, "{s}/install", .{pbs_py_dir}));
-    // Default optimization level (no -o): the .pyc is tagged plain
-    // `<mod>.cpython-<tag>.pyc`, which is what the runtime (optimize=0) resolves
-    // as the sourceless `<mod>.pyc`. -o1/-o2 would tag `.opt-N.pyc` and the
-    // relocate below would miss it. -q quiet, -f force, unchecked-hash so the
-    // first run never re-stats a (now-absent) source.
-    _ = runChild(io, &.{
-        py,   "-S", "-m",                  "compileall",
-        "-q", "-f", "--invalidation-mode", "unchecked-hash",
-        stdlib, jaclang,
-    }, &env, true);
-
-    try relocateSourceless(io, gpa, a, stdlib);
-    try relocateSourceless(io, gpa, a, jaclang);
-}
-
-/// Walk `root`; for every `.py` with a matching `__pycache__/<stem>.<tag>.pyc`,
-/// move the .pyc to the sourceless location `<dir>/<stem>.pyc` and delete the
-/// .py. Leaves .py whose compile was skipped (no .pyc) untouched.
-fn relocateSourceless(io: Io, gpa: Allocator, a: Allocator, root: []const u8) !void {
-    // __pycache__ tag: py_ver "3.14" -> "cpython-314" (dot stripped).
-    const nodot = try std.mem.replaceOwned(u8, a, py_ver, ".", "");
-    const tag = try std.fmt.allocPrint(a, "cpython-{s}", .{nodot});
-    var dir = Dir.cwd().openDir(io, root, .{ .iterate = true }) catch return;
-    defer dir.close(io);
-    var walker = try dir.walk(gpa);
-    defer walker.deinit();
-    while (try walker.next(io)) |entry| {
-        if (entry.kind != .file or !std.mem.endsWith(u8, entry.path, ".py")) continue;
-        const stem = entry.path[0 .. entry.path.len - 3];
-        const d = std.fs.path.dirname(entry.path) orelse "";
-        const base = std.fs.path.basename(stem);
-        const pyc = if (d.len == 0)
-            try std.fmt.allocPrint(a, "__pycache__/{s}.{s}.pyc", .{ base, tag })
-        else
-            try std.fmt.allocPrint(a, "{s}/__pycache__/{s}.{s}.pyc", .{ d, base, tag });
-        const dst = try std.fmt.allocPrint(a, "{s}.pyc", .{stem});
-        Dir.rename(dir, pyc, dir, dst, io) catch continue; // no .pyc -> keep the .py
-        dir.deleteFile(io, entry.path) catch {};
-    }
-    // Drop now-empty __pycache__ dirs (best-effort).
-    var w2 = dir.walk(gpa) catch return;
-    defer w2.deinit();
-    while (w2.next(io) catch null) |e| {
-        if (e.kind == .directory and std.mem.eql(u8, std.fs.path.basename(e.path), "__pycache__")) {
-            dir.deleteTree(io, e.path) catch {};
-        }
-    }
-}
 
 fn countJir(io: Io, gpa: Allocator, dir_path: []const u8) usize {
     var dir = Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return 0;

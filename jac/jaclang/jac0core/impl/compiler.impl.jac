@@ -123,6 +123,29 @@ impl JacCompiler.get_bytecode(
         return marshal.loads(codeobj) if isinstance(codeobj, `bytes) else None;
     }
 
+    if not rebuild {
+        sealed_data = self._sealed_jir_data(full_target);
+        if sealed_data is not None {
+            import from jaclang.jac0core.jir { PRECOMPILE_SENTINEL }
+            bc = read_bytecode_only(sealed_data);
+            if bc is not None {
+                magic0: any = SECTIONS_MAGIC;
+                sp0 = sealed_data.find(magic0, HEADER_SIZE);
+                if sp0 >= 0 {
+                    self._restore_sections(
+                        full_target,
+                        actual_program,
+                        read_sections(sealed_data, sp0 + len(magic0))
+                    );
+                }
+                d0 = os.path.dirname(os.path.normpath(os.path.abspath(full_target)));
+                return marshal.loads(
+                    patch_co_filenames_bytes(bc, PRECOMPILE_SENTINEL, d0)
+                );
+            }
+        }
+    }
+
     cache_path = get_module_cache_path(full_target);
     if (not rebuild) and is_module_cache_valid(full_target, cache_path) {
         try {
@@ -399,6 +422,43 @@ impl JacCompiler._restore_sections(
         } except Exception {
             ;
         }
+    }
+}
+
+impl JacCompiler._sealed_jir_data(full_target: str) -> (bytes | None) {
+    import from pathlib { Path as _Path }
+    import from jaclang.jac0core { sealed as _sealed }
+    norm_file = os.path.normpath(os.path.abspath(full_target));
+    d = os.path.dirname(norm_file);
+    pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";
+    while True {
+        bundle_dir = os.path.join(d, '_precompiled');
+        if os.path.isdir(bundle_dir) {
+            if _sealed.image_for_bundle_dir(bundle_dir) is None {
+                return None;
+            }
+            norm_root = os.path.normpath(d);
+            if not norm_file.startswith(norm_root + os.sep) {
+                return None;
+            }
+            rel_path = norm_file[len(norm_root) + 1:];
+            jir_path = os.path.join(
+                bundle_dir, pyver, os.path.splitext(rel_path)[0] + '.jir'
+            );
+            if os.path.isfile(jir_path) {
+                try {
+                    return _Path(jir_path).read_bytes();
+                } except OSError {
+                    return None;
+                }
+            }
+            return None;
+        }
+        parent = os.path.dirname(d);
+        if parent == d {
+            return None;
+        }
+        d = parent;
     }
 }
 
