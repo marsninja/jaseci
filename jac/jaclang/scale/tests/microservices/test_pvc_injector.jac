@@ -3,7 +3,8 @@ import io;
 import tarfile;
 import tempfile;
 import tomllib;
-import from jaclang.scale.injector.bundle { pack_source }
+import from unittest.mock { patch }
+import from jaclang.scale.injector.bundle { bake_database_intent, pack_source }
 import from jaclang.scale.injector.pvc_injector { PvcInjector, build_bundle_pvc }
 
 
@@ -98,6 +99,15 @@ test "pack_source bakes into [scale.database] when the project uses the [scale] 
         # baked intent must land where the pod will actually read it.
         assert data["scale"]["database"]["backend"] == "mongo";
         assert "plugins" not in data;
+    }
+}
+
+
+test "bake_database_intent warns and ships unbaked when the toml will not parse" {
+    broken = "[project\nname = \"x\"\n";
+    with patch("logging.Logger.warning") as mock_warn {
+        assert bake_database_intent(broken, "mongo") == broken;
+        mock_warn.assert_called_once();
     }
 }
 

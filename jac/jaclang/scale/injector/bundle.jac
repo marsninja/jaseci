@@ -1,8 +1,11 @@
 import io;
 import hashlib;
+import logging;
 import tarfile;
 import tomllib;
 import from pathlib { Path }
+
+glob logger = logging.getLogger(__name__);
 
 glob APP_VOLUME_NAME: str = "jac-app",
      APP_MOUNT_PATH: str = "/app",
@@ -97,7 +100,12 @@ def bake_database_intent(toml_text: str, backend: str) -> str {
     }
     try {
         data = tomllib.loads(toml_text);
-    } except Exception {
+    } except tomllib.TOMLDecodeError as exc {
+        logger.warning(
+            f"Sanitized jac.toml is not parseable ({exc}); shipping it without "
+            f"the provisioned '{backend}' database intent -- the pod's install "
+            f"may miss the matching data capability."
+        );
         return toml_text;
     }
     scale = data.get("scale");

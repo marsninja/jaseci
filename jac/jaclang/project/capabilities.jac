@@ -415,6 +415,14 @@ def ensure_global_capability(capability: str) -> bool {
         text=True
     );
     importlib.invalidate_caches();
+    if result.returncode != 0 {
+        import logging;
+        detail = (result.stderr or result.stdout or "").strip();
+        logging.getLogger(__name__).warning(
+            f"pip install into the jac global site failed for capability "
+            f"'{capability}' ({' '.join(missing)}): {detail}"
+        );
+    }
     return result.returncode == 0 and not missing_capability_dists(capability);
 }
 

@@ -435,6 +435,20 @@ test "ensure_global_capability pip-installs only the missing deploy tooling" {
     }
 }
 
+test "ensure_global_capability reports failure and logs when pip errors" {
+    import from importlib { metadata }
+    with patch("importlib.metadata.distribution") as mock_dist, patch(
+        "subprocess.run"
+    ) as mock_run, patch("logging.Logger.warning") as mock_warn {
+        mock_dist.side_effect = metadata.PackageNotFoundError("gone");
+        mock_run.return_value.returncode = 1;
+        mock_run.return_value.stderr = "No matching distribution found";
+        assert not ensure_global_capability("deploy.k8s");
+        mock_warn.assert_called_once();
+        assert "No matching distribution found" in mock_warn.call_args[0][0];
+    }
+}
+
 test "ensure_global_capability is a no-op when tooling is already present" {
     with patch("importlib.metadata.distribution"), patch(
         "subprocess.run"

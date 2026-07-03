@@ -23,7 +23,12 @@ def _ensure_deploy_tooling {
         f"Deploy tooling missing; installing {', '.join(missing)} "
         f"(capability 'deploy.k8s') into the jac global site."
     );
-    ensure_global_capability("deploy.k8s");
+    if not ensure_global_capability("deploy.k8s") {
+        console.warning(
+            "Automatic install of the deploy tooling failed; run "
+            "'jac install --scale' to see the full pip output."
+        );
+    }
 }
 
 class DeploymentTargetFactory {
