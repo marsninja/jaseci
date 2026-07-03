@@ -150,6 +150,15 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         target: ModuleType | None = None,
     ) -> importlib.machinery.ModuleSpec | None:
         """Find the spec for the module."""
+        # Sealed image is authoritative: a sealed binary resolves its modules
+        # from the manifest by name, with no filesystem probing for .jac. This
+        # is the primary path (not a fallback) so a sealed runtime never touches
+        # the disk for its own code. In an unsealed dev tree no image is loaded,
+        # so this is a no-op and resolution falls through to the source search.
+        sealed_spec = self._sealed_spec(fullname)
+        if sealed_spec is not None:
+            return sealed_spec
+
         if path is None:
             # Top-level import
             paths_to_search = get_jac_search_paths()
@@ -195,10 +204,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                         fullname, module_file, loader=self
                     )
 
-        # Sealed fallback: no source on disk, but the manifest may carry this
-        # module as precompiled JIR (or frozen bootstrap). Synthesize a spec at
-        # the module's virtual origin so exec_module's existing machinery works.
-        return self._sealed_spec(fullname)
+        return None
 
     def _sealed_spec(
         self, fullname: str
@@ -365,6 +371,18 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         This method is required by runpy when using `python -m module`.
         """
         from jaclang.jac0core.runtime import JacRuntime as Jac
+
+        # Sealed image is authoritative (see find_spec): resolve a sealed module
+        # by name from the manifest, no filesystem probing.
+        sealed_spec = self._sealed_spec(fullname)
+        if sealed_spec is not None and sealed_spec.origin:
+            found = _sealed.find_module(fullname)
+            if found is not None and found[1] == "bootstrap":
+                return found[0].bootstrap_code(fullname)
+            return Jac.get_compiler().get_bytecode(
+                full_target=sealed_spec.origin,
+                target_program=Jac.get_program(),
+            )
 
         # Find the .jac file for this module
         paths_to_search = get_jac_search_paths()

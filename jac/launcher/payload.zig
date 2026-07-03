@@ -132,7 +132,7 @@ pub fn main(init: std.process.Init) !void {
             try fetchTypeshed(io, gpa, a, argv[2]);
         },
         .mkpayload => {
-            if (n < 5) die("usage: payload mkpayload <pbs-python-dir> <repo-root> <out.tar.gz> [--shim=PATH] [--skip-precompile] [--link-source=PATH] [--precompiled-cache=DIR] [--seal] [--debug-src]", .{});
+            if (n < 5) die("usage: payload mkpayload <pbs-python-dir> <repo-root> <out.tar.gz> [--shim=PATH] [--skip-precompile] [--link-source=PATH] [--precompiled-cache=DIR] [--seal] [--debug-src]\n(--seal implies source-free: strips .jac + compiles stdlib/jaclang .py to sourceless .pyc)", .{});
             // Trailing flags (after the positional pbs/root/out, see build.zig):
             var shim_so: ?[]const u8 = null;
             var pyembed_so: ?[]const u8 = null;
@@ -143,7 +143,6 @@ pub fn main(init: std.process.Init) !void {
             var precompiled_cache: ?[]const u8 = null;
             var seal = false;
             var debug_src = false;
-            var sourceless_py = false;
             var i: usize = 5;
             while (i < n) : (i += 1) {
                 const arg = argv[i];
@@ -165,11 +164,9 @@ pub fn main(init: std.process.Init) !void {
                     seal = true;
                 } else if (std.mem.eql(u8, arg, "--debug-src")) {
                     debug_src = true;
-                } else if (std.mem.eql(u8, arg, "--sourceless-py")) {
-                    sourceless_py = true;
                 }
             }
-            try mkPayload(io, gpa, a, init.environ_map, argv[2], argv[3], argv[4], shim_so, pyembed_so, bun_bin, skip_precompile, link_source, musl_dir, precompiled_cache, seal, debug_src, sourceless_py);
+            try mkPayload(io, gpa, a, init.environ_map, argv[2], argv[3], argv[4], shim_so, pyembed_so, bun_bin, skip_precompile, link_source, musl_dir, precompiled_cache, seal, debug_src);
         },
         .@"typeshed-sha" => {
             if (n < 3) die("usage: payload typeshed-sha <commit>", .{});
@@ -818,12 +815,6 @@ fn mkPayload(
     // Embed zlib source text in each sealed .jir so tracebacks still show source
     // lines with no .jac on disk (dev sealed builds); release omits it.
     debug_src: bool,
-    // Compile the bundled CPython stdlib + jaclang .py to sourceless unchecked-
-    // hash .pyc (PEP 552) and drop the .py (#7135 phase E). Safe because the
-    // interpreter is pinned to the exact bundled CPython. OPT-IN: it needs a
-    // full-binary e2e to validate (inspect.getsource / data-adjacent stdlib
-    // modules), which the CI build provides -- not on by default with seal.
-    sourceless_py: bool,
 ) !void {
     const py = try resolvePython(io, a, pbs_py_dir);
     const work = try std.fmt.allocPrint(a, "{s}.work", .{out});
@@ -983,7 +974,10 @@ fn mkPayload(
 
     try stageTree(io, gpa, a, pbs_py_dir, site, stage, musl_dir);
 
-    if (sourceless_py) {
+    // A sealed payload is fully source-free: after the .jac sources are stripped
+    // (precompiler --seal), compile the bundled CPython stdlib + jaclang .py to
+    // sourceless unchecked-hash .pyc and drop the .py too (#7135 phase E).
+    if (seal) {
         try sourcelessPy(io, gpa, a, parent_env, py, pbs_py_dir, stage);
     }
 
@@ -1014,9 +1008,12 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     }
 
     // Flags forwarded to precompile_bytecode.jac (after the site positional).
-    // Sealing implies --strip-sources so the payload ships no importable .jac.
+    // Pass 1 is compile-only (--seal-compile excludes jac0core and does NOT
+    // finalize/strip), so a mid-loop crash on an un-precompilable native module
+    // leaves the generated JIRs + intact sources for the crash-isolated
+    // --seal-finalize pass below.
     const flags = try std.fmt.allocPrint(a, "{s}{s}", .{
-        if (seal) ", '--seal', '--strip-sources'" else "",
+        if (seal) ", '--seal-compile'" else "",
         if (seal and debug_src) ", '--debug-src'" else "",
     });
 
@@ -1067,9 +1064,31 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
         die("mkpayload: only {d} JIR produced (expected >=300); precompiler likely crashed.", .{jir});
     }
     if (seal) {
-        // Seal is strict: the precompiler writes MANIFEST.json only on a clean
-        // seal (zero module + bootstrap failures) and strips the .jac sources.
-        // Its absence means the seal aborted -- never ship a half-sealed tree.
+        // Second, crash-isolated pass: the best-effort precompile above can die
+        // mid-loop on an un-precompilable native module (the "exits non-zero by
+        // design" case), which would skip the inline seal. --seal-finalize does
+        // ONLY the seal (build the manifest from the generated JIRs, freeze the
+        // bootstrap, strip) with no compilation, so it always completes.
+        const fin_flags = try std.fmt.allocPrint(a, ", '--seal-finalize'{s}", .{
+            if (debug_src) ", '--debug-src'" else "",
+        });
+        const fin_boot = try std.fmt.allocPrint(a, "{s}/seal_finalize_boot.py", .{site});
+        try Dir.cwd().writeFile(io, .{
+            .sub_path = fin_boot,
+            .data = try std.fmt.allocPrint(a,
+                \\import sys
+                \\import _jac_finder; _jac_finder.install()
+                \\sys.argv = ['jac', 'run', r'''{s}''', r'''{s}'''{s}]
+                \\from jaclang.jac0core.cli_boot import start_cli
+                \\start_cli()
+                \\
+            , .{ pc, site, fin_flags }),
+        });
+        log("==> sealing (finalize): manifest + freeze bootstrap + strip sources", .{});
+        if (!runChild(io, &.{ py, "-S", fin_boot }, &env, true))
+            die("mkpayload: seal-finalize failed (see log above).", .{});
+
+        // Strict: MANIFEST.json must exist -- never ship a half-sealed tree.
         const manifest = try std.fmt.allocPrint(a, "{s}/MANIFEST.json", .{pre_dir});
         if (!fileExists(io, manifest)) {
             die("mkpayload: seal produced no MANIFEST.json; the seal failed (see log above).", .{});
@@ -1092,13 +1111,15 @@ fn sourcelessPy(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.E
     var env = try cloneEnv(gpa, parent_env);
     defer env.deinit();
     try env.put("PYTHONHOME", try std.fmt.allocPrint(a, "{s}/install", .{pbs_py_dir}));
-    // Sourceless load resolves m.pyc beside where m.py was, so keep lib-dynload
-    // and encodings compiling; -o2 strips docstrings+asserts for the smallest
-    // image. -q quiet, -f force, unchecked-hash so first run never re-stats.
+    // Default optimization level (no -o): the .pyc is tagged plain
+    // `<mod>.cpython-<tag>.pyc`, which is what the runtime (optimize=0) resolves
+    // as the sourceless `<mod>.pyc`. -o1/-o2 would tag `.opt-N.pyc` and the
+    // relocate below would miss it. -q quiet, -f force, unchecked-hash so the
+    // first run never re-stats a (now-absent) source.
     _ = runChild(io, &.{
-        py,                    "-S",              "-m",           "compileall",
-        "-q",                  "-f",              "-o",           "2",
-        "--invalidation-mode", "unchecked-hash",  stdlib,         site,
+        py,   "-S", "-m",                  "compileall",
+        "-q", "-f", "--invalidation-mode", "unchecked-hash",
+        stdlib, site,
     }, &env, true);
 
     try relocateSourceless(io, gpa, a, stdlib);
@@ -1126,7 +1147,7 @@ fn relocateSourceless(io: Io, gpa: Allocator, a: Allocator, root: []const u8) !v
         else
             try std.fmt.allocPrint(a, "{s}/__pycache__/{s}.{s}.pyc", .{ d, base, tag });
         const dst = try std.fmt.allocPrint(a, "{s}.pyc", .{stem});
-        dir.rename(pyc, dst, io) catch continue; // no .pyc -> keep the .py
+        Dir.rename(dir, pyc, dir, dst, io) catch continue; // no .pyc -> keep the .py
         dir.deleteFile(io, entry.path) catch {};
     }
     // Drop now-empty __pycache__ dirs (best-effort).

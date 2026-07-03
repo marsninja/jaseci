@@ -1348,80 +1348,94 @@ def _bundle_wheel(config: any, output: str) -> int {
     return 0;
 }
 
-# shutil.copytree ignore callback: drop caches/artifacts from the seal staging copy.
+# shutil.copytree ignore callback: drop caches, VCS, and build-output dirs from
+# the seal staging copy (the output dir lives under the project, so copying it
+# back in would recurse; env/build trees are irrelevant to the sealed image).
 def _seal_copy_ignore(_dir: str, items: list) -> list {
-    return [
-        it for it in items
-        if it in ("__pycache__", "node_modules", ".jac", "_precompiled")
-    ];
+    drop = ["__pycache__", "node_modules", ".jac", "_precompiled", ".git", ".venv", "venv", "dist", "build", ".mypy_cache", ".pytest_cache"];
+    return [it for it in items if it in drop or it.endswith("-seal-stage")];
 }
 
-# Produce a portable *sealed image* of the project package (#7135 phase G): the
-# same manifest+JIR format the jac runtime itself is sealed with, so a user app
-# ships source-free and loads via the runtime's SealedImageFinder. This reuses
-# the exact precompiler --seal --strip-sources path; wrapping it into a launcher
-# stub (a standalone `binary` target) rides the zig pack toolchain and lands as
-# a follow-up. The output dir here is a drop-in _precompiled/-bearing package a
-# host jac can `register_image()` + import.
-def _bundle_sealed(config: any, output: str) -> int {
+# Resolve the bundled precompiler entry (.jac). sys.prefix in the sealed binary,
+# else the installed jaclang package dir.
+def _resolve_precompiler -> str {
+    import sys;
+    cand = Path(sys.prefix) / "jaclang" / "utils" / "precompile_bytecode.jac";
+    if cand.exists() {
+        return str(cand);
+    }
+    import from importlib.util { find_spec }
+    spec = find_spec("jaclang");
+    if spec is not None and spec.submodule_search_locations {
+        return str(
+            Path(list(spec.submodule_search_locations)[0])
+            / "utils" / "precompile_bytecode.jac"
+        );
+    }
+    return str(cand);
+}
+
+# Build a source-free *sealed image* of the project package into
+# `<parent>/<name>/` and return that package dir (or None on failure). The image
+# is the same manifest+JIR format the jac runtime itself is sealed with, so it
+# loads via the runtime's SealedImageFinder. Seals a COPY so the project's own
+# sources are never stripped.
+def _make_sealed_image(config: any, parent: Path, name: str) -> (Path | None) {
     import shutil;
     import sys;
     import subprocess;
+    import tempfile;
     import from jaclang.jac0core { ext_registry }
 
     proj_root = config.project_root;
     if proj_root is None {
-        console.error("No project root for sealed bundle.");
-        return 1;
+        console.error("No project root to seal.");
+        return None;
     }
-    name = config.project.name;
-    out_dir = Path(output) / f"{name}-sealed";
-    console.print(f"\n  Sealing {name} → {out_dir}...", style="muted");
-
-    # Seal a COPY so the project's own sources are never stripped. The copy is a
-    # package dir (holds the importable modules); the precompiler's
-    # find_package_dir picks it up from the staging parent.
-    stage = Path(output) / f".{name}-seal-stage";
-    if stage.exists() {
-        shutil.rmtree(stage);
-    }
-    pkg_copy = stage / name;
-    shutil.copytree(proj_root, pkg_copy, ignore=_seal_copy_ignore);
-    # A package needs an __init__; synthesize an empty one if the project omits it.
-    has_init = any((pkg_copy / f).exists() for f in ext_registry.INIT_FILES);
-    if not has_init and not (pkg_copy / "__init__.py").exists() {
-        (pkg_copy / "__init__.jac").write_text("");
-    }
-
-    precompiler = str(
-        Path(sys.prefix) / "jaclang" / "utils" / "precompile_bytecode.jac"
-    );
-    if not Path(precompiler).exists() {
-        import from importlib.util { find_spec }
-        spec = find_spec("jaclang");
-        if spec is not None and spec.submodule_search_locations {
-            precompiler = str(
-                Path(list(spec.submodule_search_locations)[0])
-                / "utils" / "precompile_bytecode.jac"
-            );
+    # Stage OUTSIDE the project tree: the output dir lives under the project, so
+    # staging there would make the copytree re-include its own destination.
+    stage = Path(tempfile.mkdtemp(prefix=f"{name}-seal-"));
+    try {
+        pkg_copy = stage / name;
+        shutil.copytree(proj_root, pkg_copy, ignore=_seal_copy_ignore);
+        # A package needs an __init__; synthesize one if the project omits it.
+        has_init = any((pkg_copy / f).exists() for f in ext_registry.INIT_FILES);
+        if not has_init and not (pkg_copy / "__init__.py").exists() {
+            (pkg_copy / "__init__.jac").write_text("");
         }
-    }
-    rc = subprocess.call(
-        [sys.executable, "run", precompiler, str(stage), "--seal", "--strip-sources"]
-    );
-    if rc != 0 {
-        console.error("Seal failed; not writing sealed bundle.");
+
+        rc = subprocess.call(
+            [sys.executable, "run", _resolve_precompiler(), str(stage), "--seal"]
+        );
+        if rc != 0 {
+            console.error("Seal failed.");
+            return None;
+        }
+
+        parent.mkdir(parents=True, exist_ok=True);
+        dest = parent / name;
+        if dest.exists() {
+            shutil.rmtree(dest);
+        }
+        shutil.move(str(pkg_copy), str(dest));
+        return dest;
+    } finally {
         shutil.rmtree(stage, ignore_errors=True);
+    }
+}
+
+# `jac bundle --target sealed`: a portable source-free package (drop-in
+# `_precompiled/`-bearing dir) a host jac can `register_image()` + import.
+def _bundle_sealed(config: any, output: str) -> int {
+    name = config.project.name;
+    Path(output).mkdir(parents=True, exist_ok=True);
+    console.print(f"\n  Sealing {name}...", style="muted");
+    dest = _make_sealed_image(config, Path(output), f"{name}-sealed");
+    if dest is None {
         return 1;
     }
-
-    if out_dir.exists() {
-        shutil.rmtree(out_dir);
-    }
-    shutil.move(str(pkg_copy), str(out_dir));
-    shutil.rmtree(stage, ignore_errors=True);
     console.print(
-        f"  ✔ Sealed image at [cyan]{out_dir}[/cyan] (source-free; _precompiled/MANIFEST.json)",
+        f"  ✔ Sealed image at [cyan]{dest}[/cyan] (source-free; _precompiled/MANIFEST.json)",
         style="success"
     );
     console.print(
@@ -1429,6 +1443,153 @@ def _bundle_sealed(config: any, output: str) -> int {
         style="muted"
     );
     return 0;
+}
+
+# `jac bundle --target binary`: seal the app, then wrap it onto a copy of the
+# running (sealed) jac binary as a self-contained executable. The running binary
+# is `[stub][runtime.tar.gz][JACBIN01 trailer]`; we rebuild the gzip'd tar with
+# the app's sealed image staged under `site/<app>/` plus a `site/jac_app.json`
+# boot marker, then re-emit `[stub][payload][trailer]`. cli_boot honors the
+# marker (register_image + runpy the entry). No zig toolchain needed at bundle
+# time -- pure trailer surgery on the donor binary.
+def _bundle_binary(config: any, output: str) -> int {
+    import sys;
+    import os;
+    import io;
+    import gzip;
+    import tarfile;
+    import struct;
+    import hashlib;
+    import shutil;
+    import tempfile;
+    import json;
+    import from jaclang.jac0core.sealed { MANIFEST_NAME }
+
+    name = config.project.name;
+    donor = os.path.realpath(sys.executable);
+    (stub, _payload) = _split_jac_binary(donor);
+    if stub is None {
+        console.error(
+            "jac bundle --target binary needs a bundled (sealed) jac binary as the "
+            "donor; the current interpreter is not one (dev / link-source build).",
+            hint="Run it with an installed single-file jac binary."
+        );
+        return 1;
+    }
+
+    Path(output).mkdir(parents=True, exist_ok=True);
+    work = Path(tempfile.mkdtemp(prefix="jacbin-", dir=output));
+    try {
+        console.print(f"\n  Sealing {name} for binary...", style="muted");
+        img = _make_sealed_image(config, work, name);
+        if img is None {
+            return 1;
+        }
+        if not (img / "_precompiled" / MANIFEST_NAME).is_file() {
+            console.error("Seal produced no manifest; aborting binary.");
+            return 1;
+        }
+
+        # Explode the donor runtime payload, splice in the app + boot marker.
+        console.print("  Unpacking runtime payload...", style="muted");
+        stage = work / "stage";
+        with tarfile.open(fileobj=io.BytesIO(gzip.decompress(_payload))) as tf {
+            tf.extractall(stage);
+        }
+        site = stage / "site";
+        shutil.copytree(img, site / name);
+        entry_mod = _app_entry_module(img, name);
+        (site / "jac_app.json").write_text(
+            json.dumps({"package": name, "entry": entry_mod})
+        );
+
+        console.print(f"  Repacking binary (entry: {entry_mod})...", style="muted");
+        payload = _tar_gz_dir(stage);
+        digest = hashlib.sha256(payload).hexdigest();
+        trailer = b"JACBIN01" + struct.pack("<Q", len(payload)) + digest.encode();
+
+        out_bin = Path(output) / name;
+        with open(out_bin, "wb") as f {
+            f.write(stub);
+            f.write(payload);
+            f.write(trailer);
+        }
+        os.chmod(out_bin, 0o755);
+    } finally {
+        shutil.rmtree(work, ignore_errors=True);
+    }
+    console.print(
+        f"  ✔ Built self-contained binary [cyan]{out_bin}[/cyan] "
+        f"({out_bin.stat().st_size:,} bytes)",
+        style="success"
+    );
+    console.print(f"  Run it directly: ./{out_bin.relative_to(Path.cwd())} (or {out_bin})", style="muted");
+    return 0;
+}
+
+# Split a jac single binary into (stub, gzip'd tar payload), or (None, None) when
+# it is not a JACBIN01-trailered bundle (dev / link-source donors have none).
+def _split_jac_binary(path: str) -> tuple {
+    import struct;
+    with open(path, "rb") as f {
+        data = f.read();
+    }
+    if len(data) < 80 or data[-80:-72] != b"JACBIN01" {
+        return (None, None);
+    }
+    (plen, ) = struct.unpack("<Q", data[-72:-64]);
+    end = len(data) - 80;
+    start = end - plen;
+    if start < 0 {
+        return (None, None);
+    }
+    return (data[:start], data[start:end]);
+}
+
+# Deterministic gzip'd tar of `top`'s contents (sorted, fixed mtime) -> bytes.
+def _tar_gz_dir(top: Path) -> bytes {
+    import io;
+    import gzip;
+    import tarfile;
+    import os;
+    buf = io.BytesIO();
+    with tarfile.open(fileobj=buf, mode="w") as tf {
+        for (dirpath, dirnames, filenames) in os.walk(str(top)) {
+            dirnames.sort();
+            for fn in sorted(filenames) {
+                full = Path(dirpath) / fn;
+                tf.add(str(full), arcname=str(full.relative_to(top)));
+            }
+        }
+    }
+    return gzip.compress(buf.getvalue(), 6, mtime=0);
+}
+
+# Pick the app entry module: the project's configured entrypoint if any, else a
+# top-level `main` module, else the package itself (runs its __init__ entry).
+def _app_entry_module(img: Path, name: str) -> str {
+    for cand in ("main", "app", "__main__") {
+        if _sealed_has_module(img, f"{name}.{cand}") {
+            return f"{name}.{cand}";
+        }
+    }
+    return name;
+}
+
+def _sealed_has_module(img: Path, fullname: str) -> bool {
+    import json;
+    import from jaclang.jac0core.sealed { MANIFEST_NAME }
+    manifest = img / "_precompiled" / MANIFEST_NAME;
+    if not manifest.is_file() {
+        return False;
+    }
+    data = json.loads(manifest.read_text());
+    for ent in data.get("modules", {}).values() {
+        if ent.get("module") == fullname {
+            return True;
+        }
+    }
+    return False;
 }
 
 def _bundle_npm(config: any, output: str) -> int {
@@ -1504,10 +1665,13 @@ impl bundle(output: str = "dist", target: str = "wheel") -> int {
     if target == "sealed" {
         return _bundle_sealed(config, output);
     }
+    if target == "binary" {
+        return _bundle_binary(config, output);
+    }
     if target not in ("wheel", "npm", "all") {
         console.error(
             f"Unknown bundle target: '{target}'",
-            hint="Use --target wheel, npm, sealed, or all."
+            hint="Use --target wheel, npm, sealed, binary, or all."
         );
         return 1;
     }

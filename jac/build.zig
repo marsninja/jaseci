@@ -280,23 +280,17 @@ pub fn build(b: *std.Build) void {
             mk.addArg(b.fmt("--precompiled-cache={s}", .{b.pathFromRoot(".precompiled-build")}));
         }
 
-        // Seal the runtime (issue #7135): a release payload ships NO importable
-        // .jac sources -- it boots source-free from the JIR image + frozen
-        // jac0core bootstrap. On by default; -Dno-seal ships sources (the old
-        // shape) for debugging. Sealing needs a real bundled precompile, so it
-        // is inert under -Ddev/-Djaclang-dir (link-source) and -Dskip-precompile.
-        const no_seal = b.option(bool, "no-seal", "Ship .jac sources in the payload instead of a sealed JIR image (#7135)") orelse false;
+        // Seal the runtime (issue #7135): a bundled release payload is fully
+        // source-free -- it boots from the JIR image + frozen jac0core bootstrap,
+        // with the stdlib + jaclang .py compiled to sourceless .pyc. This is the
+        // ONLY bundled shape (no source-shipping mode); it just needs a real
+        // bundled precompile, so it is inert under -Ddev/-Djaclang-dir
+        // (link-source, which serves the compiler from a live tree) and under
+        // -Dskip-precompile (link-validation builds).
         const debug_src = b.option(bool, "debug-src", "Sealed build: embed source text in JIR so tracebacks show source lines (larger payload)") orelse false;
-        if (!no_seal and link_dir == null and !skip_precompile) {
+        if (link_dir == null and !skip_precompile) {
             mk.addArg("--seal");
             if (debug_src) mk.addArg("--debug-src");
-            // Sourceless-.pyc stdlib + jaclang .py (#7135 phase E). Opt-in: it
-            // needs a full-binary e2e (inspect.getsource / data-adjacent stdlib)
-            // that this build graph can't self-check, so it is NOT implied by
-            // seal. Compose with -Ddebug-src for source-carrying dev seals.
-            if (b.option(bool, "sourceless-py", "Sealed build: ship stdlib + jaclang .py as sourceless .pyc (#7135 phase E; opt-in pending e2e)") orelse false) {
-                mk.addArg("--sourceless-py");
-            }
         }
 
         // Contained bun runtime: fetch the pinned bun for the target and bundle
