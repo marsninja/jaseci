@@ -186,6 +186,13 @@ jobs:
           exit "$rc"
       - name: Cross-backend equivalence suite (py/es/native congruence)
         working-directory: jac
+        # The suite's cross-module tests build fixture paths under jac/tests/
+        # from jaclang.__file__, which only resolve in the checkout, not in the
+        # binary's bundled site copy. Run this one step through the checkout's
+        # `[dev] jaclang_source` loop (as k8s-real-e2e does) so the suite
+        # exercises THIS checkout's compiler and harness.
+        env:
+          JAC_NO_DEV_SOURCE: ""
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
