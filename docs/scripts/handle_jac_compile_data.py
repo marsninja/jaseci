@@ -83,6 +83,13 @@ def should_exclude(path: str, jaclang_dir: str) -> bool:
     """Check if file/directory should be excluded."""
     if os.path.basename(path) in EXCLUDE_DIRS:
         return True
+    # Drop the sealed-image manifest: it ships alongside the .jir, but the
+    # in-browser playground runs jaclang UNSEALED (source-primary, .jir as a
+    # validated cache). A manifest would flip it into sealed source-free loading,
+    # which the Pyodide runtime does not support -- so the .jac source stays the
+    # source of truth in the browser (#7135).
+    if os.path.basename(path) == "MANIFEST.json":
+        return True
     if os.path.splitext(path)[1] in EXCLUDE_EXTS:
         return True
     rel = os.path.relpath(path, jaclang_dir)

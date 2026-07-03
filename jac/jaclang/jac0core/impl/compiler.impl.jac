@@ -124,9 +124,10 @@ impl JacCompiler.get_bytecode(
     }
 
     if not rebuild {
-        sealed_data = self._sealed_jir_data(full_target);
-        if sealed_data is not None {
+        sealed = self._sealed_jir_data(full_target);
+        if sealed is not None {
             import from jaclang.jac0core.jir { PRECOMPILE_SENTINEL }
+            (sealed_data, sealed_root) = sealed;
             bc = read_bytecode_only(sealed_data);
             if bc is not None {
                 magic0: any = SECTIONS_MAGIC;
@@ -138,9 +139,8 @@ impl JacCompiler.get_bytecode(
                         read_sections(sealed_data, sp0 + len(magic0))
                     );
                 }
-                d0 = os.path.dirname(os.path.normpath(os.path.abspath(full_target)));
                 return marshal.loads(
-                    patch_co_filenames_bytes(bc, PRECOMPILE_SENTINEL, d0)
+                    patch_co_filenames_bytes(bc, PRECOMPILE_SENTINEL, sealed_root)
                 );
             }
         }
@@ -425,7 +425,7 @@ impl JacCompiler._restore_sections(
     }
 }
 
-impl JacCompiler._sealed_jir_data(full_target: str) -> (bytes | None) {
+impl JacCompiler._sealed_jir_data(full_target: str) -> (tuple[bytes, str] | None) {
     import from pathlib { Path as _Path }
     import from jaclang.jac0core { sealed as _sealed }
     norm_file = os.path.normpath(os.path.abspath(full_target));
@@ -447,7 +447,7 @@ impl JacCompiler._sealed_jir_data(full_target: str) -> (bytes | None) {
             );
             if os.path.isfile(jir_path) {
                 try {
-                    return _Path(jir_path).read_bytes();
+                    return (_Path(jir_path).read_bytes(), d);
                 } except OSError {
                     return None;
                 }
