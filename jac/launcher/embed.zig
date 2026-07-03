@@ -195,11 +195,14 @@ pub const Embed = struct {
         }
         // parse_argv=1 == behave like the `python` CLI (worker mode: interpret
         // -c/-m/script from argv). parse_argv=0 == argv verbatim into sys.argv.
-        // safe_path=1 in BOTH modes: no cwd/script-dir prepend to sys.path,
-        // matching what the env-based bring-up shipped (CLI boot used
-        // PySys_SetArgvEx(updatepath=0); worker mode never grew a path0).
+        // safe_path stays 0 (the isolated preset flips it to 1): worker mode
+        // must keep python's path0 semantics -- '' for -c, cwd for -m -- or
+        // `jac -m <module-in-cwd>` re-spawns break (tests/compiler/
+        // test_importer.jac). The CLI boot never runs Py_RunMain, so no path0
+        // is ever computed there and sys.path stays exactly module_search_paths
+        // (same as the old PySys_SetArgvEx(updatepath=0) boot).
         try check(GetError, cfg, SetInt(cfg, "parse_argv", @intFromBool(opts.parse_argv)));
-        try check(GetError, cfg, SetInt(cfg, "safe_path", 1));
+        try check(GetError, cfg, SetInt(cfg, "safe_path", 0));
 
         try check(GetError, cfg, InitFromConfig(cfg));
     }
