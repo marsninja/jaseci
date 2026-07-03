@@ -1110,7 +1110,12 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
 fn sourcelessPy(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Environ.Map, py: []const u8, pbs_py_dir: []const u8, stage: []const u8) !void {
     log("==> compiling stdlib + jaclang .py -> sourceless .pyc (#7135 phase E)", .{});
     const stdlib = try std.fmt.allocPrint(a, "{s}/python/lib/python{s}", .{ stage, py_ver });
-    const site = try std.fmt.allocPrint(a, "{s}/site", .{stage});
+    // Scope: the stdlib and jaclang itself. Deliberately NOT the pip-installed
+    // site-packages (pytest / pytest-xdist / execnet / ...): execnet ships its
+    // own functions to xdist workers via inspect.getsource, so stripping its .py
+    // hard-fails `jac test`. Those are dev tooling off the hot path, so keeping
+    // their source is harmless. jaclang's own tree is the source-free target.
+    const jaclang = try std.fmt.allocPrint(a, "{s}/site/jaclang", .{stage});
 
     var env = try cloneEnv(gpa, parent_env);
     defer env.deinit();
@@ -1123,11 +1128,11 @@ fn sourcelessPy(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.E
     _ = runChild(io, &.{
         py,   "-S", "-m",                  "compileall",
         "-q", "-f", "--invalidation-mode", "unchecked-hash",
-        stdlib, site,
+        stdlib, jaclang,
     }, &env, true);
 
     try relocateSourceless(io, gpa, a, stdlib);
-    try relocateSourceless(io, gpa, a, site);
+    try relocateSourceless(io, gpa, a, jaclang);
 }
 
 /// Walk `root`; for every `.py` with a matching `__pycache__/<stem>.<tag>.pyc`,
