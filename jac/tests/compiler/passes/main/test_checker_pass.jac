@@ -641,7 +641,19 @@ test "checker_import_missing_module" {
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
     TypeCheckPass(ir_in=mod, prog=program);
-    assert len(program.errors_had) == 6;
+    # Each missing module is reported once (W1100). The Unknowns that flow
+    # from an already-diagnosed import are poisoned and no longer cascade
+    # into hard errors (E1032 attribute access, E1001/E1002 assignments) at
+    # every use site -- one actionable diagnostic per root cause.
+    w1100s = [
+        w
+        for w in program.warnings_had
+        if w.code is not None and w.code.code == "W1100"
+    ];
+    assert len(w1100s) == 4 , f"expected 4 W1100s, got {len(w1100s)}";
+    assert len(program.errors_had) == 0 , f"diagnosed-import Unknowns must not cascade: {[
+        e.pretty_print() for e in program.errors_had
+    ]}";
 }
 
 test "checker_jac_runtime_alias" {

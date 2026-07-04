@@ -614,6 +614,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                 if isinstance(base_type, types.UnknownType) {
                     assert isinstance(expr.right, uni.Name);
 
+                    if base_type.is_diagnosed {
+                        return types.UnknownType(is_diagnosed=True);
+                    }
                     target_already_unknown = (
                         isinstance(expr.target.type, types.UnknownType)
                         and isinstance(expr.target, (uni.AtomTrailer, uni.FuncCall))
@@ -629,7 +632,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                 assert isinstance(expr.right, uni.Name);
                 if isinstance(base_type, types.ModuleType) {
                     if base_type.is_external {
-                        expr.right.type = types.AnyType();
+                        expr.right.type = types.AnyType(is_foreign=True);
                         return expr.right.type;
                     }
 
@@ -2302,7 +2305,7 @@ impl TypeEvaluator._assign_callable(
     if len(src_params) > len(dest_params) {
         for i in range(len(dest_params), len(src_params)) {
             src_param = src_params[i];
-            if src_param.default_value is None {
+            if not src_param.is_optional {
                 return False;
             }
         }
@@ -2692,6 +2695,10 @@ impl TypeEvaluator.assign_type(
     }
 
     if isinstance(dest_type, types.UnknownType) {
+        return True;
+    }
+
+    if isinstance(src_type, types.UnknownType) and src_type.is_diagnosed {
         return True;
     }
 
