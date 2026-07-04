@@ -48,7 +48,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                             symbol_table=None,
                             is_external=True,
                         );
-                        node_.name.type = types.AnyType();
+                        node_.name.type = types.AnyType(is_foreign=True);
                         node_.name._sym_category = SymbolType.VAR;
                         self.emit_diag(
                             W1102,
@@ -115,7 +115,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                 return node_.name.type;
             }
             if from_mod_type.is_external {
-                node_.name.type = types.AnyType();
+                node_.name.type = types.AnyType(is_foreign=True);
                 node_.name._sym_category = SymbolType.VAR;
                 self.emit_diag(
                     W1102, node_.name, name=node_.name.value, module=from_mod_name
@@ -219,6 +219,17 @@ impl TypeEvaluator.get_type_of_module(node_: uni.ModulePath) -> types.TypeBase {
                 npath._sym_category = SymbolType.MODULE;
                 if idx < len(node_.path) - 1 {
                     continue;
+                }
+                if npm_entry := self._resolve_client_npm_module(node_) {
+                    mod_type = types.ModuleType(
+                        mod_name=npath.value,
+                        file_uri=Path(npm_entry).resolve(),
+                        symbol_table=None,
+                        is_external=True,
+                    );
+                    npath.type = mod_type;
+                    npath._sym_category = SymbolType.MODULE;
+                    return npath.type;
                 }
                 npath.type = types.UnknownType();
                 self.emit_diag(W1100, npath);

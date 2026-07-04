@@ -82,6 +82,8 @@ obj AnyType(TypeBase) {
         CATEGORY: ClassVar[TypeCategory] = TypeCategory.Any;
     }
 
+    has is_foreign: bool = False;
+
     def __str__ -> str;
 }
 

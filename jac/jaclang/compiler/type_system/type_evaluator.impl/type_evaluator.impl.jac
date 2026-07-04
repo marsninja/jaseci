@@ -2718,6 +2718,9 @@ impl TypeEvaluator.assign_type(
         if self._in_native_context() {
             return True;
         }
+        if isinstance(src_type, types.AnyType) and src_type.is_foreign {
+            return True;
+        }
         return False;
     }
 

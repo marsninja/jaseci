@@ -246,6 +246,7 @@ obj TypeEvaluator {
     def _try_read_jir_cache(resolved_path: str) -> (uni.Module | None);
     def forget_module(resolved_path: str) -> None;
     def _resolve_from_path(from_mod: uni.ModulePath) -> Path;
+    def _resolve_client_npm_module(node_: uni.ModulePath) -> (str | None);
     def _is_fstring_all_literal(fstring: uni.FString) -> bool;
     def _try_resolve_forward_ref(expr: uni.String) -> TypeBase | None;
     def _type_from_union_annotation_arg(val: uni.Expr) -> TypeBase;

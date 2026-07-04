@@ -389,6 +389,97 @@ def resolve_relative_path(target: str, base_path: str) -> str {
     return path;
 }
 
+def resolve_client_npm_package(spec: str, base_path: str) -> (str | None) {
+    if not spec or spec.startswith('.') {
+        return None;
+    }
+    project_root = find_jac_project_root(base_path);
+    if not project_root {
+        return None;
+    }
+    node_modules = os.path.join(project_root, '.jac', 'client', 'node_modules');
+    if not os.path.isdir(node_modules) {
+        return None;
+    }
+    parts = [
+        p
+        for p in spec.split('/')
+        if p
+    ];
+    if not parts {
+        return None;
+    }
+    if (spec.startswith('@') and len(parts) >= 2) {
+        (pkg_parts, subpath) = (parts[:2], parts[2:]);
+    } else {
+        (pkg_parts, subpath) = (parts[:1], parts[1:]);
+    }
+    pkg_dir = os.path.join(node_modules, *pkg_parts);
+    if not os.path.isdir(pkg_dir) {
+        return None;
+    }
+    if subpath {
+        target = os.path.join(pkg_dir, *subpath);
+        deep = _npm_file_with_ext(target);
+        if deep {
+            return deep;
+        }
+        if os.path.isdir(target) {
+            return _npm_package_entry(target);
+        }
+        return None;
+    }
+    return _npm_package_entry(pkg_dir);
+}
+
+def _npm_file_with_ext(candidate: str) -> (str | None) {
+    if os.path.isfile(candidate) {
+        return os.path.normpath(candidate);
+    }
+    for ext in ('.js', '.mjs', '.cjs', '.json') {
+        if os.path.isfile((candidate + ext)) {
+            return os.path.normpath((candidate + ext));
+        }
+    }
+    return None;
+}
+
+def _npm_package_entry(pkg_dir: str) -> (str | None) {
+    import json;
+    pkg_json = os.path.join(pkg_dir, 'package.json');
+    entries: list[str] = [];
+    if os.path.isfile(pkg_json) {
+        try {
+            with open(pkg_json, 'r', encoding='utf-8') as f {
+                data = json.load(f);
+            }
+        } except (OSError, ValueError) {
+            data = {};
+        }
+        for key in ('module', 'main') {
+            val = data.get(key) if isinstance(data, dict) else None;
+            if (isinstance(val, str) and val) {
+                entries.append(os.path.join(pkg_dir, val));
+            }
+        }
+    }
+    entries.append(os.path.join(pkg_dir, 'index'));
+    for entry in entries {
+        resolved = _npm_file_with_ext(entry);
+        if resolved {
+            return resolved;
+        }
+        nested = _npm_file_with_ext(os.path.join(entry, 'index'));
+        if nested {
+            return nested;
+        }
+    }
+    if os.path.isfile(pkg_json) {
+        return os.path.normpath(pkg_json);
+    }
+    return None;
+}
+
 def convert_to_js_import_path(path: str) -> str {
     if not path {
         return path;
