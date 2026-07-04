@@ -316,28 +316,28 @@ test "_probe_tty on posix falls back to empty device when ttyname raises" {
 }
 
 
-test "na IPC schema mirrors the Python wire constants" {
-    # The host (Python ipc_schema.py) and TUI (native ipc_schema.na.jac glob)
-    # carry the wire protocol in two languages; this pins that the wire *values*
-    # agree, so a silent drift in either file fails CI instead of corrupting
-    # the runtime protocol between the embed host and the native renderer.
+test "na IPC schema mirrors the host wire constants" {
+    # The host (ipc_schema.jac) and TUI (ipc_schema.na.jac) carry the wire
+    # protocol in two Jac modules with no shared import; this test is the only
+    # thing pinning that their wire *values* agree, so a silent drift in either
+    # file fails CI instead of corrupting the runtime protocol between the embed
+    # host and the native renderer.
     import re;
     import importlib;
-    py = importlib.import_module("jaclang.cli.ai_tui.ipc_schema");
-    here = Path(py.__file__).resolve().parent;
-    na_src = (here.parent / "ai_tui_na" / "ipc_schema.na.jac").read_text();
-    na_vals: set = set(re.findall(r':\s*str\s*=\s*"([^"]*)"', na_src));
-    py_vals: set = set();
-    for (name, value) in py.__dict__.items() {
-        if isinstance(value, str) and name.isupper() {
-            py_vals.add(value);
-        }
-    }
-    for v in py_vals {
-        assert v in na_vals , f"wire value {v!r} in ipc_schema.py missing from ipc_schema.na.jac";
+    schema = importlib.import_module("jaclang.cli.ai_tui.ipc_schema");
+    here = Path(schema.__file__).resolve().parent;
+    wire_re = r':\s*str\s*=\s*"([^"]*)"';
+    host_vals: set = set(re.findall(wire_re, (here / "ipc_schema.jac").read_text()));
+    na_vals: set = set(
+        re.findall(
+            wire_re, (here.parent / "ai_tui_na" / "ipc_schema.na.jac").read_text()
+        )
+    );
+    for v in host_vals {
+        assert v in na_vals , f"wire value {v!r} in ipc_schema.jac missing from ipc_schema.na.jac";
     }
     for v in na_vals {
-        assert v in py_vals , f"wire value {v!r} in ipc_schema.na.jac missing from ipc_schema.py";
+        assert v in host_vals , f"wire value {v!r} in ipc_schema.na.jac missing from ipc_schema.jac";
     }
 }
 
