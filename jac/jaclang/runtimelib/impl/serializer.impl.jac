@@ -273,9 +273,17 @@ impl Serializer.deserialize(data: dict[str, object]) -> (object | None) {
     if (cls := Serializer._get_class(data.get('__module__'), type_name)) {
         try {
             instance = cls.__new__(cls);
+            field_types = get_field_types(cls);
             for (k, v) in data.items() {
                 if not k.startswith('__') {
-                    setattr(instance, k, Serializer._deserialize_value(v));
+                    deser_v = Serializer._deserialize_value(v);
+                    if (target := field_types.get(k)) is not None {
+                        (coerced, ok) = Serializer.coerce(deser_v, target);
+                        if ok {
+                            deser_v = coerced;
+                        }
+                    }
+                    setattr(instance, k, deser_v);
                 }
             }
             return instance;

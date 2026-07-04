@@ -1028,15 +1028,16 @@ test "custom access validation" {
 }
 
 test "run persistent reuse" {
+    import json;
     import sqlite3;
-    import from pickle { loads }
 
     _tmpdir = mkdtemp();
     _orig_base = Jac.get_base_path_dir();
     Jac.set_base_path(_tmpdir);
     try {
-        # Database path is auto-generated at _tmpdir/.jac/data/main.db
-        db_path = os.path.join(_tmpdir, ".jac", "data", "main.db");
+        # Database path is auto-generated at
+        # _tmpdir/.jac/data/<target file stem>.db
+        db_path = os.path.join(_tmpdir, ".jac", "data", "simple_node_connection.db");
 
         ##############################################
         #          FIRST RUN - CREATE NODES          #
@@ -1051,8 +1052,8 @@ test "run persistent reuse" {
         );
         row = cursor.fetchone();
         assert row is not None , "Root should be persisted to database";
-        root_data = loads(row[0]);
-        first_run_edges = len(root_data.edges);
+        root_data = json.loads(row[0]);
+        first_run_edges = len(root_data["edges"]);
         cursor = conn.execute("SELECT COUNT(*) FROM anchors");
         first_run_keys = cursor.fetchone()[0];
         conn.close();
@@ -1074,8 +1075,8 @@ test "run persistent reuse" {
             ("00000000-0000-0000-0000-000000000000", )
         );
         row = cursor.fetchone();
-        root_data = loads(row[0]);
-        second_run_edges = len(root_data.edges);
+        root_data = json.loads(row[0]);
+        second_run_edges = len(root_data["edges"]);
         cursor = conn.execute("SELECT COUNT(*) FROM anchors");
         second_run_keys = cursor.fetchone()[0];
         conn.close();

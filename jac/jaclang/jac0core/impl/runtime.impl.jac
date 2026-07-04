@@ -616,7 +616,6 @@ impl JacPersistence.on_commit(callback: Callable) -> None {
 }
 
 impl JacContext.reset_graph(root_node: (Root | None) = None) -> int {
-    import pickle;
     import sqlite3;
     ctx = JacRuntimeInterface.get_context();
     mem = ctx.mem;
@@ -626,17 +625,20 @@ impl JacContext.reset_graph(root_node: (Root | None) = None) -> int {
     persistence = mem.l3;
     conn = persistence?.__conn__ if persistence else None;
     if (conn and isinstance(conn, sqlite3.Connection)) {
-        cursor = conn.execute('SELECT data FROM anchors');
-        anchors = [pickle.loads(row[0]) for row in cursor.fetchall()];
+        cursor = conn.execute("SELECT id, json_extract(data, '$.root') FROM anchors");
+        candidates = [(UUID(row[0]), row[1]) for row in cursor.fetchall()];
     } else {
-        anchors = `list(mem.get_mem().values());
+        candidates = [
+            (anchor.id, str(anchor.root) if anchor.root else None)
+            for anchor in mem.get_mem().values()
+        ];
     }
-    for anchor in anchors {
-        if ((anchor == ranchor) or (anchor.root != ranchor.id)) {
+    for (aid, aroot) in candidates {
+        if ((aid == ranchor.id) or (aroot != str(ranchor.id))) {
             continue;
         }
-        deleted_ids.add(anchor.id);
-        mem.delete(anchor.id);
+        deleted_ids.add(aid);
+        mem.delete(aid);
         deleted_count += 1;
     }
     ranchor.edges = [
