@@ -1,12 +1,15 @@
-"""Sealed runtime image: manifest-trusted, source-free module loading.
+"""Sealed runtime image: manifest-trusted JIR module loading.
 
 A *sealed image* is a ``_precompiled/`` bundle promoted from "cache that must
 justify itself against source" to "artifact trusted by construction": a
 build-time ``MANIFEST.json`` maps module fullnames to precompiled JIR, so the
-runtime resolves modules by *name* with no ``.jac`` sources on disk and no
-per-load source re-hashing. Integrity comes from the payload's sha256 trailer at
-materialization time; the extracted tree is immutable. See issue #7135
-(#6852 Phase 4).
+runtime resolves modules by *name* with no per-load source re-hashing. The
+``.jac`` sources ship alongside the JIRs -- for tracebacks, ``inspect``, and
+as fallback when a JIR is unreadable -- but a sealed load never consults them.
+Integrity: images explicitly registered via ``register_image`` are hash-checked
+against the manifest at registration; the jaclang image inside a single binary
+is covered by the payload's sha256 trailer at materialization time instead.
+See issue #7135 (#6852 Phase 4).
 
 Both compile tiers share ONE JIR container and ONE manifest tree. Full-compiler
 modules carry a normal JIR; jac0-compiled bootstrap modules (jac0core/*, which
@@ -32,7 +35,7 @@ Manifest layout (``_precompiled/MANIFEST.json``, format 2)::
           "module": "jaclang.compiler.program",
           "jir": "compiler/program.jir",   # relative to _precompiled/<tag>/
           "package": false,
-          "sha256": "..."                  # build-time audit; not re-checked
+          "sha256": "..."                  # checked by register_image
         },
         "jac0core/modresolver.jac": {
           "module": "jaclang.jac0core.modresolver",
@@ -52,6 +55,7 @@ ImportError at the caller, never a recompile.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import marshal
 import os
@@ -65,6 +69,9 @@ from jaclang.jac0core import ext_registry
 
 MANIFEST_NAME = "MANIFEST.json"
 MANIFEST_FORMAT = 2
+# Marker file a bundled-app binary carries next to its site dir; written by
+# `jac bundle --target binary` and read by cli_boot at startup.
+APP_MARKER = "jac_app.json"
 # Must match jaclang.jac0core.jir.* ; kept literal here because this module
 # must import before any .jac module (including jir.jac) can. This is the whole
 # point of the bootstrap tier: jac0core modules are loaded from their JIR by the
@@ -197,6 +204,24 @@ class SealedImage:
         sec = _read_section(data, _SEC_DEBUG_SRC)
         return zlib.decompress(sec).decode("utf-8") if sec is not None else None
 
+    def verify(self) -> None:
+        """Hash every indexed JIR against its manifest ``sha256`` (fail-closed).
+
+        Run for explicitly registered images, whose bytes have no other
+        integrity cover; the jaclang image inside a single binary skips this
+        because the payload's sha256 trailer already covers the whole tree.
+        """
+        for entry, _src in self.index.values():
+            path = self.jir_path(entry)
+            try:
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError as exc:
+                raise RuntimeError(f"sealed image: cannot read {path}: {exc}") from exc
+            if digest != entry.get("sha256"):
+                raise RuntimeError(
+                    f"sealed image: {path} does not match its manifest sha256"
+                )
+
     def bootstrap_code(self, fullname: str) -> types.CodeType | None:
         """Code object for a bootstrap-tier module, extracted from its JIR's
         bytecode section by the pure-Python reader -- no jir.jac, no running
@@ -275,9 +300,15 @@ def _jaclang_image() -> SealedImage | None:
 
 
 def register_image(precompiled_dir: str | Path) -> SealedImage | None:
-    """Register an additional sealed image (e.g. a sealed user app)."""
+    """Register an additional sealed image (e.g. a sealed user app).
+
+    The image's JIRs are hash-verified against the manifest before any of them
+    can be loaded; a tampered or corrupted JIR raises rather than reaching
+    ``marshal.loads``.
+    """
     image = load_image(precompiled_dir)
     if image is not None:
+        image.verify()
         _images.append(image)
     return image
 

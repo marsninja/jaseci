@@ -57,8 +57,13 @@ def pre_build_hook(**kwargs: dict) -> None:
         jaclang_dir = resolve_jaclang_dir()
         create_playground_zip(jaclang_dir)
         print("Jaclang zip file created successfully.")
-    except Exception as e:
-        print(f"Warning: Failed to build playground zip: {e}. Skipping playground zip.")
+    except Exception:
+        # Non-fatal (docs build without a playground beats no docs), but loud:
+        # the full traceback is the only diagnostic a CI log will have.
+        import traceback
+
+        traceback.print_exc()
+        print("Warning: failed to build playground zip; docs will ship WITHOUT a playground.")
 
     if is_file_older_than_minutes(UNIIR_NODE_DOC, 5):
         with open(UNIIR_NODE_DOC, "w") as f:

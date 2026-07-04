@@ -89,15 +89,15 @@ def _run_bundled_app -> bool {
     try {
         import _jac_finder;
         site_dir = Path(_jac_finder.__file__).parent;
-    } except Exception {
+    } except ImportError {
         return False;
     }
-    marker = site_dir / "jac_app.json";
+    import from jaclang.jac0core.sealed { APP_MARKER, register_image }
+    marker = site_dir / APP_MARKER;
     if not marker.is_file() {
         return False;
     }
     cfg = json.loads(marker.read_text());
-    import from jaclang.jac0core.sealed { register_image }
     register_image(str(site_dir / cfg["package"] / "_precompiled"));
     runpy.run_module(cfg["entry"], run_name="__main__", alter_sys=True);
     return True;

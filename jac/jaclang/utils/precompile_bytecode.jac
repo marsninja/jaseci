@@ -14,6 +14,9 @@ import from jaclang.jac0core.jir {
     write_precompiled_jir,
     FLAG_PRECOMPILED,
     FLAG_BOOTSTRAP,
+    HEADER_SIZE,
+    SECTIONS_MAGIC,
+    SEC_BYTECODE,
     SEC_DEBUG_SRC,
     FORMAT_VERSION,
     compute_module_key,
@@ -23,8 +26,19 @@ import from jaclang.jac0core.jir {
 import from jaclang.jac0core.sealed {
     MANIFEST_NAME,
     MANIFEST_FORMAT,
-    JIR_FORMAT_VERSION as SEALED_JIR_FORMAT_VERSION
+    JIR_FORMAT_VERSION as SEALED_JIR_FORMAT_VERSION,
+    PRECOMPILE_SENTINEL as SEALED_SENTINEL,
+    _HEADER_SIZE as SEALED_HEADER_SIZE,
+    _SECTIONS_MAGIC as SEALED_SECTIONS_MAGIC,
+    _SEC_BYTECODE as SEALED_SEC_BYTECODE,
+    _SEC_DEBUG_SRC as SEALED_SEC_DEBUG_SRC
 }
+
+# Written at the end of a completed precompile loop (and removed before it
+# starts), so a builder can tell "the precompiler ran to completion" apart
+# from "it crashed mid-loop" without trusting the exit code -- see
+# jac/launcher/payload.zig `precompile`.
+glob RESULT_NAME: str = "PRECOMPILE_RESULT.json";
 
 def find_package_dir(source_dir: str) -> str | None {
     src = Path(source_dir).resolve();
@@ -96,6 +110,22 @@ def find_jac_files(package_dir: str) -> list[str] {
         result.append(str(jac_file));
     }
     return result;
+}
+
+"""The .jac files a seal must produce a JIR for: everything except the
+jac0core bootstrap tier (frozen separately by seal_bootstrap), native and
+client modules (no CPython bytecode), and nested sub-projects."""
+def sealable_sources(package_dir: str) -> list[str] {
+    boot_prefix = str(Path(package_dir) / "jac0core") + os.sep;
+    nested = _nested_project_dirs(package_dir);
+    return [
+        p
+        for p in find_jac_files(package_dir)
+        if not p.startswith(boot_prefix)
+        and not ext_registry.is_native_module(p)
+        and not ext_registry.is_client_module(p)
+        and not any(p.startswith(n) for n in nested)
+    ];
 }
 
 def precompile_unit(
@@ -198,11 +228,36 @@ def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
 def seal_finalize(
     pkg_path: Path, precompiled_dir: Path, pkg_name: str, pyver: str, embed_src: bool
 ) -> int {
-    if SEALED_JIR_FORMAT_VERSION != FORMAT_VERSION {
+    # sealed.py re-declares the JIR container layout as pure-Python literals
+    # (it must import before any .jac can); refuse to seal if its reader has
+    # drifted from what jir.jac writes -- version AND geometry.
+    writes = (
+        FORMAT_VERSION, HEADER_SIZE, SECTIONS_MAGIC,
+        SEC_BYTECODE, SEC_DEBUG_SRC, PRECOMPILE_SENTINEL
+    );
+    reads = (
+        SEALED_JIR_FORMAT_VERSION, SEALED_HEADER_SIZE, SEALED_SECTIONS_MAGIC,
+        SEALED_SEC_BYTECODE, SEALED_SEC_DEBUG_SRC, SEALED_SENTINEL
+    );
+    if reads != writes {
         console.error(
-            f"JIR format drift: jir.FORMAT_VERSION={FORMAT_VERSION} but "
-            f"sealed.JIR_FORMAT_VERSION={SEALED_JIR_FORMAT_VERSION}. "
-            "Update jaclang/jac0core/sealed.py."
+            f"JIR format drift: jir.jac writes {writes} but sealed.py "
+            f"reads {reads}. Update jaclang/jac0core/sealed.py."
+        );
+        return 1;
+    }
+
+    missing = [
+        str(Path(p).relative_to(pkg_path))
+        for p in sealable_sources(str(pkg_path))
+        if not (
+            precompiled_dir / pyver / Path(p).relative_to(pkg_path).with_suffix(".jir")
+        ).is_file()
+    ];
+    if missing {
+        console.error(
+            f"Seal incomplete: {len(missing)} sealable module(s) have no JIR "
+            f"(first: {missing[:5]}). The compile pass failed or was skipped."
         );
         return 1;
     }
@@ -287,9 +342,10 @@ def main {
         console.print("  jac run utils/precompile_bytecode.jac./jac");
         console.print("  jac run utils/precompile_bytecode.jac./jac/jaclang/scale");
         console.print(
-            "\n--seal: precompile, freeze the jac0core bootstrap, emit MANIFEST.json,"
+            "\n--seal: precompile, freeze the jac0core bootstrap, and emit"
         );
-        console.print("        and strip the sealed .jac sources (source-free image).");
+        console.print("        MANIFEST.json (JIR-authoritative image; .jac sources");
+        console.print("        stay on disk for tracebacks, never compiled at runtime).");
         console.print(
             "--seal-compile: compile only (exclude jac0core), no finalize -- the"
         );
@@ -298,9 +354,9 @@ def main {
             "--seal-finalize: run ONLY the seal step over an already-precompiled tree"
         );
         console.print(
-            "        (build the manifest from the JIRs, freeze, strip) -- resilient to"
+            "        (verify completeness, build the manifest, freeze) -- resilient"
         );
-        console.print("        the best-effort compile crashing on a native module.");
+        console.print("        to the best-effort compile crashing on a native module.");
         console.print(
             "--debug-src: embed zlib source text in each .jir (dev tracebacks)."
         );
@@ -330,19 +386,11 @@ def main {
     console.print(f"Precompiling {pkg_name} for {pyver}...");
     console.print(f"  Package directory: {package_dir}");
 
-    jac_files = find_jac_files(package_dir);
-    if exclude_jac0core {
-        boot_prefix = str(Path(package_dir) / "jac0core") + os.sep;
-        nested = _nested_project_dirs(package_dir);
-        jac_files = [
-            p
-            for p in jac_files
-            if not p.startswith(boot_prefix)
-            and not ext_registry.is_native_module(p)
-            and not ext_registry.is_client_module(p)
-            and not any(p.startswith(n) for n in nested)
-        ];
-    }
+    jac_files = (
+        sealable_sources(package_dir)
+        if exclude_jac0core
+        else find_jac_files(package_dir)
+    );
     console.print(f"  Found {len(jac_files)} .jac files");
 
     if not jac_files and not exclude_jac0core {
@@ -352,6 +400,7 @@ def main {
 
     out_dir = precompiled_dir / pyver;
     out_dir.mkdir(parents=True, exist_ok=True);
+    (precompiled_dir / RESULT_NAME).unlink(missing_ok=True);
 
     for stale_dir in sorted(precompiled_dir.iterdir()) {
         if stale_dir.is_dir() and stale_dir.name != pyver {
@@ -418,6 +467,13 @@ def main {
     );
     console.print(f"  Output: {precompiled_dir}");
     console.print(f"  Python version: {pyver}");
+
+    (precompiled_dir / RESULT_NAME).write_text(
+        json.dumps(
+            {"total": len(jac_files), "compiled": compiled, "reused": reused, "failed": failed}
+        ) + "\n",
+        encoding="utf-8"
+    );
 
     if seal {
         sys.exit(seal_finalize(pkg_path, precompiled_dir, pkg_name, pyver, embed_src));

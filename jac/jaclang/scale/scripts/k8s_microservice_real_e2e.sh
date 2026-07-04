@@ -423,10 +423,12 @@ else
     fi
 fi
 
-# Zero-downtime rolling-restart assertion: hammer at 10 req/s while
+# Rolling-restart availability assertion: hammer at 10 req/s while
 # kubectl rollout restart runs; non-2xx (or non-accept_re) responses
-# count as violations. Used for both gateway and a representative service.
-run_zero_downtime_assertion() {
+# count as violations, failing above max_violation_pct. True zero
+# downtime is only asserted when callers pass 0; CI passes a tolerance
+# (see call sites), so do not read a green run as a 0% guarantee.
+run_availability_assertion() {
     local label="$1"
     local url="$2"
     local accept_re="$3"
@@ -489,7 +491,7 @@ run_zero_downtime_assertion() {
 # Observed floor: M-14.a 1.2%, M-14.b 3%. 5% matches the service
 # rollout test below for the same reason. The 0% target is real on
 # multi-replica / multi-node EKS but a useless CI signal here.
-run_zero_downtime_assertion "gateway" \
+run_availability_assertion "gateway" \
     "http://localhost:${GATEWAY_LOCAL_PORT}/health" "200" "gateway-deployment" "" "5"
 
 # Phase 2: service rollout via the first declared route. Allow 5%
@@ -507,11 +509,11 @@ for name, prefix in cfg.get('plugins', {}).get('scale', {}).get('microservices',
 if [ -z "${FIRST_PREFIX}" ] || [ -z "${FIRST_SVC}" ]; then
     echo "  (no services declared; skipping service-rollout phase)"
 elif [ "${INGRESS_ENABLED}" = "1" ] && [ "${CLUSTER_TYPE}" != "remote" ] && [ -n "${INGRESS_IP:-}" ]; then
-    run_zero_downtime_assertion "service:${FIRST_SVC} (ingress)" \
+    run_availability_assertion "service:${FIRST_SVC} (ingress)" \
         "http://${INGRESS_IP}${FIRST_PREFIX}/walker/__missing__" \
         "200|404|405" "${FIRST_SVC}-deployment" "${INGRESS_HOST:-localhost}" "5"
 else
-    run_zero_downtime_assertion "service:${FIRST_SVC} (port-forward)" \
+    run_availability_assertion "service:${FIRST_SVC} (port-forward)" \
         "http://localhost:${GATEWAY_LOCAL_PORT}${FIRST_PREFIX}/walker/__missing__" \
         "200|404|405|000" "${FIRST_SVC}-deployment" "" "5"
 fi

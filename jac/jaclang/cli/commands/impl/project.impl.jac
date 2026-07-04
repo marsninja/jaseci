@@ -1430,7 +1430,7 @@ def _bundle_sealed(config: any, output: str) -> int {
         return 1;
     }
     console.print(
-        f"  ✔ Sealed image at [cyan]{dest}[/cyan] (source-free; _precompiled/MANIFEST.json)",
+        f"  ✔ Sealed image at [cyan]{dest}[/cyan] (JIR-authoritative; _precompiled/MANIFEST.json; sources retained for tracebacks)",
         style="success"
     );
     console.print(
@@ -1486,14 +1486,18 @@ def _bundle_binary(config: any, output: str) -> int {
         site = stage / "site";
         shutil.copytree(img, site / name);
         entry_mod = _app_entry_module(img, name, config.project.entry_point);
-        (site / "jac_app.json").write_text(
+        if entry_mod is None {
+            return 1;
+        }
+        import from jaclang.jac0core.sealed { APP_MARKER }
+        (site / APP_MARKER).write_text(
             json.dumps({"package": name, "entry": entry_mod})
         );
 
         console.print(f"  Repacking binary (entry: {entry_mod})...", style="muted");
         payload = _tar_gz_dir(stage);
         digest = hashlib.sha256(payload).hexdigest();
-        trailer = b"JACBIN01" + struct.pack("<Q", len(payload)) + digest.encode();
+        trailer = _BIN_MAGIC + struct.pack(_BIN_LEN_FMT, len(payload)) + digest.encode();
 
         out_bin: Path = Path(output) / name;
         with open(out_bin, "wb") as f {
@@ -1514,21 +1518,28 @@ def _bundle_binary(config: any, output: str) -> int {
     return 0;
 }
 
+# Single-binary trailer: magic(8) + payload length u64-LE(8) + sha256 hex(64).
+# Authoritative definition: MAGIC / TRAILER_LEN in jac/launcher/runtime.zig --
+# keep byte-for-byte in sync.
+glob _BIN_MAGIC: bytes = b"JACBIN01",
+     _BIN_LEN_FMT: str = "<Q",
+     _BIN_TRAILER_LEN: int = 8 + 8 + 64;
+
 def _split_jac_binary(path: str) -> tuple {
     import struct;
     with open(path, "rb") as f {
         data = f.read();
     }
-    if len(data) < 80 or data[-80:-72] != b"JACBIN01" {
+    magic_at = len(data) - _BIN_TRAILER_LEN;
+    if magic_at < 0 or data[magic_at:magic_at + 8] != _BIN_MAGIC {
         return (None, None);
     }
-    (plen, ) = struct.unpack("<Q", data[-72:-64]);
-    end = len(data) - 80;
-    start = end - plen;
+    plen = int(struct.unpack(_BIN_LEN_FMT, data[magic_at + 8:magic_at + 16])[0]);
+    start = magic_at - plen;
     if start < 0 {
         return (None, None);
     }
-    return (data[:start], data[start:end]);
+    return (data[:start], data[start:magic_at]);
 }
 
 def _tar_gz_dir(top: Path) -> bytes {
@@ -1549,7 +1560,7 @@ def _tar_gz_dir(top: Path) -> bytes {
     return gzip.compress(buf.getvalue(), 6, mtime=0);
 }
 
-def _app_entry_module(img: Path, name: str, entry_point: str) -> str {
+def _app_entry_module(img: Path, name: str, entry_point: str) -> (str | None) {
     import from jaclang.jac0core { ext_registry }
     configured = ext_registry.base_stem(entry_point) if entry_point else "";
     candidates = ([configured] if configured else []) + ["main", "app", "__main__"];
@@ -1558,7 +1569,25 @@ def _app_entry_module(img: Path, name: str, entry_point: str) -> str {
             return f"{name}.{cand}";
         }
     }
-    return name;
+    # "main" is the config default, so a missing main.jac keeps the fallback
+    # chain; any other configured entry was set deliberately and failing to
+    # seal it is a build error, not a cue to guess.
+    if configured and configured != "main" {
+        console.error(
+            f"Entry point '{entry_point}' from jac.toml has no sealed module "
+            f"'{name}.{configured}'."
+        );
+        return None;
+    }
+    # No launchable module sealed. Never fall back to the bare package: runpy
+    # needs {name}.__main__, which was just checked. Fail the build with the
+    # truth instead of shipping a binary that dies at startup.
+    tried = ", ".join(f"{name}.{c}" for c in dict.fromkeys(candidates));
+    console.error(
+        f"No entry module sealed for '{name}' (tried {tried}). "
+        "Set [project] entry-point in jac.toml to a module at the package root."
+    );
+    return None;
 }
 
 def _sealed_has_module(img: Path, fullname: str) -> bool {

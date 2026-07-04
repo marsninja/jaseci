@@ -119,7 +119,10 @@ fn boot(emb: *const embed.Embed, exe_z: [*:0]const u8, init: std.process.Init) u
 
 /// True if argv[1] is a Python interpreter short flag (`-c`, `-u`, `-m`, `-`,
 /// ...). Single-dash short flags mean "act like python"; jac subcommands (`run`,
-/// `test`) and long flags (`--version`) keep the jac CLI.
+/// `test`) and long flags (`--version`) keep the jac CLI. This dispatch is a
+/// CONTRACT: the jac CLI must never accept a single-dash short flag as its
+/// first argument, or execnet/xdist worker re-spawns (`jac -u -c ...`) would
+/// be misrouted.
 fn isPythonInvocation(init: std.process.Init) bool {
     var it = init.minimal.args.iterate();
     _ = it.next(); // skip argv[0]
