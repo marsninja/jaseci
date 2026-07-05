@@ -41,6 +41,20 @@ local function palette()
   require("mini.extra").pickers.commands()
 end
 
+--- VSCode-style netrw sidebar (tree view, no banner, fixed width).
+local function sidebar_setup()
+  vim.g.netrw_banner = 0
+  vim.g.netrw_liststyle = 3
+  vim.g.netrw_browse_split = 4 -- open files in the previous (main) window
+  vim.g.netrw_winsize = 22
+  vim.g.netrw_altv = 1
+end
+
+local function sidebar_toggle()
+  sidebar_setup()
+  vim.cmd("Lexplore")
+end
+
 function M.enable(persist)
   if M.enabled then return end
   M.enabled = true
@@ -49,6 +63,10 @@ function M.enable(persist)
   set_opt("keymodel", "startsel,stopsel")
   set_opt("selectmode", "mouse,key")
   set_opt("mousemodel", "popup_setpos")
+
+  -- the VSCode look: Dark+ colors, blue status bar, breadcrumbs winbar
+  require("ninja.theme").vscode()
+  require("ninja.crumbs").enable()
 
   -- file buffers open ready to type; Esc still drops to normal mode
   aug = vim.api.nvim_create_augroup("NinjaEasy", { clear = true })
@@ -117,6 +135,24 @@ function M.enable(persist)
   map({ "n", "i" }, "<C-PageDown>", "<Cmd>bnext<CR>", { desc = "Next file" })
   map({ "n", "i" }, "<C-PageUp>", "<Cmd>bprevious<CR>", { desc = "Previous file" })
 
+  -- explorer sidebar (netrw tree, VSCode's ctrl+b / ctrl+shift+e)
+  map({ "n", "i" }, "<C-b>", sidebar_toggle, { desc = "Toggle explorer sidebar" })
+  map({ "n", "i" }, "<C-S-e>", sidebar_toggle, { desc = "Toggle explorer sidebar" })
+
+  -- Interactive session bootstrap: open the sidebar and say hello once the
+  -- UI attaches (headless runs and the --embed hop never trigger this).
+  vim.api.nvim_create_autocmd("UIEnter", {
+    group = aug,
+    once = true,
+    callback = vim.schedule_wrap(function()
+      if not M.enabled or #vim.api.nvim_list_uis() == 0 then return end
+      local main_win = vim.api.nvim_get_current_win()
+      sidebar_toggle()
+      pcall(vim.api.nvim_set_current_win, main_win)
+      vim.notify("easy mode: ctrl+s save · ctrl+p files · F1 palette · ctrl+b explorer · :NinjaEasy off to leave")
+    end),
+  })
+
   if persist then
     local f = io.open(marker_path(), "w")
     if f then f:write("1\n") ; f:close() end
@@ -137,6 +173,15 @@ function M.disable(persist)
   if aug then
     vim.api.nvim_del_augroup_by_id(aug)
     aug = nil
+  end
+  -- back to the stock ninja look; close any explorer sidebar
+  require("ninja.crumbs").disable()
+  require("ninja.theme").default()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    if vim.bo[buf].filetype == "netrw" then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
   end
   if persist then os.remove(marker_path()) end
 end

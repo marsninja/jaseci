@@ -69,13 +69,8 @@ vim.filetype.add({ extension = { jac = "jac" } })
 -- ---------------------------------------------------------------- mini.nvim
 local ascii = vim.env.JAC_NINJA_ASCII == "1"
 require("mini.icons").setup(ascii and { style = "ascii" } or {})
-require("mini.hues").setup({
-  background = "#14161d",
-  foreground = "#c9d1e3",
-  accent = "orange", -- jaseci orange
-  saturation = "medium",
-})
-vim.g.colors_name = "jac-ninja"
+-- Stock look; easy mode swaps in the VSCode Dark+ theme (ninja/theme.lua).
+require("ninja.theme").default()
 
 require("mini.statusline").setup()
 require("mini.tabline").setup()
