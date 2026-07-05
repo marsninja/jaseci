@@ -30,6 +30,10 @@ Neovim setup is never read and can never break the jac experience.
   code actions, diagnostics — served by `jac lsp` from the same binary.
 - **UX**: mini.nvim (pinned) — fuzzy pick, live grep, file explorer,
   statusline, autopairs, surround, treesitter textobjects, clue hints.
+- **Agent**: `jac ai` — the binary's own coding agent — orchestrated in
+  managed splits (`lua/ninja/agent.lua`): named sessions, ask/explain/fix
+  actions that send path + line-range + diagnostics references into the live
+  session (the agent reads code with its own file tools; nothing is pasted).
 
 ## Keymaps (leader = space)
 
@@ -41,6 +45,10 @@ Neovim setup is never read and can never break the jac experience.
 | `space l f / l s / l w` | format, document symbols, workspace symbols |
 | `space j r / j t / j c` | jac run / test / check the current file |
 | `space d`, `[d` / `]d` | line diagnostics, prev/next diagnostic |
+| `space a a` | toggle the coding agent (`jac ai` -- the same binary) |
+| `space a q / a f / a d` | ask agent / ask about this file / fix diagnostics |
+| `space a s / a e` (visual) | ask about / explain the selected lines |
+| `space a n / a l / a m / a x` | new named session / pick session / set model / toggle `--safe` |
 
 `JAC_NINJA_ASCII=1` switches icons/signs to plain ASCII for glyph-less
 terminals.

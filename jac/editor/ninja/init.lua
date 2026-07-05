@@ -121,6 +121,7 @@ clue.setup({
     clue.gen_clues.marks(),
     clue.gen_clues.registers(),
     clue.gen_clues.windows(),
+    { mode = "n", keys = "<Leader>a", desc = "+agent" },
     { mode = "n", keys = "<Leader>f", desc = "+find" },
     { mode = "n", keys = "<Leader>j", desc = "+jac" },
     { mode = "n", keys = "<Leader>l", desc = "+lsp" },
@@ -151,7 +152,7 @@ starter.setup({
       { name = "Quit", action = "qall", section = "Actions" },
     },
   },
-  footer = "space = leader  ·  space-f-f find  ·  space-j jac tools  ·  :help ninja",
+  footer = "space = leader  ·  space-f-f find  ·  space-a agent  ·  space-j jac tools",
 })
 
 -- -------------------------------------------------------------- tree-sitter
@@ -236,6 +237,11 @@ map("n", "<Leader>jr", function() jac_term({ "run", vim.fn.expand("%:p") }) end,
 map("n", "<Leader>jt", function() jac_term({ "test", vim.fn.expand("%:p") }) end, { desc = "jac test file" })
 map("n", "<Leader>jc", function() jac_term({ "check", vim.fn.expand("%:p") }) end, { desc = "jac check file" })
 map("n", "<Leader>jd", function() jac_term({ "dot", vim.fn.expand("%:p") }) end, { desc = "jac dot graph" })
+
+-- -------------------------------------------------------------------- agent
+-- The binary's own coding agent (`jac ai`), orchestrated in managed splits:
+-- space-a-a session, space-a-q ask, space-a-d fix diagnostics, ...
+require("ninja.agent").setup()
 
 -- ------------------------------------------------------------- autocommands
 vim.api.nvim_create_autocmd("TextYankPost", {
