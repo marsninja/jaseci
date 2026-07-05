@@ -21,9 +21,20 @@ if not jac_bin or jac_bin == "" then jac_bin = "jac" end
 -- This layer carries queries/, ftplugin/, ftdetect/ -- put it on the rtp; the
 -- AFTER slot keeps $VIMRUNTIME first for core lua modules.
 vim.opt.runtimepath:prepend(ninja_dir)
+-- Linked-source dev builds (-Ddev): ninja_dir is the live source tree; the
+-- payload's copy (JAC_NINJA_BASE) still provides the build-staged pieces --
+-- mini.nvim and the jac queries -- so keep it on the rtp behind the dev dir.
+local base_dir = vim.env.JAC_NINJA_BASE
+if base_dir and base_dir ~= "" and base_dir ~= ninja_dir then
+  vim.opt.runtimepath:append(base_dir)
+end
 -- mini.nvim is staged as a conventional start-package; rtp it directly so
 -- require() works right here instead of after startup.
-vim.opt.runtimepath:append(ninja_dir .. "/pack/ninja/start/mini.nvim")
+local mini_dir = ninja_dir .. "/pack/ninja/start/mini.nvim"
+if not vim.uv.fs_stat(mini_dir) and base_dir and base_dir ~= "" then
+  mini_dir = base_dir .. "/pack/ninja/start/mini.nvim"
+end
+vim.opt.runtimepath:append(mini_dir)
 
 -- ------------------------------------------------------------------ options
 vim.g.mapleader = " "

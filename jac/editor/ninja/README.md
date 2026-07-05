@@ -84,5 +84,16 @@ visual-block mode while easy mode is on.
   build time from the pinned tree-sitter-jac dependency.
 
 At build time (`jac/build.zig`) this directory is composed with the neovim
-runtime export and mini.nvim into the payload's `nvim/` tree; nothing here is
-read from the source tree at runtime.
+runtime export and mini.nvim into the payload's `nvim/` tree; a release
+binary reads nothing from the source tree at runtime.
+
+## Dev loop
+
+Linked-source builds (`zig build -Ddev` / `-Djaclang-dir`) serve this config
+layer **live from the source tree** -- the same mechanism that links the
+compiler. The payload carries a `nvim/ninja_linked_source` marker pointing
+here; the launcher resolves it at boot, and the payload's copy stays on the
+runtimepath behind it for the build-staged pieces (mini.nvim, the jac
+queries). So the loop for editor tweaks is just: edit `init.lua` or
+`lua/ninja/*.lua`, relaunch `jac ninja` -- **no zig rebuild**. A rebuild is
+only needed when the neovim fork, the parsers, or the pinned deps change.
