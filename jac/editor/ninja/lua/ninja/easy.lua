@@ -50,17 +50,6 @@ local function sidebar_setup()
   vim.g.netrw_altv = 1
 end
 
-local function sidebar_toggle()
-  sidebar_setup()
-  local prev = vim.api.nvim_get_current_win()
-  vim.cmd("Lexplore")
-  -- VSCode's ctrl+b keeps focus in the editor: when the toggle OPENED the
-  -- tree (focus landed in netrw), hop back to where the user was.
-  if vim.bo.filetype == "netrw" and vim.api.nvim_win_is_valid(prev) then
-    vim.api.nvim_set_current_win(prev)
-  end
-end
-
 -- Focus (or stay in) a real editor window -- not the sidebar, not the
 -- panel. VSCode's panel-close and editor-split both land in the editor.
 local function focus_editor_win()
@@ -71,6 +60,29 @@ local function focus_editor_win()
       vim.api.nvim_set_current_win(win)
       return
     end
+  end
+end
+
+-- Hand-rolled toggle instead of :Lexplore: Lexplore silently opens an
+-- empty, dead window when invoked while a special buffer (mini.starter's
+-- ministarter://) is current, and its tab-global bookkeeping then wedges
+-- the toggle. A plain split + :Explore <cwd> works from any context.
+local function sidebar_toggle()
+  sidebar_setup()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
+      vim.api.nvim_win_close(win, true)
+      focus_editor_win()
+      return
+    end
+  end
+  local prev = vim.api.nvim_get_current_win()
+  vim.cmd("topleft vertical 24 new")
+  vim.cmd("Explore " .. vim.fn.fnameescape(vim.fn.getcwd()))
+  vim.wo.winfixwidth = true
+  -- VSCode's ctrl+b keeps focus in the editor.
+  if vim.api.nvim_win_is_valid(prev) then
+    vim.api.nvim_set_current_win(prev)
   end
 end
 
@@ -138,9 +150,48 @@ function M.enable(persist)
   vim.api.nvim_create_autocmd("BufEnter", {
     group = aug,
     callback = function(ev)
-      if vim.bo[ev.buf].buftype == "" and vim.bo[ev.buf].modifiable
-        and vim.fn.mode() == "n" then
+      -- Guard: BufEnter also fires when a buffer is placed into ANOTHER
+      -- window by API (the welcome-tab swap) -- acting would then hit
+      -- whatever buffer is actually current.
+      if vim.api.nvim_get_current_buf() ~= ev.buf then return end
+      local editorish = vim.bo[ev.buf].buftype == "" and vim.bo[ev.buf].modifiable
+      if editorish and vim.fn.mode() == "n" then
         vim.cmd("startinsert")
+      elseif not editorish and vim.bo[ev.buf].buftype ~= "terminal"
+        and vim.fn.mode():find("i") then
+        -- Insert-first must not LEAK into special buffers: insert mode
+        -- carried into the netrw tree makes Enter try to edit the
+        -- nomodifiable listing (E21) instead of opening the file.
+        vim.cmd("stopinsert")
+      end
+    end,
+  })
+
+  -- Retire the welcome tab when the user enters the explorer (VSCode
+  -- behavior): netrw cannot open files into the starter's nomodifiable
+  -- window (silent E21), so hand it a normal empty buffer to land in.
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = aug,
+    callback = function()
+      if vim.bo.filetype ~= "netrw" then return end
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local b = vim.api.nvim_win_get_buf(win)
+        if vim.bo[b].filetype == "ministarter" then
+          vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
+        end
+      end
+    end,
+  })
+
+  -- Keep netrw aimed at the last editor window (the Lexplore mechanism,
+  -- driven by hand since we hand-roll the sidebar): without it netrw's
+  -- previous-window dance can land inside its own nomodifiable listing
+  -- and die with a silent E21 instead of opening the file.
+  vim.api.nvim_create_autocmd({ "WinEnter", "BufWinEnter" }, {
+    group = aug,
+    callback = function()
+      if vim.bo.buftype == "" and vim.bo.filetype ~= "netrw" then
+        vim.g.netrw_chgwin = vim.fn.winnr()
       end
     end,
   })
@@ -252,6 +303,7 @@ function M.disable(persist)
     vim.api.nvim_del_augroup_by_id(aug)
     aug = nil
   end
+  vim.g.netrw_chgwin = nil
   -- back to the stock ninja look; close the explorer sidebar + panel
   require("ninja.crumbs").disable()
   require("ninja.theme").default()
