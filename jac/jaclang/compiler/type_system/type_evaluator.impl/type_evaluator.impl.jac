@@ -1948,15 +1948,17 @@ impl TypeEvaluator._widen_literal_for_declaration(ty: TypeBase) -> TypeBase {
         if ty.is_literal_type() {
             return ty.clone_with_literal(None);
         }
-        # Widen element types of inferred containers (list/dict/set/tuple),
-        # e.g. ["."] * 3 declares list[str] rather than list[Literal["."]],
-        # so later element stores of a different value are permitted.
         if ty.private.type_args {
             widened_args = [
-                self._widen_literal_for_declaration(arg)
-                for arg in ty.private.type_args
+                self._widen_literal_for_declaration(arg) for arg in ty.private.type_args
             ];
-            return ty.specialize_generics(widened_args);
+            changed = any(
+                new_arg is not old_arg
+                for (new_arg, old_arg) in zip(widened_args, ty.private.type_args)
+            );
+            if changed {
+                return ty.specialize_generics(widened_args);
+            }
         }
         return ty;
     }
@@ -2107,9 +2109,7 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                     return self._convert_to_instance(annotation_type);
                 } else {
                     if node_.parent.parent.value is not None {
-                        return self._widen_literal_for_declaration(
-                            self.get_type_of_expression(node_.parent.parent.value)
-                        );
+                        return self.get_type_of_expression(node_.parent.parent.value);
                     }
                 }
             }
@@ -2235,9 +2235,7 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                 return self._convert_to_instance(annotation_type);
             } else {
                 if node_.value is not None {
-                    return self._widen_literal_for_declaration(
-                        self.get_type_of_expression(node_.value)
-                    );
+                    return self.get_type_of_expression(node_.value);
                 }
             }
 
