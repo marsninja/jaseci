@@ -39,6 +39,9 @@ def parse_event_kind(s: str) -> EventKind {
     if s == "call" {
         return EventKind.CALL;
     }
+    if s == "tool" {
+        return EventKind.CALL;
+    }
     if s == "tool_result" {
         return EventKind.TOOL_RESULT;
     }

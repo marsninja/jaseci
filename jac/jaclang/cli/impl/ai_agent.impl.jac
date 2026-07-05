@@ -1528,6 +1528,10 @@ impl TurnRenderer._ci_event(info: any) {
     );
 }
 
+impl TurnRenderer._is_tool_error_result(result: any) -> bool {
+    return str(result).startswith(_TOOL_ERROR_PREFIX);
+}
+
 impl TurnRenderer._emit_call_usage(data: any, phase: str) -> None {
     if not agent.bus.active_feed {
         return;
@@ -1598,7 +1602,7 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
         pend_result = None;
         rtext = truncate(str(result), 4000);
 
-        if not (is_ui and "Tool error:" in str(result)) {
+        if not (is_ui and agent.view._is_tool_error_result(result)) {
             agent.bus.emit("tool_result", {"text": rtext});
         }
         if not is_ui {
@@ -1694,7 +1698,12 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                     );
                 }
                 agent.bus.emit(
-                    "call", {"node": tool, "text": agent.view.fmt_tool_call(tool, args)}
+                    "tool",
+                    {
+                        "name": tool,
+                        "node": tool,
+                        "text": agent.view.fmt_tool_call(tool, args)
+                    }
                 );
                 last_llm_ms = 0.0;
                 last_llm_tokens = 0;

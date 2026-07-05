@@ -87,7 +87,8 @@ obj BrowseTools {
     def _browse_shutdown;
 }
 
-glob _THINK_WIDTH = 40;
+glob _THINK_WIDTH = 40,
+     _TOOL_ERROR_PREFIX: str = "Tool error:";
 
 obj TurnRenderer {
     def print_banner;
@@ -115,6 +116,7 @@ obj TurnRenderer {
     def render_stream(event_stream: any) -> dict;
     def route_stream_event(event: any) -> None;
     def _emit_call_usage(data: any, phase: str) -> None;
+    def _is_tool_error_result(result: any) -> bool;
 }
 
 obj AgentEventBus {

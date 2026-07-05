@@ -326,6 +326,46 @@ test "ui sessions suppress tool error results from the live transcript" {
 }
 
 
+test "ui mode keeps non-error results that merely contain the tool-error prefix" {
+    # Regression guard for the stringly-typed sniff: a legitimate tool result
+    # whose text happens to contain the canonical "Tool error:" prefix
+    # mid-sentence must NOT be classified as an error and suppressed. The old
+    # substring (`in`) check wrongly dropped it; startswith keeps it.
+    ai.agent.cfg.verbose = True;
+    ai.agent.bus.events = [];
+    ai.agent.bus._next_id = 1;
+    ai.agent.bus.active_feed = True;
+    stream = [
+        StreamEv(event_type="tool_call", data={"tool": "read_guide", "args": {}}),
+        StreamEv(
+            event_type="tool_result",
+            data={
+                "tool": "read_guide",
+                "result": "See the Tool error: section of the docs for recovery."
+            }
+        ),
+        StreamEv(event_type="tool_timing", data={"duration_ms": 1.0}),
+        StreamEv(event_type="steps_done", data={})
+    ];
+    events_snapshot: list = [];
+    try {
+        capturing(lambda : ai.agent.view.render_stream(stream));
+        events_snapshot = list(ai.agent.bus.events);
+    } finally {
+        ai.agent.bus.active_feed = False;
+        ai.agent.bus.events = [];
+        ai.agent.bus._next_id = 1;
+    }
+    kept = [
+        ev
+        for ev in events_snapshot
+        if ev.get("kind") == "tool_result"
+    ];
+    assert len(kept) == 1 , events_snapshot;
+    assert "See the Tool error: section" in str(kept[0].get("text", "")) , kept[0];
+}
+
+
 test "ui mode keeps model stream on the bus and off stdout" {
     ai.agent.cfg.verbose = True;
     ai.agent.bus.events = [];
@@ -366,7 +406,7 @@ test "ui mode keeps model stream on the bus and off stdout" {
 }
 
 
-test "ui mode routes tool invocations to call events for the transcript" {
+test "ui mode routes tool invocations to tool events for the transcript" {
     ai.agent.cfg.verbose = True;
     ai.agent.bus.events = [];
     ai.agent.bus._next_id = 1;
@@ -395,12 +435,23 @@ test "ui mode routes tool invocations to call events for the transcript" {
     tool_calls = [
         ev
         for ev in events_snapshot
-        if ev.get("kind") == "call" and str(ev.get("node", "")) == "read_file"
+        if ev.get("kind") == "tool" and str(ev.get("name", "")) == "read_file"
     ];
     assert len(tool_calls) == 1 , events_snapshot;
+    # `node` mirrors `name` so the native TUI's wire serializer can head the
+    # tool-call row; the desktop ActivityFeed reads `name`.
+    assert str(tool_calls[0].get("node", "")) == "read_file" , tool_calls[0];
     assert "read_file(path=main.jac" in str(tool_calls[0].get("text", "")) , tool_calls[
         0
     ];
+    # Tool invocations must NOT overload kind=="call" -- that kind is reserved
+    # for model/token-usage rows (TokenStream). A token-less call row here
+    # would flood the desktop token-usage stream.
+    assert not [
+        ev
+        for ev in events_snapshot
+        if ev.get("kind") == "call"
+    ] , events_snapshot;
 }
 
 
