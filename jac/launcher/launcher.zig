@@ -195,12 +195,18 @@ fn runNinja(init: std.process.Init, exe_path: []const u8, exe_z: [*:0]const u8, 
     const vimruntime = std.fmt.bufPrintZ(&b_vimruntime, "{s}/nvim/runtime", .{rt}) catch die("path too long");
     var b_ninja: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const ninja_dir = std.fmt.bufPrintZ(&b_ninja, "{s}/nvim/ninja", .{rt}) catch die("path too long");
-    _ = setenv("VIMRUNTIME", vimruntime.ptr, 1);
-    _ = setenv("JAC_NINJA_DIR", ninja_dir.ptr, 1);
-    _ = setenv("JAC_BIN", exe_z, 1);
-    // Isolate shada/swap/undo/log under ~/.local/{share,state}/jac-ninja and
-    // keep the user's own nvim config dirs out of play entirely.
-    _ = setenv("NVIM_APPNAME", "jac-ninja", 1);
+    // All four are load-bearing (runtime files, config layer, LSP spawn,
+    // state isolation) -- a setenv failure (OOM) must not limp into an
+    // editor with silently missing pieces.
+    if (setenv("VIMRUNTIME", vimruntime.ptr, 1) != 0 or
+        setenv("JAC_NINJA_DIR", ninja_dir.ptr, 1) != 0 or
+        setenv("JAC_BIN", exe_z, 1) != 0 or
+        // Isolate shada/swap/undo/log under ~/.local/{share,state}/jac-ninja
+        // and keep the user's own nvim config dirs out of play entirely.
+        setenv("NVIM_APPNAME", "jac-ninja", 1) != 0)
+    {
+        die("ninja environment setup failed (setenv)");
+    }
 
     var argv_storage: [4096]?[*:0]const u8 = undefined;
     var argc: usize = 0;
@@ -235,11 +241,11 @@ fn runNinja(init: std.process.Init, exe_path: []const u8, exe_z: [*:0]const u8, 
                 // --easy / --no-easy toggle the VSCode-style input layer
                 // (ninja/lua/ninja/easy.lua reads the env and persists).
                 if (std.mem.eql(u8, arg, "--easy")) {
-                    _ = setenv("JAC_NINJA_EASY", "1", 1);
+                    if (setenv("JAC_NINJA_EASY", "1", 1) != 0) die("ninja environment setup failed (setenv)");
                     continue;
                 }
                 if (std.mem.eql(u8, arg, "--no-easy")) {
-                    _ = setenv("JAC_NINJA_EASY", "0", 1);
+                    if (setenv("JAC_NINJA_EASY", "0", 1) != 0) die("ninja environment setup failed (setenv)");
                     continue;
                 }
                 if (argc >= argv_storage.len - 1) die("too many arguments");
