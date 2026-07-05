@@ -1557,11 +1557,12 @@ impl TurnRenderer._emit_call_usage(data: any, phase: str) -> None {
 }
 
 impl TurnRenderer.render_stream(event_stream: any) -> dict {
-    out: any = sys.stdout;
-
-    is_tty = bool(out?.isatty) and bool(out.isatty());
-
     is_ui = bool(agent.bus.active_feed);
+
+    out: any = _null_sink if is_ui else sys.stdout;
+    con: any = _null_sink if is_ui else console;
+
+    is_tty = (not is_ui) and bool(sys.stdout?.isatty) and bool(sys.stdout.isatty());
 
     n_read = 0;
     n_write = 0;
@@ -1605,15 +1606,13 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
         if not (is_ui and agent.view._is_tool_error_result(result)) {
             agent.bus.emit("tool_result", {"text": rtext});
         }
-        if not is_ui {
-            lines = agent.view._result_snippet(result, 3 if agent.cfg.verbose else 1);
-            tail = f"   {agent.view._fmt_ms(ms)}"
-                if (agent.cfg.verbose and ms is not None)
-                else "";
-            console.print(f"      ↳ {lines[0]}{tail}", style="dim");
-            for ln in lines[1:] {
-                console.print(f"        {ln}", style="dim");
-            }
+        lines = agent.view._result_snippet(result, 3 if agent.cfg.verbose else 1);
+        tail = f"   {agent.view._fmt_ms(ms)}"
+            if (agent.cfg.verbose and ms is not None)
+            else "";
+        con.print(f"      ↳ {lines[0]}{tail}", style="dim");
+        for ln in lines[1:] {
+            con.print(f"        {ln}", style="dim");
         }
     }
     try {
@@ -1641,15 +1640,13 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                 cleaned = agent.view._strip_control(new_raw);
                 if cleaned {
                     clear_think();
-                    if not is_ui {
-                        out.write(cleaned);
-                        out.flush();
-                        streamed = True;
-                    }
+                    out.write(cleaned);
+                    out.flush();
+                    streamed = True;
                     agent.bus.emit_stream("reasoning", cleaned);
                 }
 
-                if hit and not streamed and is_tty and not is_ui {
+                if hit and not streamed and is_tty {
                     out.write(f"\r  ● thinking… {time.time() - step_t0:.1f}s");
                     out.flush();
                     think_on = True;
@@ -1659,11 +1656,9 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                 flush_result();
                 tok = str(data.get("content", ""));
                 answer += tok;
-                if not is_ui {
-                    out.write(tok);
-                    out.flush();
-                    streamed = True;
-                }
+                out.write(tok);
+                out.flush();
+                streamed = True;
                 agent.bus.emit_stream("answer", tok);
             } elif kind == "llm_timing" {
                 last_llm_ms = float(data.get("duration_ms", 0) or 0);
@@ -1692,11 +1687,9 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                 gen = agent.view._fmt_gen(last_llm_ms, last_llm_tokens)
                     if agent.cfg.verbose
                     else "";
-                if not is_ui {
-                    console.print(
-                        f"  ⏺ {agent.view.fmt_tool_call(tool, args)}{gen}", style="cyan"
-                    );
-                }
+                con.print(
+                    f"  ⏺ {agent.view.fmt_tool_call(tool, args)}{gen}", style="cyan"
+                );
                 agent.bus.emit(
                     "tool",
                     {
@@ -1729,9 +1722,7 @@ impl TurnRenderer.render_stream(event_stream: any) -> dict {
                 clear_think();
                 end_line();
                 flush_result();
-                if not is_ui {
-                    console.print("");
-                }
+                con.print("");
             }
         }
         clear_think();

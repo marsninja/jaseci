@@ -90,6 +90,14 @@ obj BrowseTools {
 glob _THINK_WIDTH = 40,
      _TOOL_ERROR_PREFIX: str = "Tool error:";
 
+obj _NullSink {
+    def write(*args: any, **kwargs: any) { }
+    def flush(*args: any, **kwargs: any) { }
+    def print(*args: any, **kwargs: any) { }
+}
+
+glob _null_sink = _NullSink();
+
 obj TurnRenderer {
     def print_banner;
     def print_help;
