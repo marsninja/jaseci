@@ -975,9 +975,12 @@ impl TypeEvaluator._get_type_of_expression_core(
                     has_any_member = False;
                     decl_for_ide: uni.NameAtom | None = None;
                     for union_member in base_type.types {
-                        if isinstance(
-                            union_member, (types.AnyType, types.UnknownType)
-                        ) {
+                        # `Any` (either the internal AnyType or the `Any` class
+                        # from a `typing.Any` annotation) absorbs: it is a
+                        # wildcard member, so we skip its lookup and let the
+                        # non-`Any` members drive validation.
+                        if self.is_explicit_any(union_member)
+                        or isinstance(union_member, types.UnknownType) {
                             member_types.append(union_member);
                             has_any_member = True;
                             continue;
@@ -1022,6 +1025,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                     }
                     missing_types: list[str] = [];
                     for union_member in base_type.types {
+                        if self.is_explicit_any(union_member) {
+                            continue;
+                        }
                         if isinstance(union_member, types.ClassType)
                         and union_member.is_class_instance() {
                             if not self._lookup_object_member(
@@ -2879,6 +2885,11 @@ impl TypeEvaluator.assign_type(
     if isinstance(src_type, types.UnionType)
     and not isinstance(dest_type, types.UnionType) {
         for src_member in src_type.types {
+            # An `Any` member absorbs -- the value may be anything, so it
+            # never blocks the assignment; the concrete members still must fit.
+            if self.is_explicit_any(src_member) {
+                continue;
+            }
             src_member_inst = self._convert_to_instance(src_member);
             if not self.assign_type(src_member_inst, dest_type, strict) {
                 return False;
@@ -2890,6 +2901,10 @@ impl TypeEvaluator.assign_type(
     if isinstance(dest_type, types.UnionType) {
         if isinstance(src_type, types.UnionType) {
             for src_type_arg in src_type.types {
+                # An `Any` member absorbs into the destination union.
+                if self.is_explicit_any(src_type_arg) {
+                    continue;
+                }
                 matched = False;
                 src_type_inst = self._convert_to_instance(src_type_arg);
                 for dest_type_arg in dest_type.types {
