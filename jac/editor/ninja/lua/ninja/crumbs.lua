@@ -91,9 +91,19 @@ function M.enable()
     group = aug,
     callback = function(ev) refresh_symbols(ev.buf) end,
   })
-  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "BufWinEnter", "LspAttach" }, {
+  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "BufWinEnter" }, {
     group = aug,
     callback = function() render(vim.api.nvim_get_current_win()) end,
+  })
+  -- On attach, render every window SHOWING the attached buffer -- it may
+  -- have attached in a background split, not the focused window.
+  vim.api.nvim_create_autocmd("LspAttach", {
+    group = aug,
+    callback = function(ev)
+      for _, win in ipairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_get_buf(win) == ev.buf then render(win) end
+      end
+    end,
   })
   render(vim.api.nvim_get_current_win())
 end
@@ -109,6 +119,9 @@ function M.disable()
   end
   cache = {}
   retry_at = {}
+  -- Stale in-flight flags would suppress the first request after a quick
+  -- re-enable (and forever, if the old callback never fires post-detach).
+  inflight = {}
   for _, win in ipairs(vim.api.nvim_list_wins()) do
     vim.wo[win].winbar = ""
   end

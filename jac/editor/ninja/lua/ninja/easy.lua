@@ -304,11 +304,13 @@ function M.disable(persist)
     aug = nil
   end
   vim.g.netrw_chgwin = nil
-  -- back to the stock ninja look; close the explorer sidebar + panel
+  -- back to the stock ninja look; close the explorer sidebar + panel.
+  -- All tabpages: a sidebar opened in another tab must not survive
+  -- :NinjaEasy off (review feedback).
   require("ninja.crumbs").disable()
   require("ninja.theme").default()
   panel_close()
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
     local buf = vim.api.nvim_win_get_buf(win)
     if vim.bo[buf].filetype == "netrw" then
       pcall(vim.api.nvim_win_close, win, true)
