@@ -481,3 +481,21 @@ impl TypeEvaluator.resolve_to_definition_symbol(symbol: uni.Symbol) -> uni.Symbo
     }
     return cur;
 }
+
+impl TypeEvaluator._except_class_resolves_to_declaration(
+    ex_expr: uni.Expr, ex_type: TypeBase
+) -> bool {
+    if not isinstance(ex_type, types.ClassType) {
+        return False;
+    }
+    if not isinstance(ex_expr, uni.Name) {
+        return True;
+    }
+    sym = ex_expr.sym;
+    if sym is None {
+        return False;
+    }
+    sym = self.resolve_to_definition_symbol(sym);
+    decl = sym.decl.name_of if sym.decl else None;
+    return isinstance(decl, uni.Archetype);
+}

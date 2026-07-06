@@ -2231,7 +2231,12 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
 
             if isinstance(node_.parent, uni.Except) and node_.parent.ex_type {
                 ex_type = self.get_type_of_expression(node_.parent.ex_type);
-                return self._convert_to_instance(ex_type);
+                if self._except_class_resolves_to_declaration(
+                    node_.parent.ex_type, ex_type
+                ) {
+                    return self._convert_to_instance(ex_type);
+                }
+                return types.AnyType();
             }
 
             if isinstance(node_.parent, uni.ModulePath) {

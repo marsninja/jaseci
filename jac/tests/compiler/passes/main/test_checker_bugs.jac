@@ -35,6 +35,7 @@ Bug index:
   #BYTES-1 - Byte-string literals (b"...") typed as str instead of bytes
   #EVOLVING-NONE - `x = None` then reassign inside `if` lost the new type post-branch
   #LITWIDEN - literal initializers not widened for mutable vars/attrs/container elements
+  #EXCEPT-UNRESOLVED - except-clause binding from an unresolved exception class bound as Unknown/guessed supertype
 """
 
 import os;
@@ -998,5 +999,51 @@ test "bug_literal_widening_for_mutable_declarations" {
         "elements must widen to their base type (['.'] * 3 -> list[str]) so "
         "later stores of a different value are allowed. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #EXCEPT-UNRESOLVED: except-clause binding from an unresolved exception
+# class bound the handler variable to a concrete-but-wrong type.
+#
+# `except X as e` where X comes from an unresolved/untyped third-party import
+# bound `e` as Unknown (so every `e.attr` hard-errored E1032) or as a guessed
+# supertype like Exception (so domain attributes errored E1030). Substituting
+# a concrete guess for an unresolved symbol manufactures false positives.
+#
+# Fix: when the exception class does not resolve to a known class declaration,
+# bind the handler variable as Any -- permissive attribute access, no cascade.
+# =========================================================================
+test "bug_except_unresolved_binds_any" {
+    program = compile_and_check("checker_bug_except_unresolved_binds_any.jac");
+    # The optional-dep shim's `ApiException = Exception` fallback made the
+    # checker guess Exception for the handler, so e.status / e.reason errored
+    # E1030. Bound as Any, both attribute chains are now permissive: no errors
+    # (the guarded import still surfaces once as a W1100 warning).
+    assert program.errors_had == [] , (
+        "Bug #EXCEPT-UNRESOLVED: an except variable bound from a class that does "
+        "not resolve to a real declaration must degrade to Any (permissive), not "
+        "Unknown (E1032) or a guessed supertype like Exception (E1030). "
+        f"Got errors: {[e.pretty_print() for e in program.errors_had]}"
+    );
+}
+
+# Guard the other direction: a RESOLVED exception class stays typed, so bad
+# attribute access on it must still raise E1030. The Any fallback must apply
+# only to the unresolved case, never blanket-widen every except variable --
+# including a legitimately imported class, which must be followed through its
+# import alias to the declaring Archetype.
+test "bug_except_resolved_still_checked" {
+    program = compile_and_check("checker_except_resolved_still_checked.jac");
+    e1030s = [
+        e
+        for e in program.errors_had
+        if e.code is not None and e.code.code == "E1030"
+    ];
+    assert len(e1030s) == 2 , (
+        "Bug #EXCEPT-UNRESOLVED (guard): handlers bound from resolved classes "
+        "(builtin ValueError and imported JSONDecodeError) must keep their type, "
+        "so each bad attribute access still raises E1030 (expected 2). "
+        f"Got errors: {[e.pretty_print() for e in program.errors_had]}"
     );
 }

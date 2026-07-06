@@ -242,6 +242,10 @@ obj TypeEvaluator {
     def pop_symbol_resolution(symbol: uni.Symbol) -> bool;
     def get_type_of_symbol(symbol: uni.Symbol) -> TypeBase;
     def resolve_to_definition_symbol(symbol: uni.Symbol) -> uni.Symbol;
+    def _except_class_resolves_to_declaration(
+        ex_expr: uni.Expr, ex_type: TypeBase
+    ) -> bool;
+
     def _widen_literal_for_declaration(ty: TypeBase) -> TypeBase;
     def _import_module_from_path(
         path: str, importer_path: (str | None) = None
