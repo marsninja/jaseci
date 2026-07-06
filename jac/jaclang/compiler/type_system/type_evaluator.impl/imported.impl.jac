@@ -41,7 +41,11 @@ impl TypeEvaluator.get_type_of_module_item(node_: uni.ModuleItem) -> types.TypeB
                     }
                     path_str = str(path);
 
-                    if not path_str.endswith((".jac", ".py", ".pyi")) {
+                    import from jaclang.jac0core.modresolver {
+                        is_untyped_third_party_module
+                    }
+                    if (not path_str.endswith((".jac", ".py", ".pyi")))
+                    or is_untyped_third_party_module(path_str) {
                         mod_type = types.ModuleType(
                             mod_name=node_.name.sym_name,
                             file_uri=path,
@@ -265,7 +269,11 @@ impl TypeEvaluator.get_type_of_module(node_: uni.ModulePath) -> types.TypeBase {
                 continue;
             }
 
-            if not mod_path.endswith((".jac", ".py", ".pyi")) {
+            import from jaclang.jac0core.modresolver {
+                is_untyped_third_party_module
+            }
+            if (not mod_path.endswith((".jac", ".py", ".pyi")))
+            or is_untyped_third_party_module(mod_path) {
                 mod_type = types.ModuleType(
                     mod_name=npath.value,
                     file_uri=Path(mod_path).resolve(),
