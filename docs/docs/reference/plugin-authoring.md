@@ -13,7 +13,7 @@ A Jaclang plugin can:
 - **[Override runtime behavior](#recipe-3-override-runtime-behavior)** like the API server class, the user manager, the storage backend, or the console (e.g., scale swapping in a FastAPI server).
 - **[Define `jac.toml` config schemas](#recipe-4-define-plugin-config-in-jactoml)** with validation, defaults, and `[plugins.<name>]` sections.
 - **[Ship project templates](#recipe-5-ship-a-project-template)** that show up in `jac create --use <name>`.
-- **[Register custom dependency types](#recipe-6-register-a-custom-dependency-type)** like `npm` alongside the built-in PyPI dependency handler.
+- **[Register an ecosystem dependency provider](#recipe-6-register-an-ecosystem-dependency-provider)** like `npm` alongside the built-in PyPI dependency handler.
 
 All of these are layered on the same hook system: a plugin is a class whose methods are decorated with `@hookimpl`, registered under `[entrypoints.jac]` in the plugin's `jac.toml` (the `jac` entry-point group), and discovered by jaclang at startup via [pluggy](https://pluggy.readthedocs.io/).
 
