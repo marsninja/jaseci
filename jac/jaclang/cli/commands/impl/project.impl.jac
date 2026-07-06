@@ -975,6 +975,66 @@ impl update(packages: list = [], dev: bool = False, verbose: bool = False) -> in
     return 0;
 }
 
+impl deps(scale: bool = False, as_json: bool = False) -> int {
+    import json;
+    import from jaclang.project.config { get_config }
+    import from jaclang.project.providers { resolve_plan }
+    config = get_config();
+    if config is None {
+        console.error(
+            "No jac.toml found", hint="Run 'jac create' to create a project first."
+        );
+        return 1;
+    }
+    try {
+        plan = resolve_plan(config, include_dev=True, scale=scale);
+    } except ValueError as e {
+        console.error(str(e));
+        return 1;
+    }
+    if as_json {
+        payload = [
+            {
+                "name": d.name,
+                "version": d.version,
+                "ecosystem": d.ecosystem,
+                "source": d.source,
+                "origin": d.origin,
+                "dev": d.dev
+            }
+            for d in plan.deps
+        ];
+        print(json.dumps(payload, indent=2));
+        return 0;
+    }
+    if plan.is_empty() {
+        console.info("No dependencies resolved for this project.");
+        return 0;
+    }
+    console.print(
+        f"\n📦 Resolved dependency plan for {config.project.name}", style="bold"
+    );
+    for ecosystem in plan.ecosystems() {
+        eco_deps = plan.for_ecosystem(ecosystem);
+        console.print(f"\n  [{ecosystem}] ({len(eco_deps)})", style="info");
+        width = max([len(d.name) for d in eco_deps]);
+        for d in sorted(eco_deps, key=lambda d : (d.origin, d.name)) {
+            dev_marker = "  (dev)" if d.dev else "";
+            version = d.version or "*";
+            console.print(
+                f"    {d.name.ljust(width)}  {version}{dev_marker}  -- {d.origin}",
+                style="muted"
+            );
+        }
+    }
+    console.print(
+        f"\n  {len(plan.deps)} dependencies across "
+        f"{len(plan.ecosystems())} ecosystem(s)",
+        style="success"
+    );
+    return 0;
+}
+
 impl script(name: str = '', list_scripts: bool = False) -> int {
     import from jaclang.project.config { get_config }
     config = get_config();
