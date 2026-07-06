@@ -220,4 +220,3 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
         );
     }
 }
-
