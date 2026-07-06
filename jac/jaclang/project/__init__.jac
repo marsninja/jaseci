@@ -40,7 +40,7 @@ import from jaclang.project.providers {
     manifest_plugin_deps,
     resolve_plan
 }
-import from jaclang.project.venv {
+import from jaclang.project.pyvenv {
     get_venv_site_packages,
     add_venv_to_path,
     remove_venv_from_path,

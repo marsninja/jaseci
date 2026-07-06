@@ -1,7 +1,7 @@
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.project.config { JacConfig }
-import from jaclang.project.venv {
+import from jaclang.project.pyvenv {
     ensure_venv,
     get_venv_site_packages,
     make_git_spec,
@@ -113,13 +113,14 @@ def manifest_plugin_deps(
         if k != "dev" and isinstance(v, str)
     };
     dev_section = raw.get("dev", {});
-    dev_deps: dict[str, str] = {
-        k: v
-        for (k, v) in dev_section.items()
-        if isinstance(v, str)
+    dev_deps: dict[str, str] = {};
+    if isinstance(dev_section, dict) {
+        for (k, v) in dev_section.items() {
+            if isinstance(k, str) and isinstance(v, str) {
+                dev_deps[k] = v;
+            }
+        }
     }
-        if isinstance(dev_section, dict)
-        else {};
     return (deps, dev_deps);
 }
 
@@ -204,10 +205,15 @@ obj PythonProvider(EcosystemProvider) {
                 resolved[name] = (ver, group);
             }
         }
-        return [
-            ResolvedDependency(name=name, version=ver, origin=f"extra:{group}")
-            for (name, (ver, group)) in resolved.items()
-        ];
+        extras_deps: list[ResolvedDependency] = [];
+        for (dep_name, info) in resolved.items() {
+            extras_deps.append(
+                ResolvedDependency(
+                    name=dep_name, version=info[0], origin=f"extra:{info[1]}"
+                )
+            );
+        }
+        return extras_deps;
     }
 
     override def parse_spec(spec: str) -> tuple[str, str] {
@@ -461,9 +467,9 @@ obj PythonProvider(EcosystemProvider) {
             infrastructure = {"pip", "setuptools", "wheel"};
             return sorted(
                 [
-                    pkg["name"]
+                    str(pkg["name"])
                     for pkg in packages_data
-                    if pkg["name"].lower() not in infrastructure
+                    if str(pkg["name"]).lower() not in infrastructure
                 ]
             );
         } except (json.JSONDecodeError, KeyError) {
@@ -552,6 +558,9 @@ def get_provider_registry -> ProviderRegistry {
 
 def get_python_provider -> PythonProvider {
     provider = get_provider_registry().get("python");
+    if not isinstance(provider, PythonProvider) {
+        raise RuntimeError("python provider missing from the registry");
+    }
     return provider;
 }
 
@@ -574,7 +583,7 @@ def initialize_provider_registry -> None {
         }
         providers = result if isinstance(result, list) else [result];
         for provider in providers {
-            if provider is not None {
+            if isinstance(provider, EcosystemProvider) {
                 registry.register(provider);
             }
         }

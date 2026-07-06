@@ -492,7 +492,7 @@ impl install(
 ) -> int {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
-    import from jaclang.project.venv { ensure_venv, get_venv_site_packages }
+    import from jaclang.project.pyvenv { ensure_venv, get_venv_site_packages }
     import from jaclang.project.providers {
         InstallContext,
         get_provider_registry,
@@ -740,7 +740,7 @@ impl add(
     packages: list = [], dev: bool = False, git: str = '', verbose: bool = False
 ) -> int {
     import from jaclang.project.config { get_config }
-    import from jaclang.project.venv { make_git_spec }
+    import from jaclang.project.pyvenv { make_git_spec }
     import from jaclang.project.providers { InstallContext, get_python_provider }
     config = get_config();
     if config is None {
@@ -849,7 +849,7 @@ def _major_minor(version: str) -> str {
 
 impl update(packages: list = [], dev: bool = False, verbose: bool = False) -> int {
     import from jaclang.project.config { get_config }
-    import from jaclang.project.venv { make_git_spec }
+    import from jaclang.project.pyvenv { make_git_spec }
     import from jaclang.project.providers { InstallContext, get_python_provider }
     config = get_config();
     if config is None {
@@ -997,7 +997,7 @@ impl deps(scale: bool = False, as_json: bool = False) -> int {
                 "dev": d.dev
             } for d in plan.deps
         ];
-        print(json.dumps(payload, indent=2));
+        console.print(json.dumps(payload, indent=2));
         return 0;
     }
     if plan.is_empty() {

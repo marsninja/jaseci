@@ -13,7 +13,7 @@ import from jaclang.project.providers {
     capability_dependencies,
     get_python_provider
 }
-import from jaclang.project.venv { make_pip_spec }
+import from jaclang.project.pyvenv { make_pip_spec }
 import from jaclang.project.capabilities {
     Capability,
     CapabilityClosure,

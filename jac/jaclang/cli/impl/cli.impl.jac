@@ -204,7 +204,7 @@ def _load_project_config {
     import from jaclang.jac0core.helpers { MalformedJacTomlError }
     try {
         import from jaclang.project.config { get_config, set_config }
-        import from jaclang.project.venv { add_venv_to_path }
+        import from jaclang.project.pyvenv { add_venv_to_path }
 
         config = get_config();
         if config is not None {

@@ -1,6 +1,6 @@
 """Tests for the ecosystem dependency provider engine.
 
-Covers jaclang.project.venv (venv/pip mechanics), jaclang.project.providers
+Covers jaclang.project.pyvenv (venv/pip mechanics), jaclang.project.providers
 (PythonProvider, ProviderRegistry, resolve_plan), and the jac
 install/add/remove/update CLI commands that dispatch through them.
 """
@@ -14,7 +14,7 @@ import from unittest.mock { MagicMock, patch }
 
 import from jaclang.cli.commands { project as proj_cmds }
 import from jaclang.project.config { JacConfig }
-import from jaclang.project.venv {
+import from jaclang.project.pyvenv {
     add_venv_to_path,
     ensure_venv,
     get_venv_site_packages,

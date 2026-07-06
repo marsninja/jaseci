@@ -172,7 +172,7 @@ def _capability_requirements(caps: set) -> list[str] {
         get_capability_registry,
         resolve_closure
     }
-    import from jaclang.project.venv { make_pip_spec }
+    import from jaclang.project.pyvenv { make_pip_spec }
     if not caps {
         return [];
     }
