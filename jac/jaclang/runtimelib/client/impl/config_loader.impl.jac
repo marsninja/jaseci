@@ -8,6 +8,7 @@ import from jaclang.runtimelib.client.npm_provider {
     CORE_RUNTIME_DEPS,
     LEGACY_META_PACKAGES,
     OPTIONAL_RUNTIME_DEPS,
+    resolve_client_target_name,
     target_scoped_npm_deps
 }
 
@@ -78,24 +79,6 @@ def _clear_node_modules(client_dir: Path | None) {
     }
 }
 
-def _resolve_client_target(client_config: dict) -> str {
-    raw = str(client_config.get("target", "") or "").strip();
-    if raw == "" {
-        raw = str(os.environ.get("JAC_CLIENT_TARGET", "") or "").strip();
-    }
-    if raw == "" {
-        return "web";
-    }
-    normalized = raw.lower().replace("-", "_");
-    if normalized == "rn" {
-        return "react_native";
-    }
-    if normalized == "reactnative" {
-        return "react_native";
-    }
-    return normalized;
-}
-
 impl JacClientConfig.get_plugin_name(self: JacClientConfig) -> str {
     return "client";
 }
@@ -135,7 +118,7 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
     jac_config = self.get_jac_config();
 
     client_config = jac_config.get_plugin_config('client');
-    target_name = _resolve_client_target(client_config);
+    target_name = resolve_client_target_name(jac_config);
 
     npm_deps = jac_config.get_plugin_deps('npm');
     target_scoped_deps = target_scoped_npm_deps(jac_config, target_name);

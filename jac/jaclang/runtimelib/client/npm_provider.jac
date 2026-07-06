@@ -37,7 +37,10 @@ glob CORE_RUNTIME_DEPS: dict[str, str] = {
      LEGACY_META_PACKAGES: set = {"jac-client-node", "@jac-client/dev-deps"};
 
 
-def _resolve_client_target_name(config: JacConfig) -> str {
+"""Resolve the active client target name from [plugins.client] target /
+JAC_CLIENT_TARGET, normalizing aliases (rn/reactnative -> react_native).
+Shared by the npm provider and the client config loader."""
+def resolve_client_target_name(config: JacConfig) -> str {
     import os;
     client_config = config.get_plugin_config("client");
     raw = str(client_config.get("target", "") or "").strip();
@@ -172,7 +175,7 @@ obj NpmProvider(EcosystemProvider) {
                     );
                 }
             }
-            target_name = _resolve_client_target_name(config);
+            target_name = resolve_client_target_name(config);
             for (pkg, version) in target_scoped_npm_deps(config, target_name).items() {
                 resolved.append(
                     ResolvedDependency(
@@ -226,9 +229,24 @@ obj NpmProvider(EcosystemProvider) {
             raise RuntimeError("No project root found");
         }
         package_version: str = version or "latest";
+        # The derived package.json is generated FROM jac.toml, so the manifest
+        # write must precede the install; roll it back if the install fails so
+        # a bun/network error never leaves a dep recorded but not installed.
+        (deps, dev_deps) = manifest_plugin_deps(config, "npm");
+        previous = (dev_deps if dev else deps).get(name);
         config.add_dependency(name, package_version, dev=dev, dep_type="npm");
         config.save();
-        regenerate_and_install(Path(str(config.project_root)));
+        try {
+            regenerate_and_install(Path(str(config.project_root)));
+        } except Exception {
+            if previous is not None {
+                config.add_dependency(name, previous, dev=dev, dep_type="npm");
+            } else {
+                config.remove_dependency(name, dev=dev, dep_type="npm");
+            }
+            config.save();
+            raise;
+        }
         return package_version;
     }
 
@@ -238,11 +256,22 @@ obj NpmProvider(EcosystemProvider) {
         if config.project_root is None {
             raise RuntimeError("No project root found");
         }
+        (deps, dev_deps) = manifest_plugin_deps(config, "npm");
+        previous = (dev_deps if dev else deps).get(name);
         if not config.remove_dependency(name, dev=dev, dep_type="npm") {
             return False;
         }
         config.save();
-        regenerate_and_install(Path(str(config.project_root)));
+        try {
+            regenerate_and_install(Path(str(config.project_root)));
+        } except Exception {
+            # Restore the manifest: the installed tree still has the package.
+            if previous is not None {
+                config.add_dependency(name, previous, dev=dev, dep_type="npm");
+                config.save();
+            }
+            raise;
+        }
         return True;
     }
 

@@ -133,3 +133,65 @@ test "npm provider plan carries self-heal origins for client projects" {
         assert backend_resolved == [];
     }
 }
+
+# =============================================================================
+# Failed npm installs must not leave the manifest dirty
+# =============================================================================
+"""add_package/remove_package roll jac.toml back when the install step fails."""
+test "npm provider rolls back the manifest when the install fails" {
+    import from unittest.mock { patch }
+    import from jaclang.project.config { JacConfig }
+    import from jaclang.project.providers { InstallContext }
+    import from jaclang.runtimelib.client.npm_provider { NpmProvider }
+
+    with tempfile.TemporaryDirectory() as temp_dir {
+        (config_path, original_bytes) = _write_toml(
+            temp_dir,
+            '[project]\nname = "client-app"\nversion = "1.0.0"\n'
+            'entry-point = "main.jac"\n\n[dependencies.npm]\nlodash = "^4.17.0"\n'
+        );
+        provider = NpmProvider();
+        ctx = InstallContext();
+
+        # add: a bun/network failure must not record the new dep.
+        config = JacConfig.load(config_path);
+        raised = False;
+        with patch(
+            "jaclang.runtimelib.client.npm_provider.regenerate_and_install",
+            side_effect=RuntimeError("bun unavailable")
+        ) {
+            try {
+                provider.add_package(config, "leftpad", "^1.0.0", False, ctx);
+            } except RuntimeError {
+                raised = True;
+            }
+        }
+        assert raised;
+        assert "leftpad" not in config_path.read_text();
+        assert config_path.read_bytes() == original_bytes;
+
+        # add over an existing dep: the previous version spec is restored.
+        config = JacConfig.load(config_path);
+        with patch(
+            "jaclang.runtimelib.client.npm_provider.regenerate_and_install",
+            side_effect=RuntimeError("bun unavailable")
+        ) {
+            try {
+                provider.add_package(config, "lodash", "^5.0.0", False, ctx);
+            } except RuntimeError { }
+        }
+        assert 'lodash = "^4.17.0"' in config_path.read_text();
+
+        # remove: a failed reinstall restores the removed dep.
+        config = JacConfig.load(config_path);
+        with patch(
+            "jaclang.runtimelib.client.npm_provider.regenerate_and_install",
+            side_effect=RuntimeError("bun unavailable")
+        ) {
+            try {
+                provider.remove_package(config, "lodash", False, ctx);
+            } except RuntimeError { }
+        }
+        assert 'lodash = "^4.17.0"' in config_path.read_text();
+    }
+}
