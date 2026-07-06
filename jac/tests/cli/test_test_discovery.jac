@@ -63,7 +63,7 @@ def make_project(with_fixture_trap: bool = False) -> str {
 import that descends through an *intermediate namespace package*: `engine/` holds
 only the `math/` subpackage, so `engine` itself has no direct `.jac` file (and no
 `__init__`). Returns the project root."""
-def make_namespace_import_project() -> str {
+def make_namespace_import_project -> str {
     proj = tempfile.mkdtemp(prefix="jac7211-");
     (Path(proj) / "jac.toml").write_text(
         '[project]\nname = "r"\n\n[test]\ndirectory = "tests"\n'
