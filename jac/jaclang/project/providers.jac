@@ -603,6 +603,13 @@ def get_python_provider -> PythonProvider {
     return provider;
 }
 
+"""Drop the global registry (tests): the next get_provider_registry() call
+rebuilds it with the built-in python provider only."""
+def reset_provider_registry -> None {
+    global _registry;
+    _registry = None;
+}
+
 """Register the built-in python provider plus every provider contributed
 through the `register_ecosystem_providers` plugin hook."""
 def initialize_provider_registry -> None {
