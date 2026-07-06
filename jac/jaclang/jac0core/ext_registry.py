@@ -234,13 +234,21 @@ def is_client_test(path: str) -> bool:
     return path.endswith(".test.cl.jac")
 
 
+# Tool-owned directory names that never hold importable Jac source; pruned from
+# the namespace-package subtree walk (dot-prefixed dirs -- .git, .venv, .jac --
+# are pruned by the leading-dot rule below).
+_WALK_SKIP_DIRS = frozenset({"__pycache__", "node_modules"})
+
+
 def _subtree_has_jac(directory: str) -> bool:
     """True if a ``.jac`` source exists in *directory* or below (early-exit).
 
     Each directory's own files are inspected before descending, so a leaf
     package whose ``.jac`` files sit right there returns without recursing.
-    Unreadable directories are skipped, and subdirectories are not followed
-    through symlinks (which avoids symlink cycles).
+    Unreadable directories are skipped, subdirectories are not followed through
+    symlinks (which avoids symlink cycles), and tool-owned trees that never hold
+    Jac source (``__pycache__``, ``node_modules``, dot-directories) are pruned to
+    bound the walk in deep project trees.
     """
     stack = [directory]
     while stack:
@@ -252,10 +260,12 @@ def _subtree_has_jac(directory: str) -> bool:
             subdirs: list[str] = []
             for entry in scan:
                 try:
-                    if entry.is_file() and is_jac(entry.name):
-                        return True
                     if entry.is_dir(follow_symlinks=False):
-                        subdirs.append(entry.path)
+                        name = entry.name
+                        if not name.startswith(".") and name not in _WALK_SKIP_DIRS:
+                            subdirs.append(entry.path)
+                    elif entry.is_file() and is_jac(entry.name):
+                        return True
                 except OSError:
                     continue
             stack.extend(subdirs)
