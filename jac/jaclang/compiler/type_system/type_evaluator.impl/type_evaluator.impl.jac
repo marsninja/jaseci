@@ -642,6 +642,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                 full_narrowed: TypeBase | None = None;
 
                 assert isinstance(expr.right, uni.Name);
+                if isinstance(base_type, types.AnyType) and base_type.is_foreign {
+                    expr.right.type = types.AnyType(is_foreign=True);
+                    return expr.right.type;
+                }
                 if isinstance(base_type, types.ModuleType) {
                     if base_type.is_external {
                         expr.right.type = types.AnyType(is_foreign=True);
