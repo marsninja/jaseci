@@ -779,5 +779,3 @@ class JacScalePlugin {
         return http_transport().call_walker(module_name, walker_name, args, stub_cls);
     }
 }
-
-
