@@ -1448,7 +1448,8 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
 
     _for_errs0 = len(self.errors_had);
     _unpack_target = nd.target if isinstance(nd.target, uni.TupleVal) else None;
-    loop_var_name = "for.unpack" if _unpack_target is not None
+    loop_var_name = "for.unpack"
+        if _unpack_target is not None
         else self._get_name(nd.target);
 
     if isinstance(nd.target, uni.TupleVal)
@@ -1799,13 +1800,20 @@ impl NaIRGenPass._codegen_for_indexed(
                 elem_val = self.builder.bitcast(elem_val, elem_cast, name="for.cast");
             }
             if unpack_target is not None {
-                self._codegen_tuple_unpack(unpack_target.values, elem_val, None);
+                if not self._codegen_tuple_unpack(
+                    unpack_target.values, elem_val, None
+                ) {
+                    self.emit(
+                        E5090,
+                        node_override=unpack_target,
+                        kind="for-loop target",
+                        name=type(unpack_target).__name__
+                    );
+                }
             } else {
                 if rc_vars and isinstance(var_types[0], ir.PointerType) {
                     old_val = self.builder.load(allocas[0], name="for.old");
-                    self._emit_rc_release_simple(
-                        old_val, op="for_elem", loc=_rc_loc
-                    );
+                    self._emit_rc_release_simple(old_val, op="for_elem", loc=_rc_loc);
                     self._emit_rc_retain(elem_val, op="for_elem", loc=_rc_loc);
                 }
                 self.builder.store(elem_val, allocas[0]);

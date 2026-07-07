@@ -581,7 +581,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None);
     def _codegen_tuple_unpack(
         targets: list, tuple_val: ir.Value, tuple_node: (object | None)
-    ) -> None;
+    ) -> bool;
 
     def _codegen_tuple_index(
         tuple_val: ir.Value, idx_val: ir.Value, struct_type: ir.LiteralStructType

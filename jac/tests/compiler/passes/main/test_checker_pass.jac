@@ -2891,8 +2891,7 @@ test "destructure_element_narrowing" {
 test "tuple_index_typing" {
     program = JacProgram();
     mod = program.compile(
-        os.path.join(CHECKER_FIXTURES, "checker_tuple_index_typing.jac"),
-        options=NO_TC
+        os.path.join(CHECKER_FIXTURES, "checker_tuple_index_typing.jac"), options=NO_TC
     );
     TypeCheckPass(ir_in=mod, prog=program);
     # Only `per_position_mismatch` errors: `t[1]` is bytes, assigned to str.

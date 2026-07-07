@@ -121,6 +121,15 @@ impl TypeEvaluator._extract_tuple_element_type(
     return None;
 }
 
+impl TypeEvaluator._tuple_has_variadic_arg(cls: types.ClassType) -> bool {
+    for ta in cls.private.type_args or [] {
+        if isinstance(ta, types.UnknownType) {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl TypeEvaluator._tuple_literal_index_type(
     base_type: TypeBase, subscript_arg: uni.Expr
 ) -> TypeBase | None {
@@ -129,16 +138,10 @@ impl TypeEvaluator._tuple_literal_index_type(
         return None;
     }
     cls: types.ClassType = base_type;
-
-    # Only fixed-length tuples with fully-known element types get per-position
-    # typing. A variadic `tuple[T, ...]` carries an Unknown arg for the `...`,
-    # so it stays on the generic `__getitem__` path below.
     if not (
         cls.is_builtin("tuple")
         and cls.private.type_args
-        and not any(
-            isinstance(ta, types.UnknownType) for ta in cls.private.type_args
-        )
+        and not self._tuple_has_variadic_arg(cls)
     ) {
         return None;
     }

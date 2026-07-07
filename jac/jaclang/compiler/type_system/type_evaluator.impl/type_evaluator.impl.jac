@@ -2080,9 +2080,6 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
                             return extracted;
                         }
 
-                        # A variadic `tuple[T, ...]` carries an Unknown for the
-                        # `...` in its trailing positions; fall back to the
-                        # iterated element type so every target still types as T.
                         if elem := self._get_iterable_element_type(
                             rhs_type, unpack_assignment.value
                         ) {
