@@ -255,11 +255,29 @@ impl run(
     cache: bool = True,
     autonative: bool = False,
     diagnostics: str = "",
+    entry_name: str = "",
+    nd: str = "",
+    root_id: str = "",
+    debug_mode: bool = False,
     args: list = []
 ) -> int {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.project.config { get_config }
 
+    if debug_mode {
+        if not filename {
+            console.error("jac run --debug needs a file.");
+            return 1;
+        }
+        return debug(filename=filename, main=main, cache=cache);
+    }
+    if entry_name {
+        if not filename {
+            console.error("jac run --entry needs a file.");
+            return 1;
+        }
+        return enter(filename, entry_name, args, main, root_id, nd);
+    }
     if not filename {
         return _run_project(
             show=show,
@@ -422,6 +440,12 @@ impl enter(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.constructs { WalkerArchetype }
 
+    if len(sys.argv) > 1 and sys.argv[1] == "enter" {
+        console.print(
+            "note: 'jac enter' is deprecated; use jac run <file> --entry <name>",
+            style="muted"
+        );
+    }
     _discover_config_from_file(filename);
     (base, mod, mach) = _proc_file(filename);
 
@@ -456,6 +480,33 @@ impl enter(
     }
     mach.close();
     return 0;
+}
+
+impl dev(filename: str = "", port: int = 8000, api_port: int = 0) -> int {
+    import from pathlib { Path }
+    import from jaclang.project.config { get_config }
+    import from jaclang.project.kinds { resolve_entry }
+
+    target = filename;
+    if not target {
+        cfg = get_config(start_path=Path.cwd(), force_discover=True);
+        if cfg is None or cfg.project_root is None {
+            console.error(
+                "No file given and no jac.toml found.\n"
+                "  Usage: jac dev <file.jac>, or run inside a Jac project directory."
+            );
+            return 1;
+        }
+        target = resolve_entry(cfg, str(cfg.project_root));
+        if not target {
+            console.error(
+                "Could not resolve an entry-point for this project.\n"
+                "  Set [project] entry-point in jac.toml."
+            );
+            return 1;
+        }
+    }
+    return start(filename=target, port=port, dev=True, api_port=api_port);
 }
 
 impl start(
@@ -852,6 +903,11 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.helpers { debugger as db }
+    if len(sys.argv) > 1 and sys.argv[1] == "debug" {
+        console.print(
+            "note: 'jac debug' is deprecated; use jac run <file> --debug", style="muted"
+        );
+    }
     (base, mod) = os.path.split(filename);
     base = base or './';
     mod = mod[:-4];
