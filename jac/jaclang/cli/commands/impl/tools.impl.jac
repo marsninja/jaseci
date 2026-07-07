@@ -15,10 +15,6 @@ impl tool(tool: str, args: list = []) -> int {
     }
     if tool == "grammar" {
         import from jaclang.cli.commands.analysis { grammar }
-        # `grammar` is a tombstoned verb -- forward its `-o/--output` flag from
-        # the REMAINDER so `jac tool grammar -o <file>` keeps parity with the
-        # old `jac grammar`. (Lark output was dropped in the clean break: the
-        # Lark parser is long gone, so its emitter had no consumer.)
         output = "";
         i = 0;
         while i < len(args) {

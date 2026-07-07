@@ -1000,9 +1000,7 @@ impl grammar(output: str = "") -> int {
             f.write(text);
             f.write("\n");
         }
-        console.success(
-            f"EBNF grammar ({len(pass_.rules)} rules) written to {output}"
-        );
+        console.success(f"EBNF grammar ({len(pass_.rules)} rules) written to {output}");
     } else {
         console.print(text);
     }
