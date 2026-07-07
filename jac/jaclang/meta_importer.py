@@ -325,9 +325,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             alerts = _module_scoped_alerts(program, file_path)
             if alerts:
                 details = "\n".join(a.pretty_print() for a in alerts)
-                raise ImportError(
-                    f"{file_path} failed to compile:\n{details}"
-                )
+                raise ImportError(f"{file_path} failed to compile:\n{details}")
             raise ImportError(f"No bytecode found for {file_path}")
 
         # MTIR is written keyed by file stem but byllm looks up by func.__module__;
