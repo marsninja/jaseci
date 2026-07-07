@@ -82,7 +82,7 @@ obj MicroserviceManifestBuilder {
         console.print(f"Building the client bundle on the host ({client_entry}).");
         try {
             subprocess.run(
-                [jac_executable(), "build", client_entry],
+                [jac_executable(), "build", client_entry, "--client", "web"],
                 cwd=project_dir,
                 check=True,
                 timeout=900

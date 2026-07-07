@@ -282,7 +282,7 @@ impl gen_jir_registry(verify: bool = False) -> int {
                 cfg.write("[check.lint]\nselect = [\"all\"]\n");
             }
             subprocess.run(
-                [sys.executable, '-m', 'jaclang', 'format', '--lintfix', tmp_path],
+                [sys.executable, '-m', 'jaclang', 'fmt', '--lintfix', tmp_path],
                 capture_output=True,
                 cwd=fmt_dir
             );

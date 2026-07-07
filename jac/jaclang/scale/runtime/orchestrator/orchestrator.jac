@@ -184,7 +184,9 @@ obj MicroserviceOrchestrator {
 
         console.print(f"  Building client from {client_entry}...");
         try {
-            build_result = subprocess.run(["jac", "build", client_entry], timeout=120);
+            build_result = subprocess.run(
+                ["jac", "build", client_entry, "--client", "web"], timeout=120
+            );
             if build_result.returncode == 0 {
                 console.print("  Client build complete");
             } else {

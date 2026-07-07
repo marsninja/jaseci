@@ -1198,7 +1198,9 @@ impl jacpack(action: str = "", path: str = "", output: str = "") -> int {
     if action == "pack" {
         if not path {
             console.error("Error: Template directory path required.");
-            console.print("Usage: jac jacpack pack <directory> [-o output.jacpack]");
+            console.print(
+                "Usage: jac create --pack <directory> [--pack_output output.jacpack]"
+            );
             return 1;
         }
         template_dir = Path(path);

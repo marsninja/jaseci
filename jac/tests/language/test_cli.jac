@@ -1133,7 +1133,7 @@ test "format -s preserves bracketed Jac syntax through Rich console" {
             f.write(src);
         }
         process = subprocess.Popen(
-            ["jac", "format", "-s", src_path],
+            ["jac", "fmt", "-s", src_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
