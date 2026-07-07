@@ -3,9 +3,6 @@ import sys;
 import from importlib.metadata { version as pkg_version }
 import from pathlib { Path }
 
-"""Verbs removed in the #7255 clean break. A tombstoned verb does not run:
-it prints its replacement and exits non-zero. This table is deleted one
-release after it ships."""
 glob TOMBSTONED_VERBS: dict[str, str] = {
          "format": "jac fmt",
          "lint": "jac check --lint",
@@ -15,7 +12,6 @@ glob TOMBSTONED_VERBS: dict[str, str] = {
          "enter": "jac run --entry <name> <file>",
          "debug": "jac run --debug <file>",
          "bundle": "jac build [--as jab|sealed|binary|wheel|npm]",
-         "nacompile": "jac build --as native",
          "eject": "jac build --as source",
          "js": "jac tool jac2js <file>",
          "jac2py": "jac tool jac2py <file>",

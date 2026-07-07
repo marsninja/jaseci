@@ -218,9 +218,6 @@ def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
     return (source_rel, fullname, is_pkg);
 }
 
-"""Derive the app metadata (kind / capabilities / entry) baked into a
-format-3 sealed manifest, from the staged tree's own jac.toml + contents.
-Returns {} for non-project images (e.g. the jaclang runtime itself)."""
 def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
     if not (pkg_path / "jac.toml").is_file() {
         return {};
@@ -243,7 +240,10 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
         entry = {"module": f"{pkg_name}.{stem}", "path": rel};
     }
 
-    caps: list[str] = ["has-server"];
+    caps: list[str] = [];
+    if kind in ["service", "service-mesh", "web-app", "desktop", "mobile"] {
+        caps.append("has-server");
+    }
     if entry {
         caps.append("has-entry");
     }
@@ -276,8 +276,6 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
     return meta;
 }
 
-"""Hash the non-module payloads baked into the image (serve manifest,
-prebuilt client dist) so the sealed manifest can verify them."""
 def collect_payloads(pkg_path: Path) -> dict[str, str] {
     import from jaclang.runtimelib.sealed_serve {
         SERVE_MANIFEST_REL,

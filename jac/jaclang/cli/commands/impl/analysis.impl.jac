@@ -560,7 +560,7 @@ impl format(
         if len(unformatted_files) > 0 {
             console.error("The following files are not properly formatted:");
             for file in unformatted_files {
-                console.error(f"  jac format --lintfix {file}");
+                console.error(f"  jac fmt --lintfix {file}");
             }
             has_errors = True;
         }

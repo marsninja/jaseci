@@ -1,12 +1,3 @@
-"""Sealed-app serving support.
-
-A sealed image (see jaclang.jac0core.sealed) may carry serve-time payloads
-baked at bundle time: a serve manifest (client exports, access maps, endpoint
-effects, cross-boundary bindings) and a prebuilt client dist. These helpers
-locate those payloads from any module path inside the image so the server and
-the client bundle builder can serve with zero live compilation.
-"""
-
 import json;
 import os;
 
@@ -17,7 +8,6 @@ glob SERVE_MANIFEST_REL: str = os.path.join(".jac", "serve_manifest.json"),
      CLIENT_DIST_REL: str = os.path.join(".jac", "client", "dist"),
      NATIVE_DIR_REL: str = os.path.join(".jac", "native");
 
-"""Nearest ancestor of `path` that is a sealed image root, else None."""
 def sealed_root_for(path: str) -> (str | None) {
     d = os.path.dirname(os.path.normpath(os.path.abspath(path)));
     while True {
@@ -32,7 +22,6 @@ def sealed_root_for(path: str) -> (str | None) {
     }
 }
 
-"""The baked serve manifest covering `path`, or None."""
 def serve_manifest_for(path: str) -> (dict[str, any] | None) {
     img_root = sealed_root_for(path);
     if img_root is None {
@@ -50,7 +39,6 @@ def serve_manifest_for(path: str) -> (dict[str, any] | None) {
     return data if isinstance(data, dict) else None;
 }
 
-"""The baked client dist dir covering `path`, or None."""
 def client_dist_for(path: str) -> (Path | None) {
     img_root = sealed_root_for(path);
     if img_root is None {

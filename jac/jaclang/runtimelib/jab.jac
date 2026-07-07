@@ -1,14 +1,3 @@
-"""Jac App Bundle (.jab) loading.
-
-A ``.jab`` is a sealed image (see jaclang.jac0core.sealed) packed as one
-deterministic tar.gz -- the single-file form of ``jac bundle --target
-sealed``. Materializing extracts it into a content-addressed cache dir and
-registers the image (hash-verifying every module JIR and payload), after
-which the app runs with zero live compilation. The manifest's app metadata
-(kind / capabilities / entry) makes a downloaded jab self-describing: the
-runner dispatches on it with no project config present.
-"""
-
 import hashlib;
 import json;
 import os;
@@ -29,9 +18,6 @@ def is_jab(path: str) -> bool {
     return path.lower().endswith(JAB_SUFFIX);
 }
 
-"""Extract `jab_path` into the content-addressed app cache (skipped when
-already materialized), register the sealed image fail-closed, and return
-the image root."""
 def materialize_jab(jab_path: str) -> Path {
     data = Path(jab_path).read_bytes();
     digest = hashlib.sha256(data).hexdigest();
@@ -64,7 +50,6 @@ def materialize_jab(jab_path: str) -> Path {
     return dest;
 }
 
-"""The app metadata (kind / capabilities / entry) of a materialized jab."""
 def jab_app_meta(img_root: Path) -> dict[str, any] {
     raw = json.loads(
         (img_root / "_precompiled" / MANIFEST_NAME).read_text(encoding="utf-8")

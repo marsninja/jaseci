@@ -83,7 +83,10 @@ glob registry = get_registry();
     examples=[
         ("jac run hello.jac", "Run a simple program"),
         ("jac run", "Run the current project per its jac.toml kind"),
-        ("jac run app.jab", "Run a sealed app bundle (kind-aware dispatch)"),
+        (
+            "jac run app.jab",
+            "Run a sealed app bundle (kind-aware; servable kinds use the app's configured port -- override with jac start app.jab --port N)"
+        ),
         ("jac run --entry my_walker app.jac arg1", "Invoke a specific entrypoint"),
         ("jac run --debug app.jac", "Run under the Python debugger"),
         ("jac run --show", "Print what the project would run/build, without doing it"),

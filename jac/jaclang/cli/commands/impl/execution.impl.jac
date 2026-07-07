@@ -136,9 +136,9 @@ def _execute_plan(
                 shared=plan.flags.get("shared", False)
             );
         }
-        if plan.verb == "bundle" {
-            import from jaclang.cli.commands.project { bundle }
-            return bundle(target=plan.flags.get("target", "wheel"));
+        if plan.verb == "build" {
+            import from jaclang.cli.commands.build { build }
+            return build(projection=plan.flags.get("as", "jab"));
         }
 
         console.error(
@@ -151,11 +151,7 @@ def _execute_plan(
     return 1;
 }
 
-"""Materialize a .jab and dispatch on its baked kind: execute cli kinds,
-serve servable kinds (production mode; a sealed artifact never dev-serves),
-reject attachable packages. The artifact is self-describing -- no project
-config in the invoking directory is consulted."""
-def _run_jab(filename: str, port: int, args: list, serve_only: bool) -> int {
+def _run_jab(filename: str, port: (int | None), args: list, serve_only: bool) -> int {
     import from jaclang.runtimelib.jab { materialize_jab, jab_app_meta }
 
     try {
@@ -184,8 +180,17 @@ def _run_jab(filename: str, port: int, args: list, serve_only: bool) -> int {
     }
     servable = kind in ["service", "service-mesh", "web-app", "web-static"];
     if serve_only or servable {
+        serve_port = port;
+        if serve_port is None {
+            import from jaclang.project.config { get_config_for_path }
+            img_cfg = get_config_for_path(img_root);
+            serve_port = img_cfg.serve.port if img_cfg else 8000;
+        }
         return start(
-            filename=entry_abs, port=port, no_client=(kind == "service"), dev=False
+            filename=entry_abs,
+            port=serve_port,
+            no_client=(kind == "service"),
+            dev=False
         );
     }
     if kind in ["cli", "cli-native", "native-binary"] {
@@ -204,8 +209,6 @@ def _run_jab(filename: str, port: int, args: list, serve_only: bool) -> int {
     return 1;
 }
 
-"""The baked AOT binary for this platform's triple inside a materialized
-jab, or None (caller falls back to JIT-running the sealed entry)."""
 def _jab_native_bin(img_root: object, entry_rel: str) -> (str | None) {
     import from jaclang.jac0core.ext_registry { base_stem }
     import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
@@ -320,7 +323,7 @@ impl run(
             );
             return 0;
         }
-        return _run_jab(filename, 8000, args, serve_only=False);
+        return _run_jab(filename, None, args, serve_only=False);
     }
     if show {
         console.print(f"jac run {filename}  ->  execute (explicit file)");
@@ -1183,7 +1186,6 @@ impl x(
         return _list_tools(tiers);
     }
 
-    # A project script of this name wins over installed tools (pnpm/uvx style).
     import from jaclang.project.config { get_config }
     cfg_x = get_config();
     if cfg_x is not None and name in (cfg_x.scripts or {}) {

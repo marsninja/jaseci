@@ -1,13 +1,3 @@
-"""jac build: the whole-program gate + the universal artifact (#7255).
-
-Builds the current project into a single sealed `.jab` behind a fail-closed
-whole-program type-check gate, or projects the same build to another
-shippable format via `--as` (sealed image dir, self-contained binary, PyPI
-wheel, npm tarball, ejected source, native binary). Client shells
-(web/pwa/mobile/desktop) remain available through the client plugin's
-`--client` extension of this command.
-"""
-
 import from jaclang.cli.registry { get_registry }
 import from jaclang.cli.command { Arg, ArgKind }
 

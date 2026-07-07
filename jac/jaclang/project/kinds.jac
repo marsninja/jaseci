@@ -223,9 +223,9 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
         return RunPlan(
             kind=kind,
             action="build",
-            verb="bundle",
+            verb="build",
             entry_path="",
-            flags={"target": "wheel"},
+            flags={"as": "wheel"},
             summary="Build PyPI wheel into dist/"
         );
     }
@@ -233,9 +233,9 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
         return RunPlan(
             kind=kind,
             action="build",
-            verb="bundle",
+            verb="build",
             entry_path="",
-            flags={"target": "npm"},
+            flags={"as": "npm"},
             summary="Build npm package into dist/"
         );
     }

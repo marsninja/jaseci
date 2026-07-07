@@ -1373,10 +1373,6 @@ def _resolve_entry_file(config: any) -> (Path | None) {
     return None;
 }
 
-"""Front-end compile the project closure and aggregate the serve-time
-metadata the server needs to boot a sealed image with zero live compilation:
-the entry's client manifest, function/walker access maps, endpoint effects,
-and cross-boundary bindings resolved to project-relative source paths."""
 def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     import os;
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
@@ -1527,7 +1523,6 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     };
 }
 
-"""Build (or reuse) the project's client dist for baking into the seal."""
 def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
     import from jaclang.runtimelib.client { get_bun }
     import from jaclang.runtimelib.client.targets.web_target { WebTarget }
@@ -1564,9 +1559,6 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
     return None;
 }
 
-"""Bake the AOT native binary for the current triple into the staged seal
-copy (kind cli-native / native-binary), so running the jab on a matching
-platform execs the baked binary with no JIT."""
 def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
     import os;
     import from jaclang.jac0core.ext_registry { is_native_module, base_stem }
@@ -1596,8 +1588,6 @@ def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
     return True;
 }
 
-"""Bake serve-time payloads (serve manifest + prebuilt client dist) into the
-staged seal copy so a sealed app serves with zero live compilation."""
 def _bake_serve_payloads(config: any, pkg_copy: Path) -> bool {
     import json;
     import shutil;

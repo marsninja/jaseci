@@ -124,20 +124,20 @@ test "kind service-mesh -> serve consumer" {
     assert p.verb == "start";
 }
 
-test "kind py-package -> build wheel via bundle" {
+test "kind py-package -> build wheel via build --as" {
     p = _plan("kind = \"py-package\"\n", "main.jac");
     assert p.action == "build";
-    assert p.verb == "bundle";
-    assert p.flags.get("target") == "wheel";
+    assert p.verb == "build";
+    assert p.flags.get("as") == "wheel";
     # bundle operates on the project, not a single entry file.
     assert p.entry_path == "";
 }
 
-test "kind js-package -> build npm via bundle" {
+test "kind js-package -> build npm via build --as" {
     p = _plan("kind = \"js-package\"\n", "main.jac");
     assert p.action == "build";
-    assert p.verb == "bundle";
-    assert p.flags.get("target") == "npm";
+    assert p.verb == "build";
+    assert p.flags.get("as") == "npm";
 }
 
 test "kind web-app -> serve dev (client framework is core)" {

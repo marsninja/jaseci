@@ -313,7 +313,6 @@ def _handle_build_target(ctx: HookContext) -> None {
 
     target_name = ctx.get_arg("client", "");
     if not target_name {
-        # No shell requested; the core build (jab/projections) handles it.
         return;
     }
     platform = ctx.get_arg("platform", None);
