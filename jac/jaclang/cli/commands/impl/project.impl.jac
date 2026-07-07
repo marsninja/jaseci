@@ -1564,6 +1564,38 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
     return None;
 }
 
+"""Bake the AOT native binary for the current triple into the staged seal
+copy (kind cli-native / native-binary), so running the jab on a matching
+platform execs the baked binary with no JIT."""
+def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
+    import os;
+    import from jaclang.jac0core.ext_registry { is_native_module, base_stem }
+    import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
+
+    entry_file = _resolve_entry_file(config);
+    if entry_file is None or not is_native_module(str(entry_file)) {
+        return True;
+    }
+    try {
+        import jaclang.compiler.passes.native.llvm.binding as llvm;
+        triple = llvm.get_default_triple();
+    } except Exception as e {
+        console.error(f"Cannot resolve the native target triple: {e}");
+        return False;
+    }
+    stem = base_stem(entry_file.name);
+    out_dir = pkg_copy / NATIVE_DIR_REL / triple;
+    out_dir.mkdir(parents=True, exist_ok=True);
+    console.print(f"  Compiling native binary for {triple}...", style="muted");
+    import from jaclang.cli.commands.nacompile { nacompile }
+    rc = nacompile(filename=str(entry_file), output=str(out_dir / stem));
+    if rc != 0 {
+        console.error("Native compilation failed; seal aborted.");
+        return False;
+    }
+    return True;
+}
+
 """Bake serve-time payloads (serve manifest + prebuilt client dist) into the
 staged seal copy so a sealed app serves with zero live compilation."""
 def _bake_serve_payloads(config: any, pkg_copy: Path) -> bool {
@@ -1653,6 +1685,9 @@ def _make_sealed_image(
         }
 
         if not _bake_serve_payloads(config, pkg_copy) {
+            return None;
+        }
+        if not _bake_native_payloads(config, pkg_copy) {
             return None;
         }
 

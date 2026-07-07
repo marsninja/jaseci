@@ -227,7 +227,7 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
     }
     import from jaclang.project.config { get_config_for_path }
     import from jaclang.project.kinds { resolve_project_kind, resolve_entry }
-    import from jaclang.runtimelib.sealed_serve { CLIENT_DIST_REL }
+    import from jaclang.runtimelib.sealed_serve { CLIENT_DIST_REL, NATIVE_DIR_REL }
 
     config = get_config_for_path(pkg_path);
     if config is None {
@@ -258,13 +258,32 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
         caps.append("attachable");
     }
 
-    return {"kind": kind, "capabilities": caps, "entry": entry};
+    meta = {"kind": kind, "capabilities": caps, "entry": entry};
+    native_dir = pkg_path / NATIVE_DIR_REL;
+    if native_dir.is_dir() {
+        triples = sorted(
+            [
+                d.name
+                for d in native_dir.iterdir()
+                if d.is_dir()
+            ]
+        );
+        if triples {
+            caps.append("platform-locked");
+            meta["triples"] = triples;
+        }
+    }
+    return meta;
 }
 
 """Hash the non-module payloads baked into the image (serve manifest,
 prebuilt client dist) so the sealed manifest can verify them."""
 def collect_payloads(pkg_path: Path) -> dict[str, str] {
-    import from jaclang.runtimelib.sealed_serve { SERVE_MANIFEST_REL, CLIENT_DIST_REL }
+    import from jaclang.runtimelib.sealed_serve {
+        SERVE_MANIFEST_REL,
+        CLIENT_DIST_REL,
+        NATIVE_DIR_REL
+    }
     payloads: dict[str, str] = {};
     sm = pkg_path / SERVE_MANIFEST_REL;
     if sm.is_file() {
@@ -272,9 +291,11 @@ def collect_payloads(pkg_path: Path) -> dict[str, str] {
             sm.read_bytes()
         ).hexdigest();
     }
-    dist = pkg_path / CLIENT_DIST_REL;
-    if dist.is_dir() {
-        for f in sorted(dist.rglob("*")) {
+    for payload_dir in [pkg_path / CLIENT_DIST_REL, pkg_path / NATIVE_DIR_REL] {
+        if not payload_dir.is_dir() {
+            continue;
+        }
+        for f in sorted(payload_dir.rglob("*")) {
             if f.is_file() {
                 payloads[f.relative_to(pkg_path).as_posix()] = hashlib.sha256(
                     f.read_bytes()

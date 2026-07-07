@@ -188,7 +188,13 @@ def _run_jab(filename: str, port: int, args: list, serve_only: bool) -> int {
             filename=entry_abs, port=port, no_client=(kind == "service"), dev=False
         );
     }
-    if kind in ["cli", "cli-native"] {
+    if kind in ["cli", "cli-native", "native-binary"] {
+        if kind != "cli" {
+            native_bin = _jab_native_bin(img_root, entry_rel);
+            if native_bin {
+                os.execv(native_bin, [native_bin] + [str(a) for a in args]);
+            }
+        }
         return run(filename=entry_abs, args=args);
     }
     console.error(
@@ -196,6 +202,25 @@ def _run_jab(filename: str, port: int, args: list, serve_only: bool) -> int {
         "(build its platform projection instead)."
     );
     return 1;
+}
+
+"""The baked AOT binary for this platform's triple inside a materialized
+jab, or None (caller falls back to JIT-running the sealed entry)."""
+def _jab_native_bin(img_root: object, entry_rel: str) -> (str | None) {
+    import from jaclang.jac0core.ext_registry { base_stem }
+    import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
+    try {
+        import jaclang.compiler.passes.native.llvm.binding as llvm;
+        triple = llvm.get_default_triple();
+    } except Exception {
+        return None;
+    }
+    stem = base_stem(os.path.basename(entry_rel));
+    cand = os.path.join(str(img_root), NATIVE_DIR_REL, triple, stem);
+    if os.path.isfile(cand) and os.access(cand, os.X_OK) {
+        return cand;
+    }
+    return None;
 }
 
 def _run_project(

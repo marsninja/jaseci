@@ -14,7 +14,8 @@ import from pathlib { Path }
 import from jaclang.jac0core.sealed { MANIFEST_NAME }
 
 glob SERVE_MANIFEST_REL: str = os.path.join(".jac", "serve_manifest.json"),
-     CLIENT_DIST_REL: str = os.path.join(".jac", "client", "dist");
+     CLIENT_DIST_REL: str = os.path.join(".jac", "client", "dist"),
+     NATIVE_DIR_REL: str = os.path.join(".jac", "native");
 
 """Nearest ancestor of `path` that is a sealed image root, else None."""
 def sealed_root_for(path: str) -> (str | None) {
