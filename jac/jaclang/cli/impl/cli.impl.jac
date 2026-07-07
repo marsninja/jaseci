@@ -3,6 +3,29 @@ import sys;
 import from importlib.metadata { version as pkg_version }
 import from pathlib { Path }
 
+"""Verbs removed in the #7255 clean break. A tombstoned verb does not run:
+it prints its replacement and exits non-zero. This table is deleted one
+release after it ships."""
+glob TOMBSTONED_VERBS: dict[str, str] = {
+         "format": "jac fmt",
+         "lint": "jac check --lint",
+         "deps": "jac install --plan",
+         "script": "jac x <name>",
+         "jacpack": "jac create --pack <dir>",
+         "enter": "jac run --entry <name> <file>",
+         "debug": "jac run --debug <file>",
+         "bundle": "jac build [--as jab|sealed|binary|wheel|npm]",
+         "nacompile": "jac build --as native",
+         "eject": "jac build --as source",
+         "js": "jac tool jac2js <file>",
+         "jac2py": "jac tool jac2py <file>",
+         "py2jac": "jac tool py2jac <file>",
+         "jac2js": "jac tool jac2js <file>",
+         "grammar": "jac tool grammar",
+         "destroy": "jac scale destroy <file.jac>",
+         "status": "jac scale status <file.jac>"
+     };
+
 impl start_cli -> None {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.cli.registry { get_registry }
@@ -28,6 +51,15 @@ impl start_cli -> None {
     parser = registry.finalize();
 
     raw_argv = sys.argv[1:];
+    if raw_argv
+    and raw_argv[0] in TOMBSTONED_VERBS
+    and raw_argv[0] not in registry.commands {
+        console.error(
+            f"'jac {raw_argv[0]}' was removed in the CLI cleanup (#7255); "
+            f"use: {TOMBSTONED_VERBS[raw_argv[0]]}"
+        );
+        sys.exit(2);
+    }
     has_jac_file = any(
         not tok.startswith('-') and tok.lower().endswith(('.jac', '.py', '.jab'))
         for tok in raw_argv

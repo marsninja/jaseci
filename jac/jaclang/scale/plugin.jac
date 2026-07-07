@@ -233,50 +233,7 @@ class JacCmd {
             source="jac-scale"
         );
 
-        @registry.command(
-            name="destroy",
-            help="Remove deployment from target platform",
-            args=[
-                Arg.create(
-                    "file_path", kind=ArgKind.POSITIONAL, help="Path to .jac file"
-                ),
-                Arg.create(
-                    "target",
-                    typ=str,
-                    default="kubernetes",
-                    help="Deployment target (kubernetes, aws, gcp, etc.)",
-                ),
-                Arg.create(
-                    "component",
-                    typ=str,
-                    default="",
-                    help="Component to destroy (default: entire deployment). Choices: application, database, cache, monitoring, dashboard",
-                ),
-
-            ],
-            examples=[
-                ("jac destroy app.jac", "Remove entire deployment for app"),
-                (
-                    "jac destroy app.jac --component application",
-                    "Remove only the application"
-                ),
-                ("jac destroy app.jac --component database", "Remove only MongoDB"),
-                ("jac destroy app.jac --component cache", "Remove only Redis"),
-                (
-                    "jac destroy app.jac --component monitoring",
-                    "Remove only monitoring stack"
-                ),
-                (
-                    "jac destroy app.jac --component dashboard",
-                    "Remove only dashboards (Mongo Express + RedisInsight)"
-                ),
-
-            ],
-            group="deployment",
-            priority=CommandPriority.PLUGIN,
-            source="jac-scale"
-        )
-        def destroy(
+        def deploy_destroy(
             file_path: str, target: str = "kubernetes", component: str = ""
         ) -> int {
             if not os.path.exists(file_path) {
@@ -361,27 +318,7 @@ class JacCmd {
             return 0;
         }
 
-        @registry.command(
-            name="status",
-            help="Show deployment status of jaseci application on target platform",
-            args=[
-                Arg.create(
-                    "file_path", kind=ArgKind.POSITIONAL, help="Path to .jac file"
-                ),
-                Arg.create(
-                    "target",
-                    typ=str,
-                    default="kubernetes",
-                    help="Deployment target (kubernetes, aws, gcp, etc.)",
-                ),
-
-            ],
-            examples=[("jac status app.jac", "Show deployment status of app"), ],
-            group="deployment",
-            priority=CommandPriority.PLUGIN,
-            source="jac-scale"
-        )
-        def status(file_path: str, target: str = "kubernetes") -> int {
+        def deploy_status(file_path: str, target: str = "kubernetes") -> int {
             if not os.path.exists(file_path) {
                 raise FileNotFoundError(f"File not found: '{file_path}'");
             }
@@ -412,7 +349,7 @@ class JacCmd {
 
         @registry.command(
             name="scale",
-            help="Manage microservice deployments - status, stop, restart, logs",
+            help="Manage scale deployments: local microservices (status/stop/restart/logs) and platform deployments (status/destroy on a .jac app)",
             args=[
                 Arg.create(
                     "action",
@@ -423,13 +360,25 @@ class JacCmd {
                     "service_name",
                     kind=ArgKind.POSITIONAL,
                     default="",
-                    help="Service name (required for stop, restart, logs)"
+                    help="Service name (stop/restart/logs), or a .jac app file for platform status/destroy"
                 ),
                 Arg.create(
                     "lines",
                     typ=int,
                     default=50,
                     help="Number of log lines to show (for 'logs' action)"
+                ),
+                Arg.create(
+                    "target",
+                    typ=str,
+                    default="kubernetes",
+                    help="Platform target for .jac app status/destroy (kubernetes, aws, gcp, etc.)"
+                ),
+                Arg.create(
+                    "component",
+                    typ=str,
+                    default="",
+                    help="Platform destroy: component to remove (application, database, cache, monitoring, dashboard; default: entire deployment)"
                 ),
 
             ],
@@ -439,13 +388,31 @@ class JacCmd {
                 ("jac scale restart cart", "Restart the cart service"),
                 ("jac scale logs products", "Show logs for products service"),
                 ("jac scale destroy", "Stop all services"),
+                ("jac scale status app.jac", "Show platform deployment status of app"),
+                ("jac scale destroy app.jac", "Remove app's platform deployment"),
+                (
+                    "jac scale destroy app.jac --component database",
+                    "Remove only MongoDB from the deployment"
+                ),
 
             ],
             group="microservices",
             priority=CommandPriority.PLUGIN,
             source="jac-scale"
         )
-        def scale_cmd(action: str, service_name: str = "", lines: int = 50) -> int {
+        def scale_cmd(
+            action: str,
+            service_name: str = "",
+            lines: int = 50,
+            target: str = "kubernetes",
+            component: str = ""
+        ) -> int {
+            if action in ("status", "destroy") and service_name.endswith(".jac") {
+                if action == "status" {
+                    return deploy_status(service_name, target);
+                }
+                return deploy_destroy(service_name, target, component);
+            }
             import from jaclang.scale.runtime.orchestrator.orchestrator {
                 build_registry
             }

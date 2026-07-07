@@ -14,11 +14,16 @@ impl check(
     ignore: (list | None) = None,
     disable_error_code: (list | None) = None,
     parse_only: bool = False,
-    nowarn: bool = False
+    nowarn: bool = False,
+    lint_only: bool = False,
+    fix: bool = False
 ) -> int {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
     import from time { time }
+    if lint_only {
+        return lint(paths=paths, fix=fix, ignore=ignore);
+    }
     if isinstance(paths, str) {
         paths = [paths];
     }

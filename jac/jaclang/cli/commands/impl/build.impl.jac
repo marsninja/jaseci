@@ -51,7 +51,11 @@ impl build(
     }
     if projection == "source" {
         import from jaclang.cli.commands.eject { eject }
-        return eject(source=project_root, output=output, force=False);
+        return eject(
+            source=project_root,
+            output=(output if output != "dist" else ""),
+            force=False
+        );
     }
     if projection == "native" {
         import from jaclang.cli.commands.nacompile { nacompile }

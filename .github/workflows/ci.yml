@@ -313,7 +313,7 @@ jobs:
       - name: Warm up compiler cache
         run: jac --version
 
-      - name: Run jac format (check formatting)
+      - name: Run jac fmt (check formatting)
         run: |
           set -euo pipefail
           if [ "${{ steps.changes.outputs.mode }}" = "scoped" ]; then
@@ -327,12 +327,12 @@ jobs:
               exit 0
             fi
             printf '%s\n' "$FILES" | tr '\n' '\0' \
-              | xargs -0 --no-run-if-empty jac format --check --lintfix
+              | xargs -0 --no-run-if-empty jac fmt --check --lintfix
           else
             # Sweep only git-tracked files: the build materializes generated
             # trees in-place (e.g. jac/zig-pkg/ zig package fetches with their
             # own sample .jac files), and a bare `find .` walks those too.
-            git ls-files -z '*.jac' | grep -zv -E '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$|_syntax_err\.jac$)' | xargs -0 --no-run-if-empty jac format --check --lintfix
+            git ls-files -z '*.jac' | grep -zv -E '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$|_syntax_err\.jac$)' | xargs -0 --no-run-if-empty jac fmt --check --lintfix
           fi
 
       - name: Verify jir_registry.jac is up to date
@@ -985,7 +985,7 @@ jobs:
     - name: Create fullstack project and eject it
       run: |
         jac create --use web-app fs-smoke
-        jac eject fs-smoke
+        cd fs-smoke && jac build --as source --no_typecheck
 
     - name: Install ejected backend and start it
       working-directory: fs-smoke/ejected/backend

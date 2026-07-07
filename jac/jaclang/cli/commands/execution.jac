@@ -141,33 +141,6 @@ def run(
 )
 def dev(filename: str = "", port: int = 8000, api_port: int = 0) -> int;
 
-@registry.command(
-    name="enter",
-    help="Run a specific entrypoint in a Jac program",
-    args=[
-        Arg.create("filename", kind=ArgKind.POSITIONAL, help="Path to .jac file"),
-        Arg.create(
-            "entrypoint", kind=ArgKind.POSITIONAL, help="Function/walker to invoke"
-        ),
-        Arg.create("args", kind=ArgKind.REMAINDER, help="Arguments for entrypoint"),
-        Arg.create("main", typ=bool, default=True, help="Treat as __main__", short="m"),
-        Arg.create("root", default="", help="Root executor ID", short="r"),
-        Arg.create("node", dest="nd", default="", help="Starting node ID", short="n"),
-        Arg.create(
-            "profile",
-            default="",
-            short="",
-            help="Configuration profile to load (e.g. prod, staging)"
-        ),
-
-    ],
-    examples=[
-        ("jac enter app.jac my_walker arg1 arg2", "Run walker with args"),
-        ("jac enter --node data_node app.jac process", "Run with specific node"),
-
-    ],
-    group="execution"
-)
 def enter(
     filename: str,
     entrypoint: str,
@@ -246,26 +219,6 @@ def start(
     no_client: bool = False
 ) -> int;
 
-@registry.command(
-    name="debug",
-    help="Debug a Jac program with Python debugger",
-    args=[
-        Arg.create("filename", kind=ArgKind.POSITIONAL, help="Path to .jac file"),
-        Arg.create("main", typ=bool, default=True, help="Treat as __main__", short="m"),
-        Arg.create(
-            "cache", typ=bool, default=False, help="Use cached compilation", short="c"
-        ),
-        Arg.create(
-            "profile",
-            default="",
-            short="",
-            help="Configuration profile to load (e.g. prod, staging)"
-        ),
-
-    ],
-    examples=[("jac debug myprogram.jac", "Debug a program"), ],
-    group="execution"
-)
 def debug(filename: str, main: bool = True, cache: bool = False) -> int;
 
 @registry.command(

@@ -14,8 +14,13 @@ impl create(
     force: bool = False,
     kind: str = "",
     use: str = "default",
-    list_jacpacks: bool = False
+    list_jacpacks: bool = False,
+    pack: str = "",
+    pack_output: str = ""
 ) -> int {
+    if pack {
+        return jacpack(action="pack", path=pack, output=pack_output);
+    }
     import from jaclang.project.config { find_project_root }
     import from jaclang.project.template_registry {
         get_template_registry,
@@ -488,8 +493,13 @@ impl install(
     quiet: bool = False,
     prefer_binary: bool = False,
     install_global: bool = False,
-    scale: bool = False
+    scale: bool = False,
+    plan: bool = False,
+    as_json: bool = False
 ) -> int {
+    if plan {
+        return deps(scale=scale, as_json=as_json);
+    }
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
     import from jaclang.project.pyvenv { ensure_venv, get_venv_site_packages }

@@ -1158,6 +1158,14 @@ impl x(
         return _list_tools(tiers);
     }
 
+    # A project script of this name wins over installed tools (pnpm/uvx style).
+    import from jaclang.project.config { get_config }
+    cfg_x = get_config();
+    if cfg_x is not None and name in (cfg_x.scripts or {}) {
+        import from jaclang.cli.commands.project { script }
+        return script(name=name);
+    }
+
     for (label, kind, loc) in tiers {
         if kind == "py" {
             for (script_name, _dist_name, ep) in _console_scripts_in(loc) {
