@@ -169,17 +169,13 @@ impl JacCompiler.get_bytecode(
                     and actual_program is not self._internal_program
                     and _bc_is_na(full_target)
                 ) {
-                    # The cached artifact carries native code whose engine
-                    # could not be restored; recompile instead of returning
-                    # the python shell so the module cannot silently run on
-                    # the wrong pathway. Internal toolchain modules are
-                    # excluded: their python fallback plus lazy background
-                    # acceleration is the designed bootstrap behavior.
                     import logging as _bc_logging;
                     _bc_logging.getLogger(__name__).warning(
                         f"Cached native sections for {full_target} could "
                         f"not be restored; recompiling."
                     );
+
+                    cache_path.unlink(missing_ok=True);
                 } else {
                     return marshal.loads(bc);
                 }
@@ -691,7 +687,8 @@ impl JacCompiler.compile(
 
     import from jaclang.jac0core.ext_registry { is_native_module, is_client_module }
     mp = mod_targ.loc.mod_path if (mod_targ?.loc and mod_targ.loc) else file_path;
-    is_explicit_native = bool(mp) and is_native_module(mp);
+    is_na_file = bool(mp) and is_native_module(mp);
+    is_explicit_native = is_na_file;
     is_client_mod = bool(mp) and is_client_module(mp);
     if (not is_explicit_native or not is_client_mod) and mod_targ?.body {
         for _stmt in mod_targ.body {
@@ -792,15 +789,6 @@ impl JacCompiler.compile(
         and not had_blocking_errors
         and is_explicit_native
     ) {
-        # Check/run parity: NaIRGenPass is the sole authority on what the
-        # native pathway supports, so a check-style compile (no_cgen) must
-        # run it for native content -- otherwise `jac check` passes files
-        # that `jac run` rejects. It must run after BoundaryAnalysisPass,
-        # matching the codegen schedule, so cross-context calls (native ->
-        # python bridging) are classified before native lowering judges
-        # them. The AST-level capability blacklist is only a fallback for
-        # environments without the native backend or without type
-        # inference available.
         _parity_passes: list[type[Transform[uni.Module, uni.Module]]] = [];
         if getattr(mod_targ, '_inference_started', False) {
             try {
@@ -901,7 +889,7 @@ impl JacCompiler.compile(
             passes=get_py_code_gen(),
             cancel_token=options.cancel_token
         );
-        if is_explicit_native {
+        if is_na_file {
             JacCompiler._scrub_native_artifacts_on_error(actual_program, mod_targ);
         }
     }
@@ -960,16 +948,9 @@ impl JacCompiler._module_scoped_errors(
 ) -> bool {
     import from jaclang.jac0core.diagnostics { Category }
     norm = os.path.normpath(mod_path);
-    # `foo.na.jac` -> prefix `foo.na.` so errors reported against annexes
-    # (`foo.na.impl.jac`, `foo.na.impl/bar.jac`) also count as this
-    # module's errors.
+
     prefix = (norm[:-4] if norm.endswith('.jac') else norm) + '.';
     for e in target_program.errors_had {
-        # Only codegen-phase errors poison artifacts: they mean the native
-        # lowering has holes (or failed to link) and was not seam-demoted
-        # to a Python fallback. Type/semantic errors keep their existing
-        # surfacing (check reports them, direct run refuses on them)
-        # without revoking the best-effort native contract (#6967).
         if e.code is None or e.code.category not in (Category.CODEGEN, Category.ICE) {
             continue;
         }
@@ -988,11 +969,6 @@ impl JacCompiler._module_scoped_errors(
 impl JacCompiler._scrub_native_artifacts_on_error(
     target_program: JacProgram, mod: uni.Module
 ) -> bool {
-    # A native-context module that accumulated errors must not keep any
-    # runnable artifact: executing its python lowering silently swaps
-    # pathway semantics, and executing its native lowering runs code with
-    # the erroring expressions elided. With every artifact withheld, the
-    # importer fails loudly (with the diagnostics) instead of executing.
     mod_path = mod.loc.mod_path if mod?.loc else '';
     if not mod_path {
         return False;

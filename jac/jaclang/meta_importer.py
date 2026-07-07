@@ -323,6 +323,13 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                 # Empty package is OK - just register it
                 return
             alerts = _module_scoped_alerts(program, file_path)
+            if not alerts:
+                # Files under the jaclang tree compile into the compiler's
+                # internal program, so their diagnostics live there rather
+                # than in the runtime program handed to us.
+                internal = getattr(compiler, "internal_program", None)
+                if internal is not None:
+                    alerts = _module_scoped_alerts(internal, file_path)
             if alerts:
                 details = "\n".join(a.pretty_print() for a in alerts)
                 raise ImportError(f"{file_path} failed to compile:\n{details}")

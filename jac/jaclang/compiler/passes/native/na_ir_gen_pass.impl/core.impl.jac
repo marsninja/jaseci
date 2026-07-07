@@ -147,10 +147,6 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
 
     if self.has_native_code {
         if self.errors_had {
-            # An erroring module must not publish IR: downstream consumers
-            # (NativeCompilePass jit, jir cache, importer) treat a missing
-            # llvm_ir as "do not run" -- publishing here would execute code
-            # with the erroring expressions lowered to holes.
             return self.ir_in;
         }
         if "__jac_glob_init" not in self.func_symtab {

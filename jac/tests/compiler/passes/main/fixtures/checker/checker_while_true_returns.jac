@@ -35,6 +35,19 @@ def with_break(x: int) -> int {
     return x;
 }
 
+def nested_inner_break(x: int) -> int {
+    while True {
+        while x < 3 {
+            x += 1;
+            break;
+        }
+        if x > 10 {
+            return x;
+        }
+        x += 2;
+    }
+}
+
 with entry {
-    print(spin(1), spin_or_raise(2), with_break(0));
+    print(spin(1), spin_or_raise(2), with_break(0), nested_inner_break(0));
 }
