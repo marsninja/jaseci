@@ -602,7 +602,7 @@ class JacScalePlugin {
         import from pathlib { Path }
         import from jaclang.scale.runtime.context.util {
             pick_free_port,
-            resolve_jac_binary,
+            jac_executable,
             wait_for_health
         }
 
@@ -650,7 +650,7 @@ class JacScalePlugin {
         child_env["JAC_SV_SIBLING"] = "1";
 
         cmd = [
-            resolve_jac_binary(),
+            jac_executable(),
             "start",
             str(module_file),
             "--port",
