@@ -86,13 +86,25 @@ MANIFEST_FORMATS_ACCEPTED = (2, MANIFEST_FORMAT)
 # section reader below -- so the shared owner cannot be jir.jac itself; a plain
 # .py leaf is bootstrap-safe. Aliased to the names the reader body already uses.
 from jaclang.jac0core.jir_format import (
-    PRECOMPILE_SENTINEL,
     FORMAT_VERSION as JIR_FORMAT_VERSION,
+)
+from jaclang.jac0core.jir_format import (
     HEADER_SIZE as _HEADER_SIZE,
-    SECTIONS_MAGIC as _SECTIONS_MAGIC,
+)
+from jaclang.jac0core.jir_format import (
+    PRECOMPILE_SENTINEL,
+)
+from jaclang.jac0core.jir_format import (
     SEC_BYTECODE as _SEC_BYTECODE,
+)
+from jaclang.jac0core.jir_format import (
     SEC_DEBUG_SRC as _SEC_DEBUG_SRC,
+)
+from jaclang.jac0core.jir_format import (
     SEC_TERMINATOR as _SEC_TERMINATOR,
+)
+from jaclang.jac0core.jir_format import (
+    SECTIONS_MAGIC as _SECTIONS_MAGIC,
 )
 
 
