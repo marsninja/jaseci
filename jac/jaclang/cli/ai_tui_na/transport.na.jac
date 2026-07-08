@@ -113,6 +113,24 @@ obj EmbedPyTransport(TtyFdTransport) {
         py_poll_fn: int = 0,
         py_send_fn: int = 0;
 
+    def bind_py(dict_ptr: int, poll_fn: int, send_fn: int) {
+        self.py_dict = dict_ptr;
+        self.py_poll_fn = poll_fn;
+        self.py_send_fn = send_fn;
+        self.stdin_eof = False;
+    }
+
+    def close_py {
+        if self.py_poll_fn != 0 {
+            jpy_Py_DecRef(self.py_poll_fn);
+            self.py_poll_fn = 0;
+        }
+        if self.py_send_fn != 0 {
+            jpy_Py_DecRef(self.py_send_fn);
+            self.py_send_fn = 0;
+        }
+    }
+
     def poll_gil(timeout_ms: int) {
         ts: int = jpy_PyEval_SaveThread();
         try {

@@ -36,6 +36,45 @@ def _debug_log(msg: str) -> None {
 }
 
 
+def _silence_logging_for_tui {
+    import logging;
+    import os;
+    import sys;
+
+    root_logger = logging.getLogger();
+    debug_path = os.environ.get("JAC_AI_TUI_DEBUG_LOG", "").strip();
+    lvl_dbg: int = int(logging.DEBUG);
+    lvl_warn: int = int(logging.WARNING);
+
+    for h in list(root_logger.handlers) {
+        if h?.stream in (sys.stderr, sys.stdout) {
+            root_logger.removeHandler(h);
+        }
+    }
+
+    if debug_path {
+        try {
+            fh = logging.FileHandler(debug_path);
+            fh.setFormatter(logging.Formatter("%(name)s %(levelname)s: %(message)s"));
+            fh.setLevel(lvl_dbg);
+            root_logger.addHandler(fh);
+            root_logger.setLevel(lvl_dbg);
+        } except Exception { }
+    } else {
+        root_logger.addHandler(logging.NullHandler());
+        root_logger.setLevel(lvl_warn);
+    }
+
+    try {
+        import from loguru { logger as _logu }
+        _logu.remove();
+        if debug_path {
+            _logu.add(debug_path, level="DEBUG");
+        }
+    } except Exception { }
+}
+
+
 def _esc_text(text: str) -> str {
     return text.replace("\\", "\\\\").replace("\n", "\\n");
 }

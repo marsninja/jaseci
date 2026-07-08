@@ -144,8 +144,7 @@ def _handle_ac_key(k: Key, rt: TuiRuntime) -> bool {
     }
 
     state.ac.dismiss();
-    state.dirty = True;
-    return False;
+    return _handle_edit_key(k, rt);
 }
 
 def _handle_ctrl_key(k: Key, rt: TuiRuntime) -> bool {

@@ -3,7 +3,6 @@ import from .state { TuiState }
 import from .select_list { SelectList, SelectItem }
 import from .diff { DiffEngine }
 import from .terminal_image { term_hyperlink, image_rows }
-import from .transport { EmbedPyTransport }
 import from .tui_loop { tui_loop_once }
 import from .tui_core { tui_populate_state, tui_enter_screen, tui_leave_screen }
 import from .runtime { TuiRuntime }
@@ -30,9 +29,6 @@ glob _BOOTSTRAP_PY: str = (
          "setup as _agent_setup, poll as _agent_poll, "
          "send as _agent_send, stop as _agent_stop\n"
      );
-
-glob embed_transport: EmbedPyTransport = EmbedPyTransport();
-
 
 def _run_embed -> None {
     proj_s: str = "";
@@ -66,7 +62,6 @@ def _run_embed -> None {
     }
 
     rt = TuiRuntime();
-    rt.transport = embed_transport;
     state = rt.state;
     rt.cmd_queue.clear();
     state.ipc_fd = -1;
@@ -80,23 +75,15 @@ def _run_embed -> None {
     tui_populate_state(state, proj_s, files_s, presets_s);
     tui_enter_screen(state);
 
-    embed_transport.py_dict = d;
-    embed_transport.py_poll_fn = jpy_PyRun_String("_agent_poll", PY_EVAL, d, d);
-    embed_transport.py_send_fn = jpy_PyRun_String("_agent_send", PY_EVAL, d, d);
-    embed_transport.stdin_eof = False;
+    poll_fn: int = jpy_PyRun_String("_agent_poll", PY_EVAL, d, d);
+    send_fn: int = jpy_PyRun_String("_agent_send", PY_EVAL, d, d);
+    rt.transport.bind_py(d, poll_fn, send_fn);
 
     try {
         while tui_loop_once(rt) { }
     } finally {
         jpy_PyRun_SimpleString("_agent_stop()");
-        if embed_transport.py_poll_fn != 0 {
-            jpy_Py_DecRef(embed_transport.py_poll_fn);
-            embed_transport.py_poll_fn = 0;
-        }
-        if embed_transport.py_send_fn != 0 {
-            jpy_Py_DecRef(embed_transport.py_send_fn);
-            embed_transport.py_send_fn = 0;
-        }
+        rt.transport.close_py();
         tui_leave_screen(state);
         tty_close();
         jpy_Py_Finalize();
