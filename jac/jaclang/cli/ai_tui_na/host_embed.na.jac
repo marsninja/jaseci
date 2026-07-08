@@ -3,7 +3,7 @@ import from .state { TuiState }
 import from .select_list { SelectList, SelectItem }
 import from .diff { DiffEngine }
 import from .terminal_image { term_hyperlink, image_rows }
-import from .transport { TtyFdTransport, CmdQueue }
+import from .transport { EmbedPyTransport }
 import from .tui_loop { tui_loop_once }
 import from .tui_core { tui_populate_state, tui_enter_screen, tui_leave_screen }
 import from .runtime { TuiRuntime }
@@ -15,13 +15,7 @@ import from jacpyembed {
         cmd: str
     ) -> i32;  def jpy_PyImport_AddModule(name: str) -> int;  def jpy_PyModule_GetDict(
         module: int
-    ) -> int;  def jpy_PyRun_String(s: str, start: i32, g: int, l: int) -> int;  def jpy_PyEval_SaveThread -> int;  def jpy_PyEval_RestoreThread(
-        s: int
-    ) -> None;  def jpy_PyGILState_Ensure -> int;  def jpy_PyGILState_Release(
-        state: int
-    ) -> None;  def jpy_PyObject_CallOneArg(fn: int, arg: int) -> int;  def jpy_PyUnicode_FromString(
-        s: str
-    ) -> int;  def jpy_PyUnicode_AsUTF8(pyobj: int) -> str;  def jpy_Py_DecRef(
+    ) -> int;  def jpy_PyRun_String(s: str, start: i32, g: int, l: int) -> int;  def jpy_Py_DecRef(
         pyobj: int
     ) -> None;
 }
@@ -36,54 +30,6 @@ glob _BOOTSTRAP_PY: str = (
          "setup as _agent_setup, poll as _agent_poll, "
          "send as _agent_send, stop as _agent_stop\n"
      );
-
-
-def _agent_poll(d: int) -> str {
-    gstate = jpy_PyGILState_Ensure();
-    pyobj: int = jpy_PyRun_String("_agent_poll()", PY_EVAL, d, d);
-    out: str = "";
-    if pyobj != 0 {
-        out = jpy_PyUnicode_AsUTF8(pyobj);
-        jpy_Py_DecRef(pyobj);
-    }
-    jpy_PyGILState_Release(gstate);
-    return out;
-}
-
-
-def _agent_send(d: int, line: str) {
-    gstate = jpy_PyGILState_Ensure();
-    fn: int = jpy_PyRun_String("_agent_send", PY_EVAL, d, d);
-    if fn != 0 {
-        arg: int = jpy_PyUnicode_FromString(line);
-        if arg != 0 {
-            res: int = jpy_PyObject_CallOneArg(fn, arg);
-            if res != 0 {
-                jpy_Py_DecRef(res);
-            }
-            jpy_Py_DecRef(arg);
-        }
-        jpy_Py_DecRef(fn);
-    }
-    jpy_PyGILState_Release(gstate);
-}
-
-
-obj EmbedPyTransport(TtyFdTransport) {
-    has py_dict: int = 0;
-
-    def recv_blob -> str {
-        return _agent_poll(self.py_dict);
-    }
-
-    def flush_outbound_cmds(cmd_queue: CmdQueue) {
-        cmd: str = cmd_queue.drain();
-        while len(cmd) > 0 {
-            _agent_send(self.py_dict, cmd);
-            cmd = cmd_queue.drain();
-        }
-    }
-}
 
 glob embed_transport: EmbedPyTransport = EmbedPyTransport();
 
@@ -133,16 +79,24 @@ def _run_embed -> None {
     state.render_fd = fd;
     tui_populate_state(state, proj_s, files_s, presets_s);
     tui_enter_screen(state);
-    embed_transport.py_dict = d;
-    embed_transport.stdin_eof = False;
 
-    ts: int = jpy_PyEval_SaveThread();
+    embed_transport.py_dict = d;
+    embed_transport.py_poll_fn = jpy_PyRun_String("_agent_poll", PY_EVAL, d, d);
+    embed_transport.py_send_fn = jpy_PyRun_String("_agent_send", PY_EVAL, d, d);
+    embed_transport.stdin_eof = False;
 
     try {
         while tui_loop_once(rt) { }
     } finally {
-        jpy_PyEval_RestoreThread(ts);
         jpy_PyRun_SimpleString("_agent_stop()");
+        if embed_transport.py_poll_fn != 0 {
+            jpy_Py_DecRef(embed_transport.py_poll_fn);
+            embed_transport.py_poll_fn = 0;
+        }
+        if embed_transport.py_send_fn != 0 {
+            jpy_Py_DecRef(embed_transport.py_send_fn);
+            embed_transport.py_send_fn = 0;
+        }
         tui_leave_screen(state);
         tty_close();
         jpy_Py_Finalize();

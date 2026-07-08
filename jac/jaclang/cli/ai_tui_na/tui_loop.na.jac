@@ -41,7 +41,7 @@ def tui_drain_blobs(rt: TuiRuntime) -> bool {
 }
 
 def tui_loop_once(rt: TuiRuntime) -> bool {
-    rt.transport.poll(50);
+    rt.transport.poll_gil(50);
     tui_process_keys(rt);
     if not tui_drain_blobs(rt) {
         rt.state.quit_flag = True;

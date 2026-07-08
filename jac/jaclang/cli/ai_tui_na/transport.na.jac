@@ -8,6 +8,16 @@ import from .libc_tty {
 }
 import from .blob_reader { read_blob }
 
+import from jacpyembed {
+    def jpy_PyEval_SaveThread -> int;  def jpy_PyEval_RestoreThread(s: int) -> None;  def jpy_PyObject_CallNoArgs(
+        fn: int
+    ) -> int;  def jpy_PyObject_CallOneArg(fn: int, arg: int) -> int;  def jpy_PyUnicode_FromString(
+        s: str
+    ) -> int;  def jpy_PyUnicode_AsUTF8(pyobj: int) -> str;  def jpy_Py_DecRef(
+        pyobj: int
+    ) -> None;
+}
+
 obj CmdQueue {
     has _items: list[str] = [],
         _cursor: int = 0;
@@ -39,6 +49,10 @@ obj CmdQueue {
 
 obj Transport {
     def poll(timeout_ms: int) { }
+    def poll_gil(timeout_ms: int) {
+        self.poll(timeout_ms);
+    }
+
     def key_ready -> int {
         return 0;
     }
@@ -92,4 +106,50 @@ obj TtyFdTransport(Transport) {
     }
 
     def send_cmd(cmd: str) { }
+}
+
+obj EmbedPyTransport(TtyFdTransport) {
+    has py_dict: int = 0,
+        py_poll_fn: int = 0,
+        py_send_fn: int = 0;
+
+    def poll_gil(timeout_ms: int) {
+        ts: int = jpy_PyEval_SaveThread();
+        try {
+            self.poll(timeout_ms);
+        } finally {
+            jpy_PyEval_RestoreThread(ts);
+        }
+    }
+
+    def recv_blob -> str {
+        out: str = "";
+        if self.py_poll_fn != 0 {
+            pyobj: int = jpy_PyObject_CallNoArgs(self.py_poll_fn);
+            if pyobj != 0 {
+                out = jpy_PyUnicode_AsUTF8(pyobj);
+                jpy_Py_DecRef(pyobj);
+            }
+        }
+        return out;
+    }
+
+    def flush_outbound_cmds(cmd_queue: CmdQueue) {
+        if self.py_send_fn == 0 {
+            cmd_queue.clear();
+            return;
+        }
+        cmd: str = cmd_queue.drain();
+        while len(cmd) > 0 {
+            arg: int = jpy_PyUnicode_FromString(cmd);
+            if arg != 0 {
+                res: int = jpy_PyObject_CallOneArg(self.py_send_fn, arg);
+                if res != 0 {
+                    jpy_Py_DecRef(res);
+                }
+                jpy_Py_DecRef(arg);
+            }
+            cmd = cmd_queue.drain();
+        }
+    }
 }

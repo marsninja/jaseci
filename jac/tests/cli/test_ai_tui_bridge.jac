@@ -153,6 +153,35 @@ test "_configure_ui_env populates every JAC_AI_UI_* key from the request" {
 }
 
 
+test "native TUI runtime keeps embed transport dispatch concrete" {
+    # Regression for the broken `jac ai --tui --model ...` path: the UI env did
+    # carry the model override into the embed host, but the native runtime typed
+    # `rt.transport` as the base `Transport`, so `.flush_outbound_cmds()` and
+    # `.recv_blob()` resolved to base no-ops. The TUI looked loaded, but sends
+    # never reached `ui_send()` and agent frames (including the model-bearing
+    # full snapshot) never rendered.
+    shared_mod = importlib.import_module("jaclang.cli.ai_tui.tui_shared");
+    cli_dir = Path(shared_mod.__file__).resolve().parent.parent;
+    runtime_src = (cli_dir / "ai_tui_na" / "runtime.na.jac").read_text();
+    transport_src = (cli_dir / "ai_tui_na" / "transport.na.jac").read_text();
+    loop_src = (cli_dir / "ai_tui_na" / "tui_loop.na.jac").read_text();
+
+    assert "transport: EmbedPyTransport = EmbedPyTransport()" in runtime_src , (
+        "TuiRuntime.transport must stay concretely typed as EmbedPyTransport or "
+        "native dispatch falls back to Transport's no-op recv/send methods"
+    );
+    assert "obj EmbedPyTransport(TtyFdTransport)" in transport_src , (
+        "Embed transport implementation missing from transport.na.jac"
+    );
+    assert "def poll_gil(timeout_ms: int)" in transport_src , (
+        "Embed transport must expose poll_gil for the loop's GIL-aware wait"
+    );
+    assert "rt.transport.poll_gil(50);" in loop_src , (
+        "TUI loop must call poll_gil() so the background Python feed can run"
+    );
+}
+
+
 test "every producer event kind is recognized by the native parser (no silent UNKNOWN drift)" {
     # Tripwire for the event-kind duplication flagged in the #6355 review:
     # the producer (ai_agent.impl.jac) emits kind strings via bus.emit/emit_stream,
