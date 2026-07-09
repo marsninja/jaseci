@@ -3,7 +3,7 @@ import sys;
 import from queue { Queue, Empty }
 import from threading { Event, Thread }
 
-glob _q: Queue = Queue(),
+glob _q: Queue[str] = Queue(),
      _stop: Event = Event(),
      _stub: bool = False;
 

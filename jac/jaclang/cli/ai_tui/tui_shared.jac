@@ -85,7 +85,7 @@ def _esc_field(text: str) -> str {
 }
 
 
-def _ev_line(ev: dict) -> str {
+def _ev_line(ev: any) -> str {
     ev_id = str(ev.get("id", 0));
     ev_kind = str(ev.get("kind", ""));
     ev_node = _esc_field(str(ev.get("node", "")));
@@ -94,7 +94,7 @@ def _ev_line(ev: dict) -> str {
 }
 
 
-def _frame_blob(frame: dict) -> str {
+def _frame_blob(frame: any) -> str {
     parts = [];
     if frame.get("full") {
         parts.append(f"{FIELD_TYPE}:{FTYPE_FULL}");
@@ -116,7 +116,7 @@ def _frame_blob(frame: dict) -> str {
         delta = ev.get("_delta");
         if delta is not None {
             ev_id = str(ev.get("id", 0));
-            parts.append(f"{FIELD_EVA}:{ev_id}:{_esc_text(delta)}");
+            parts.append(f"{FIELD_EVA}:{ev_id}:{_esc_text(str(delta))}");
         } else {
             parts.append(_ev_line(ev));
         }
@@ -182,7 +182,7 @@ def _list_project_files(project: str) -> str {
 }
 
 
-def _first_tty_stream -> object {
+def _first_tty_stream -> any {
     import sys;
 
     for stream in (sys.stderr, sys.stdin, sys.stdout) {
@@ -204,7 +204,7 @@ def _probe_tty -> dict {
         return {"available": False, "device": ""};
     }
     try {
-        return {"available": True, "device": os.ttyname(stream.fileno())};
+        return {"available": True, "device": os.ttyname(int(stream.fileno()))};
     } except Exception {
         return {"available": True, "device": ""};
     }
@@ -220,7 +220,7 @@ def _require_tty -> str | None {
         );
         return None;
     }
-    return probe["device"];
+    return str(probe["device"]);
 }
 
 
@@ -304,11 +304,11 @@ def _cmd_apply(payload: str, stop_evt: any, proc: any) {
     }
     try {
         result = ui_apply_settings(
-            model=settings.get("model", ""),
-            n_ctx=settings.get("n_ctx", ""),
-            api_key=settings.get("api_key", ""),
-            base_url=settings.get("base_url", ""),
-            temperature=settings.get("temperature", ""),
+            model=str(settings.get("model", "")),
+            n_ctx=str(settings.get("n_ctx", "")),
+            api_key=str(settings.get("api_key", "")),
+            base_url=str(settings.get("base_url", "")),
+            temperature=str(settings.get("temperature", "")),
         );
         _debug_log(f"ui_apply_settings({settings}) -> {result}");
     } except Exception as e {
@@ -345,12 +345,12 @@ def _resolve_jac_build_bin(pkg_root: any) -> str | None {
     import os;
 
     explicit = os.environ.get("JAC_BIN", "").strip();
-    if explicit and os.path.isfile(explicit) and os.access(explicit, os.X_OK) {
+    if explicit and os.path.isfile(explicit) and os.access(explicit, int(os.X_OK)) {
         return explicit;
     }
     repo_root = os.path.normpath(os.path.join(str(pkg_root), "..", "..", ".."));
     repo_jac = os.path.join(repo_root, "jac", "zig-out", "bin", "jac");
-    if os.path.isfile(repo_jac) and os.access(repo_jac, os.X_OK) {
+    if os.path.isfile(repo_jac) and os.access(repo_jac, int(os.X_OK)) {
         return repo_jac;
     }
     return None;
@@ -369,7 +369,8 @@ def _embed_module_dir(name: str) -> str | None {
     if spec is None {
         return None;
     }
-    locs = spec?.submodule_search_locations;
+    spec_a: any = spec;
+    locs: any = spec_a?.submodule_search_locations;
     if locs {
         for loc in locs {
             if loc {
@@ -377,7 +378,7 @@ def _embed_module_dir(name: str) -> str | None {
             }
         }
     }
-    origin = spec?.origin;
+    origin = spec_a?.origin;
     if origin and origin not in ("built-in", "frozen") {
         return os.path.dirname(str(origin));
     }
@@ -462,7 +463,7 @@ def _ensure_embed_host(cli_root: any) -> EmbedHostResult {
     import subprocess;
     import from jaclang.cli.console { console }
 
-    na_dir = str(cli_root / "ai_tui_na");
+    na_dir = os.path.join(str(cli_root), "ai_tui_na");
     artifact = os.path.join(na_dir, "bin", "jac-ai-tui");
     source = os.path.join(na_dir, "host_embed.na.jac");
     build_sh = os.path.join(na_dir, "build_embed.sh");

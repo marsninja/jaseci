@@ -556,3 +556,14 @@ scripts/validate_release.jac
 # build time; the tree-sitter-jac package ships its own examples/sample.jac).
 # Bare name so any zig-pkg path component is skipped by the check step.
 zig-pkg
+
+# TUI native host (.na.jac) — emit only E5090 (native pathway limitations for
+# memset/calloc/CompareExpr/tty_* intrinsics). Consistent with CEF NA treatment.
+jac/jaclang/cli/ai_tui_na/host_embed.na.jac
+jac/jaclang/cli/ai_tui_na/terminal_image.na.jac
+jac/jaclang/cli/ai_tui_na/blob_reader.na.jac
+jac/jaclang/cli/ai_tui_na/transport.na.jac
+jac/jaclang/cli/ai_tui_na/terminal.na.jac
+jac/jaclang/cli/ai_tui_na/diff.na.jac
+jac/jaclang/cli/ai_tui_na/tui_core.na.jac
+jac/jaclang/cli/ai_tui_na/tty/libc_tty_base.na.jac

@@ -11,7 +11,7 @@ impl run_tui_embed(req: AgentRequest) -> int {
         _require_tty
     }
 
-    cli_root = Path(__file__).resolve().parent.parent;
+    cli_root = Path(str(__file__)).resolve().parent.parent;
 
     ensured = _ensure_embed_host(cli_root);
     if not ensured.ok {
