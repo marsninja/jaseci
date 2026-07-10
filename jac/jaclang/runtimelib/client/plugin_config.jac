@@ -150,7 +150,9 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
     console.print();
     if get_bun() is None {
         console.warning("Bun is required for client development");
-        console.print("  After installing Bun, run: jac install --npm\n", style="muted");
+        console.print(
+            "  After installing Bun, run: jac install --npm\n", style="muted"
+        );
         return;
     }
 
@@ -206,13 +208,15 @@ def _post_create_client(project_path: Path, project_name: str) -> None {
         } except ClientBundleError as e {
             console.warning(f"Failed to install packages: {e}");
             console.print(
-                "  💡 You can install packages later with: jac install --npm\n", style="muted"
+                "  💡 You can install packages later with: jac install --npm\n",
+                style="muted"
             );
         }
     } except Exception as e {
         console.warning(f"Could not install default packages: {e}");
         console.print(
-            "  💡 You can install packages later with: jac install --npm\n", style="muted"
+            "  💡 You can install packages later with: jac install --npm\n",
+            style="muted"
         );
     }
 }

@@ -635,7 +635,9 @@ impl install(
             }
             console.print(f"\n📦 Adding {pkg_name} from git", style="bold");
             console.print(f"  Repository: {git}", style="muted");
-            with console.status(f"Installing {pkg_name}...", spinner="dots") as status {
+            with console.status(
+                f"Installing {pkg_name}...", spinner="dots"
+            ) as status {
                 git_success = python.install_specs(config, [make_git_spec(git)], ctx);
             }
             if not git_success {
@@ -650,7 +652,9 @@ impl install(
             if save {
                 config.add_dependency(pkg_name, git, dev=dev, dep_type="git");
                 config.save();
-                console.print(f"\n  ✔ Updated jac.toml [dependencies.git]", style="muted");
+                console.print(
+                    f"\n  ✔ Updated jac.toml [dependencies.git]", style="muted"
+                );
             }
             return 0;
         }
@@ -662,16 +666,18 @@ impl install(
             return 0 if python.install_specs(config, packages, ctx) else 1;
         }
         console.print(f"\n📦 Adding {len(packages)} Python package(s)", style="bold");
-        for pkg_spec in packages {
-            (name, version) = python.parse_spec(pkg_spec);
-            with console.status(f"Installing {name}...", spinner="dots") as status {
-                recorded = python.add_package(config, name, version, dev, ctx);
-            }
-            if recorded is None {
-                console.error(f"Failed to install {name}");
-                return 1;
-            }
-            console.print(f"  ✔ {name} ({recorded})", style="success");
+        parsed = [python.parse_spec(pkg_spec) for pkg_spec in packages];
+        with console.status(
+            f"Installing {len(packages)} package(s)...", spinner="dots"
+        ) as status {
+            recorded = python.add_packages(config, parsed, dev, ctx);
+        }
+        if recorded is None {
+            console.error("Failed to install package(s)");
+            return 1;
+        }
+        for ((name, _), version_str) in zip(parsed, recorded) {
+            console.print(f"  ✔ {name} ({version_str})", style="success");
         }
         try {
             config.save();

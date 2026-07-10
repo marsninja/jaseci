@@ -301,10 +301,7 @@ def create(
             "Add multiple packages with version constraints"
         ),
         ("jac install pytest --dev", "Add a dev dependency"),
-        (
-            "jac install numpy --no-save",
-            "Install without recording in jac.toml"
-        ),
+        ("jac install numpy --no-save", "Install without recording in jac.toml"),
         (
             "jac install --git https://github.com/user/plugin.git",
             "Install and record a git dependency"

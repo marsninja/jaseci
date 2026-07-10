@@ -1318,10 +1318,11 @@ test "install multiple pkgs records all" {
                 PythonProvider, "_snapshot_installed"
             ) as mock_snap {
                 mock_snap.return_value = (False, set());
+                # Packages install in a single batched pip call, then each
+                # version is resolved with its own `pip show`.
                 mock_pip.side_effect = [
-                    (0, "Successfully installed numpy-2.4.2", ""),
+                    (0, "Successfully installed numpy-2.4.2 pandas-3.0.0", ""),
                     (0, "Name: numpy\nVersion: 2.4.2", ""),
-                    (0, "Successfully installed pandas-3.0.0", ""),
                     (0, "Name: pandas\nVersion: 3.0.0", "")
                 ];
                 result = proj_cmds.install(packages=["numpy", "pandas"]);
