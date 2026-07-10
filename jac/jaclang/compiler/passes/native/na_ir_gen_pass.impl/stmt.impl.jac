@@ -426,7 +426,6 @@ impl NaIRGenPass._codegen_forever(nd: uni.ForeverStmt) -> None {
 
     self.builder.branch(body_bb);
 
-    # No condition: `continue` restarts the body, `break` exits to end_bb.
     self.loop_stack.append((body_bb, end_bb));
     self.builder.position_at_end(body_bb);
 

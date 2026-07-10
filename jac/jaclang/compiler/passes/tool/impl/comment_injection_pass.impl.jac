@@ -904,7 +904,8 @@ impl CommentInjectionPass._process(ctx: uni.UniNode, nd: doc.DocType) -> doc.Doc
                 uni.ElseStmt,
                 uni.WhileStmt,
                 uni.ForeverStmt,
-                uni.InForStmt
+                uni.InForStmt,
+                uni.IterForStmt
             )
         ) {
             processed_parts = self._handle_empty_body_comments(ctx, processed_parts);

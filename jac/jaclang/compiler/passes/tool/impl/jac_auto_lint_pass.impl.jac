@@ -2028,6 +2028,7 @@ impl JacAutoLintPass._body_has_return_stmt(body: list) -> bool {
             }
         }
         if isinstance(stmt, uni.InForStmt)
+        or isinstance(stmt, uni.IterForStmt)
         or isinstance(stmt, uni.WhileStmt)
         or isinstance(stmt, uni.ForeverStmt) {
             if self._body_has_return_stmt(list(stmt.body)) {

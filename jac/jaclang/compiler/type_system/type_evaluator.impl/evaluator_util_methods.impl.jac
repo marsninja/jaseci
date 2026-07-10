@@ -1638,7 +1638,8 @@ impl TypeEvaluator._collect_return_types(
             stmt, (uni.IterForStmt, uni.InForStmt, uni.WhileStmt, uni.ForeverStmt)
         ) {
             self._collect_return_types(list(stmt.body), out);
-            _is_infinite_loop = isinstance(stmt, uni.ForeverStmt) or (
+            _is_infinite_loop = isinstance(stmt, uni.ForeverStmt)
+            or (
                 isinstance(stmt, uni.WhileStmt)
                 and isinstance(stmt.condition, uni.Bool)
                 and stmt.condition.lit_value
@@ -1647,7 +1648,10 @@ impl TypeEvaluator._collect_return_types(
                 _has_break = False;
                 import from jaclang.jac0core.constant { Tokens as _Tok }
                 _loop_types = (
-                    uni.WhileStmt, uni.ForeverStmt, uni.IterForStmt, uni.InForStmt
+                    uni.WhileStmt,
+                    uni.ForeverStmt,
+                    uni.IterForStmt,
+                    uni.InForStmt
                 );
                 for _ctrl in stmt.get_all_sub_nodes(uni.CtrlStmt) {
                     if _ctrl.ctrl.name != _Tok.KW_BREAK {

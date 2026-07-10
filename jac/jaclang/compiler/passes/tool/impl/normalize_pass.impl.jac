@@ -882,6 +882,7 @@ impl NormalizePass.enter_forever_stmt(nd: uni.ForeverStmt) -> None {
     new_kid: list[uni.UniNode] = [
         nd.gen_token(Tok.KW_FOREVER),
         nd.gen_token(Tok.LBRACE),
+
     ];
     for stmt in nd.body {
         new_kid.append(stmt);
