@@ -309,28 +309,7 @@ The official VS Code extension lives at [jaseci-labs/jac-vscode](https://github.
 
 ## Research
 
-Jac's core ideas are peer-reviewed research, not just design taste. Meaning-Typed Programming, the foundation of `by llm()`, is described in [*"MTP: A Meaning-Typed Language Abstraction for AI-Integrated Programming"*](https://arxiv.org/abs/2405.08965) (OOPSLA 2025). The project grew out of research at the University of Michigan and is now developed in the open by a global community.
-
-<details>
-<summary><strong>Cite Jac in your work</strong></summary>
-
-<br>
-
-```bibtex
-@misc{dantanarayana2025mtpmeaningtypedlanguageabstraction,
-      title={MTP: A Meaning-Typed Language Abstraction for AI-Integrated Programming},
-      author={Jayanaka L. Dantanarayana and Yiping Kang and Kugesan Sivasothynathan and Christopher Clarke and Baichuan Li and Savini Kashmira and Krisztian Flautner and Lingjia Tang and Jason Mars},
-      year={2025},
-      eprint={2405.08965},
-      archivePrefix={arXiv},
-      primaryClass={cs.PL},
-      url={https://arxiv.org/abs/2405.08965},
-}
-```
-
-GitHub's "Cite this repository" button (powered by [CITATION.cff](CITATION.cff)) produces the same reference.
-
-</details>
+Jac's core ideas are peer-reviewed research, not just design taste. The project grew out of research at the University of Michigan and is now developed in the open by a global community. Citing Jac in your own work? GitHub's "Cite this repository" button (powered by [CITATION.cff](CITATION.cff)) gives a ready-made reference.
 
 ## Built with Jac
 

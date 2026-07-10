@@ -36,4 +36,3 @@ Key facts: statements end with `;`, blocks use `{ }`, fields are declared with `
 - [GitHub repository](https://github.com/jaseci-labs/jaseci)
 - [Agent setup skill](https://raw.githubusercontent.com/jaseci-labs/jaseci/main/SKILL.md): step-by-step install and MCP setup for AI coding agents
 - [Jac Playground](https://playground.jaseci.org): run Jac in the browser, no install
-- [MTP paper (OOPSLA 2025)](https://arxiv.org/abs/2405.08965): the research behind `by llm()`
