@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use Jac or the Jaseci stack in your research, please cite the MTP paper below."
+title: "Jaseci: The Jac Programming Language and Runtime Stack"
+authors:
+  - name: "The Jaseci Project Contributors"
+repository-code: "https://github.com/jaseci-labs/jaseci"
+url: "https://docs.jaseci.org"
+license: MIT
+preferred-citation:
+  type: generic
+  title: "MTP: A Meaning-Typed Language Abstraction for AI-Integrated Programming"
+  authors:
+    - family-names: Dantanarayana
+      given-names: Jayanaka L.
+    - family-names: Kang
+      given-names: Yiping
+    - family-names: Sivasothynathan
+      given-names: Kugesan
+    - family-names: Clarke
+      given-names: Christopher
+    - family-names: Li
+      given-names: Baichuan
+    - family-names: Kashmira
+      given-names: Savini
+    - family-names: Flautner
+      given-names: Krisztian
+    - family-names: Tang
+      given-names: Lingjia
+    - family-names: Mars
+      given-names: Jason
+  year: 2025
+  identifiers:
+    - type: other
+      value: "arXiv:2405.08965"
+      description: "arXiv preprint"
+  url: "https://arxiv.org/abs/2405.08965"
+  notes: "Published at OOPSLA 2025."
