@@ -583,7 +583,12 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             if params_l {
                 arg_val = self._codegen_expr(params_l[0]);
                 if arg_val is not None {
-                    result = self._dispatch_builtin(func_name, [arg_val]);
+                    result = self._dispatch_builtin(
+                        func_name,
+                        [arg_val],
+                        kwargs=self._split_call_kwargs(nd),
+                        kw_node=nd
+                    );
 
                     if isinstance(arg_val.type, ir.PointerType)
                     and self._is_owned(arg_val) {
@@ -595,7 +600,9 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                         return result;
                     }
 
-                    self._emit_unsupported_builtin_call(nd, func_name);
+                    if not self._split_call_kwargs(nd) {
+                        self._emit_unsupported_builtin_call(nd, func_name);
+                    }
                     return None;
                 }
             }

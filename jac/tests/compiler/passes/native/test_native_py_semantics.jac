@@ -107,3 +107,38 @@ test "membership: str in d.keys() compares values" {
     result = mem();
     assert result == 110 , f"Expected 110, got {result}";
 }
+
+# --- 2d: sort()/sorted() honor reverse= and key= ---
+test "sort kwargs: reverse=True sorts descending in place" {
+    (eng, _) = compile_native("py_sort_kwargs.na.jac");
+    get_func(eng, "jac_entry", None)();
+    srt = get_func(eng, "sort_reverse", ctypes.c_int64);
+    result = srt();
+    assert result == 321 , f"Expected 321, got {result}";
+}
+
+test "sort kwargs: sorted(reverse=True) returns a descending copy" {
+    (eng, _) = compile_native("py_sort_kwargs.na.jac");
+    get_func(eng, "jac_entry", None)();
+    srt = get_func(eng, "sorted_reverse_copies", ctypes.c_int64);
+    result = srt();
+    # b untouched (3xxx), c descending 321
+    assert result == 3321 , f"Expected 3321, got {result}";
+}
+
+test "sort kwargs: key=len orders by key not by element" {
+    (eng, _) = compile_native("py_sort_kwargs.na.jac");
+    get_func(eng, "jac_entry", None)();
+    srt = get_func(eng, "sort_key_len", ctypes.c_int64);
+    result = srt();
+    assert result == 111 , f"Expected 111 (a, dd, ccc), got {result}";
+}
+
+test "sort kwargs: key= and reverse= compose" {
+    (eng, _) = compile_native("py_sort_kwargs.na.jac");
+    get_func(eng, "jac_entry", None)();
+    srt = get_func(eng, "sort_key_and_reverse", ctypes.c_int64);
+    result = srt();
+    # keys mod 10: 5->5, 12->2, 3->3; descending keys: 5, 3, 12
+    assert result == 50312 , f"Expected 50312, got {result}";
+}

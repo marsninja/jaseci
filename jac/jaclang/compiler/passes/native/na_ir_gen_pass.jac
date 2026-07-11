@@ -770,10 +770,19 @@ obj NaIRGenPass(ModuleCodegenPass) {
         method_name: str,
         target: ir.Value,
         args: list[ir.Value],
-        type_key: str
+        type_key: str,
+        kwargs: (dict | None) = None,
+        kw_node: (uni.UniNode | None) = None
     ) -> (ir.Value | None);
 
-    def _dispatch_builtin(func_name: str, args: list[ir.Value]) -> (ir.Value | None);
+    def _dispatch_builtin(
+        func_name: str,
+        args: list[ir.Value],
+        kwargs: (dict | None) = None,
+        kw_node: (uni.UniNode | None) = None
+    ) -> (ir.Value | None);
+
+    def _split_call_kwargs(nd: uni.FuncCall) -> dict;
     def _emit_rc_helpers -> None;
     def _rc_alloc(size: ir.Value, name: str = "rc.alloc") -> ir.Value;
     def _emit_rc_retain(ptr: ir.Value, op: str = "", loc: str = "") -> None;
