@@ -241,9 +241,13 @@ impl NaIRGenPass._codegen_raise(nd: uni.RaiseStmt) -> None {
             exc_type_name = self._get_name(nd.cause.target) or "Exception";
             exc_type_id = self._get_or_register_exc_type(exc_type_name);
 
-            params = nd.cause.params or [];
-            if params {
-                exc_msg = self._codegen_expr(params[0]);
+            if exc_type_name in self.struct_types {
+                exc_msg = self._codegen_expr(nd.cause);
+            } else {
+                params = nd.cause.params or [];
+                if params {
+                    exc_msg = self._codegen_expr(params[0]);
+                }
             }
         } else {
             exc_msg = self._codegen_expr(nd.cause);
@@ -409,8 +413,17 @@ impl NaIRGenPass._codegen_try(nd: uni.TryStmt) -> None {
                     else str(except_node.name);
 
                 handler_exc_obj = self.builder.load(exc_obj_ptr, name="exc.bound.obj");
-                alloca = self._entry_alloca(i8p, var_name);
-                self.builder.store(handler_exc_obj, alloca);
+                if caught_type_name in self.struct_types {
+                    _exc_sp_ty = self.struct_types[caught_type_name].as_pointer();
+                    typed_obj = self.builder.bitcast(
+                        handler_exc_obj, _exc_sp_ty, name="exc.bound.typed"
+                    );
+                    alloca = self._entry_alloca(_exc_sp_ty, var_name);
+                    self.builder.store(typed_obj, alloca);
+                } else {
+                    alloca = self._entry_alloca(i8p, var_name);
+                    self.builder.store(handler_exc_obj, alloca);
+                }
                 self.local_vars[var_name] = alloca;
             }
 

@@ -80,3 +80,13 @@ test "str count with an empty needle returns len+1, not a hang" {
     # count('a') = 2, count('') = 7
     assert result == 207 , f"Expected 207, got {result}";
 }
+
+# --- Custom exception subclasses carry their fields ---
+test "exception subclass fields survive raise and catch" {
+    (eng, _) = compile_native("py_exc_subclass.na.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "subclass_field_roundtrip", ctypes.c_int64);
+    result = fn();
+    # line_no 42 and hint intact
+    assert result == 421 , f"Expected 421, got {result}";
+}
