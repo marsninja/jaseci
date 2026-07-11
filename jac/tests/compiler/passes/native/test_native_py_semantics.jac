@@ -188,3 +188,19 @@ test "fstring: numeric and string format specs render like CPython" {
     # .2f, 04d, x, and >4/<4 alignment all correct
     assert result == 1111 , f"Expected 1111, got {result}";
 }
+
+test "range with zero step raises ValueError instead of looping" {
+    (eng, _) = compile_native("py_dropped_args.na.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "range_zero_step_raises", ctypes.c_int64);
+    result = fn();
+    assert result == 1 , f"Expected 1 (caught ValueError), got {result}";
+}
+
+test "pow with zero modulus raises ValueError instead of trapping" {
+    (eng, _) = compile_native("py_dropped_args.na.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "pow_zero_mod_raises", ctypes.c_int64);
+    result = fn();
+    assert result == 1 , f"Expected 1 (caught ValueError), got {result}";
+}

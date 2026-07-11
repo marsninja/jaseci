@@ -30,6 +30,30 @@ def:pub pow_with_mod -> int {
     return pow(3, 4, 5) * 1000 + pow(2, 10, 1000);
 }
 
+def:pub range_zero_step_raises -> int {
+    acc = 0;
+    try {
+        for i in range(1, 5, 0) {
+            acc += 1;
+            if acc > 3 {
+                return 999;
+            }
+        }
+    } except Exception {
+        return 1;
+    }
+    return 0;
+}
+
+def:pub pow_zero_mod_raises -> int {
+    try {
+        x = pow(3, 4, 0);
+        return 0;
+    } except Exception {
+        return 1;
+    }
+}
+
 with entry {
     range_step_sum();
 }

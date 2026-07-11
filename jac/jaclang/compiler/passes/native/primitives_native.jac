@@ -1852,6 +1852,10 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         base64 = p._coerce_type(base, i64);
         exp64 = p._coerce_type(exp, i64);
         mod64 = p._coerce_type(mod, i64);
+        mod_is_zero = b.icmp_signed("==", mod64, zero, name="powm.mod.zero");
+        p._emit_runtime_raise(
+            mod_is_zero, "ValueError", "pow() 3rd argument cannot be 0"
+        );
         base0 = b.srem(base64, mod64, name="powm.base0");
         func = b.basic_block.function;
         entry_bb = b.basic_block;

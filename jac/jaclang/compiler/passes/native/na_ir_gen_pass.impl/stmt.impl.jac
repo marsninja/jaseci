@@ -1554,6 +1554,16 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
                 if step_val is None {
                     return;
                 }
+                step_val = self._coerce_type(step_val, ir.IntType(64));
+                _step_is_zero = self.builder.icmp_signed(
+                    "==",
+                    step_val,
+                    ir.Constant(ir.IntType(64), 0),
+                    name="range.step.zero"
+                );
+                self._emit_runtime_raise(
+                    _step_is_zero, "ValueError", "range() arg 3 must not be zero"
+                );
             }
         }
         if start_val is not None and stop_val is not None {
