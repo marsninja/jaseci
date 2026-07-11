@@ -99,3 +99,11 @@ test "star-args def is rejected loudly instead of miscompiling" {
     assert prog.errors_had , "Expected an E5090 for *args, got a clean compile";
     assert "E5090" in errs or "variadic" in errs , f"Unexpected errors: {errs}";
 }
+
+test "base except handler still sees a readable message for struct raises" {
+    (eng, _) = compile_native("py_exc_subclass.na.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "base_handler_message", ctypes.c_int64);
+    result = fn();
+    assert result == 1 , f"Expected 1 (str(e) is the type name), got {result}";
+}

@@ -25,6 +25,15 @@ def:pub subclass_field_roundtrip -> int {
     return -1;
 }
 
+def:pub base_handler_message -> int {
+    try {
+        boom(7);
+    } except Exception as e {
+        return 1 if str(e) == "ParseError" else 0;
+    }
+    return -1;
+}
+
 with entry {
     subclass_field_roundtrip();
 }
