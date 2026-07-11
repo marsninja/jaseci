@@ -142,3 +142,31 @@ test "sort kwargs: key= and reverse= compose" {
     # keys mod 10: 5->5, 12->2, 3->3; descending keys: 5, 3, 12
     assert result == 50312 , f"Expected 50312, got {result}";
 }
+
+# --- dropped-argument family: range step, find start, pow modulus ---
+test "range honors a positive and negative step in for headers" {
+    (eng, _) = compile_native("py_dropped_args.na.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "range_step_sum", ctypes.c_int64);
+    result = fn();
+    # 0,3,6,9 -> 369; 5,3,1 -> 531
+    assert result == 369531 , f"Expected 369531, got {result}";
+}
+
+test "str.find honors the start argument" {
+    (eng, _) = compile_native("py_dropped_args.na.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "find_with_start", ctypes.c_int64);
+    result = fn();
+    # find('b', 2)=4, find('b')=1, find('z', 1)=-1
+    assert result == 411 , f"Expected 411, got {result}";
+}
+
+test "pow honors the modulus argument" {
+    (eng, _) = compile_native("py_dropped_args.na.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "pow_with_mod", ctypes.c_int64);
+    result = fn();
+    # pow(3,4,5)=1, pow(2,10,1000)=24
+    assert result == 1024 , f"Expected 1024, got {result}";
+}

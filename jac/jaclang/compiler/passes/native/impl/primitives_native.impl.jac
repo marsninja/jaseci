@@ -766,7 +766,21 @@ impl NativeStrEmitter.emit_find(
     i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     strstr_fn = p._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
-    found = b.call(strstr_fn, [target, args[0]], name="find.ptr");
+    search_from = target;
+    if len(args) >= 2 {
+        strlen_fn = p._get_or_declare_extern("strlen", i64, [i8p]);
+        slen = b.call(strlen_fn, [target], name="find.slen");
+        start = p._coerce_type(args[1], i64);
+        neg = b.icmp_signed("<", start, ir.Constant(i64, 0), name="find.st.neg");
+        wrapped = b.add(start, slen, name="find.st.wrap");
+        start = b.select(neg, wrapped, start, name="find.st.pos");
+        below = b.icmp_signed("<", start, ir.Constant(i64, 0), name="find.st.lo");
+        start = b.select(below, ir.Constant(i64, 0), start, name="find.st.lo.c");
+        above = b.icmp_signed(">", start, slen, name="find.st.hi");
+        start = b.select(above, slen, start, name="find.st.hi.c");
+        search_from = b.gep(target, [start], name="find.from");
+    }
+    found = b.call(strstr_fn, [search_from, args[0]], name="find.ptr");
     null_ptr = ir.Constant(i8p, None);
     is_null = b.icmp_unsigned("==", found, null_ptr, name="find.null");
     target_int = b.ptrtoint(target, i64, name="find.tgt.int");
