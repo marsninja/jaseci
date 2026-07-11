@@ -103,7 +103,7 @@ One download replaces the interpreter, the JS runtime, the compilers and linker,
   </picture>
 </div>
 
-<details>
+<details open>
 <summary><strong>What's inside the binary (and what you can uninstall)</strong></summary>
 
 <br>
