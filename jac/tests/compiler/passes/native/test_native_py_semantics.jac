@@ -89,3 +89,21 @@ test "bool ops: rhs is not evaluated when lhs decides" {
     # v=5, w=0, zero bump() calls
     assert result == 500 , f"Expected 500, got {result}";
 }
+
+# --- 2c: membership compares string values, not pointer identity ---
+test "membership: str in list[str] compares values" {
+    (eng, _) = compile_native("py_membership.na.jac");
+    get_func(eng, "jac_entry", None)();
+    mem = get_func(eng, "str_list_membership", ctypes.c_int64);
+    result = mem();
+    # beta found, heap needle found, delta absent, not-in true, 2 in nums
+    assert result == 11011 , f"Expected 11011, got {result}";
+}
+
+test "membership: str in d.keys() compares values" {
+    (eng, _) = compile_native("py_membership.na.jac");
+    get_func(eng, "jac_entry", None)();
+    mem = get_func(eng, "dict_keys_membership", ctypes.c_int64);
+    result = mem();
+    assert result == 110 , f"Expected 110, got {result}";
+}

@@ -548,9 +548,44 @@ impl NaIRGenPass._codegen_compare(nd: uni.CompareExpr) -> (ir.Value | None) {
                 elem = self.builder.call(
                     helpers["get"], [right, idx], name="list.in.elem"
                 );
-                eq = self.builder.icmp_signed(
-                    "==", elem, left_coerced, name="list.in.eq"
+                _lin_left_tk = self._type_key_of(nd.left);
+                _lin_coll_tk = self._type_key_of(nd.rights[0]) or "";
+
+                _lin_str_elems = (
+                    _lin_left_tk == "str"
+                    or _lin_coll_tk.startswith("list[str")
+                    or left.type == ir.IntType(8).as_pointer()
                 );
+                if (
+                    _lin_str_elems
+                    and isinstance(elem.type, ir.PointerType)
+                    and isinstance(left_coerced.type, ir.PointerType)
+                ) {
+                    _lin_i8p = ir.IntType(8).as_pointer();
+                    _lin_strcmp = self._get_or_declare_extern(
+                        "strcmp", ir.IntType(32), [_lin_i8p, _lin_i8p]
+                    );
+                    _lin_cmp = self.builder.call(
+                        _lin_strcmp,
+                        [
+                            self.builder.bitcast(
+                                left_coerced, _lin_i8p, name="list.in.l.i8"
+                            ),
+                            self.builder.bitcast(elem, _lin_i8p, name="list.in.e.i8")
+                        ],
+                        name="list.in.strcmp"
+                    );
+                    eq = self.builder.icmp_signed(
+                        "==",
+                        _lin_cmp,
+                        ir.Constant(ir.IntType(32), 0),
+                        name="list.in.eq"
+                    );
+                } else {
+                    eq = self.builder.icmp_signed(
+                        "==", elem, left_coerced, name="list.in.eq"
+                    );
+                }
                 next_idx = self.builder.add(
                     idx, ir.Constant(i64, 1), name="list.in.next"
                 );
