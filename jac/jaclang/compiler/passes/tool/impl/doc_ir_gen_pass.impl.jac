@@ -450,12 +450,20 @@ impl DocIRGenPass.exit_sub_tag(nd: uni.SubTag) -> None {
     before_colon: list[doc.DocType] = [];
     after_colon: list[doc.DocType] = [];
     seen_colon = False;
+    prev_after: (uni.UniNode | None) = None;
     for i in nd.kid {
         if (isinstance(i, uni.Token) and (i.name == Tok.COLON) and not seen_colon) {
             colon_tok = i.gen.doc_ir;
             seen_colon = True;
         } elif seen_colon {
+            if after_colon
+            and not (
+                isinstance(prev_after, uni.Token) and (prev_after.name == Tok.BW_AND)
+            ) {
+                after_colon.append(self.space());
+            }
             after_colon.append(i.gen.doc_ir);
+            prev_after = i;
         } else {
             before_colon.append(i.gen.doc_ir);
         }
@@ -1165,6 +1173,21 @@ impl DocIRGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
 }
 
 impl DocIRGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
+    if is_mut_kind(nd.ownership) {
+        nd.gen.doc_ir = self.group(
+            self.concat(
+                [
+                    nd.op.gen.doc_ir,
+                    self.text("mut"),
+                    self.space(),
+                    nd.operand.gen.doc_ir
+                ],
+                ast_node=nd
+            ),
+            ast_node=nd
+        );
+        return;
+    }
     parts: list[doc.DocType] = [];
     for i in nd.kid {
         if (
@@ -1370,6 +1393,10 @@ impl DocIRGenPass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
 }
 
 impl DocIRGenPass.exit_while_stmt(nd: uni.WhileStmt) -> None {
+    nd.gen.doc_ir = self.format_simple_stmt_with_body(nd, nd.body);
+}
+
+impl DocIRGenPass.exit_region_stmt(nd: uni.RegionStmt) -> None {
     nd.gen.doc_ir = self.format_simple_stmt_with_body(nd, nd.body);
 }
 

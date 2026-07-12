@@ -1,7 +1,7 @@
 import from collections.abc { Sequence }
 import jaclang.compiler.passes.tool.doc_ir as doc;
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.constant { Tokens as Tok, is_mut_kind }
 import from jaclang.jac0core.passes { UniPass }
 
 obj DocIRGenPass(UniPass) {
@@ -162,6 +162,7 @@ obj DocIRGenPass(UniPass) {
     def exit_sem_def(nd: uni.SemDef) -> None;
     def exit_event_signature(nd: uni.EventSignature) -> None;
     def exit_typed_ctx_block(nd: uni.TypedCtxBlock) -> None;
+    def exit_region_stmt(nd: uni.RegionStmt) -> None;
     def exit_token(nd: uni.Token) -> None;
     def exit_semi(nd: uni.Semi) -> None;
     def exit_name(nd: uni.Name) -> None;
