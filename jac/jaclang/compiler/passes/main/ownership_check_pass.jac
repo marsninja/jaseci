@@ -10,6 +10,7 @@ import from jaclang.jac0core.constant {
     is_mut_kind
 }
 import from jaclang.jac0core.passes.transform { Transform }
+import jaclang.compiler.passes.main.dataflow as dataflow;
 
 glob SymId: TypeAlias = int,
      DataflowTransfer: TypeAlias = Callable[[uni.UniCFGNode, set[SymId]], set[SymId]];

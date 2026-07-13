@@ -97,15 +97,30 @@ impl JacCompiler.get_native_layout(
     full_target: str, target_program: JacProgram
 ) -> (object | None) {
     actual_program = self._resolve_program(full_target, target_program);
+    _layout: any = None;
     if (full_target in actual_program._native_cache) {
         gen = actual_program._native_cache[full_target];
-        return gen?.native_layout;
-    }
-    if (full_target in actual_program.mod.hub) {
+        _layout = gen?.native_layout;
+    } elif (full_target in actual_program.mod.hub) {
         mod = actual_program.mod.hub[full_target];
-        return mod.gen?.native_layout;
+        _layout = mod.gen?.native_layout;
     }
-    return None;
+    if _layout is not None {
+        JacCompiler._check_native_abi(_layout, full_target);
+    }
+    return _layout;
+}
+
+impl JacCompiler._check_native_abi(layout: any, full_target: str) -> None {
+    import from jaclang.jac0core.codeinfo { NATIVE_ABI_VERSION }
+    stamped = layout?.abi_version;
+    if stamped is not None and stamped != NATIVE_ABI_VERSION {
+        import logging as _abi_log;
+        _abi_log.getLogger(__name__).warning(
+            f"native ABI mismatch for {full_target}: layout abi_version="
+            f"{stamped} but this compiler emits {NATIVE_ABI_VERSION}; recompile."
+        );
+    }
 }
 
 impl JacCompiler.get_bytecode(
@@ -683,7 +698,9 @@ impl JacCompiler.compile(
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
-            passes=get_ir_gen_sched(),
+            passes=get_ir_gen_sched(
+                is_internal=(actual_program is self._internal_program)
+            ),
             cancel_token=options.cancel_token
         );
     }
@@ -719,8 +736,6 @@ impl JacCompiler.compile(
     or is_native_mod
     or (is_client_mod and not options.no_cgen and not options.symtab_ir_only);
     if run_inference {
-        mod_targ._inference_started = True;
-
         if options.symtab_ir_only {
             self.run_schedule(
                 mod=mod_targ,
@@ -730,29 +745,27 @@ impl JacCompiler.compile(
             );
         }
 
-        mod_targ._type_check_requested = bool(options.type_check);
-        try {
-            self.run_schedule(
-                mod=mod_targ,
-                target_program=actual_program,
-                passes=get_inference_sched(),
-                cancel_token=options.cancel_token
-            );
-        } except Exception {
-            mod_targ._inference_started = False;
-            raise;
-        }
+        self.run_schedule(
+            mod=mod_targ,
+            target_program=actual_program,
+            passes=get_inference_sched(),
+            cancel_token=options.cancel_token
+        );
+        actual_program._inferred_mods.add(id(mod_targ));
 
         import from jaclang.jac0core.ext_registry { is_native_module as _is_na }
+        import from dataclasses { replace as _replace_opts }
         for dep_mod in list(actual_program.mod.hub.values()) {
-            if (dep_mod is mod_targ) or dep_mod?._inference_started {
+            if (dep_mod is mod_targ)
+            or (id(dep_mod) in actual_program._inferred_mods) {
                 continue;
             }
             dep_path = dep_mod.loc.mod_path if dep_mod?.loc else '';
             if _is_na(dep_path) {
-                dep_mod._inference_started = True;
-
-                dep_mod._inference_quiet = True;
+                _saved_opts = actual_program._compile_options;
+                actual_program._compile_options = _replace_opts(
+                    options, emit_diagnostics=False
+                );
                 try {
                     self.run_schedule(
                         mod=dep_mod,
@@ -760,22 +773,27 @@ impl JacCompiler.compile(
                         passes=get_inference_sched(),
                         cancel_token=options.cancel_token
                     );
-                } except Exception {
-                    dep_mod._inference_started = False;
-                    raise;
+                    actual_program._inferred_mods.add(id(dep_mod));
                 } finally {
-                    dep_mod._inference_quiet = False;
+                    actual_program._compile_options = _saved_opts;
                 }
             }
         }
     }
-    if options.type_check {
+
+    if options.type_check or is_native_mod {
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
             passes=get_type_check_sched(),
             cancel_token=options.cancel_token
         );
+    }
+
+    if is_native_mod
+    and not had_blocking_errors
+    and self._count_module_errors(actual_program, cur_mod_path) > 0 {
+        had_blocking_errors = True;
     }
 
     if (
@@ -798,7 +816,7 @@ impl JacCompiler.compile(
         and is_explicit_native
     ) {
         _parity_passes: list[type[Transform[uni.Module, uni.Module]]] = [];
-        if getattr(mod_targ, '_inference_started', False) {
+        if run_inference {
             try {
                 import from jaclang.compiler.passes.native { NaIRGenPass }
                 _parity_passes = [NaIRGenPass];
@@ -943,6 +961,23 @@ impl JacCompiler._count_module_blocking_errors(
         if e.code is None or not e.code.blocks_codegen {
             continue;
         }
+        try {
+            e_path = os.path.normpath(e.loc.mod_path);
+        } except Exception {
+            continue;
+        }
+        if e_path == mod_path {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+impl JacCompiler._count_module_errors(
+    target_program: JacProgram, mod_path: str
+) -> int {
+    count = 0;
+    for e in target_program.errors_had {
         try {
             e_path = os.path.normpath(e.loc.mod_path);
         } except Exception {

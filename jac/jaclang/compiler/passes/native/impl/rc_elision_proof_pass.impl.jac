@@ -56,17 +56,6 @@ impl RcElisionProofPass.transform(ir_in: uni.Module) -> uni.Module {
         }
     }
 
-    cfg_built = False;
-    for n in cfg_nodes {
-        if n.bb_in or n.bb_out {
-            cfg_built = True;
-            break;
-        }
-    }
-    if not cfg_built and len(cfg_nodes) > 1 {
-        return ir_in;
-    }
-
     live_in = self._solve_liveness(cfg_nodes, qualified);
     for (nd, sid) in candidates {
         if sid not in qualified {

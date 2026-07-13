@@ -158,8 +158,11 @@ def resolve_native_module(
     return (None, None);
 }
 
+glob NATIVE_ABI_VERSION: int = 1;
+
 obj NativeModuleLayout {
-    has structs: dict[(str, NativeStructLayout)] = field(default_factory=`dict),
+    has abi_version: int = NATIVE_ABI_VERSION,
+        structs: dict[(str, NativeStructLayout)] = field(default_factory=`dict),
         enums: dict[(str, NativeEnumLayout)] = field(default_factory=`dict),
         functions: dict[(str, NativeFuncLayout)] = field(default_factory=`dict),
         methods: dict[(str, NativeFuncLayout)] = field(default_factory=`dict),

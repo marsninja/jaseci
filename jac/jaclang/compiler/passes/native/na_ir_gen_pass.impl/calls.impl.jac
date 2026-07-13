@@ -21,40 +21,6 @@ impl NaIRGenPass._resolve_type_str(type_name: str) -> ir.Type {
 
 impl NaIRGenPass._callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None) {
     decl = nd.callee_decl;
-    sym: (uni.Symbol | None) = None;
-    if isinstance(nd.target, uni.AstSymbolNode) {
-        sym = nd.target.sym;
-    } elif isinstance(nd.target, uni.AtomTrailer)
-    and isinstance(nd.target.right, uni.AstSymbolNode) {
-        sym = nd.target.right.sym;
-    }
-    if decl is None and sym is not None and sym.defn {
-        cand = sym.defn[0];
-        if isinstance(cand, uni.Ability) {
-            decl = cand;
-        } elif isinstance(cand.parent, uni.Ability) {
-            decl = cand.parent;
-        }
-    }
-
-    if decl is not None
-    and str(decl.loc.mod_path).endswith(".pyi")
-    and sym is not None
-    and sym.defn {
-        for alt in sym.defn {
-            alt_decl = None;
-            if isinstance(alt, uni.Ability) {
-                alt_decl = alt;
-            } elif isinstance(alt.parent, uni.Ability) {
-                alt_decl = alt.parent;
-            }
-            if alt_decl is not None
-            and not str(alt_decl.loc.mod_path).endswith(".pyi") {
-                decl = alt_decl;
-                break;
-            }
-        }
-    }
     sig = decl.signature if decl is not None else None;
     return sig if isinstance(sig, uni.FuncSignature) else None;
 }
@@ -226,10 +192,6 @@ impl NaIRGenPass._codegen_rc_intrinsic(func_name: str) -> bool {
 
 impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     _call_kind = nd.call_kind;
-    if _call_kind is None {
-        import from jaclang.compiler.symbol_utils { classify_call }
-        _call_kind = classify_call(nd).value;
-    }
 
     if _call_kind == "method" {
         _mod_fn = self._native_module_call_target(nd);

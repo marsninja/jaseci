@@ -5,6 +5,7 @@ import os;
 import sys;
 import types;
 import from threading { Event }
+import from contextvars { ContextVar }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.jir {
     SEC_BYTECODE,
@@ -44,25 +45,32 @@ def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return [ASTValidationPass, SymTabBuildPass, DeclImplMatchPass];
 }
 
-glob _ir_sched_loading = False,
-     _codegen_sched_loading = False,
-     _typecheck_sched_loading = False;
+glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', default=False),
+     _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', default=False),
+     _typecheck_sched_loading = ContextVar(
+         'jac_typecheck_sched_loading', default=False
+     );
 
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return [BoundaryAnalysisPass];
 }
 
-def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    global _ir_sched_loading;
-    if _ir_sched_loading {
-        return [
-            ASTValidationPass,
-            SymTabBuildPass,
-            DeclImplMatchPass,
-            SemanticAnalysisPass
-        ];
+def get_bootstrap_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+    return [
+        ASTValidationPass,
+        SymTabBuildPass,
+        DeclImplMatchPass,
+        SemanticAnalysisPass
+    ];
+}
+
+def get_ir_gen_sched(
+    is_internal: bool = False
+) -> list[type[Transform[uni.Module, uni.Module]]] {
+    if _ir_sched_loading.get() {
+        return get_bootstrap_ir_sched();
     }
-    _ir_sched_loading = True;
+    _tok = _ir_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
         import from jaclang.compiler.passes.main.mtir_gen_pass { MTIRGenPass }
@@ -90,39 +98,35 @@ def get_ir_gen_sched -> list[type[Transform[uni.Module, uni.Module]]] {
             JsxIntrinsicGuardPass
         ];
     } except ImportError {
-        return [
-            ASTValidationPass,
-            SymTabBuildPass,
-            DeclImplMatchPass,
-            SemanticAnalysisPass
-        ];
+        if is_internal {
+            return get_bootstrap_ir_sched();
+        }
+        raise;
     } finally {
-        _ir_sched_loading = False;
+        _ir_sched_loading.reset(_tok);
     }
 }
 
 def get_cfg_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    global _ir_sched_loading;
-    if _ir_sched_loading {
+    if _ir_sched_loading.get() {
         return [];
     }
-    _ir_sched_loading = True;
+    _tok = _ir_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
         return [CFGBuildPass];
     } except ImportError {
         return [];
     } finally {
-        _ir_sched_loading = False;
+        _ir_sched_loading.reset(_tok);
     }
 }
 
 def get_type_check_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    global _typecheck_sched_loading;
-    if _typecheck_sched_loading {
+    if _typecheck_sched_loading.get() {
         return [];
     }
-    _typecheck_sched_loading = True;
+    _tok = _typecheck_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.main.static_analysis_pass {
             StaticAnalysisPass
@@ -145,16 +149,15 @@ def get_type_check_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     } except ImportError {
         return [];
     } finally {
-        _typecheck_sched_loading = False;
+        _typecheck_sched_loading.reset(_tok);
     }
 }
 
 def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
-    global _typecheck_sched_loading;
-    if _typecheck_sched_loading {
+    if _typecheck_sched_loading.get() {
         return [];
     }
-    _typecheck_sched_loading = True;
+    _tok = _typecheck_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.main.type_checker_pass { TypeInferencePass }
 
@@ -175,18 +178,17 @@ def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     } except ImportError {
         return [];
     } finally {
-        _typecheck_sched_loading = False;
+        _typecheck_sched_loading.reset(_tok);
     }
 }
 
 def get_py_code_gen(
     native: bool = True
 ) -> list[type[Transform[uni.Module, uni.Module]]] {
-    global _codegen_sched_loading;
-    if _codegen_sched_loading or _ir_sched_loading {
+    if _codegen_sched_loading.get() or _ir_sched_loading.get() {
         return [PyastGenPass, PyBytecodeGenPass];
     }
-    _codegen_sched_loading = True;
+    _tok = _codegen_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.ecmascript { EsastGenPass }
         import from jaclang.compiler.passes.main.pyjac_ast_link_pass {
@@ -207,7 +209,7 @@ def get_py_code_gen(
     } except ImportError {
         return [PyastGenPass, PyBytecodeGenPass];
     } finally {
-        _codegen_sched_loading = False;
+        _codegen_sched_loading.reset(_tok);
     }
 }
 
@@ -360,6 +362,7 @@ obj JacCompiler {
         full_target: str, target_program: JacProgram
     ) -> (object | None);
 
+    static def _check_native_abi(layout: any, full_target: str) -> None;
     def get_bytecode(
         full_target: str, target_program: JacProgram
     ) -> (types.CodeType | None);
@@ -421,6 +424,7 @@ obj JacCompiler {
         target_program: JacProgram, mod_path: str
     ) -> int;
 
+    static def _count_module_errors(target_program: JacProgram, mod_path: str) -> int;
     static def _module_scoped_errors(
         target_program: JacProgram, mod_path: str
     ) -> bool;
