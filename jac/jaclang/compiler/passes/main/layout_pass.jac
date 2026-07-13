@@ -54,6 +54,7 @@ obj ArchetypeLayout {
         has_vtable: bool = False,
         parent_field_start: dict[str, int] = {},
         is_osp: bool = False,
+        is_acyclic: bool = False,
         vtable_ptr_slot: (int | None) = None,
         type_tag_slot: (int | None) = None,
         reports_slot: (int | None) = None;
@@ -112,6 +113,10 @@ obj LayoutPass(Transform[uni.Module, uni.Module]) {
     def _topo_sort(arch_map: dict[str, uni.Archetype]) -> list[str];
     def _build_layout(arch: uni.Archetype) -> ArchetypeLayout;
     def _build_enum_layouts(module: uni.Module) -> None;
+    def _compute_acyclicity -> None;
+    def _acyclic_walk(name: str, state: dict[str, int]) -> int;
+    def _expand_type_keys(key: str) -> (list[str] | None);
+    def _split_top_level(s: str, sep: str) -> list[str];
     def _build_vtable_layout(
         arch_name: str, arch_map: dict[str, uni.Archetype]
     ) -> None;

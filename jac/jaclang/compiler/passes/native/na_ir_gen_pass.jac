@@ -186,6 +186,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         rc_alloc_fn: (ir.Function | None) = None,
         rc_retain_fn: (ir.Function | None) = None,
         rc_release_simple_fn: (ir.Function | None) = None,
+        rc_release_impl_fn: (ir.Function | None) = None,
         rc_set_type_fn: (ir.Function | None) = None,
         rc_gc_disable_fn: (ir.Function | None) = None,
         rc_gc_enable_fn: (ir.Function | None) = None,
@@ -883,6 +884,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_rc_retain(ptr: ir.Value, op: str = "", loc: str = "") -> None;
     def _emit_rc_release_simple(ptr: ir.Value, op: str = "", loc: str = "") -> None;
     def _emit_rc_release_typed(val: ir.Value, op: str = "", loc: str = "") -> None;
+    def _arch_is_acyclic(arch_name: str) -> bool;
     def _emit_set_type_tag(b: ir.IRBuilder, ptr_i8: ir.Value, type_name: str) -> None;
     def _emit_magic_check(
         b: ir.IRBuilder, ptr: ir.Value, name_prefix: str = "mc"

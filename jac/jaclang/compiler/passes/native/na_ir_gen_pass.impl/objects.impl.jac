@@ -856,7 +856,12 @@ impl NaIRGenPass._codegen_instantiation(
         self._emit_trace_fn(type_name);
         _trace_fn_s = self.struct_trace_fns.get(type_name);
         self._require_trace_fn(
-            type_name, self._struct_has_ref_fields(type_name), _trace_fn_s is not None
+            type_name,
+            (
+                self._struct_has_ref_fields(type_name)
+                and not self._arch_is_acyclic(type_name)
+            ),
+            _trace_fn_s is not None
         );
         if self.rc_set_type_fn is not None {
             _obj_i8 = self.builder.bitcast(

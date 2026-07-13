@@ -36,6 +36,8 @@ impl LayoutPass.transform(ir_in: uni.Module) -> uni.Module {
         }
     }
 
+    self._compute_acyclicity();
+
     for name in topo_order {
         if name in arch_map {
             self._validate_obj_fields(arch_map[name], arch_map);
@@ -430,6 +432,128 @@ impl LayoutPass._build_vtable_layout(
 
     layout_obj.methods = methods;
     layout_obj.method_index = method_index;
+}
+
+impl LayoutPass._compute_acyclicity -> None {
+    state: dict[str, int] = {};
+    for name in list(self.registry.layouts.keys()) {
+        self._acyclic_walk(name, state);
+    }
+    for (name, lay) in self.registry.layouts.items() {
+        lay.is_acyclic = state.get(name) == 1;
+    }
+}
+
+impl LayoutPass._acyclic_walk(name: str, state: dict[str, int]) -> int {
+    cur = state.get(name);
+    if cur is not None {
+        return 2 if cur == 0 else cur;
+    }
+    lay = self.registry.layouts.get(name);
+    if lay is None or lay.has_vtable or lay.is_osp {
+        state[name] = 2;
+        return 2;
+    }
+    state[name] = 0;
+    result = 1;
+    for finfo in lay.fields {
+        var = finfo.decl_node;
+        tb = var?.type if var is not None else None;
+        if tb is None {
+            result = 2;
+            break;
+        }
+        key: (str | None) = None;
+        try {
+            key = tb.mangle();
+        } except Exception {
+            key = None;
+        }
+        if key is None {
+            result = 2;
+            break;
+        }
+        parts = self._expand_type_keys(key);
+        if parts is None {
+            result = 2;
+            break;
+        }
+        for part in parts {
+            if self._acyclic_walk(part, state) == 2 {
+                result = 2;
+                break;
+            }
+        }
+        if result == 2 {
+            break;
+        }
+    }
+    state[name] = result;
+    return result;
+}
+
+impl LayoutPass._expand_type_keys(key: str) -> (list[str] | None) {
+    import from jaclang.compiler.passes.main.layout_pass {
+        LAYOUT_COMPATIBLE_PRIMITIVES
+    }
+    out: list[str] = [];
+    for raw in self._split_top_level(key, "|") {
+        p = raw.strip();
+        if not p {
+            return None;
+        }
+        if p in LAYOUT_COMPATIBLE_PRIMITIVES or p in ("None", "NoneType") {
+            continue;
+        }
+        inner: (str | None) = None;
+        if p.startswith("list[") and p.endswith("]") {
+            inner = p[5:-1];
+        } elif p.startswith("set[") and p.endswith("]") {
+            inner = p[4:-1];
+        } elif p.startswith("frozenset[") and p.endswith("]") {
+            inner = p[10:-1];
+        } elif p.startswith("tuple[") and p.endswith("]") {
+            inner = p[6:-1];
+        } elif p.startswith("dict[") and p.endswith("]") {
+            inner = p[5:-1];
+        }
+        if inner is not None {
+            for elem in self._split_top_level(inner, ",") {
+                sub = self._expand_type_keys(elem.strip());
+                if sub is None {
+                    return None;
+                }
+                out.extend(sub);
+            }
+            continue;
+        }
+        if ("[" in p) or ("(" in p) or (" " in p) {
+            return None;
+        }
+        out.append(p);
+    }
+    return out;
+}
+
+impl LayoutPass._split_top_level(s: str, sep: str) -> list[str] {
+    parts: list[str] = [];
+    depth = 0;
+    cur = "";
+    for ch in s {
+        if ch in "[(" {
+            depth += 1;
+        } elif ch in "])" {
+            depth -= 1;
+        }
+        if ch == sep and depth == 0 {
+            parts.append(cur);
+            cur = "";
+        } else {
+            cur = cur + ch;
+        }
+    }
+    parts.append(cur);
+    return parts;
 }
 
 impl LayoutRegistry.get_layout(name: str) -> (ArchetypeLayout | None) {
