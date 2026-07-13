@@ -286,11 +286,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_fmt_string(fmt: str) -> ir.GlobalVariable;
     def _get_snprintf_fmt(fmt: str) -> ir.GlobalVariable;
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
-    def _prim_ir_types -> dict;
     def _try_resolve_field_type(var: uni.UniNode) -> tuple;
     def _type_base_is_unknown(tb: any) -> bool;
-    def _parse_callable_type_string(s: str) -> (ir.Type | None);
-    def _resolve_primitive_name(expr: (uni.UniNode | None)) -> (ir.Type | None);
     def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type;
     def _lower_type(t: any) -> (ir.Type | None);
     def _lower_class_type(t: any) -> (ir.Type | None);

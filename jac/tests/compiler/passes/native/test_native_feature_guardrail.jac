@@ -655,28 +655,29 @@ test "check rejects a native def with an unknown return type" {
     )}";
 }
 
-# Object field annotations that survive to codegen report E5092 naming the written type.
+# Unknown object field annotations are rejected at analysis time (E2018 from
+# StaticAnalysisPass, the single detection source) naming the written type.
 test "native object field with an unknown type names the type, not '<Unknown>'" {
     prog = compile_na_inline(
         "obj_field_unknown",
         "obj Handle { has raw: uint32_t; }\n"
         "with entry { h = Handle(raw=0); print(h.raw); }\n"
     );
-    assert has_error_code(prog, "E5092") , f"Expected E5092 for unknown object field type, got: {fmt_errors(
+    assert has_error_code(prog, "E2018") , f"Expected E2018 for unknown object field type, got: {fmt_errors(
         prog
     )}";
     named = False;
     for alrt in prog.errors_had {
         if (
             alrt.code is not None
-            and alrt.code.code == "E5092"
+            and alrt.code.code == "E2018"
             and "uint32_t" in str(alrt)
             and "<Unknown>" not in str(alrt)
         ) {
             named = True;
         }
     }
-    assert named , f"E5092 should name 'uint32_t', not '<Unknown>': {fmt_errors(prog)}";
+    assert named , f"E2018 should name 'uint32_t', not '<Unknown>': {fmt_errors(prog)}";
 }
 
 # ─────────────────────────────────────────────────────────────────────
