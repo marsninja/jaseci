@@ -261,8 +261,12 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     if struct_type is None {
         return;
     }
-    needs_vtable = self._arch_has_vtable(arch_name);
-    is_osp = nd.arch_kind is not None;
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+    _owner_mod = nd.find_parent_of_type(uni.Module) or self.ir_in;
+    layout = get_layout_registry(_owner_mod, self.prog).get_layout(arch_name);
+    if layout is None {
+        return;
+    }
 
     field_types: list[ir.Type] = [];
     field_index_map: dict[(str, int)] = {};
@@ -271,110 +275,62 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
 
     opaque_fields: set = set();
 
-    if needs_vtable or is_osp {
+    if layout.vtable_ptr_slot is not None {
         field_types.append(ir.IntType(8).as_pointer().as_pointer());
     }
-    if is_osp {
+    if layout.type_tag_slot is not None {
         field_types.append(ir.IntType(64));
-        self.osp_type_tag_field[arch_name] = len(field_types) - 1;
+        self.osp_type_tag_field[arch_name] = layout.type_tag_slot;
     }
-
-    mro = self._mro_of(arch_name);
-    seen_fields: set[str] = set();
-
-    if is_osp and (nd.arch_kind == "walker") {
+    if layout.reports_slot is not None {
         self._emit_list_helpers("i64", ir.IntType(64));
         _rep_lt = self.list_types.get("i64");
         if _rep_lt is not None {
-            _rep_idx = len(field_types);
             field_types.append(_rep_lt.as_pointer());
-            field_index_map["reports"] = _rep_idx;
+            field_index_map["reports"] = layout.reports_slot;
             field_type_map["reports"] = _rep_lt.as_pointer();
-            self.osp_reports_field[arch_name] = _rep_idx;
-            seen_fields.add("reports");
+            self.osp_reports_field[arch_name] = layout.reports_slot;
         }
     }
-    for ancestor_name in mro[1:] {
-        if ancestor_name not in self.struct_field_indices {
-            continue;
-        }
-        ancestor_indices = self.struct_field_indices[ancestor_name];
-        ancestor_types = self.struct_field_types.get(ancestor_name, {});
-        ancestor_defaults = self.struct_field_defaults.get(ancestor_name, {});
-        ancestor_opaque = self.struct_field_opaque.get(ancestor_name, set());
 
-        if arch_name not in self.parent_field_start {
-            self.parent_field_start[arch_name] = {};
-        }
-        self.parent_field_start[arch_name][ancestor_name] = len(field_types);
+    self.parent_field_start[arch_name] = dict(layout.parent_field_start);
 
-        idx_to_name: dict[(int, str)] = {};
-        for (fname, pidx) in ancestor_indices.items() {
-            idx_to_name[pidx] = fname;
-        }
-        sorted_idxs = sorted(idx_to_name.keys());
-        for pidx in sorted_idxs {
-            fname = idx_to_name[pidx];
-            if fname in seen_fields {
-                continue;
+    for finfo in layout.fields {
+        fname = finfo.name;
+        var = finfo.decl_node;
+        ftype = ir.IntType(64);
+        _is_opaque = False;
+        if var is not None and var.type_tag is not None {
+            if finfo.owner in self.clib_struct_names {
+                ftype = self._resolve_jac_type(var.type_tag);
+            } else {
+                (ftype, _is_opaque) = self._try_resolve_field_type(var);
+                if _is_opaque {
+                    opaque_fields.add(fname);
+                }
             }
-            seen_fields.add(fname);
-            ftype = ancestor_types.get(fname, ir.IntType(64));
-            new_idx = len(field_types);
-            field_types.append(ftype);
-            field_index_map[fname] = new_idx;
-            field_type_map[fname] = ftype;
 
-            if fname in ancestor_opaque {
-                opaque_fields.add(fname);
-            } elif fname in ancestor_defaults {
-                field_default_map[fname] = ancestor_defaults[fname];
+            ftag_name = self._get_name(var.type_tag.tag);
+            if ftag_name is not None and ftag_name in self.enum_types {
+                if arch_name not in self.struct_field_enum_type {
+                    self.struct_field_enum_type[arch_name] = {};
+                }
+                self.struct_field_enum_type[arch_name][fname] = ftag_name;
             }
+        }
+        field_types.append(ftype);
+        field_index_map[fname] = finfo.index;
+        field_type_map[fname] = ftype;
+
+        if var is not None and var.value is not None and not _is_opaque {
+            field_default_map[fname] = var.value;
         }
     }
 
     if (nd).body is not None {
         for stmt in (nd).body {
-            if isinstance(stmt, uni.ArchHas) {
-                if stmt.is_static {
-                    self._register_static_fields(arch_name, stmt);
-                    continue;
-                }
-                for var in stmt.vars {
-                    fname = var.name.value if var.name else "field";
-                    if fname in seen_fields {
-                        continue;
-                    }
-                    seen_fields.add(fname);
-                    ftype = ir.IntType(64);
-                    _is_opaque = False;
-                    if var.type_tag is not None {
-                        if arch_name in self.clib_struct_names {
-                            ftype = self._resolve_jac_type(var.type_tag);
-                        } else {
-                            (ftype, _is_opaque) = self._try_resolve_field_type(var);
-                            if _is_opaque {
-                                opaque_fields.add(fname);
-                            }
-                        }
-
-                        ftag_name = self._get_name(var.type_tag.tag);
-                        if ftag_name is not None and ftag_name in self.enum_types {
-                            if arch_name not in self.struct_field_enum_type {
-                                self.struct_field_enum_type[arch_name] = {};
-                            }
-                            self.struct_field_enum_type[arch_name][fname] = ftag_name;
-                        }
-                    }
-                    new_idx = len(field_types);
-                    field_types.append(ftype);
-                    field_index_map[fname] = new_idx;
-                    field_type_map[fname] = ftype;
-
-                    if var.value is not None and not _is_opaque {
-                        field_default_map[fname] = var.value;
-                    }
-                }
+            if isinstance(stmt, uni.ArchHas) and stmt.is_static {
+                self._register_static_fields(arch_name, stmt);
             }
         }
     }

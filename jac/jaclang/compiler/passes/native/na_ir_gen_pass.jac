@@ -13,8 +13,7 @@ import from jaclang.jac0core.diagnostics {
 }
 import from jaclang.jac0core.osp_model { OspAnalysis, OspModel, stable_osp_tag }
 
-
-glob VTABLE_HEADER_SLOTS: int = 1;
+import from jaclang.compiler.passes.main.layout_pass { VTABLE_HEADER_SLOTS }
 
 glob NATIVE_TIME_FUNCS: set[str] = {
          "time",
