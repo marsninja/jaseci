@@ -9,16 +9,6 @@ glob RC_INTRINSIC_NAMES: frozenset[str] = frozenset(
          }
      );
 
-impl NaIRGenPass._resolve_type_str(type_name: str) -> ir.Type {
-    if type_name in self.type_map {
-        return self.type_map[type_name];
-    }
-    if type_name in self.struct_types {
-        return self.struct_types[type_name].as_pointer();
-    }
-    return ir.IntType(64);
-}
-
 impl NaIRGenPass._callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None) {
     decl = nd.callee_decl;
     sig = decl.signature if decl is not None else None;
@@ -728,34 +718,36 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if func is None {
         manifest = self.ir_in.gen.interop_manifest;
         binding = manifest.bindings.get(func_name);
-        if binding is not None {
-            if binding.source_context.value == "server" {
-                param_ir_types: list = [];
-                for pt in binding.param_types {
-                    param_ir_types.append(self._resolve_type_str(pt));
-                }
-                ret_ir_type = self._resolve_type_str(binding.ret_type);
-                func = self._get_or_declare_extern(
-                    func_name, ret_ir_type, param_ir_types
+        if binding is not None
+        and (
+            binding.source_context.value == "server"
+            or (
+                binding.source_context.value == "native"
+                and binding.source_module is not None
+            )
+        ) {
+            sig = self._callee_sig_of(nd);
+            if sig is None
+            and isinstance(binding.ast_node, uni.Ability)
+            and isinstance(binding.ast_node.signature, uni.FuncSignature) {
+                sig = binding.ast_node.signature;
+            }
+            if sig is None {
+                self.emit(
+                    E5092, node_override=nd, kind="function signature", name=func_name
                 );
-            } elif binding.source_context.value == "native"
-            and binding.source_module is not None {
-                param_ir_types: list = [];
-                if binding.param_types {
-                    for pt in binding.param_types {
-                        param_ir_types.append(self._resolve_type_str(pt));
-                    }
-                } else {
-                    params = nd.params or [];
-                    for param in params {
-                        param_ir_types.append(ir.IntType(64));
-                    }
-                }
-                ret_ir_type = self._resolve_type_str(binding.ret_type);
-                func = self._get_or_declare_extern(
-                    func_name, ret_ir_type, param_ir_types
+                return None;
+            }
+            param_ir_types: list = [];
+            for p in sig.get_parameters() {
+                param_ir_types.append(
+                    self._resolve_jac_type(p.type_tag)
+                        if p.type_tag is not None
+                        else ir.IntType(64)
                 );
             }
+            ret_ir_type = self._resolve_jac_type(sig.return_type);
+            func = self._get_or_declare_extern(func_name, ret_ir_type, param_ir_types);
         }
     }
     if func is None {
