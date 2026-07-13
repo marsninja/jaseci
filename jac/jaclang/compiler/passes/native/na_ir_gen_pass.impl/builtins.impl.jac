@@ -199,30 +199,10 @@ impl NaIRGenPass._codegen_string(nd: uni.String) -> (ir.Value | None) {
 }
 
 impl NaIRGenPass._fstring_spec_text(spec: uni.Expr) -> (str | None) {
-    if isinstance(spec, uni.String) {
-        return spec.lit_value;
+    import from jaclang.compiler.passes.main.capability_check_pass {
+        static_fstring_spec_text
     }
-    if isinstance(spec, uni.MultiString) {
-        parts: list[str] = [];
-        for s in spec.strings {
-            if not isinstance(s, uni.String) {
-                return None;
-            }
-            parts.append(s.lit_value);
-        }
-        return "".join(parts);
-    }
-    if isinstance(spec, uni.FString) {
-        parts2: list[str] = [];
-        for p in spec.parts {
-            if not isinstance(p, uni.String) {
-                return None;
-            }
-            parts2.append(p.lit_value);
-        }
-        return "".join(parts2);
-    }
-    return None;
+    return static_fstring_spec_text(spec);
 }
 
 impl NaIRGenPass._fstring_spec_to_printf(spec: str, kind: str) -> (tuple | None) {
@@ -353,7 +333,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
             _conv = part.conversion if part.conversion is not None else -1;
             if _conv not in (-1, 115) {
                 self.emit(
-                    E5090,
+                    E5092,
                     node_override=part,
                     kind="f-string conversion",
                     name=("!r" if _conv == 114 else "!a")
@@ -365,7 +345,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 _spec_txt = self._fstring_spec_text(part.format_spec);
                 if _spec_txt is None {
                     self.emit(
-                        E5090,
+                        E5092,
                         node_override=part,
                         kind="f-string format spec",
                         name="<dynamic spec>"
@@ -388,7 +368,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 _tr = self._fstring_spec_to_printf(_spec_txt, _fs_kind or "");
                 if _tr is None {
                     self.emit(
-                        E5090,
+                        E5092,
                         node_override=part,
                         kind="f-string format spec",
                         name=_spec_txt

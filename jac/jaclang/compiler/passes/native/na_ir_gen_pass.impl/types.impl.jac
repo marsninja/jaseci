@@ -595,28 +595,13 @@ impl NaIRGenPass._type_base_is_unknown(tb: any) -> bool {
 }
 
 impl NaIRGenPass._emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type {
-    is_unknown = False;
-    try {
-        import from jaclang.compiler.type_system.types { UnknownType as _UnknownType }
-        is_unknown = isinstance(tb, _UnknownType);
-    } except ImportError { }
-
     if isinstance(type_expr, uni.Expr) {
         _label = type_expr.unparse();
     } else {
         _tag = type_expr?.type_tag;
         _label = self._get_name(_tag?.tag) or str(tb);
     }
-    if is_unknown {
-        self.emit(
-            E2018,
-            node_override=type_expr,
-            name=_label,
-            position="native type annotation position"
-        );
-    } else {
-        self.emit(E5090, node_override=type_expr, kind="type", name=_label);
-    }
+    self.emit(E5092, node_override=type_expr, kind="type", name=_label);
 
     import logging as _logging;
     _logging.getLogger("jaclang.native").debug(
@@ -1540,7 +1525,7 @@ impl NaIRGenPass._emit_binary_op(
         return self.builder.or_(left, right, name="or");
     }
 
-    self.emit(E5090, node_override=self.cur_node, kind="binary operator", name=op);
+    self.emit(E5092, node_override=self.cur_node, kind="binary operator", name=op);
     return None;
 }
 

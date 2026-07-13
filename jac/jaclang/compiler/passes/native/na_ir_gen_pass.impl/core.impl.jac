@@ -107,12 +107,18 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         native_capability_violations
     }
     _viols = native_capability_violations(self.ir_in);
-    for (_vnode, _vkind, _vname, _vhelp) in _viols {
-        self.emit(
-            E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
-        );
-    }
     if _viols {
+        if not self.ir_in.gen.native_viols_reported {
+            for (_vnode, _vkind, _vname, _vhelp) in _viols {
+                self.emit(
+                    E5090,
+                    node_override=_vnode,
+                    kind=_vkind,
+                    name=_vname,
+                    help_text=_vhelp
+                );
+            }
+        }
         return self.ir_in;
     }
 
@@ -1001,7 +1007,7 @@ impl NaIRGenPass._dispatch_primitive_method(
     }
     if kwargs and method_name not in ("sort", ) {
         self.emit(
-            E5090,
+            E5092,
             node_override=kw_node,
             kind="keyword argument for native method",
             name=f"{method_name}({', '.join(kwargs.keys())}=...)"
@@ -1027,7 +1033,7 @@ impl NaIRGenPass._dispatch_builtin(
     }
     if kwargs and func_name not in ("sorted", ) {
         self.emit(
-            E5090,
+            E5092,
             node_override=kw_node,
             kind="keyword argument for native builtin",
             name=f"{func_name}({', '.join(kwargs.keys())}=...)"

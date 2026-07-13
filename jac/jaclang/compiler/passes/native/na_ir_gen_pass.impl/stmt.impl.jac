@@ -121,7 +121,7 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
                     _disc_fn, [self._coerce_type(_edge_h, _disc_argtys[0])]
                 );
             } elif _disc_fn is None {
-                self.emit(E5090, node_override=nd, kind="statement", name="DeleteStmt");
+                self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
             }
         } elif (
             isinstance(target_expr, uni.AtomTrailer)
@@ -186,7 +186,7 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
     } elif isinstance(nd, uni.ReportStmt) {
         self._codegen_report(nd);
     } else {
-        self.emit(E5090, node_override=nd, kind="statement", name=type(nd).__name__);
+        self.emit(E5092, node_override=nd, kind="statement", name=type(nd).__name__);
     }
 }
 
@@ -627,7 +627,7 @@ impl NaIRGenPass._match_pattern_cond(
         return result;
     }
 
-    self.emit(E5090, node_override=pat, kind="match pattern", name=type(pat).__name__);
+    self.emit(E5092, node_override=pat, kind="match pattern", name=type(pat).__name__);
     return None;
 }
 
@@ -702,7 +702,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
     if value is None {
         if nd.value is not None and len(self.errors_had) == _rhs_errs_before {
             self.emit(
-                E5090,
+                E5092,
                 node_override=nd.value,
                 kind="expression",
                 name=type(nd.value).__name__
@@ -727,7 +727,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     self._codegen_field_assign(target_expr, field_val);
                 } elif len(self.errors_had) == _faug_errs {
                     self.emit(
-                        E5090,
+                        E5092,
                         node_override=target_expr,
                         kind="augmented field assignment",
                         name=(self._get_name(target_expr.right) or "<field>")
@@ -806,7 +806,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             }
             if not _idx_stored and len(self.errors_had) == _idx_errs_before {
                 self.emit(
-                    E5090,
+                    E5092,
                     node_override=target_expr,
                     kind="subscript assignment",
                     name=(idx_target_name or "<expr>")
@@ -1418,7 +1418,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             }
             if isinstance(var_type, ir.VoidType) {
                 self.emit(
-                    E5090,
+                    E5092,
                     node_override=nd,
                     kind="binding a void-typed value to variable",
                     name=var_name
@@ -1494,7 +1494,7 @@ impl NaIRGenPass._codegen_ctrl(nd: uni.CtrlStmt) -> None {
             self.builder.ret_void();
         } else {
             self.emit(
-                E5090,
+                E5092,
                 node_override=nd,
                 kind="statement",
                 name="SkipStmt",
@@ -1562,7 +1562,7 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     if loop_var_name is None {
         if len(self.errors_had) == _for_errs0 {
             self.emit(
-                E5090,
+                E5092,
                 node_override=nd,
                 kind="for-loop target",
                 name=type(nd.target).__name__
@@ -1704,7 +1704,7 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     if _coll_memo is None {
         if len(self.errors_had) == _for_errs0 {
             self.emit(
-                E5090,
+                E5092,
                 node_override=nd.collection,
                 kind="for-loop iterable",
                 name=type(nd.collection).__name__ if nd.collection else "<expr>"
@@ -1733,7 +1733,7 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     if helpers is None {
         if len(self.errors_had) == _for_errs0 {
             self.emit(
-                E5090,
+                E5092,
                 node_override=nd.collection or nd,
                 kind="for-loop iterable element type",
                 name=(coll_name or "<expr>")
@@ -1910,7 +1910,7 @@ impl NaIRGenPass._codegen_for_indexed(
                     unpack_target.values, elem_val, None
                 ) {
                     self.emit(
-                        E5090,
+                        E5092,
                         node_override=unpack_target,
                         kind="for-loop target",
                         name=type(unpack_target).__name__

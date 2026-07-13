@@ -2,7 +2,15 @@ import from jaclang.compiler.passes.native.llvm { ir }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E2018, E5026, E5060, E5090, E5091, E9002 }
+import from jaclang.jac0core.diagnostics {
+    E2018,
+    E5026,
+    E5060,
+    E5090,
+    E5091,
+    E5092,
+    E9002
+}
 import from jaclang.jac0core.osp_model { OspAnalysis, OspModel, stable_osp_tag }
 
 

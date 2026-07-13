@@ -824,18 +824,14 @@ impl JacCompiler.compile(
                 _parity_passes = [];
             }
         }
-        if not _parity_passes {
-            import from jaclang.compiler.passes.main.capability_check_pass {
-                NativeCapabilityCheckPass
-            }
-            _parity_passes = [NativeCapabilityCheckPass];
+        if _parity_passes {
+            self.run_schedule(
+                mod=mod_targ,
+                target_program=actual_program,
+                passes=_parity_passes,
+                cancel_token=options.cancel_token
+            );
         }
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=_parity_passes,
-            cancel_token=options.cancel_token
-        );
     }
 
     if (

@@ -255,7 +255,7 @@ test "guardrail: unsupported builtin over an iterable is rejected" {
     prog = compile_na_inline(
         "py_builtin_sum", "with entry { print(f\"Total: {sum(range(1, 101))}\"); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for unsupported builtin 'sum', got: {fmt_errors(
+    assert has_error_code(prog, "E5092") , f"Expected E5092 for unsupported builtin 'sum', got: {fmt_errors(
         prog
     )}";
 }
@@ -266,7 +266,7 @@ test "guardrail: call to an undefined function is rejected" {
         "undefined_call",
         "def use() -> int { return mystery(3); }\n" "with entry { print(use()); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for call to undefined 'mystery', got: {fmt_errors(
+    assert prog.errors_had , f"Expected a loud analysis-time rejection for call to undefined 'mystery', got: {fmt_errors(
         prog
     )}";
 }
@@ -284,7 +284,7 @@ test "guardrail: for-loop over a set is rejected" {
         "    return total;\n"
         "}\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for for-over-set, got: {fmt_errors(
+    assert has_error_code(prog, "E5092") , f"Expected E5092 for for-over-set, got: {fmt_errors(
         prog
     )}";
 }
@@ -414,7 +414,7 @@ test "guardrail: dereferencing an opaque foreign field is rejected" {
         "}\n"
         "with entry { print(Carrier().line()); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for dereference of an opaque foreign field, got: {fmt_errors(
+    assert prog.errors_had , f"Expected a loud analysis-time rejection for dereference of an opaque foreign field, got: {fmt_errors(
         prog
     )}";
 }
@@ -655,28 +655,28 @@ test "check rejects a native def with an unknown return type" {
     )}";
 }
 
-# Object field annotations are caught at codegen; E2018 must name the written type.
+# Object field annotations that survive to codegen report E5092 naming the written type.
 test "native object field with an unknown type names the type, not '<Unknown>'" {
     prog = compile_na_inline(
         "obj_field_unknown",
         "obj Handle { has raw: uint32_t; }\n"
         "with entry { h = Handle(raw=0); print(h.raw); }\n"
     );
-    assert has_error_code(prog, "E2018") , f"Expected E2018 for unknown object field type, got: {fmt_errors(
+    assert has_error_code(prog, "E5092") , f"Expected E5092 for unknown object field type, got: {fmt_errors(
         prog
     )}";
     named = False;
     for alrt in prog.errors_had {
         if (
             alrt.code is not None
-            and alrt.code.code == "E2018"
+            and alrt.code.code == "E5092"
             and "uint32_t" in str(alrt)
             and "<Unknown>" not in str(alrt)
         ) {
             named = True;
         }
     }
-    assert named , f"E2018 should name 'uint32_t', not '<Unknown>': {fmt_errors(prog)}";
+    assert named , f"E5092 should name 'uint32_t', not '<Unknown>': {fmt_errors(prog)}";
 }
 
 # ─────────────────────────────────────────────────────────────────────
@@ -691,7 +691,7 @@ test "native object field with an unknown type names the type, not '<Unknown>'" 
 # builder — an internal compiler crash, not a diagnostic. It must surface the
 # same clean E5090 every other unlowerable native call gets. A regression
 # re-raises the TypeError, failing this test with an error (not an assertion).
-test "guardrail: open() with a non-string (POSIX flags) mode is a clean E5090, not an ICE" {
+test "guardrail: open() with a non-string (POSIX flags) mode is a clean diagnostic, not an ICE" {
     prog = compile_na_inline(
         "posix_open_flags",
         "def parse_argc(path: str) -> i32 {\n"
@@ -700,9 +700,16 @@ test "guardrail: open() with a non-string (POSIX flags) mode is a clean E5090, n
         "    return -1;\n"
         "}\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for POSIX open(path, flags), got: {fmt_errors(
+    assert prog.errors_had , f"Expected a clean diagnostic for POSIX open(path, flags), got: {fmt_errors(
         prog
     )}";
+    for alrt in prog.errors_had {
+        if alrt.code is not None {
+            assert alrt.code.code not in ("E9001", "E9002") , f"ICE leaked for POSIX open(path, flags): {fmt_errors(
+                prog
+            )}";
+        }
+    }
 }
 
 # Positive control: with the libc `open(path, flags) -> i32` extern in scope

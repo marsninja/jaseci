@@ -241,6 +241,7 @@ obj CodeGenTarget {
         native_layout: (NativeModuleLayout | None) = None,
         osp_model: (OspModel | None) = None,
         native_compat: bool = False,
+        native_viols_reported: bool = False,
         layout_registry: any = None,
         _clib_paths: list[str] = field(default_factory=`list),
         _clib_symbol_lib: dict[(str, str)] = field(default_factory=`dict),

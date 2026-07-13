@@ -100,7 +100,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
                         );
                         _m_name = stmt.name_ref.sym_name if stmt.name_ref else "?";
                         self.emit(
-                            E5090,
+                            E5092,
                             node_override=stmt,
                             kind="archetype method",
                             name=f"{arch_name}.{_m_name} ({_sig_kind})"
@@ -560,7 +560,7 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
         }
 
         self.emit(
-            E5090,
+            E5092,
             node_override=method,
             kind="method (native emitter error in)",
             name=full_name,
@@ -1641,7 +1641,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if func is None {
         if _demoted {
             self.emit(
-                E5090,
+                E5092,
                 node_override=nd,
                 kind="method",
                 name=f"{type_name}.{method_name}",
@@ -1940,7 +1940,7 @@ impl NaIRGenPass._codegen_field_assign(
     ) {
         if len(self.errors_had) == _fa_errs {
             self.emit(
-                E5090,
+                E5092,
                 node_override=target,
                 kind="field assignment",
                 name=(field_name or "<field>")

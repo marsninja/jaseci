@@ -220,7 +220,7 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         for _vp in nd.signature.get_parameters() {
             if _vp.unpack is not None {
                 self.emit(
-                    E5090,
+                    E5092,
                     node_override=_vp,
                     kind="variadic parameter",
                     name=f"{_vp.unpack.value}{_vp.name.value if _vp.name else ''}"
@@ -399,7 +399,7 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     ];
     if free_vars {
         self.emit(
-            E5090,
+            E5092,
             node_override=nd,
             kind="statement",
             name="Ability (nested function capturing enclosing locals)"

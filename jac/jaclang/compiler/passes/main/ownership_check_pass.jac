@@ -61,6 +61,7 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _has_region_blocks -> bool;
     def _emit_region_escape_diagnostics -> None;
     def _emit_sendability_diagnostics -> None;
+    def _is_deep_immutable_scalar(nm: uni.Name) -> bool;
     def _emit_marker_diagnostics -> None;
     def _emit_val_mutation(
         sid: SymId, site: uni.UniNode, decl: uni.Name | None

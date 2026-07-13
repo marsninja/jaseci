@@ -142,7 +142,7 @@ impl NaIRGenPass._emit_unsupported_builtin_call(
     nd: uni.FuncCall, func_name: str
 ) -> None {
     self.emit(
-        E5090,
+        E5092,
         node_override=nd,
         kind="builtin call",
         name=func_name,
@@ -716,7 +716,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             if _open_result is not None {
                 return _open_result;
             }
-            self.emit(E5090, node_override=nd, kind="function", name=func_name);
+            self.emit(E5092, node_override=nd, kind="function", name=func_name);
             return None;
         }
     }
@@ -805,7 +805,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
 
         if _call_kind != "builtin" {
-            self.emit(E5090, node_override=nd, kind="function", name=func_name);
+            self.emit(E5092, node_override=nd, kind="function", name=func_name);
         }
         return None;
     }

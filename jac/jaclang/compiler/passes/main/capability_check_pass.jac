@@ -40,6 +40,8 @@ def import_bound_name(item: uni.UniNode) -> (str | None);
 
 def name_in_type_position(name_nd: uni.UniNode) -> bool;
 
+def static_fstring_spec_text(spec: uni.UniNode) -> (str | None);
+
 def native_capability_violations(mod: uni.Module) -> list;
 
 def module_native_compat(mod: uni.Module) -> bool;
