@@ -7,6 +7,20 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ---
 
+### `jac create --list_jacpacks` renamed to `jac create --list`
+
+The flag never listed jacpacks. A `.jacpack` is a distributable bundle you produce with `jac create --pack <dir>` and consume with `jac create --use <path|url>`; the flag instead lists the **project kinds** (used with `--kind`) and **named variants** (used with `--use <name>`) registered in the template registry. The name promised one thing and printed another, and its underscore spelling (`--list_jacpacks`, since `--list-jacpacks` was rejected) made it easy to get wrong.
+
+This is a **clean break** -- there is no deprecated alias, and `--list_jacpacks` now fails with `unrecognized arguments`.
+
+| Old | New |
+|---|---|
+| `jac create --list_jacpacks` | `jac create --list` |
+
+**Impact:** replace `--list_jacpacks` with `--list` in scripts, CI, and docs. The short form `-l` is unchanged, so `jac create -l` works before and after. Nothing about the `.jacpack` format, `--pack`, or `--use` changes.
+
+---
+
 ### `to cl:` / `to sv:` / `to na:` section markers removed
 
 The module-level colon-section-marker syntax has been removed. A `to cl:` / `to sv:` / `to na:` line used to switch every following statement into the client / server / native context until the next marker or end of file. This is a **clean break** -- writing `to cl:` (or `to sv:` / `to na:`) now fails to parse.

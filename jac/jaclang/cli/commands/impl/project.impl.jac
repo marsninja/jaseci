@@ -14,7 +14,7 @@ impl create(
     force: bool = False,
     kind: str = "",
     use: str = "default",
-    list_jacpacks: bool = False,
+    `list: bool = False,
     pack: str = "",
     pack_output: str = "",
     `skip: bool = False,
@@ -66,7 +66,7 @@ impl create(
         initialize_template_registry();
     }
 
-    if list_jacpacks {
+    if `list {
         kinds = registry.list_kinds();
         if kinds {
             console.print(
@@ -108,8 +108,7 @@ impl create(
         if tmpl is None {
             console.error(f"Unknown template: {use}");
             console.print(
-                "Use --list_jacpacks to see available kinds and templates.",
-                style="muted"
+                "Use --list to see available kinds and named variants.", style="muted"
             );
             return 1;
         }
@@ -390,8 +389,8 @@ def _resolve_template(use: str, registry: any) -> any {
 
     tmpl = registry.get(use);
     if tmpl is None {
-        console.error(f"Unknown jacpack template: {use}");
-        console.error("Use --list_jacpacks to see available templates.");
+        console.error(f"Unknown template: {use}");
+        console.error("Use --list to see available kinds and named variants.");
         console.error("You can also specify a path to a .jacpack file or a URL.");
         return None;
     }
