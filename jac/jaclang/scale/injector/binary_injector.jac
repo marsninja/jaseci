@@ -56,10 +56,21 @@ def select_injector(
     app_name: str,
     namespace: str,
     project_dir: str,
-    provisioned_database: str = ""
+    provisioned_database: str = "",
+    host_path: str = ""
 ) -> tuple[PvcInjector, str] {
     import from jaclang.cli.console { console }
     import from jaclang.scale.config.dev_config { resolve_dev_channel }
+    if storage_class and host_path {
+        raise ValueError(
+            "[scale.kubernetes] sets both 'bundle_storage_class' and "
+            "'bundle_host_path', which are mutually exclusive: the bundle "
+            "store is either a ReadWriteMany PVC (bundle_storage_class, for "
+            "multi-node clusters) or a directory on the host node "
+            "(bundle_host_path, for single-node local clusters such as kind / "
+            "k3d / minikube). Unset one of them."
+        );
+    }
     # The one place the pod binary channel is decided (local > dev > stable).
     channel = resolve_dev_channel(project_dir);
     blurbs = {
@@ -72,6 +83,7 @@ def select_injector(
         injector = BinaryInjector(
             channel=channel,
             storage_class=storage_class,
+            host_path=host_path,
             provisioned_database=provisioned_database
         );
         injector.prepare(app_name, namespace, project_dir);

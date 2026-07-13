@@ -31,6 +31,10 @@ obj KubernetesConfig(BaseConfig) {
         pvc_size: str = '5Gi',
         mongodb_storage_size: str = '1Gi',
         bundle_storage_class: str = '',
+        # Single-node local clusters (kind / k3d / minikube) only: stage the
+        # source bundles in this directory on the host node instead of an RWX
+        # PVC. Mutually exclusive with bundle_storage_class (#7433).
+        bundle_host_path: str = '',
         resource_deletion_wait: int = 5,
         aws_nlb_wait: int = 60,
         app_mount_path: str = '/app',
@@ -107,6 +111,7 @@ obj KubernetesConfig(BaseConfig) {
                 'pvc_size': self.pvc_size,
                 'mongodb_storage_size': self.mongodb_storage_size,
                 'bundle_storage_class': self.bundle_storage_class,
+                'bundle_host_path': self.bundle_host_path,
                 'resource_deletion_wait': self.resource_deletion_wait,
                 'aws_nlb_wait': self.aws_nlb_wait,
                 'app_mount_path': self.app_mount_path,
@@ -187,6 +192,7 @@ obj KubernetesConfig(BaseConfig) {
             pvc_size=config.get('pvc_size', '5Gi'),
             mongodb_storage_size=config.get('mongodb_storage_size', '1Gi'),
             bundle_storage_class=config.get('bundle_storage_class', ''),
+            bundle_host_path=config.get('bundle_host_path', ''),
             resource_deletion_wait=config.get('resource_deletion_wait', 5),
             aws_nlb_wait=config.get('aws_nlb_wait', 60),
             app_mount_path=config.get('app_mount_path', '/app'),

@@ -38,7 +38,10 @@ def build_bundle_pvc(
             "ebs.csi.aws.com) are ReadWriteOnce and cannot provision a "
             "ReadWriteMany volume, leaving the bundle-loader pod Pending. Set "
             "'bundle_storage_class' under [scale.kubernetes] to a "
-            "RWX-capable StorageClass (e.g. 'efs-sc')."
+            "RWX-capable StorageClass (e.g. 'efs-sc'), or, on a single-node "
+            "local cluster (kind / k3d / minikube), set 'bundle_host_path' to "
+            "stage bundles in a directory on the host node instead (no PVC "
+            "needed)."
         );
     }
     spec: dict[str, any] = {
@@ -98,6 +101,11 @@ def _ensure_volume(pod_spec: dict[str, any], volume: dict[str, any]) -> None {
 obj PvcInjector(Injector) {
     has size: str = "1Gi",
         storage_class: str = "",
+        # Local-cluster (kind / k3d / minikube) escape hatch: stage bundles in
+        # a directory on the host node instead of an RWX PVC. On a single node
+        # every pod sees the same filesystem, so ReadWriteMany degenerates to a
+        # shared hostPath and no RWX provisioner is required (#7433).
+        host_path: str = "",
         loader_image: str = "busybox:1.36",
         provisioned_database: str = "",
         _object_key: str = "",
@@ -105,6 +113,65 @@ obj PvcInjector(Injector) {
 
     def _seed_artifacts -> list[tuple[str, bytes]] {
         return [(self._object_key, self._bundle_bytes)];
+    }
+
+    def _bundle_volume_source(app_name: str) -> dict[str, any] {
+        if self.host_path {
+            return {
+                "hostPath": {"path": self.host_path, "type": "DirectoryOrCreate"}
+            };
+        }
+        return {"persistentVolumeClaim": {"claimName": bundle_pvc_name(app_name)}};
+    }
+
+    def _loader_pod_manifest(app_name: str) -> dict[str, any] {
+        container_security: dict[str, any] = {
+            "readOnlyRootFilesystem": True,
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["ALL"]},
+            "seccompProfile": {"type": "RuntimeDefault"}
+        };
+        pod_security: dict[str, any] = {
+            "seccompProfile": {"type": "RuntimeDefault"}
+        };
+        if not self.host_path {
+            # PVC mode: fsGroup makes the volume group-writable, so the loader
+            # runs non-root. hostPath mode cannot do that (kubelet never chowns
+            # hostPath volumes and creates missing directories root-owned
+            # 0755), so there the loader runs as root to write the staged
+            # bundles - acceptable for a local-single-node-only mode.
+            pod_security.update(
+                {"runAsNonRoot": True, "runAsUser": 1000, "fsGroup": 1000}
+            );
+            container_security.update({"runAsNonRoot": True, "runAsUser": 1000});
+        }
+        bundles_volume: dict[str, any] = {"name": "bundles"};
+        bundles_volume.update(self._bundle_volume_source(app_name));
+        return {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": f"{app_name}-bundle-loader",
+                "labels": {"managed": "jac-scale", "jac-scale.role": "bundle-loader"}
+            },
+            "spec": {
+                "restartPolicy": "Never",
+                "securityContext": pod_security,
+                "containers": [
+                    {
+                        "name": "loader",
+                        "image": self.loader_image,
+                        "command": ["sh", "-c", "sleep 3600"],
+                        "securityContext": container_security,
+                        "volumeMounts": [
+                            {"name": "bundles", "mountPath": BUNDLE_MOUNT_PATH},
+                            {"name": "tmp", "mountPath": "/tmp"}
+                        ]
+                    }
+                ],
+                "volumes": [bundles_volume, {"name": "tmp", "emptyDir": {}}]
+            }
+        };
     }
 
     def _unpack_bundle_paths -> list[str] {
@@ -140,52 +207,14 @@ obj PvcInjector(Injector) {
         import from pathlib { Path }
 
         core_v1 = client.CoreV1Api();
-        pvc_name = bundle_pvc_name(app_name);
+        bundle_store = (
+            f"host path {self.host_path}"
+            if self.host_path
+            else f"PVC {bundle_pvc_name(app_name)}"
+        );
         loader_pod = f"{app_name}-bundle-loader";
 
-        pod_body = {
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "metadata": {
-                "name": loader_pod,
-                "labels": {"managed": "jac-scale", "jac-scale.role": "bundle-loader"}
-            },
-            "spec": {
-                "restartPolicy": "Never",
-                "securityContext": {
-                    "runAsNonRoot": True,
-                    "runAsUser": 1000,
-                    "fsGroup": 1000,
-                    "seccompProfile": {"type": "RuntimeDefault"}
-                },
-                "containers": [
-                    {
-                        "name": "loader",
-                        "image": self.loader_image,
-                        "command": ["sh", "-c", "sleep 3600"],
-                        "securityContext": {
-                            "runAsNonRoot": True,
-                            "runAsUser": 1000,
-                            "readOnlyRootFilesystem": True,
-                            "allowPrivilegeEscalation": False,
-                            "capabilities": {"drop": ["ALL"]},
-                            "seccompProfile": {"type": "RuntimeDefault"}
-                        },
-                        "volumeMounts": [
-                            {"name": "bundles", "mountPath": BUNDLE_MOUNT_PATH},
-                            {"name": "tmp", "mountPath": "/tmp"}
-                        ]
-                    }
-                ],
-                "volumes": [
-                    {
-                        "name": "bundles",
-                        "persistentVolumeClaim": {"claimName": pvc_name}
-                    },
-                    {"name": "tmp", "emptyDir": {}}
-                ]
-            }
-        };
+        pod_body = self._loader_pod_manifest(app_name);
         try {
             core_v1.create_namespaced_pod(namespace, pod_body);
         } except ApiException as exc {
@@ -286,7 +315,7 @@ obj PvcInjector(Injector) {
                     );
                     logger.info(
                         f"pvc-injector: seeded {len(raw)} bytes to "
-                        f"{pvc_name} at {bundle_path}"
+                        f"{bundle_store} at {bundle_path}"
                     );
                 } finally {
                     tmp_path.unlink(missing_ok=True);
@@ -317,13 +346,9 @@ obj PvcInjector(Injector) {
         }
 
         _ensure_volume(pod_spec, {"name": APP_VOLUME_NAME, "emptyDir": {}});
-        _ensure_volume(
-            pod_spec,
-            {
-                "name": BUNDLE_VOLUME_NAME,
-                "persistentVolumeClaim": {"claimName": bundle_pvc_name(app_name)}
-            }
-        );
+        bundle_volume: dict[str, any] = {"name": BUNDLE_VOLUME_NAME};
+        bundle_volume.update(self._bundle_volume_source(app_name));
+        _ensure_volume(pod_spec, bundle_volume);
 
         init_containers: list[dict[str, any]] = list(
             pod_spec.get("initContainers", [])
@@ -342,6 +367,11 @@ obj PvcInjector(Injector) {
     }
 
     def extra_manifests(app_name: str, namespace: str) -> list[dict[str, any]] {
+        if self.host_path {
+            # hostPath mode stages bundles directly on the node's filesystem;
+            # there is no PVC to create (and no RWX StorageClass to require).
+            return [];
+        }
         return [build_bundle_pvc(app_name, namespace, self.size, self.storage_class)];
     }
 }
