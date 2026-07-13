@@ -70,10 +70,11 @@ impl NaIRGenPass._compute_osp_model(archetypes: list[uni.Archetype]) -> None {
             self.arch_ast_map[_n] = arch;
         }
     }
-    _model = OspAnalysis.compute(
+    import from jaclang.jac0core.osp_model { get_osp_model }
+    _model = get_osp_model(
         self.ir_in,
-        list(archetypes) + list(self.arch_ast_map.values()),
-        CodeContext.NATIVE
+        archetypes=(list(archetypes) + list(self.arch_ast_map.values())),
+        context=CodeContext.NATIVE
     );
     for (_name, _other) in _model.collisions {
         self.emit(
@@ -83,7 +84,6 @@ impl NaIRGenPass._compute_osp_model(archetypes: list[uni.Archetype]) -> None {
             name=f"{_name} (OSP type-tag hash collides with '{_other}')"
         );
     }
-    self.ir_in.gen.osp_model = _model;
 }
 
 impl NaIRGenPass._osp_active -> bool {
