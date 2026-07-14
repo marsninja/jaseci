@@ -20,6 +20,10 @@ impl TypeCheckPass.exit_name(self: TypeCheckPass, nd: uni.Name) -> None {
         if isinstance(nd.parent, uni.SubTag) {
             return;
         }
+
+        if isinstance(nd.parent, uni.ModulePath) {
+            return;
+        }
         if isinstance(nd.parent, uni.JsxElementName) {
             return;
         }

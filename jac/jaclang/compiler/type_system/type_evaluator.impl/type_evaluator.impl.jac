@@ -723,6 +723,13 @@ impl TypeEvaluator._get_type_of_expression_core(
                         expr.right.type = sym_type;
                         return sym_type;
                     }
+
+                    if submod_type := self._resolve_submodule_attr(
+                        base_type, expr.right.value
+                    ) {
+                        expr.right.type = submod_type;
+                        return submod_type;
+                    }
                     return types.UnknownType();
                 } elif base_type.is_instantiable_class() {
                     assert isinstance(base_type, types.ClassType);
