@@ -20,7 +20,7 @@ def make_point(x: float, y: float) -> Point {
 
 def run_all {
     data = [1, 2, 3, 4];
-    print(total(& data));
+    print(total(&data));
     q = make_point(1.5, 2.5);
     print(q.x + q.y);
 }

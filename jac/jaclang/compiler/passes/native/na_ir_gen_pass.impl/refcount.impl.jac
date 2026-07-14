@@ -854,7 +854,12 @@ impl NaIRGenPass._nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> 
 
 impl NaIRGenPass._nogc_free_scratch(val: ir.Value, op: str) -> None {
     if op not in (
-        "print_tmp", "fstr_obj_tmp", "mstr_old", "mstr_val", "fstring", "str_index"
+        "print_tmp",
+        "fstr_obj_tmp",
+        "mstr_old",
+        "mstr_val",
+        "fstring",
+        "str_index"
     ) {
         return;
     }

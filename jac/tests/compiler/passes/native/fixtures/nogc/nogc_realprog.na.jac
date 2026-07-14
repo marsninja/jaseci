@@ -59,11 +59,11 @@ def sieve(limit: int) -> int {
 
 def run_all {
     prog1 = [3, 4, -1, 5, -3, 2, -2];
-    print(eval_rpn(& prog1));
+    print(eval_rpn(&prog1));
     total = 0;
     for rep in range(50) {
         prog2 = [rep, 7, -1, 3, -3];
-        total += eval_rpn(& prog2);
+        total += eval_rpn(&prog2);
     }
     print(total);
     print(sieve(1000));
