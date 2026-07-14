@@ -301,6 +301,22 @@ test "bundle_host_path flows from [scale.kubernetes] into the deploy config" {
 }
 
 
+test "a relative bundle_host_path is rejected at config-parse time" {
+    import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+        KubernetesConfig
+    }
+    raised = False;
+    try {
+        KubernetesConfig.from_dict(KubernetesConfig, {"bundle_host_path": "bundles"});
+    } except ValueError as e {
+        raised = True;
+        assert "absolute path" in str(e);
+        assert "bundle_host_path" in str(e);
+    }
+    assert raised , "Expected ValueError for a relative bundle_host_path";
+}
+
+
 test "mutate_pod_spec wires the pvc, an init container, and the app mount" {
     injector = PvcInjector();
     # Inject seeded state directly so this test exercises mutate_pod_spec wiring
