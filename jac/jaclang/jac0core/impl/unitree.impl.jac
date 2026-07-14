@@ -241,6 +241,12 @@ impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
             if ctx == CodeContext.CLIENT and isinstance(_stmt, ClientBlock) {
                 return True;
             }
+
+            if ctx != CodeContext.SERVER
+            and isinstance(_stmt, ContextAwareNode)
+            and _stmt.code_context == ctx {
+                return True;
+            }
         }
     }
     return False;
