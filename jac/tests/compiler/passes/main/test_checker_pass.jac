@@ -3986,9 +3986,14 @@ test "root_cause_6_stdlib_returns_unknown" {
         for e in program.errors_had
         if e.loc and 267 <= e.loc.first_line <= 305
     ];
-    # importlib.util resolves to Unknown — each function using it reports errors.
+    # 11 (down from 15): `importlib.util` itself now resolves — ModuleType
+    # attribute access falls back to on-disk submodule resolution, so the four
+    # `.util`-on-Unknown errors are gone. spec_from_file_location still types
+    # Unknown because util.pyi only re-exports it (`from importlib.
+    # _bootstrap_external import spec_from_file_location as ...`) and aliased
+    # stub re-exports are not followed yet; its cascades remain.
     # Cascade suppression handles chained AtomTrailer accesses but not Name targets.
-    assert len(rc6_errors) == 15 , f"Expected 15 stdlib-unknown errors, got {len(
+    assert len(rc6_errors) == 11 , f"Expected 11 stdlib-unknown errors, got {len(
         rc6_errors
     )}:\n" + "\n---\n".join(e.pretty_print() for e in rc6_errors);
 }
@@ -4178,10 +4183,12 @@ test "root_causes_total_error_count" {
     );
     TypeCheckPass(ir_in=mod, prog=program);
 
-    # 29 errors (down from 35): partial union member access now returns
-    # resolved types instead of Unknown, eliminating 6 cascading errors
-    # (E1002 "return Unknown" and E1053 "Unknown->Sized" that followed E1099).
-    assert len(program.errors_had) == 29 , f"Expected 29 total errors, got {len(
+    # 26 errors (down from 29): dotted stdlib submodules (`importlib.util`)
+    # now resolve through ModuleType attribute access, removing the
+    # `.util`-on-Unknown errors from the Root Cause 6 corpus. Before that,
+    # 29 was down from 35: partial union member access returning resolved
+    # types instead of Unknown eliminated 6 cascading errors.
+    assert len(program.errors_had) == 26 , f"Expected 26 total errors, got {len(
         program.errors_had
     )}:\n" + "\n---\n".join(e.pretty_print() for e in program.errors_had);
 }
