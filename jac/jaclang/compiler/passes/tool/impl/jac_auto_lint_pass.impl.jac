@@ -474,13 +474,6 @@ impl JacAutoLintPass.can_convert_to_glob(assignment: uni.Assignment) -> bool {
 }
 
 impl JacAutoLintPass.names_unsafe_to_globalize(module: uni.Module) -> set[str] {
-    # Promoting a with-entry assignment to `glob` only stays faithful when the
-    # resulting `glob` is the single declaration of that name. A name bound more
-    # than once at module level — reassigned across entry statements, or an entry
-    # assignment to a name already declared by a module-level `glob` — is a
-    # reassignment, not a declaration. Promoting it would emit duplicate,
-    # conflicting `glob` declarations and change the code's meaning, so collect
-    # every such name and leave all of its bindings in the with-entry block.
     counts: dict[str, int] = {};
     for stmt in module.body {
         target_lists: list = [];
@@ -504,7 +497,11 @@ impl JacAutoLintPass.names_unsafe_to_globalize(module: uni.Module) -> set[str] {
             }
         }
     }
-    return {name for (name, count) in counts.items() if count > 1};
+    return {
+        name
+        for (name, count) in counts.items()
+        if count > 1
+    };
 }
 
 impl JacAutoLintPass.enter_module(nd: uni.Module) -> None {
@@ -531,8 +528,7 @@ impl JacAutoLintPass.enter_module(nd: uni.Module) -> None {
                 if isinstance(inner_stmt, uni.Assignment)
                 and self.can_convert_to_glob(inner_stmt)
                 and not any(
-                    target.value in unsafe_globalize
-                    for target in inner_stmt.target
+                    target.value in unsafe_globalize for target in inner_stmt.target
                 ) {
                     extracted_stmt = self.create_glob_from_assignment(inner_stmt);
                 } elif self.is_module_level_construct(inner_stmt) {
