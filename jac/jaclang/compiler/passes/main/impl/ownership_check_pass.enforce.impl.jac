@@ -225,12 +225,31 @@ impl OwnershipCheckPass._nogc_check_call(call: uni.FuncCall, prov: str) -> None 
         return;
     }
 
+    _opts_c = self.prog?._compile_options;
+    _hl_c = getattr(_opts_c, "na_gc_mode", "cycles") == "none" if _opts_c else False;
     _heap_args: list[uni.Name] = [];
     for _arg in self._call_params(call) {
         _a = _arg.value if isinstance(_arg, uni.KWPair) else _arg;
         if isinstance(_a, uni.FuncCall)
         and isinstance(_a.target, uni.Name)
         and _a.target.sym_name == "managed" {
+            if _hl_c {
+                _m_params = list(_a.params or []);
+                _m_root = self._place_of(_m_params[0]) if _m_params else None;
+                if _m_root is not None
+                and _m_root.sym is not None
+                and (
+                    _m_root.sym.ownership == OwnershipKind.OWN
+                    or self._nogc_local_shape(_m_root) == "heap"
+                ) {
+                    self.emit(
+                        E1406,
+                        node_override=_a,
+                        name="managed() of a heap value under --gc none",
+                        provenance=prov
+                    );
+                }
+            }
             continue;
         }
         _root = self._place_of(_a);
@@ -304,6 +323,22 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
     _opts = self.prog?._compile_options;
     _headerless = getattr(_opts, "na_gc_mode", "cycles") == "none" if _opts else False;
     if _headerless {
+        for _lv in self.ir_in.get_all_sub_nodes(uni.ListVal) {
+            if _lv.find_parent_of_type(uni.SubTag) is not None {
+                continue;
+            }
+            for _le in (_lv.values or []) {
+                if self._nogc_local_shape_expr_heap(_le) {
+                    self.emit(
+                        E1406,
+                        node_override=_lv,
+                        name="container of heap elements",
+                        provenance=_prov
+                    );
+                    break;
+                }
+            }
+        }
         for _gv in self.ir_in.get_all_sub_nodes(uni.GlobalVars) {
             for _ga in _gv.get_all_sub_nodes(uni.Assignment) {
                 for _gt in _ga.target {
