@@ -268,7 +268,7 @@ Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native tar
 
 ### Ownership / Borrow Errors
 
-Emitted by `OwnershipCheckPass` for `own`/`val`/`linear`/`borrow`/`&`/`&mut` bindings and `region` blocks. See [Ownership & Borrowing](language/ownership-borrowing.md). These are diagnostics only -- no backend reads the checker's results, and generated code is identical whether or not the checker ran.
+Emitted by `OwnershipCheckPass` for `own`/`imm`/`linear`/`borrow`/`&`/`&mut` bindings and `region` blocks. See [Ownership & Borrowing](language/ownership-borrowing.md). These are diagnostics only -- no backend reads the checker's results, and generated code is identical whether or not the checker ran.
 
 | Code | Message |
 |------|---------|
@@ -280,7 +280,7 @@ Emitted by `OwnershipCheckPass` for `own`/`val`/`linear`/`borrow`/`&`/`&mut` bin
 | `E1306` | Borrow of '{name}' escapes its scope |
 | `E1307` | Reference to '{name}' escapes its `region` block |
 | `E1308` | '{name}' is not sendable across a concurrency boundary |
-| `E1309` | Cannot mutate '{name}' through a deep-immutable `val` binding |
+| `E1309` | Cannot mutate '{name}' through a deep-immutable `imm` binding |
 
 ### Type Warnings
 

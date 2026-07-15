@@ -791,7 +791,7 @@ The elision is proven by the core `RcFactsPass` (`passes/main/rc_facts_pass.jac`
 It is deliberately conservative -- it proves only the safe case and retains everywhere else. An assignment `b = a` is elided only when:
 
 - `b` is a single, plain, **local** name (never a field, subscript, global, or parameter);
-- the binding is not a `borrow`/`val` binding;
+- the binding is not a `borrow`/`imm` binding;
 - `a` is a plain **local** name (an `own` *parameter* is never elided);
 - **every** use of `a` in its function is an alias-value into a plain local -- this one invariant excludes call-args, returns, field/container stores, `&a` borrows, and closure/concurrent captures, any of which is a use that is not an alias-value; and
 - `a` is **dead-out** at the move site, proven by backward liveness over the CFG. A later use reached through a loop back-edge without an intervening redefinition keeps `a` live and blocks the elision, so a `b = a` inside a loop is elided only when `a` is redefined each iteration before the move.

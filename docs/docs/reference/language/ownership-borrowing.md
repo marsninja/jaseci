@@ -1,6 +1,6 @@
 # Ownership & Borrowing
 
-Jac has an opt-in ownership and borrow-checking surface: `own` marks a local or parameter as the unique owner of a value, `&`/`&mut` take a shared or mutable borrow of an owned value, and `OwnershipCheckPass` statically verifies that owned values aren't used after they move and that borrows never outlive or conflict with their owner. Unannotated bindings are completely unaffected -- the checker only tracks names it sees tagged `own`, `val`, or `borrow` (`&`/`&mut`), plus allocations inside a `region` block. (A `linear` must-use marker is planned but not yet implemented -- see below.)
+Jac has an opt-in ownership and borrow-checking surface: `own` marks a local or parameter as the unique owner of a value, `&`/`&mut` take a shared or mutable borrow of an owned value, and `OwnershipCheckPass` statically verifies that owned values aren't used after they move and that borrows never outlive or conflict with their owner. Unannotated bindings are completely unaffected -- the checker only tracks names it sees tagged `own`, `imm`, or `borrow` (`&`/`&mut`), plus allocations inside a `region` block. (A `linear` must-use marker is planned but not yet implemented -- see below.)
 
 The checker is one of the compiler's required analyses on the native pathway: it always runs there, its error-severity findings (E13xx) block native codegen, and a clean check is what makes the annotations trustworthy facts for lowering. Whether diagnostics are *displayed* is a compile-request property that never changes generated code -- builds with and without display are bit-identical. Reference-count move elision is proven by the core `RcFactsPass` (a backward-liveness proof on the compiler's shared dataflow framework, stamped as `Assignment.na_move_lowerable`), which serves annotated and unannotated code alike. See the [Ownership Fact Schema](ownership-checker-spec.md) for the full facts contract.
 
@@ -36,7 +36,7 @@ with entry {
 }
 ```
 
-(A planned [`linear` marker](#val-and-linear-markers) will make dropping an error -- a `linear` binding must be consumed exactly once, and leaking it will be `E1305`. `linear` is not yet implemented.)
+(A planned [`linear` marker](#imm-and-linear-markers) will make dropping an error -- a `linear` binding must be consumed exactly once, and leaking it will be `E1305`. `linear` is not yet implemented.)
 
 `own` also works on parameters (`def take(x: own Buffer) -> None`), and passing an owned local to a plain (non-`own`) parameter counts as a move.
 
@@ -127,19 +127,19 @@ with entry {
 }
 ```
 
-## `val` and `linear` markers
+## `imm` and `linear` markers
 
 Two further binding markers refine `own` at either end of the strictness spectrum.
 
-`val` declares a **deep-immutable** value: it may never be reassigned, have a field (or subscript) written through it, or be borrowed `&mut`. Violations are [`E1309`](../diagnostics.md#ownership-borrow-errors):
+`imm` declares a **deep-immutable** value: it may never be reassigned, have a field (or subscript) written through it, or be borrowed `&mut`. Violations are [`E1309`](../diagnostics.md#ownership-borrow-errors):
 
 ```jac
 obj Buffer { has n: int = 0; }
 
 with entry {
-    v: val Buffer = Buffer();
+    v: imm Buffer = Buffer();
     print(v.n);   # OK: reads are unrestricted
-    v.n = 5;      # error[E1309]: cannot mutate 'v' through a deep-immutable `val` binding
+    v.n = 5;      # error[E1309]: cannot mutate 'v' through a deep-immutable `imm` binding
 }
 ```
 
@@ -183,7 +183,7 @@ To get a value out of a region, move it out with `own` before the block ends.
 
 ## Sendability across concurrency boundaries
 
-Only payloads that are statically race-free may cross a `flow`/`wait`/`thread_run` boundary: a deep-immutable `val` value, or an `own` value that is *moved* into the boundary (a planned `linear` value will cross the same way). Sending a live `&`/`&mut` borrow is [`E1308`](../diagnostics.md#ownership-borrow-errors):
+Only payloads that are statically race-free may cross a `flow`/`wait`/`thread_run` boundary: a deep-immutable `imm` value, or an `own` value that is *moved* into the boundary (a planned `linear` value will cross the same way). Sending a live `&`/`&mut` borrow is [`E1308`](../diagnostics.md#ownership-borrow-errors):
 
 ```jac
 obj Buffer { has n: int = 0; }
