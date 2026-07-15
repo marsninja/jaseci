@@ -1773,13 +1773,6 @@ def _bundle_sealed(config: any, output: str) -> int {
     return 0;
 }
 
-"""Vendor the app's runtime Python closure into `img/_vendor/wheels/`.
-
-Reuses the resolver `jac install` uses (`resolve_plan`), so the vendored set is
-exactly the runtime closure: declared deps plus the capability deps derived from
-jac.toml intents. Git deps are skipped (a wheel download cannot represent them);
-those still install normally at run time.
-"""
 def _vendor_jab_deps(config: any, img: Path) -> bool {
     import from jaclang.project.providers { resolve_plan, get_python_provider }
     import from jaclang.jac0core.sealed { python_tag }

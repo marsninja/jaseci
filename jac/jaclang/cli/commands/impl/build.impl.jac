@@ -22,7 +22,7 @@ impl build(
     }
     if fat and projection not in ["jab", "binary"] {
         console.error(
-            f"--fat has no effect on the '{projection}' projection.",
+            f"--fat is not supported for the '{projection}' projection.",
             hint="Vendoring applies to 'jab' and 'binary' bundles only."
         );
         return 1;
