@@ -137,7 +137,14 @@ obj ClassType(TypeBase) {
             is_enum_class: bool = False,
             enum_value_type: (TypeBase | None) = None,
             enum_members: (dict[str, EnumMemberInfo] | None) = None,
-            _identity_key: (tuple[str, int, int, str] | None) = None;
+            _identity_key: (tuple[str, int, int, str] | None) = None,
+            # Synthesized special-form types (e.g. LiteralString) derived from
+            # this class, memoized here so they keep a stable identity across
+            # TypeEvaluator instances -- `jac check` drops the evaluator between
+            # files (release_compile_closure) while this shared class survives on
+            # the cached stub AST, so re-minting them per evaluator would break
+            # identity comparisons against types cached on those stub nodes.
+            _derived_special_types: (dict[str, ClassType] | None) = None;
 
         def postinit -> None;
         def canonical_key -> (tuple[str, int, int, str] | None);
