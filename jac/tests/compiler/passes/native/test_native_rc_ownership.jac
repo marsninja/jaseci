@@ -21,6 +21,7 @@ import os;
 import from tests.support { TESTS_DIR }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compile_options { CompileOptions }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
@@ -29,9 +30,12 @@ glob FIXTURES = os.path.join(
      );
 
 """Compile a .na.jac fixture and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
+def compile_native(
+    fixture: str, gc_mode: str | None = None
+) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
+    opts = CompileOptions(na_gc_mode=gc_mode) if gc_mode is not None else None;
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=opts);
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;
@@ -137,4 +141,28 @@ test "param shadow: loop-exit cleanup still releases same-named locals" {
     churn = get_func(eng, "churn", ctypes.c_int64, ctypes.c_int64);
     result = churn(10);
     assert result == 100 , f"Expected 100, got {result}";
+}
+
+# --- Heap-element containers under non-default gc modes (issue #7466, 3) ---
+test "heap-element container compiles and runs under --gc rc" {
+    # The list[str] element-release helper used to re-enter _emit_rc_helpers
+    # (its guard checked a cycles-only global) and redefine __rc_debug:
+    # DuplicatedNameError ICE under rc, fine under the default cycles mode.
+    (eng, _) = compile_native("rc_heap_container.na.jac", gc_mode="rc");
+    count_strs = get_func(eng, "count_strs", ctypes.c_int64);
+    result = count_strs();
+    assert result == 2 , f"Expected 2, got {result}";
+}
+
+test "heap-element container compiles and runs under plain --gc none" {
+    (eng, _) = compile_native("rc_heap_container.na.jac", gc_mode="none");
+    count_strs = get_func(eng, "count_strs", ctypes.c_int64);
+    result = count_strs();
+    assert result == 2 , f"Expected 2, got {result}";
+}
+
+test "import sys compiles under --gc rc (argv list is a heap container)" {
+    (eng, _) = compile_native("rc_import_sys.na.jac", gc_mode="rc");
+    addr = eng.get_function_address("argc_minus_one");
+    assert addr != 0 , "argc_minus_one not emitted";
 }

@@ -25,6 +25,10 @@ impl NaIRGenPass._emit_rc_helpers -> None {
         }
         return;
     }
+    if self.rc_helpers_emitted {
+        return;
+    }
+    self.rc_helpers_emitted = True;
     i8 = ir.IntType(8);
     i8_ptr = i8.as_pointer();
     i32 = ir.IntType(32);
