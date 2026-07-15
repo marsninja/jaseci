@@ -141,3 +141,23 @@ test "phase W: walkers reclaim -- spawn-heavy loop fires drop per walker" {
     n_dropped = read_dropped();
     assert n_dropped == 4 , f"expected 4 reclaimed walkers, got {n_dropped}";
 }
+
+test "R3: region-resident topology traverses live and reclaims at drop" {
+    (eng, ir) = compile_native("region_graph.na.jac");
+    scenario = get_func(eng, "scenario", ctypes.c_int64);
+    result = scenario();
+    assert result == 3 , f"scenario() == {result}, expected traversal sum 3";
+    read_log = get_func(eng, "read_log", ctypes.c_int64);
+    log = read_log();
+    assert log == 2 , f"handle drop must reclaim both nodes: {log} != 2";
+}
+
+test "R3: growth rule -- mid-traversal allocations land in region_of(here)" {
+    (eng, ir) = compile_native("region_growth.na.jac");
+    scenario = get_func(eng, "scenario", ctypes.c_int64);
+    result = scenario();
+    assert result == 2 , f"scenario() == {result}, expected 2 grown nodes";
+    read_log = get_func(eng, "read_log", ctypes.c_int64);
+    log = read_log();
+    assert log == 3 , f"drop must reclaim seed + grown nodes: {log} != 3";
+}

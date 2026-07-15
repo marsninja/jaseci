@@ -122,3 +122,23 @@ test "R2: E1307 a fresh heap value returned from inside an open" {
         compile_fixture("region_escape_fresh_return.jac"), ["E1307"]
     );
 }
+
+# R3 (#7491): regions are the sendable unit for graphs, and the membrane
+# forbids cross-extent topology.
+test "R3: an own handle with no borrows moves across a flow boundary" {
+    expect_ownership_codes(compile_fixture("region_send_ok.jac"), []);
+}
+
+test "R3: E1307 sending a handle while borrows of it exist" {
+    expect_ownership_codes(compile_fixture("region_send_borrow_reject.jac"), ["E1307"]);
+}
+
+test "R3: E1307 wiring a region node to managed topology" {
+    expect_ownership_codes(
+        compile_fixture("region_connect_membrane_reject.jac"), ["E1307"]
+    );
+}
+
+test "R3: region-internal topology wires freely" {
+    expect_ownership_codes(compile_fixture("region_connect_internal_ok.jac"), []);
+}

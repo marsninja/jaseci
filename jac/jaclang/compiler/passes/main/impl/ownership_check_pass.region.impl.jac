@@ -378,6 +378,40 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
                 self._emit_region_escape(nm, region);
                 break;
             }
+            # Sendable regions (decision #5): moving the handle across a
+            # `flow` boundary is the legal way to transfer the subgraph --
+            # but only with no registered borrows of it in this function
+            # (conservative: borrow liveness at the send is not compared).
+            if _hsid is None {
+                continue;
+            }
+            _sends_handle = False;
+            for root_nm in self._places_reachable(cexpr.target) {
+                if self._name_sym_id(root_nm) == _hsid {
+                    _sends_handle = True;
+                    break;
+                }
+            }
+            if not _sends_handle {
+                continue;
+            }
+            _has_borrows = False;
+            for (_bsid, _bm) in self.borrow_meta.items() {
+                if _bm.owner == _hsid {
+                    _has_borrows = True;
+                    break;
+                }
+            }
+            if _has_borrows {
+                key = (id(region), _hsid);
+                if key not in seen {
+                    seen.add(key);
+                    _hnm = self._open_handle_name(region);
+                    if _hnm is not None {
+                        self._emit_region_escape(_hnm, region);
+                    }
+                }
+            }
         }
         for asn in self.idx_assignments {
             if self._region_expr_is_scalar(asn.value) {
@@ -446,6 +480,31 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
                     self._emit_region_escape(root_nm, region);
                 }
             }
+        }
+        # Membrane rule for topology (decision #7): wiring a region-resident
+        # node to managed topology (or vice versa) creates a cross-extent
+        # edge that dangles when the region drops.
+        for bexpr in region.get_all_sub_nodes(uni.BinaryExpr) {
+            if not isinstance(bexpr.op, uni.ConnectOp) {
+                continue;
+            }
+            _lroot = self._place_of(bexpr.left);
+            _rroot = self._place_of(bexpr.right);
+            if _lroot is None or _rroot is None {
+                continue;
+            }
+            _l_in = self._is_region_local(_lroot, region);
+            _r_in = self._is_region_local(_rroot, region);
+            if _l_in == _r_in {
+                continue;
+            }
+            _mix_root = _lroot if _l_in else _rroot;
+            key = (id(region), self._name_sym_id(_mix_root));
+            if key in seen {
+                continue;
+            }
+            seen.add(key);
+            self._emit_region_escape(_mix_root, region);
         }
         # The same default-deny applies to registered region borrows used as
         # call arguments anywhere in the enclosing function: an opaque callee

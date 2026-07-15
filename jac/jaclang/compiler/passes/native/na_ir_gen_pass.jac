@@ -225,6 +225,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         region_alloc_fn: (ir.Function | None) = None,
         region_log_dtor_fn: (ir.Function | None) = None,
         region_drop_fn: (ir.Function | None) = None,
+        osp_anchor_alloc_fn: (ir.Function | None) = None,
         region_stack: list = [],
         region_handle_vars: set[str] = set(),
         region_anon_count: int = 0,

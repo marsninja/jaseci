@@ -27,6 +27,12 @@ glob ARENA_CTRL_SIZE: int = 40,
      ARENA_CHUNK_DEFAULT: int = 32768,
      ARENA_DTOR_ENTRY: int = 24;
 
+# Arena-resident objects carry a distinct header magic (HDR_MAGIC + 1) and
+# their owning handle in the (otherwise dead) dtor slot: `region_of` is one
+# magic test plus one load. The RC fast paths never reach the magic check
+# for these objects because the sentinel rc test comes first.
+glob ARENA_MAGIC_SHIFT_BASE: int = (44061 + 1) * 4294967296;
+
 impl NaIRGenPass._emit_arena_helpers -> None {
     if self.arena_helpers_emitted {
         return;
@@ -178,7 +184,8 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     _total = b.add(_alloc_fn.args[1], ir.Constant(i64, HDR_TOTAL), name="total");
     _araw = b.call(_raw_fn, [_alloc_fn.args[0], _total], name="raw");
     b.store(
-        ir.Constant(i64, HDR_MAGIC_SHIFT_BASE), b.bitcast(_araw, i64p, name="ar.aid.p")
+        ir.Constant(i64, ARENA_MAGIC_SHIFT_BASE),
+        b.bitcast(_araw, i64p, name="ar.aid.p")
     );
     _atag_gv = self._get_snprintf_fmt("arena");
     _atag = b.gep(_atag_gv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ar.tag");
@@ -199,7 +206,7 @@ impl NaIRGenPass._emit_arena_helpers -> None {
         )
     );
     b.store(
-        ir.Constant(i64, 0),
+        b.ptrtoint(_alloc_fn.args[0], i64, name="ar.hdl.i64"),
         b.bitcast(
             b.gep(_araw, [ir.Constant(i64, HDR_TOTAL + HDR_DTOR_OFF)], name="ar.dt.s"),
             i64p,
@@ -318,6 +325,83 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     b = ir.IRBuilder(_end_bb);
     b.ret_void();
     self.region_drop_fn = _drop_fn;
+
+    # -- __jac_osp_anchor_alloc(anchor, size, dtor_fn) -> obj -------------
+    # The growth rule (#7491 OQ1): an allocation anchored to a region-
+    # resident object lands in that object's region (derived from the
+    # anchor's header); anchored to a managed object it stays managed.
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    _aa_fn = self._define_function(
+        "__jac_osp_anchor_alloc", ir.FunctionType(i8p, [i8p, i64, i8p])
+    );
+    _aa_fn.linkage = "private";
+    _aa_fn.args[0].name = "anchor";
+    _aa_fn.args[1].name = "size";
+    _aa_fn.args[2].name = "dtor";
+    _aa_entry = _aa_fn.append_basic_block("entry");
+    _aa_magic = _aa_fn.append_basic_block("check.magic");
+    _aa_hdl = _aa_fn.append_basic_block("load.hdl");
+    _aa_arena = _aa_fn.append_basic_block("arena");
+    _aa_log = _aa_fn.append_basic_block("log.dtor");
+    _aa_ret_a = _aa_fn.append_basic_block("ret.arena");
+    _aa_managed = _aa_fn.append_basic_block("managed");
+    b = ir.IRBuilder(_aa_entry);
+    _anchor = _aa_fn.args[0];
+    b.cbranch(
+        b.icmp_unsigned("==", _anchor, ir.Constant(i8p, None), name="an.null"),
+        _aa_managed,
+        _aa_magic
+    );
+    b = ir.IRBuilder(_aa_magic);
+    _aid = b.load(
+        b.bitcast(
+            b.gep(_anchor, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="an.aid.s"),
+            i64p,
+            name="an.aid.p"
+        ),
+        name="an.aid"
+    );
+    _hi = b.lshr(_aid, ir.Constant(i64, 32), name="an.hi");
+    _hi = b.and_(_hi, ir.Constant(i64, 0xFFFF), name="an.hi.m");
+    b.cbranch(
+        b.icmp_unsigned("==", _hi, ir.Constant(i64, HDR_MAGIC + 1), name="an.arena"),
+        _aa_hdl,
+        _aa_managed
+    );
+    b = ir.IRBuilder(_aa_hdl);
+    _hdl_i64 = b.load(
+        b.bitcast(
+            b.gep(_anchor, [ir.Constant(i64, HDR_DTOR_OFF)], name="an.hdl.s"),
+            i64p,
+            name="an.hdl.p"
+        ),
+        name="an.hdl.i64"
+    );
+    b.cbranch(
+        b.icmp_unsigned("==", _hdl_i64, ir.Constant(i64, 0), name="an.hdl.null"),
+        _aa_managed,
+        _aa_arena
+    );
+    b = ir.IRBuilder(_aa_arena);
+    _an_hdl = b.inttoptr(_hdl_i64, i8p, name="an.hdl");
+    _an_obj = b.call(_alloc_fn, [_an_hdl, _aa_fn.args[1]], name="an.obj");
+    b.cbranch(
+        b.icmp_unsigned(
+            "==", _aa_fn.args[2], ir.Constant(i8p, None), name="an.dtor.null"
+        ),
+        _aa_ret_a,
+        _aa_log
+    );
+    b = ir.IRBuilder(_aa_log);
+    b.call(_log_fn, [_an_hdl, _an_obj, _aa_fn.args[2]]);
+    b.branch(_aa_ret_a);
+    b = ir.IRBuilder(_aa_ret_a);
+    b.ret(_an_obj);
+    b = ir.IRBuilder(_aa_managed);
+    b.ret(b.call(self.rc_alloc_fn, [_aa_fn.args[1]], name="an.rc"));
+    self.osp_anchor_alloc_fn = _aa_fn;
 }
 
 impl NaIRGenPass._assign_rhs_is_region_handle(nd: uni.Assignment) -> bool {
