@@ -1361,11 +1361,6 @@ impl TypeEvaluator._is_fstring_all_literal(fstring: uni.FString) -> bool {
 impl TypeEvaluator._create_special_builtin_type(
     name: str, base_class: types.ClassType
 ) -> types.ClassType {
-    # Memoize on the (stable, stub-cached) base class so the synthesized type
-    # keeps one identity across TypeEvaluator instances. Without this, `jac
-    # check` re-mints e.g. LiteralString every file (the evaluator is dropped by
-    # release_compile_closure between files) while stub AST nodes still cache the
-    # prior instance, so `Literal[...] <: LiteralString` checks spuriously fail.
     if base_class.shared._derived_special_types is not None {
         cached = base_class.shared._derived_special_types.get(name);
         if cached is not None {
