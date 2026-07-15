@@ -176,9 +176,6 @@ impl OwnershipCheckPass._nogc_local_shape_expr_heap(expr: uni.Expr | None) -> bo
         Ownership
     }
     _own = result_ownership(expr);
-    if _own == Ownership.OWNED {
-        return True;
-    }
     if _own == Ownership.STATIC or _own == Ownership.BORROWED {
         return False;
     }

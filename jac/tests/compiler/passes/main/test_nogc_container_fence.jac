@@ -67,9 +67,17 @@ test "E1406: a set literal with an owned heap element" {
     assert enforced_codes("set_literal_heap.na.jac") == ["E1406"];
 }
 
+test "E1406: an owned heap object used as a dict key" {
+    assert enforced_codes("dict_heap_key.na.jac") == ["E1406"];
+}
+
 # --- Supported shapes stay clean: no false positives. -------------------------
 test "scalar list/dict/set with append/add/index is clean" {
     assert enforced_codes("scalar_containers_ok.na.jac") == [];
+}
+
+test "indexing a container with a scalar-returning call is clean" {
+    assert enforced_codes("scalar_call_index_ok.na.jac") == [];
 }
 
 test "a list of string literals (static, not owned heap) is clean" {
