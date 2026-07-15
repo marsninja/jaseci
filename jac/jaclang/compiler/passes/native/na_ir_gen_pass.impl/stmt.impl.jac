@@ -75,9 +75,9 @@ impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
             continue;
         }
         if name in self.region_handle_vars {
-            # A region handle's NLL last use IS its static drop point: run
-            # the dtor log and bulk-free here instead of an RC release.
-            self._emit_region_handle_drop(alloca, name);
+            # Region handles drop at scope exit, not NLL last use: values
+            # allocated under an open may be borrowed by bindings whose
+            # uses extend past the handle's own last mention (#7491 R2).
             continue;
         }
         val = self.builder.load(alloca, name=f"lu.{name}");
@@ -1242,13 +1242,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             coerced = self._coerce_type(value, alloca.type.pointee);
 
             _is_raw_int_ptr = getattr(coerced, 'opname', '') == 'inttoptr';
-            if (
-                isinstance(nd.value, uni.FuncCall)
-                and isinstance(nd.value.target, uni.Name)
-                and nd.value.target.sym_name == "Region"
-            ) {
-                self.region_handle_vars.add(var_name);
-            }
+            self._register_region_handle_var(nd, var_name);
             if isinstance(alloca.type.pointee, ir.PointerType)
             and not is_inplace_set_op {
                 if _is_raw_int_ptr {
@@ -1549,7 +1543,11 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 self.builder.store(ir.Constant(var_type, None), alloca);
                 self.builder.position_at_end(_cur_bb);
             }
-            if isinstance(var_type, ir.PointerType) {
+            self._register_region_handle_var(nd, var_name);
+            if isinstance(var_type, ir.PointerType)
+            and var_name in self.region_handle_vars {
+                ;
+            } elif isinstance(var_type, ir.PointerType) {
                 if getattr(value, 'opname', '') == 'inttoptr' {
                     self.param_vars.add(var_name);
                 } else {

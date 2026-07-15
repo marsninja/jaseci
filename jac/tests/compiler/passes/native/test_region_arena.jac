@@ -87,17 +87,30 @@ test "arena: dtor-log runs drop hooks LIFO at the close of an anonymous open" {
     assert result == 321 , f"dtor_order() == {result}, expected LIFO 321";
 }
 
-test "arena: named handle drops on reassignment and at its NLL last use" {
+test "arena: named handle drops on reassignment and at scope exit" {
     (eng, ir) = compile_native("region_dtor.na.jac");
     named_handle = get_func(eng, "named_handle", ctypes.c_int64);
     result = named_handle();
     # before reassignment nothing dropped (0), reassigning the handle drops
-    # the first arena (7), and the handle's last use -- the second open --
-    # is its static drop point, so the return expression already sees 79.
-    assert result == 779 , f"named_handle() == {result}, expected 779";
+    # the first arena (7); the second arena drops at scope exit, AFTER the
+    # return value is computed (handles hold to scope exit so borrows of
+    # region values stay valid past the handle's own last mention, R2).
+    assert result == 707 , f"named_handle() == {result}, expected 707";
     read_log = get_func(eng, "read_log", ctypes.c_int64);
     log = read_log();
-    assert log == 79 , f"handle drop must run the dtor log: log {log} != 79";
+    assert log == 79 , f"scope exit must run the dtor log: log {log} != 79";
+}
+
+test "arena: dynamic extent -- made in a helper, grown remotely, dropped here" {
+    (eng, ir) = compile_native("region_extent.na.jac");
+    scenario = get_func(eng, "scenario", ctypes.c_int64);
+    result = scenario();
+    # nothing drops while the handle travels through make/grow/grow
+    assert result == 0 , f"scenario() == {result}, expected 0 before drop";
+    read_log = get_func(eng, "read_log", ctypes.c_int64);
+    log = read_log();
+    # one arena, all three dtor-log entries, LIFO across the whole extent
+    assert log == 321 , f"remote drop must run the full dtor log: {log} != 321";
 }
 
 test "arena: early return inside an open still tears the region down" {

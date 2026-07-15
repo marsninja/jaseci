@@ -320,6 +320,68 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     self.region_drop_fn = _drop_fn;
 }
 
+impl NaIRGenPass._assign_rhs_is_region_handle(nd: uni.Assignment) -> bool {
+    # Region-handle detection is syntactic (no inference dependence):
+    # a direct Region() construction, a `: Region` annotation, a call to a
+    # callee declared `-> Region`, or aliasing a known handle binding.
+    if (
+        isinstance(nd.value, uni.FuncCall)
+        and isinstance(nd.value.target, uni.Name)
+        and nd.value.target.sym_name == "Region"
+    ) {
+        return True;
+    }
+    if nd.type_tag is not None {
+        _tt_expr = nd.type_tag.tag;
+        while isinstance(_tt_expr, uni.AtomTrailer) {
+            _tt_expr = _tt_expr.target;
+        }
+        if isinstance(_tt_expr, uni.Name) and _tt_expr.sym_name == "Region" {
+            return True;
+        }
+    }
+    if (
+        isinstance(nd.value, uni.FuncCall)
+        and isinstance(nd.value.target, uni.Name)
+        and nd.value.target.sym is not None
+        and nd.value.target.sym.decl is not None
+    ) {
+        _cal_ab = nd.value.target.sym.decl.find_parent_of_type(uni.Ability);
+        if _cal_ab is not None
+        and isinstance(_cal_ab.signature, uni.FuncSignature)
+        and _cal_ab.signature.return_type is not None {
+            _rt_expr = _cal_ab.signature.return_type;
+            while isinstance(_rt_expr, uni.AtomTrailer) {
+                _rt_expr = _rt_expr.target;
+            }
+            if isinstance(_rt_expr, uni.Name) and _rt_expr.sym_name == "Region" {
+                return True;
+            }
+        }
+    }
+    if isinstance(nd.value, uni.Name)
+    and nd.value.sym_name in self.region_handle_vars {
+        return True;
+    }
+    return False;
+}
+
+impl NaIRGenPass._register_region_handle_var(
+    nd: uni.Assignment, var_name: str
+) -> None {
+    if not self._assign_rhs_is_region_handle(nd) {
+        return;
+    }
+    self.region_handle_vars.add(var_name);
+    if isinstance(nd.value, uni.Name)
+    and nd.value.sym_name in self.region_handle_vars
+    and nd.value.sym_name != var_name {
+        # Handle aliasing is a move: exactly one binding owns the drop
+        # (the checker's E1301 polices annotated code).
+        self.region_handle_vars.discard(nd.value.sym_name);
+    }
+}
+
 impl NaIRGenPass._region_alloc(size: ir.Value, name: str = "region.alloc") -> ir.Value {
     self._emit_arena_helpers();
     size = self._coerce_type(size, ir.IntType(64));

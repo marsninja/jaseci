@@ -125,6 +125,147 @@ impl OwnershipCheckPass._emit_region_escape(
     );
 }
 
+impl OwnershipCheckPass._open_handle_name(region: uni.OpenStmt) -> (uni.Name | None) {
+    tgt = region.target;
+    if isinstance(tgt, uni.Name) and tgt.sym {
+        return tgt;
+    }
+    return None;
+}
+
+impl OwnershipCheckPass._region_handle_sid(region: uni.OpenStmt) -> (SymId | None) {
+    nm = self._open_handle_name(region);
+    if nm is None {
+        return None;
+    }
+    return self._name_sym_id(nm);
+}
+
+impl OwnershipCheckPass._param_is_region_borrow(param: uni.ParamVar) -> bool {
+    tag = param.type_tag;
+    if tag is None or not is_borrow_kind(tag.ownership) {
+        return False;
+    }
+    _expr = tag.tag;
+    while isinstance(_expr, uni.AtomTrailer) {
+        _expr = _expr.target;
+    }
+    return isinstance(_expr, uni.Name) and _expr.sym_name == "Region";
+}
+
+impl OwnershipCheckPass._region_handle_kind(region: uni.OpenStmt) -> str {
+    # "own": a tracked owned local handle; "param": a &Region parameter;
+    # "": anonymous or untracked (block-scoped R1 rules apply unchanged).
+    nm = self._open_handle_name(region);
+    if nm is None or nm.sym is None or nm.sym.decl is None {
+        return "";
+    }
+    sid = self._name_sym_id(nm);
+    if sid in self.owned_decl {
+        return "own";
+    }
+    _pv = nm.sym.decl.find_parent_of_type(uni.ParamVar);
+    if _pv is not None and self._param_is_region_borrow(_pv) {
+        return "param";
+    }
+    return "";
+}
+
+impl OwnershipCheckPass._region_param_count(region: uni.OpenStmt) -> int {
+    _ab = region.find_parent_of_type(uni.Ability);
+    if _ab is None {
+        return 0;
+    }
+    n = 0;
+    for p in self.idx_params {
+        if p.find_parent_of_type(uni.Ability) is _ab
+        and self._param_is_region_borrow(p) {
+            n += 1;
+        }
+    }
+    return n;
+}
+
+impl OwnershipCheckPass._call_borrows_handle(
+    expr: uni.Expr | None, hsid: SymId
+) -> bool {
+    # A call that receives the handle (or a borrow of it) alongside
+    # region-rooted arguments ties their lifetimes at the signature level:
+    # the callee can hold the values no longer than the region they live in.
+    if not isinstance(expr, uni.FuncCall) {
+        return False;
+    }
+    for p in (expr.params or []) {
+        _arg = p.value if isinstance(p, uni.KWPair) else p;
+        _root = self._place_of(_arg if isinstance(_arg, uni.Expr) else None);
+        if _root is not None and self._name_sym_id(_root) == hsid {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl OwnershipCheckPass._stamp_region_borrows -> None {
+    # Borrow-collapse (decision #3): a region-rooted value that flows to a
+    # binding which cannot outlive the handle becomes a shared borrow of the
+    # handle, so the existing borrow discipline (E1302/E1303/E1304/E1306,
+    # sendability) polices it from here on. Flows that WOULD outlive the
+    # handle are left unregistered for E1307 to reject.
+    regions = self.ir_in.get_all_sub_nodes(uni.OpenStmt);
+    if not regions {
+        return;
+    }
+    for region in regions {
+        if not self._region_handle_kind(region) {
+            continue;
+        }
+        hsid = self._region_handle_sid(region);
+        hnm = self._open_handle_name(region);
+        if hsid is None or hnm is None or hnm.sym is None or hnm.sym.decl is None {
+            continue;
+        }
+        hscope = hnm.sym.decl.find_parent_of_type(uni.UniScopeNode);
+        if hscope is None {
+            continue;
+        }
+        for asn in self.idx_assignments {
+            if len(asn.target) != 1 or not isinstance(asn.target[0], uni.Name) {
+                continue;
+            }
+            tgt = asn.target[0];
+            if tgt.sym is None or tgt.sym.decl is None {
+                continue;
+            }
+            tsid = self._name_sym_id(tgt);
+            if tsid == hsid or tsid in self.borrow_meta or tsid in self.owned_decl {
+                continue;
+            }
+            if self._region_expr_is_scalar(asn.value) {
+                continue;
+            }
+            _rooted = bool(self._region_escapee_roots(asn.value, region));
+            if not _rooted {
+                _rooted = self._call_borrows_handle(asn.value, hsid);
+            }
+            if not _rooted {
+                continue;
+            }
+            if self._is_region_local(tgt, region) {
+                continue;
+            }
+            dest = tgt.sym.decl.find_parent_of_type(uni.UniScopeNode);
+            if dest is None or self._region_strictly_outlives(dest, hscope) {
+                continue;
+            }
+            tgt.sym.ownership = OwnershipKind.BORROW;
+            self.borrow_meta[tsid] = BorrowMeta(
+                name=tgt.sym_name, owner=hsid, is_mut=False
+            );
+            self.borrow_created_at[tsid] = asn;
+        }
+    }
+}
+
 impl OwnershipCheckPass._region_expr_is_scalar(expr: uni.Expr | None) -> bool {
     # Scalar-typed values copy by value at the region boundary, so letting
     # them out can never dangle. An unknown/untyped expression is treated as
@@ -183,17 +324,48 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
     # many sites it leaks through.
     seen: set[tuple[int, int]] = set();
     for region in regions {
+        _hkind = self._region_handle_kind(region);
+        _hsid = self._region_handle_sid(region);
+        # Single-region elision (decision #3): a function with exactly one
+        # &Region parameter may return values rooted in an open of it -- the
+        # result is tied to that parameter at every call site. Two or more
+        # region params are ambiguous, so returns stay rejected.
+        _elide_returns = _hkind == "param" and self._region_param_count(region) == 1;
         for ret in self.idx_returns {
+            if _elide_returns {
+                break;
+            }
             if self._region_expr_is_scalar(ret.expr) {
                 continue;
             }
+            _flagged_root = False;
             for root_nm in self._region_escapee_roots(ret.expr, region) {
                 key = (id(region), self._name_sym_id(root_nm));
+                _flagged_root = True;
                 if key in seen {
                     continue;
                 }
                 seen.add(key);
                 self._emit_region_escape(root_nm, region);
+            }
+            # A rootless heap return lexically inside the open (e.g.
+            # `return Buffer();`) is a fresh arena allocation with no named
+            # binding to track: it dangles the moment the handle drops.
+            if (
+                not _flagged_root
+                and ret.expr is not None
+                and ret.find_parent_of_type(uni.OpenStmt) is region
+            ) {
+                key = (id(region), id(ret));
+                if key not in seen {
+                    seen.add(key);
+                    self.emit(
+                        E1307,
+                        node_override=ret.expr,
+                        name="return value",
+                        related=[("escapes this region open", region)]
+                    );
+                }
             }
         }
         for cexpr in self.idx_concurrent {
@@ -220,6 +392,16 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
                 if isinstance(tgt, uni.AtomTrailer) {
                     escapes = True;
                 } elif isinstance(tgt, uni.Name) and tgt.sym and tgt.sym.decl {
+                    tsid = self._name_sym_id(tgt);
+                    if (
+                        _hsid is not None
+                        and tsid in self.borrow_meta
+                        and self.borrow_meta[tsid].owner == _hsid
+                    ) {
+                        # Registered as a shared borrow of the handle: the
+                        # flow is legal and borrow discipline polices it.
+                        continue;
+                    }
                     dest = tgt.sym.decl.find_parent_of_type(uni.UniScopeNode);
                     if self._region_strictly_outlives(dest, region) {
                         escapes = True;
@@ -246,6 +428,9 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
             if self._region_callee_is_safe(call, region) {
                 continue;
             }
+            if _hsid is not None and self._call_borrows_handle(call, _hsid) {
+                continue;
+            }
             for p in (call.params or []) {
                 _arg = p.value if isinstance(p, uni.KWPair) else p;
                 if not isinstance(_arg, uni.Expr)
@@ -260,6 +445,44 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
                     seen.add(key);
                     self._emit_region_escape(root_nm, region);
                 }
+            }
+        }
+        # The same default-deny applies to registered region borrows used as
+        # call arguments anywhere in the enclosing function: an opaque callee
+        # could launder them into state that outlives the handle.
+        if _hsid is None {
+            continue;
+        }
+        _ab = region.find_parent_of_type(uni.Ability);
+        if _ab is None {
+            continue;
+        }
+        for call in _ab.get_all_sub_nodes(uni.FuncCall) {
+            if self._region_callee_is_safe(call, region)
+            or self._call_borrows_handle(call, _hsid) {
+                continue;
+            }
+            for p in (call.params or []) {
+                _arg = p.value if isinstance(p, uni.KWPair) else p;
+                if not isinstance(_arg, uni.Expr)
+                or self._region_expr_is_scalar(_arg) {
+                    continue;
+                }
+                _root = self._place_of(_arg);
+                if _root is None {
+                    continue;
+                }
+                _rsid = self._name_sym_id(_root);
+                if _rsid not in self.borrow_meta
+                or self.borrow_meta[_rsid].owner != _hsid {
+                    continue;
+                }
+                key = (id(region), _rsid);
+                if key in seen {
+                    continue;
+                }
+                seen.add(key);
+                self._emit_region_escape(_root, region);
             }
         }
     }

@@ -70,6 +70,7 @@ impl NaIRGenPass.postinit -> None {
     }
 
     self.type_map["LiteralString"] = self.type_map.get("str", _spec_map["i8*"]);
+    self.type_map["Region"] = _spec_map["i8*"];
 
     self.complex_struct_type = self.llvm_module.context.get_identified_type(
         "JacComplex"

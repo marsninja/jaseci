@@ -81,3 +81,44 @@ test "a scalar field read assigned out of a region is clean" {
 test "a region-local stored into a region-allocated object is clean" {
     expect_ownership_codes(compile_fixture("region_internal_ctor_ok.jac"), []);
 }
+
+# R2 borrow-collapse (#7491 decision #3): region-rooted values that flow to
+# bindings which cannot outlive the handle become shared borrows of it, and
+# helpers that receive the handle are legal carriers for them.
+test "R2: outward flow to a binding within the handle's extent is clean" {
+    expect_ownership_codes(compile_fixture("region_extent_ok.jac"), []);
+}
+
+test "R2: single-region elision lets a &Region helper return region values" {
+    expect_ownership_codes(compile_fixture("region_elision_ok.jac"), []);
+}
+
+test "R2: E1307 with two &Region params a region-rooted return is ambiguous" {
+    expect_ownership_codes(compile_fixture("region_two_region_reject.jac"), ["E1307"]);
+}
+
+test "R2: E1307 returning region values rooted in a local handle" {
+    expect_ownership_codes(
+        compile_fixture("region_local_handle_return_reject.jac"), ["E1307"]
+    );
+}
+
+test "R2: a call receiving the handle may also take region borrows" {
+    expect_ownership_codes(compile_fixture("region_helper_call_ok.jac"), []);
+}
+
+test "R2: the result of a &Region call is a usable borrow of the handle" {
+    expect_ownership_codes(compile_fixture("region_call_result_ok.jac"), []);
+}
+
+test "R2: E1307 a region borrow handed to an opaque callee outside the open" {
+    expect_ownership_codes(
+        compile_fixture("region_borrow_launder_reject.jac"), ["E1307"]
+    );
+}
+
+test "R2: E1307 a fresh heap value returned from inside an open" {
+    expect_ownership_codes(
+        compile_fixture("region_escape_fresh_return.jac"), ["E1307"]
+    );
+}
