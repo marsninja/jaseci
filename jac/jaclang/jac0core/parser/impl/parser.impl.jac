@@ -62,7 +62,7 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.unitree {
     TypedCtxBlock,
-    RegionStmt,
+    OpenStmt,
     GlobalStmt,
     NonLocalStmt
 }
@@ -3716,10 +3716,8 @@ impl Parser.parse_statement{
     if self.check(TokenKind.KW_WHILE) {
         return self.parse_while_stmt();
     }
-    if self.check(TokenKind.NAME)
-    and self.current().value == "region"
-    and self.check_peek(TokenKind.LBRACE) {
-        return self.parse_region_stmt();
+    if self.check(TokenKind.KW_IN) {
+        return self.parse_open_stmt();
     }
     if self.check(TokenKind.KW_FOREVER) {
         return self.parse_forever_stmt();
@@ -3985,15 +3983,19 @@ impl Parser.parse_while_stmt -> WhileStmt {
     return WhileStmt(condition=condition, body=body, else_body=else_body, kid=kid);
 }
 
-impl Parser.parse_region_stmt -> RegionStmt {
-    region_uni = self.make_uni_token(self.advance());
+impl Parser.parse_open_stmt -> OpenStmt {
+    in_uni = self.consume_uni(TokenKind.KW_IN);
+    target = self.parse_expression();
+    if not self.check(TokenKind.LBRACE) {
+        self.error("expected '{' to open the region body after `in <handle>`");
+    }
     lb_uni = self.consume_uni(TokenKind.LBRACE);
     body = self.parse_code_block_stmts();
     rb_uni = self.consume_uni(TokenKind.RBRACE);
-    kid: list = [region_uni, lb_uni];
+    kid: list = [in_uni, target, lb_uni];
     kid.extend(body);
     kid.append(rb_uni);
-    return RegionStmt(body=body, kid=kid);
+    return OpenStmt(target=target, body=body, kid=kid);
 }
 
 impl Parser.parse_forever_stmt -> ForeverStmt {

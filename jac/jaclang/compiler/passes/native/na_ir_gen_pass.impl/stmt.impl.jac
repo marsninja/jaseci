@@ -96,8 +96,8 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
         self._codegen_for(nd);
     } elif isinstance(nd, uni.IterForStmt) {
         self._codegen_iter_for(nd);
-    } elif isinstance(nd, uni.RegionStmt) {
-        self._codegen_region(nd);
+    } elif isinstance(nd, uni.OpenStmt) {
+        self._codegen_open_stmt(nd);
     } elif isinstance(nd, uni.MatchStmt) {
         self._codegen_match(nd);
     } elif isinstance(nd, uni.Ability) {
@@ -456,11 +456,20 @@ impl NaIRGenPass._codegen_while(nd: uni.WhileStmt) -> None {
     self.builder.position_at_end(end_bb);
 }
 
-impl NaIRGenPass._codegen_region(nd: uni.RegionStmt) -> None {
+impl NaIRGenPass._codegen_open_stmt(nd: uni.OpenStmt) -> None {
     import from jaclang.compiler.passes.main.rc_facts_pass { loop_body_locals }
     _region_body_locals = loop_body_locals(
         nd.body if isinstance(nd.body, (list, tuple)) else None
     );
+
+    _anon_region = (
+        isinstance(nd.target, uni.FuncCall)
+        and isinstance(nd.target.target, uni.Name)
+        and nd.target.target.sym_name == "Region"
+    );
+    if not _anon_region {
+        self._codegen_expr(nd.target);
+    }
 
     _region_prebody = set(self.local_vars.keys());
     if isinstance(nd.body, (list, tuple)) {

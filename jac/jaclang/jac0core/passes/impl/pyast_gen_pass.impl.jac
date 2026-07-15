@@ -970,8 +970,13 @@ impl PyastGenPass.exit_server_block(nd: uni.ServerBlock) -> None {
     nd.gen.py_ast = self._flatten_ast_list([item.gen.py_ast for item in nd.body]);
 }
 
-impl PyastGenPass.exit_region_stmt(nd: uni.RegionStmt) -> None {
-    nd.gen.py_ast = self._flatten_ast_list([item.gen.py_ast for item in nd.body]);
+impl PyastGenPass.exit_open_stmt(nd: uni.OpenStmt) -> None {
+    target_stmt = self.sync(
+        ast3.Expr(value=cast(ast3.expr, self.py_ast_val(nd.target))), jac_node=nd.target
+    );
+    nd.gen.py_ast = [target_stmt] + self._flatten_ast_list(
+        [item.gen.py_ast for item in nd.body]
+    );
 }
 
 impl PyastGenPass.exit_native_block(nd: uni.NativeBlock) -> None {

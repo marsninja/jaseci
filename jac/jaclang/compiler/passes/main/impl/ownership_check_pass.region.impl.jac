@@ -2,7 +2,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.diagnostics { E1307 }
 
 impl OwnershipCheckPass._has_region_blocks -> bool {
-    return bool(self.ir_in.get_all_sub_nodes(uni.RegionStmt));
+    return bool(self.ir_in.get_all_sub_nodes(uni.OpenStmt));
 }
 
 impl OwnershipCheckPass._place_of(nd: uni.Expr | None) -> (uni.Name | None) {
@@ -71,7 +71,7 @@ impl OwnershipCheckPass._places_reachable(nd: uni.Expr | None) -> list[uni.Name]
 }
 
 impl OwnershipCheckPass._region_escapee_roots(
-    expr: uni.Expr | None, region: uni.RegionStmt
+    expr: uni.Expr | None, region: uni.OpenStmt
 ) -> list[uni.Name] {
     out: list[uni.Name] = [];
     seen: set[SymId] = set();
@@ -89,7 +89,7 @@ impl OwnershipCheckPass._region_escapee_roots(
     return out;
 }
 
-impl OwnershipCheckPass._is_region_local(nd: uni.Name, region: uni.RegionStmt) -> bool {
+impl OwnershipCheckPass._is_region_local(nd: uni.Name, region: uni.OpenStmt) -> bool {
     if nd.sym is None or nd.sym.decl is None {
         return False;
     }
@@ -97,7 +97,7 @@ impl OwnershipCheckPass._is_region_local(nd: uni.Name, region: uni.RegionStmt) -
 }
 
 impl OwnershipCheckPass._emit_region_escape(
-    nm: uni.Name, region: uni.RegionStmt
+    nm: uni.Name, region: uni.OpenStmt
 ) -> None {
     self.emit(
         E1307,
@@ -108,7 +108,7 @@ impl OwnershipCheckPass._emit_region_escape(
 }
 
 impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
-    regions = self.ir_in.get_all_sub_nodes(uni.RegionStmt);
+    regions = self.ir_in.get_all_sub_nodes(uni.OpenStmt);
     if not regions {
         return;
     }

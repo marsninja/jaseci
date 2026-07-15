@@ -92,11 +92,11 @@ obj OwnershipCheckPass(Transform[uni.Module, uni.Module]) {
     def _place_of(nd: uni.Expr | None) -> (uni.Name | None);
     def _places_reachable(nd: uni.Expr | None) -> list[uni.Name];
     def _region_escapee_roots(
-        expr: uni.Expr | None, region: uni.RegionStmt
+        expr: uni.Expr | None, region: uni.OpenStmt
     ) -> list[uni.Name];
 
-    def _is_region_local(nd: uni.Name, region: uni.RegionStmt) -> bool;
-    def _emit_region_escape(nm: uni.Name, region: uni.RegionStmt) -> None;
+    def _is_region_local(nd: uni.Name, region: uni.OpenStmt) -> bool;
+    def _emit_region_escape(nm: uni.Name, region: uni.OpenStmt) -> None;
     def _is_own_decl(nd: uni.Assignment) -> (uni.Name | None);
     def _is_borrow_decl(nd: uni.Assignment) -> (uni.Name | None);
     def _borrow_target(nd: uni.Assignment) -> (uni.Name | None);

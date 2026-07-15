@@ -74,6 +74,8 @@ def unsafe_html(html: any) -> dict;
 
 def managed(x: any) -> any;
 
+obj Region {}
+
 glob __all__ = [
          'printgraph',
          'jid',
@@ -102,5 +104,6 @@ glob __all__ = [
          'schema_drop',
          'schema_upgrade',
          'unsafe_html',
-         'managed'
+         'managed',
+         'Region'
      ];

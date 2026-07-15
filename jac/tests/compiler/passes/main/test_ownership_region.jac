@@ -1,10 +1,11 @@
-"""Tests for the OwnershipCheckPass region-escape rule (Phase 3 P2.1 — E1307).
+"""Tests for the OwnershipCheckPass region-escape rule (Phase 3 P2.1, E1307).
 
-A `region {}` arena owns everything allocated inside it and frees the whole
-arena at the closing brace. A value/reference rooted inside the region must not
-escape it: it may not be returned, stored into a location outside the region, or
-handed to a `flow`/`wait` concurrency boundary. Each test pins the COMPLETE set
-of E13xx codes its fixture emits.
+An `in <handle> {}` region open allocates everything created inside it into
+the opened region, which is freed wholesale when its handle drops. A value or
+reference rooted inside the region must not escape the open block: it may not
+be returned, stored into a location outside the region, or handed to a
+`flow`/`wait` concurrency boundary. Each test pins the COMPLETE set of E13xx
+codes its fixture emits.
 
 """
 

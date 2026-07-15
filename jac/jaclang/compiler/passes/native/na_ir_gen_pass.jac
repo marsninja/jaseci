@@ -261,7 +261,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_if(nd: uni.IfStmt) -> None;
     def _codegen_switch(nd: uni.SwitchStmt) -> None;
     def _codegen_while(nd: uni.WhileStmt) -> None;
-    def _codegen_region(nd: uni.RegionStmt) -> None;
+    def _codegen_open_stmt(nd: uni.OpenStmt) -> None;
     def _codegen_forever(nd: uni.ForeverStmt) -> None;
     def _codegen_assignment(nd: uni.Assignment) -> None;
     def _codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None);
