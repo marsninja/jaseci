@@ -161,3 +161,10 @@ test "R3: growth rule -- mid-traversal allocations land in region_of(here)" {
     log = read_log();
     assert log == 3 , f"drop must reclaim seed + grown nodes: {log} != 3";
 }
+
+test "R4: own rebox copies a string out of a region" {
+    (eng, ir) = compile_native("region_rebox.na.jac");
+    out = get_func(eng, "out", ctypes.c_char_p);
+    result = out();
+    assert result == b"hi" , f"out() == {result}, expected b'hi'";
+}

@@ -74,7 +74,6 @@ def unsafe_html(html: any) -> dict;
 
 def managed(x: any) -> any;
 
-obj Region {}
 
 glob __all__ = [
          'printgraph',
@@ -105,5 +104,9 @@ glob __all__ = [
          'schema_upgrade',
          'unsafe_html',
          'managed',
-         'Region'
+         'Region',
+         '_jac_region_open',
+         '_jac_region_close',
+         '_jac_region_register',
+         '_jac_region_instrument'
      ];

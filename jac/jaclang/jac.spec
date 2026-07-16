@@ -65,7 +65,7 @@ spawn ::= "spawn" unpack | unpack ("spawn" unpack)*
 
 unpack ::= "*" ref | ref
 
-ref ::= "&" ("(" await_expr | "mut"? await_expr) | await_expr
+ref ::= "own" await_expr | "&" ("(" await_expr | "mut"? await_expr) | await_expr
 
 await_expr ::= "await" pipe_call | pipe_call
 

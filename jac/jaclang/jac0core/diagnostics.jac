@@ -647,6 +647,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " be reassigned, have a field written, or be borrowed `&mut`. Take an `imm` as"
          " read-only, or use an `own`/managed binding if you need to mutate."
      ),
+     W1310 = _warn(
+         "W1310",
+         Category.LINT,
+         "Region open on '{name}' has an empty body",
+         help="Opening a region that allocates nothing pays for an arena and its"
+         " teardown with no benefit. Allocate inside the open, or drop the open."
+     ),
      E1401 = _err(
          "E1401",
          Category.SEMANTIC,

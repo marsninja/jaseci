@@ -1,5 +1,5 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.diagnostics { E1307 }
+import from jaclang.jac0core.diagnostics { E1307, W1310 }
 
 glob _REGION_SCALARS: tuple = ("int", "float", "bool", "None", "NoneType");
 
@@ -268,11 +268,30 @@ impl OwnershipCheckPass._stamp_region_borrows -> None {
 
 impl OwnershipCheckPass._region_expr_is_scalar(expr: uni.Expr | None) -> bool {
     # Scalar-typed values copy by value at the region boundary, so letting
-    # them out can never dangle. An unknown/untyped expression is treated as
-    # heap-shaped (conservative). `str` stays heap-shaped until the `own`
-    # rebox lands: today region-object string fields are managed refs, but
-    # keeping them in is the forward-compatible default for decision #7.
-    if not isinstance(expr, uni.Expr) or expr.type is None {
+    # them out can never dangle. An unknown/untyped expression is treated
+    # as heap-shaped (conservative). An `own <expr>` rebox of a scalar or
+    # string is the membrane's outbound crossing: the copy exits, so it is
+    # boundary-safe too (bare `str` stays heap-shaped: region-object string
+    # fields may be region-resident refs under decision #7).
+    if not isinstance(expr, uni.Expr) {
+        return False;
+    }
+    if isinstance(expr, uni.UnaryExpr) and expr.ownership == OwnershipKind.OWN {
+        _op = expr.operand;
+        if isinstance(_op, uni.Expr) and _op.type is not None {
+            _om = "";
+            try {
+                _om = _op.type.mangle();
+            } except Exception {
+                _om = "";
+            }
+            if _om in _REGION_SCALARS or _om in ("str", "LiteralString", "bytes") {
+                return True;
+            }
+        }
+        return False;
+    }
+    if expr.type is None {
         return False;
     }
     _m = "";
@@ -324,6 +343,14 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
     # many sites it leaks through.
     seen: set[tuple[int, int]] = set();
     for region in regions {
+        if not region.body {
+            _w_nm = self._open_handle_name(region);
+            self.emit(
+                W1310,
+                node_override=region,
+                name=_w_nm.sym_name if _w_nm is not None else "Region()"
+            );
+        }
         _hkind = self._region_handle_kind(region);
         _hsid = self._region_handle_sid(region);
         # Single-region elision (decision #3): a function with exactly one

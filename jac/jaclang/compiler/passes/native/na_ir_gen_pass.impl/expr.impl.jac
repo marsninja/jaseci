@@ -921,8 +921,20 @@ impl NaIRGenPass._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
     if operand is None {
         return None;
     }
-    import from jaclang.jac0core.constant { is_borrow_kind }
+    import from jaclang.jac0core.constant { is_borrow_kind, OwnershipKind }
     if is_borrow_kind(nd.ownership) {
+        return operand;
+    }
+    if nd.ownership == OwnershipKind.OWN {
+        # The `own <expr>` rebox (#7491 R4): the membrane's outbound
+        # crossing. Strings copy into a fresh managed allocation so the
+        # copy owns its bytes even after the source region is bulk-freed;
+        # scalars already copy by value.
+        if isinstance(operand.type, ir.PointerType)
+        and operand.type == ir.IntType(8).as_pointer() {
+            _rb = self._rc_strdup(operand, name="rebox.str");
+            return self._mark_owned(_rb);
+        }
         return operand;
     }
     op = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);

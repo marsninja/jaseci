@@ -142,3 +142,9 @@ test "R3: E1307 wiring a region node to managed topology" {
 test "R3: region-internal topology wires freely" {
     expect_ownership_codes(compile_fixture("region_connect_internal_ok.jac"), []);
 }
+
+# R4 (#7491): the `own` rebox is the membrane's outbound crossing -- the
+# copy exits, so scalar and string reboxes are boundary-safe.
+test "R4: an own rebox of a region string field is clean" {
+    expect_ownership_codes(compile_fixture("region_own_rebox_ok.jac"), []);
+}

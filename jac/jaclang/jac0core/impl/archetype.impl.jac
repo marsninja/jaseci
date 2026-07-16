@@ -295,6 +295,13 @@ impl Archetype.__init_subclass__(cls: any, **kwargs: object) -> None {
     if not cls.__dict__.get('__jac_base__', False) {
         import from jaclang { JacRuntimeInterface as _ }
         _.make_archetype(cls);
+        if 'drop' in cls.__dict__ {
+            # Region drop-log (#7491 R4): drop-hooked archetypes register
+            # into the open region at construction so the handle's death
+            # runs their hooks at a portable point across backends.
+            import from jaclang.runtimelib.builtin { _jac_region_instrument }
+            _jac_region_instrument(cls);
+        }
         for hook in Archetype._subclass_hooks {
             hook(cls);
         }
