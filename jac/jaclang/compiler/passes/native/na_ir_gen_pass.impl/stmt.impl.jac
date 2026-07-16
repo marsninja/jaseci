@@ -469,8 +469,7 @@ impl NaIRGenPass._codegen_open_stmt(nd: uni.OpenStmt) -> None {
     _i8p = ir.IntType(8).as_pointer();
     _anon_region = (
         isinstance(nd.target, uni.FuncCall)
-        and isinstance(nd.target.target, uni.Name)
-        and nd.target.target.sym_name == "Region"
+        and self._name_is_builtin_region(nd.target.target)
     );
     _synth: (str | None) = None;
     if _anon_region {

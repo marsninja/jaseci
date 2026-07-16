@@ -168,3 +168,13 @@ test "R4: own rebox copies a string out of a region" {
     result = out();
     assert result == b"hi" , f"out() == {result}, expected b'hi'";
 }
+
+test "a user archetype named Region shadows the builtin cleanly" {
+    (eng, ir) = compile_native("region_shadow.na.jac");
+    body = fn_ir(ir, "shadowed");
+    n_new = body.count('call i8* @"__jac_region_new"');
+    assert n_new == 0 , f"user Region must not intercept arena setup: {n_new}";
+    shadowed = get_func(eng, "shadowed", ctypes.c_int64);
+    result = shadowed();
+    assert result == 7 , f"shadowed() == {result}, expected 7";
+}

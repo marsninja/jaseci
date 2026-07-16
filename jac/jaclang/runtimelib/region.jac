@@ -1,15 +1,32 @@
-glob _region_stack: list = [];
+import threading;
+
+glob _region_tls: any = threading.local();
+
+def _stack -> list {
+    s = _region_tls?.stack;
+    if s is None {
+        s = [];
+        _region_tls.stack = s;
+    }
+    return s;
+}
 
 obj JacRegion {
     has _drops: list[any] = [];
 
     def _jac_open {
-        _region_stack.append(self);
+        _stack().append(self);
     }
 
     def _jac_close {
-        if _region_stack and _region_stack[-1] is self {
-            _region_stack.pop();
+        s = _stack();
+        i = len(s) - 1;
+        while i >= 0 {
+            if s[i] is self {
+                s.pop(i);
+                return;
+            }
+            i -= 1;
         }
     }
 
@@ -47,8 +64,9 @@ def close_region(r: any) {
 }
 
 def register_drop(item: any) {
-    if _region_stack {
-        _region_stack[-1]._jac_register(item);
+    s = _stack();
+    if s {
+        s[-1]._jac_register(item);
     }
 }
 

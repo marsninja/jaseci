@@ -3,8 +3,6 @@ glob ARENA_CTRL_SIZE: int = 40,
      ARENA_CHUNK_DEFAULT: int = 32768,
      ARENA_DTOR_ENTRY: int = 24;
 
-glob ARENA_MAGIC_SHIFT_BASE: int = (44061 + 1) * 4294967296;
-
 impl NaIRGenPass._emit_arena_helpers -> None {
     if self.arena_helpers_emitted {
         return;
@@ -17,6 +15,8 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     i64 = ir.IntType(64);
     i64p = i64.as_pointer();
     _malloc = self._get_or_declare_extern("malloc", i8p, [i64]);
+
+    _arena_magic_base = (HDR_MAGIC + 1) * 4294967296;
     _free = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
     _dtor_fnty_ptr = ir.FunctionType(ir.VoidType(), [i8p]).as_pointer();
 
@@ -153,8 +153,7 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     _total = b.add(_alloc_fn.args[1], ir.Constant(i64, HDR_TOTAL), name="total");
     _araw = b.call(_raw_fn, [_alloc_fn.args[0], _total], name="raw");
     b.store(
-        ir.Constant(i64, ARENA_MAGIC_SHIFT_BASE),
-        b.bitcast(_araw, i64p, name="ar.aid.p")
+        ir.Constant(i64, _arena_magic_base), b.bitcast(_araw, i64p, name="ar.aid.p")
     );
     _atag_gv = self._get_snprintf_fmt("arena");
     _atag = b.gep(_atag_gv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ar.tag");
@@ -367,12 +366,21 @@ impl NaIRGenPass._emit_arena_helpers -> None {
     self.osp_anchor_alloc_fn = _aa_fn;
 }
 
+impl NaIRGenPass._name_is_builtin_region(nm: object) -> bool {
+    if not isinstance(nm, uni.Name) or nm.sym_name != "Region" {
+        return False;
+    }
+    if nm.sym is None or nm.sym.decl is None {
+        return True;
+    }
+    _loc = nm.sym.decl.loc;
+    _mp = _loc.mod_path if _loc is not None else "";
+    return isinstance(_mp, str) and _mp.endswith(".pyi");
+}
+
 impl NaIRGenPass._assign_rhs_is_region_handle(nd: uni.Assignment) -> bool {
-    if (
-        isinstance(nd.value, uni.FuncCall)
-        and isinstance(nd.value.target, uni.Name)
-        and nd.value.target.sym_name == "Region"
-    ) {
+    if isinstance(nd.value, uni.FuncCall)
+    and self._name_is_builtin_region(nd.value.target) {
         return True;
     }
     if nd.type_tag is not None {
@@ -380,7 +388,7 @@ impl NaIRGenPass._assign_rhs_is_region_handle(nd: uni.Assignment) -> bool {
         while isinstance(_tt_expr, uni.AtomTrailer) {
             _tt_expr = _tt_expr.target;
         }
-        if isinstance(_tt_expr, uni.Name) and _tt_expr.sym_name == "Region" {
+        if self._name_is_builtin_region(_tt_expr) {
             return True;
         }
     }
@@ -398,7 +406,7 @@ impl NaIRGenPass._assign_rhs_is_region_handle(nd: uni.Assignment) -> bool {
             while isinstance(_rt_expr, uni.AtomTrailer) {
                 _rt_expr = _rt_expr.target;
             }
-            if isinstance(_rt_expr, uni.Name) and _rt_expr.sym_name == "Region" {
+            if self._name_is_builtin_region(_rt_expr) {
                 return True;
             }
         }
