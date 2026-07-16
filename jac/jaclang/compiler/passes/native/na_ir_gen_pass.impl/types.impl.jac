@@ -1218,8 +1218,12 @@ impl NaIRGenPass._emit_binary_op(
             return ptr;
         }
     }
+    # `/` is always true division in Jac (Python semantics): int / int
+    # yields a float, so route DIV through the float path even when both
+    # operands are integers. `//` (FLOOR_DIV) keeps integer semantics.
     is_float = isinstance(left.type, ir.DoubleType)
-    or isinstance(right.type, ir.DoubleType);
+    or isinstance(right.type, ir.DoubleType)
+    or op == Tok.DIV;
     if is_float {
         (left, right) = self._promote_to_float(left, right);
     }
@@ -1263,12 +1267,21 @@ impl NaIRGenPass._emit_binary_op(
             return self.builder.call(floor_fn, [raw], name="ffloordiv");
         }
     } else {
-        i64 = ir.IntType(64);
+        # Integer ops must run at the operands' true width. Coerce a
+        # narrower operand up to the wider one (sext, matching the signed
+        # arithmetic below) so i32/i16/i8 kernels don't force i64 intrinsics.
+        if left.type.width < right.type.width {
+            left = self.builder.sext(left, right.type, name="int.sext.l");
+        } elif right.type.width < left.type.width {
+            right = self.builder.sext(right, left.type, name="int.sext.r");
+        }
+        int_ty = left.type;
+        _w = int_ty.width;
         i1 = ir.IntType(1);
         if op == Tok.PLUS {
-            overflow_ret = ir.LiteralStructType([i64, i1]);
+            overflow_ret = ir.LiteralStructType([int_ty, i1]);
             intrinsic = self._get_or_declare_extern(
-                "llvm.sadd.with.overflow.i64", overflow_ret, [i64, i64]
+                f"llvm.sadd.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
             );
             result = self.builder.call(intrinsic, [left, right], name="add.ovf");
             val = self.builder.extract_value(result, 0, name="add.val");
@@ -1276,9 +1289,9 @@ impl NaIRGenPass._emit_binary_op(
             self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
             return val;
         } elif op == Tok.MINUS {
-            overflow_ret = ir.LiteralStructType([i64, i1]);
+            overflow_ret = ir.LiteralStructType([int_ty, i1]);
             intrinsic = self._get_or_declare_extern(
-                "llvm.ssub.with.overflow.i64", overflow_ret, [i64, i64]
+                f"llvm.ssub.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
             );
             result = self.builder.call(intrinsic, [left, right], name="sub.ovf");
             val = self.builder.extract_value(result, 0, name="sub.val");
@@ -1286,9 +1299,9 @@ impl NaIRGenPass._emit_binary_op(
             self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
             return val;
         } elif op == Tok.STAR_MUL {
-            overflow_ret = ir.LiteralStructType([i64, i1]);
+            overflow_ret = ir.LiteralStructType([int_ty, i1]);
             intrinsic = self._get_or_declare_extern(
-                "llvm.smul.with.overflow.i64", overflow_ret, [i64, i64]
+                f"llvm.smul.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
             );
             result = self.builder.call(intrinsic, [left, right], name="mul.ovf");
             val = self.builder.extract_value(result, 0, name="mul.val");
@@ -1296,14 +1309,14 @@ impl NaIRGenPass._emit_binary_op(
             self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
             return val;
         } elif op == Tok.DIV {
-            izero = ir.Constant(i64, 0);
+            izero = ir.Constant(int_ty, 0);
             is_zero = self.builder.icmp_signed("==", right, izero, name="div.zero.chk");
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
             );
             return self.builder.sdiv(left, right, name="div");
         } elif op == Tok.FLOOR_DIV {
-            izero = ir.Constant(i64, 0);
+            izero = ir.Constant(int_ty, 0);
             is_zero = self.builder.icmp_signed(
                 "==", right, izero, name="floordiv.zero.chk"
             );
@@ -1312,7 +1325,7 @@ impl NaIRGenPass._emit_binary_op(
             );
             return self.builder.sdiv(left, right, name="floordiv");
         } elif op == Tok.MOD {
-            izero = ir.Constant(i64, 0);
+            izero = ir.Constant(int_ty, 0);
             is_zero = self.builder.icmp_signed("==", right, izero, name="mod.zero.chk");
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
