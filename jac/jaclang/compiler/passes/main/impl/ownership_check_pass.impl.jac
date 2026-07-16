@@ -406,10 +406,7 @@ impl OwnershipCheckPass._transfer(
             self.consumed_at[g] = nd;
         }
     }
-    # The assignment target revives LAST: `total = combine(total, step)`
-    # moves `total` into the call, then rebinds it to the fresh result, so
-    # the binding is live afterward. Applying the kill after the move gens
-    # lets the self-reassignment win.
+
     for k in assign_kill {
         out.discard(k);
     }
@@ -690,8 +687,7 @@ impl OwnershipCheckPass._emit_loop_move_diagnostics -> None {
         if cfg_nd is not None and owned in self.in_consumed.get(id(cfg_nd), set()) {
             continue;
         }
-        # A self-reassignment (`total = combine(total, ...)`) moves and then
-        # rebinds the same owner, so it is live again on the next iteration.
+
         _assign = nd.find_parent_of_type(uni.Assignment);
         if _assign is not None and _assign.aug_op is None {
             (_ra_kill, _ra_gen) = self._assign_kill_gen(_assign);

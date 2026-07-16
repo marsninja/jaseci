@@ -1799,8 +1799,6 @@ impl TypeEvaluator._collect_return_types(
         }
 
         if isinstance(stmt, uni.OpenStmt) {
-            # A region open (`in <handle> { ... }`) always executes its
-            # body, so a return inside it returns from the function.
             if self._collect_return_types(list(stmt.body), out) {
                 return True;
             }

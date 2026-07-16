@@ -38,8 +38,7 @@ test "jac start --no-client parses to the no_client dest (documented spelling)" 
     registry = CommandRegistry();
     parser = argparse.ArgumentParser();
     registry._add_argument(
-        parser,
-        Arg.create("no-client", typ=bool, default=False, help="x", short="")
+        parser, Arg.create("no-client", typ=bool, default=False, help="x", short="")
     );
     # The documented flag is `--no-client`; it must bind to `no_client`.
     assert vars(parser.parse_args(["--no-client"]))["no_client"] is True;

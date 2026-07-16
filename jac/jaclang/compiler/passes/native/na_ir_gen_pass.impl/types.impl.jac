@@ -1218,9 +1218,7 @@ impl NaIRGenPass._emit_binary_op(
             return ptr;
         }
     }
-    # `/` is always true division in Jac (Python semantics): int / int
-    # yields a float, so route DIV through the float path even when both
-    # operands are integers. `//` (FLOOR_DIV) keeps integer semantics.
+
     is_float = isinstance(left.type, ir.DoubleType)
     or isinstance(right.type, ir.DoubleType)
     or op == Tok.DIV;
@@ -1267,9 +1265,6 @@ impl NaIRGenPass._emit_binary_op(
             return self.builder.call(floor_fn, [raw], name="ffloordiv");
         }
     } else {
-        # Integer ops must run at the operands' true width. Coerce a
-        # narrower operand up to the wider one (sext, matching the signed
-        # arithmetic below) so i32/i16/i8 kernels don't force i64 intrinsics.
         if left.type.width < right.type.width {
             left = self.builder.sext(left, right.type, name="int.sext.l");
         } elif right.type.width < left.type.width {
@@ -1308,13 +1303,6 @@ impl NaIRGenPass._emit_binary_op(
             overflow = self.builder.extract_value(result, 1, name="mul.overflow");
             self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
             return val;
-        } elif op == Tok.DIV {
-            izero = ir.Constant(int_ty, 0);
-            is_zero = self.builder.icmp_signed("==", right, izero, name="div.zero.chk");
-            self._emit_runtime_raise(
-                is_zero, "ZeroDivisionError", "integer division or modulo by zero"
-            );
-            return self.builder.sdiv(left, right, name="div");
         } elif op == Tok.FLOOR_DIV {
             izero = ir.Constant(int_ty, 0);
             is_zero = self.builder.icmp_signed(
