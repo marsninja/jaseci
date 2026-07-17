@@ -16,17 +16,17 @@ witness of the erasure/monotonicity theorems (RQ1 in the paper).
 
 ## Kernels
 
-- `binarytrees` — CLBG-style tree churn: recursive owned construction,
+- `binarytrees`: CLBG-style tree churn: recursive owned construction,
   borrow traversal, recursive synthesized drops. Includes a drop-order
   witness (`Probe.drop` prints) exercised across all modes.
-- `vecdot` — float list churn + arithmetic floor.
-- `histogram` — dict/set pressure with int keys, per-round container churn.
-- `vm` — stack bytecode interpreter: owned VM object, hot dispatch over a
+- `vecdot`: float list churn + arithmetic floor.
+- `histogram`: dict/set pressure with int keys, per-round container churn.
+- `vm`: stack bytecode interpreter: owned VM object, hot dispatch over a
   borrowed program list.
-- `rbtree` — left-leaning red-black tree in index-arena style (parallel
+- `rbtree`: left-leaning red-black tree in index-arena style (parallel
   owned int lists). Pointer-based in-place rotations are inexpressible
   under whole-binding affine moves; the arena is the design-intended idiom.
-- `deriv` — symbolic differentiation: borrow-read input, fresh-build output,
+- `deriv`: symbolic differentiation: borrow-read input, fresh-build output,
   explicit `clone` where RC systems share subtrees.
 
 Kernel style constraints (load-bearing): no comments/docstrings (repo fmt

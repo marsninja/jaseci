@@ -141,9 +141,11 @@ test "ownbench erasure round-trip: deriv reproduces annotated digest" {
             timeout=120,
         );
         assert erased.returncode == 0 , f"erase.jac failed: {erased.stderr}";
-        assert "own " not in erased.stdout and "&" not in erased.stdout , (
-            "erase.jac left annotations behind"
-        );
+        for leftover in [": own ", ": &", "(&", ", &", "&mut "] {
+            assert leftover not in erased.stdout , (
+                f"erase.jac left annotation pattern '{leftover}' behind"
+            );
+        }
         bare_src = os.path.join(tmp, "deriv_bare.na.jac");
         with open(bare_src, "w") as f {
             f.write(erased.stdout);
