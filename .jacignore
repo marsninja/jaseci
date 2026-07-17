@@ -1,8 +1,6 @@
 cfg_build_pass.jac
 client_runtime.cl.jac
 codeinfo.jac
-comment_injection_pass.impl.jac
-comment_injection_pass.jac
 compiler.jac
 config.impl.jac
 jac/jaclang/cli/commands/config.jac

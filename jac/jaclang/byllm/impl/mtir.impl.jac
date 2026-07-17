@@ -358,9 +358,7 @@ impl MTRuntime.get_tool_list -> list[dict] {
 
 """Return the JSON schema for the response type, if applicable."""
 impl MTRuntime.get_output_schema -> dict | None {
-    assert (
-        len(self.tools) == 0 or self.get_tool("finish_tool") is not None
-    );  #Finish tool should be present in the tools list.
+    assert (len(self.tools) == 0 or self.get_tool("finish_tool") is not None);  #Finish tool should be present in the tools list.
     if len(self.tools) == 0 {
         return self.get_typed_output_schema();
     }

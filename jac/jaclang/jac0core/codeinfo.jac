@@ -5,6 +5,7 @@ import from dataclasses { field }
 import from typing { Any }
 import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
+import type from jaclang.compiler.passes.tool.comment_attach_pass { NodeComments }
 import type from jaclang.compiler.passes.tool.doc_ir { Doc }
 import type from jaclang.jac0core.unitree { Source, Token }
 import type from jaclang.jac0core.osp_model { OspModel }
@@ -248,7 +249,8 @@ obj CodeGenTarget {
         layout_registry: any = None,
         _clib_paths: list[str] = field(default_factory=`list),
         _clib_symbol_lib: dict[(str, str)] = field(default_factory=`dict),
-        _exported_symbols: list[str] = field(default_factory=`list);
+        _exported_symbols: list[str] = field(default_factory=`list),
+        doc_comments: (NodeComments | None) = None;
 
     has doc_ir: Doc { getter; setter(value: Doc); }
     has client_manifest: ClientManifest { getter; setter(value: ClientManifest); }

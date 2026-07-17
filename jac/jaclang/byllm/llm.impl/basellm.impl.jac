@@ -1404,9 +1404,7 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     # https://docs.litellm.ai/docs/#response-format-openai-format
     #
     # TODO: Handle stream output (type ignoring stream response)
-    message: LiteLLMMessage = response.get("choices", [])[0].get(
-        "message"
-    );  # type: ignore
+    message: LiteLLMMessage = response.get("choices", [])[0].get("message");  # type: ignore
     # For backends without native tool calling, lift any tool call the model
     # emitted as plain text into the structured `tool_calls` field so the
     # ReAct loop below sees it. No-op once `tool_calls` is already populated.
@@ -1654,9 +1652,7 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     }
     actual_model = response.get("model", self.model_name);
     self.log_info(f"Calling LLM: {actual_model} with params: {log_params}");
-    message: LiteLLMMessage = response.get("choices", [])[0].get(
-        "message"
-    );  # type: ignore
+    message: LiteLLMMessage = response.get("choices", [])[0].get("message");  # type: ignore
     # For backends without native tool calling, lift any tool call the model
     # emitted as plain text into the structured `tool_calls` field so the
     # ReAct loop below sees it. No-op once `tool_calls` is already populated.
