@@ -53,6 +53,18 @@ jobs:
             installer:
               - 'scripts/install.sh'
 
+  # The agent-facing docs corpus at jac/jaclang/cli/docs is generated from
+  # docs/ by scripts/sync_agent_docs.py and checked in. Fail fast when a docs/
+  # edit lands without the resync, or when the generated mirror is hand-edited.
+  agent-docs-sync:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify the bundled agent docs corpus matches docs/
+        run: python3 scripts/sync_agent_docs.py --check
+
   # Build (or cache-restore) the jac binary ONCE per run, smoke it hermetically,
   # and publish it (plus the gitignored typeshed stubs) as artifacts. Every
   # Linux job below gates on this so a cold cache pays a single build.

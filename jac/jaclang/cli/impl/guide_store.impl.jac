@@ -75,6 +75,26 @@ glob GUIDE_GROUP_ORDER: list[str] = [
 
      };
 
+glob DOC_CORPUS_ORDER: list[str] = ["ref", "learn", "tutorial", "internals"],
+     _DOC_CORPUS_BLURBS: dict[str, str] = {
+         "ref": (
+             "Exhaustive reference: language semantics, CLI, config, "
+             "diagnostics, persistence, plugins"
+         ),
+         "learn": (
+             "Getting started: install, syntax cheatsheet, project kinds, "
+             "FAQ, breaking changes"
+         ),
+         "tutorial": (
+             "End-to-end worked tutorials: full-stack, AI, native, "
+             "production deployment"
+         ),
+         "internals": (
+             "Compiler architecture, IR reference, and contributor " "orientation"
+         ),
+
+     };
+
 impl guides_dir -> Path {
     import jaclang;
     pkg_file = jaclang.__file__;
@@ -82,6 +102,15 @@ impl guides_dir -> Path {
         raise RuntimeError("jaclang package location is unavailable");
     }
     return Path(pkg_file).parent / "cli" / "skills";
+}
+
+impl docs_dir -> Path {
+    import jaclang;
+    pkg_file = jaclang.__file__;
+    if pkg_file is None {
+        raise RuntimeError("jaclang package location is unavailable");
+    }
+    return Path(pkg_file).parent / "cli" / "docs";
 }
 
 impl parse_guide(path: Path) -> Guide | None {
@@ -142,8 +171,73 @@ impl list_guides -> list[Guide] {
     return guides;
 }
 
+impl list_docs -> list[Guide] {
+    ddir = docs_dir();
+    if not ddir.is_dir() {
+        return [];
+    }
+    docs: list[Guide] = [];
+
+    for f in sorted(ddir.rglob("*.md"), key=lambda (p: Path) { str(p); }) {
+        g = parse_guide(f);
+        if g is not None {
+            docs.append(g);
+        }
+    }
+    return docs;
+}
+
+impl doc_corpora -> list[tuple[str, list[Guide]]] {
+    buckets: dict[str, list[Guide]] = {};
+
+    for g in list_docs() {
+        buckets.setdefault(g.name.split("/")[0], []).append(g);
+    }
+    ordered = [
+        ns
+        for ns in DOC_CORPUS_ORDER
+        if ns in buckets
+    ];
+    ordered += [
+        ns
+        for ns in sorted(buckets)
+        if ns not in DOC_CORPUS_ORDER
+    ];
+    return [(ns, buckets[ns]) for ns in ordered];
+}
+
+impl corpus_blurb(ns: str) -> str {
+    return _DOC_CORPUS_BLURBS.get(ns, "");
+}
+
+def _resolve_by_suffix(clean: str) -> Guide | None {
+    matches = [
+        g
+        for g in (list_guides() + list_docs())
+        if g.name == clean or g.name.endswith("/" + clean)
+    ];
+    if len(matches) == 1 {
+        return matches[0];
+    }
+    return None;
+}
+
 impl get_guide(name: str) -> Guide | None {
-    return parse_guide(guides_dir() / f"{name}.md");
+    clean = name.strip().strip("/");
+    if not clean or ".." in clean.split("/") {
+        return None;
+    }
+    if "/" not in clean {
+        skill = parse_guide(guides_dir() / f"{clean}.md");
+        if skill is not None {
+            return skill;
+        }
+    }
+    doc_path = docs_dir() / f"{clean}.md";
+    if doc_path.is_file() {
+        return parse_guide(doc_path);
+    }
+    return _resolve_by_suffix(clean);
 }
 
 impl guide_group(name: str) -> str {
@@ -195,6 +289,44 @@ impl search_guides(query: str) -> list[Guide] {
         }
     }
     return matches;
+}
+
+impl grep_guides(
+    query: str, max_per_guide: int = 8, max_total: int = 200
+) -> list[GrepHit] {
+    terms = [
+        t
+        for t in query.lower().split()
+        if t
+    ];
+    hits: list[GrepHit] = [];
+
+    if not terms {
+        return hits;
+    }
+    for g in (list_guides() + list_docs()) {
+        if len(hits) >= max_total {
+            break;
+        }
+        meta = f"{g.name} {g.description}".lower();
+        if all([(t in meta) for t in terms]) {
+            hits.append(GrepHit(guide=g.name, line_no=0, text=g.description));
+        }
+        per_guide = 0;
+        line_no = 0;
+        for line in g.body.splitlines() {
+            line_no += 1;
+            low = line.lower();
+            if all([(t in low) for t in terms]) {
+                hits.append(GrepHit(guide=g.name, line_no=line_no, text=line.strip()));
+                per_guide += 1;
+                if per_guide >= max_per_guide or len(hits) >= max_total {
+                    break;
+                }
+            }
+        }
+    }
+    return hits[:max_total];
 }
 
 impl guide_for_diagnostic(code: str, category: str = "") -> str | None {

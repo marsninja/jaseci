@@ -1,3 +1,9 @@
+---
+name: learn/agent-skills-and-mcp
+description: AI coding assistants are good at Jac's ideas but often wrong about its syntax -- the language has evolved, and models routinely confuse Jac with Python or JSX. The jac CLI ships ...
+source: docs/docs/quick-guide/agent-skills-and-mcp.md
+---
+
 # Agent Skills and MCP
 
 AI coding assistants are good at Jac's *ideas* but often wrong about its *syntax* -- the language has evolved, and models routinely confuse Jac with Python or JSX. The `jac` CLI ships the corrective reference built in, so there is nothing to install.

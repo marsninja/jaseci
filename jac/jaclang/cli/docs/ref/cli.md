@@ -1,3 +1,9 @@
+---
+name: ref/cli
+description: The jac command is your primary interface for working with Jac projects. It handles the full development lifecycle: running programs (jac run), type-checking code (jac check) ...
+source: docs/docs/reference/cli/index.md
+---
+
 # CLI Reference
 
 The `jac` command is your primary interface for working with Jac projects. It handles the full development lifecycle: running programs (`jac run`), type-checking code (`jac check`), running tests (`jac test`), formatting and linting (`jac fmt`, `jac check --lint`), managing dependencies (`jac install`, `jac remove`, `jac update`), serving APIs (`jac start`), and even compiling to native binaries (`jac nacompile`, or `jac build --as native`). Think of it as combining the roles of `python`, `pip`, `pytest`, `black`, and `flask` into a single unified tool.
