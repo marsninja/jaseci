@@ -1,9 +1,3 @@
----
-name: internals/uniir_node
-description: Generated reference of every UniIR AST node class in the compiler's unified IR: constructor signatures plus field name/type diagrams.
-source: docs/docs/internals/uniir_node.md
----
-
 ## Ability
 
 ```mermaid
@@ -88,9 +82,10 @@ Assignment -->|Expr , YieldExpr , None| value
 Assignment -->|bool| mutable
 Assignment -->|Token , None| aug_op
 Assignment -->|bool| na_move_lowerable
+Assignment -->|bool| na_overwrite_consumed
 ```
 
-Assignment(kid: 'Sequence[UniNode]' = <factory>, *, is_enum_stmt: 'bool' = False, type_tag: 'SubTag[Expr] | None' = None, target: 'Sequence[Expr]', value: 'Expr | YieldExpr | None', mutable: 'bool' = True, aug_op: 'Token | None' = None, na_move_lowerable: 'bool' = False)
+Assignment(kid: 'Sequence[UniNode]' = <factory>, *, is_enum_stmt: 'bool' = False, type_tag: 'SubTag[Expr] | None' = None, target: 'Sequence[Expr]', value: 'Expr | YieldExpr | None', mutable: 'bool' = True, aug_op: 'Token | None' = None, na_move_lowerable: 'bool' = False, na_overwrite_consumed: 'bool' = False)
 
 ## AtomTrailer
 
@@ -230,10 +225,9 @@ CommentToken -->|int| col_start
 CommentToken -->|int| col_end_
 CommentToken -->|int| pos_start
 CommentToken -->|int| pos_end_
-CommentToken -->|bool| is_inline
 ```
 
-CommentToken(orig_src: 'Source', name: 'str', value: 'str', line: 'int', end_line: 'int', col_start: 'int', col_end: 'int', pos_start: 'int', pos_end: 'int', kid: 'Sequence[UniNode]', is_inline: 'bool' = False) -> 'None'
+CommentToken(orig_src: 'Source', name: 'str', value: 'str', line: 'int', end_line: 'int', col_start: 'int', col_end: 'int', pos_start: 'int', pos_end: 'int', kid: 'Sequence[UniNode]') -> 'None'
 
 ## CompareExpr
 
@@ -538,15 +532,6 @@ GenCompr -->|list - InnerCompr| compr
 ```
 
 GenCompr(kid: 'Sequence[UniNode]' = <factory>, *, out_expr: 'Expr', compr: 'list[InnerCompr]')
-
-## GlobalStmt
-
-```mermaid
-flowchart LR
-GlobalStmt -->|NameAtom| target
-```
-
-GlobalStmt(kid: 'Sequence[UniNode]' = <factory>, *, target: 'Sequence[NameAtom]')
 
 ## GlobalVars
 
@@ -1009,15 +994,6 @@ NativeBlock -->|ElementStmt| body
 
 NativeBlock(kid: 'Sequence[UniNode]' = <factory>, *, doc: 'String | None' = None, body: 'Sequence[ElementStmt]')
 
-## NonLocalStmt
-
-```mermaid
-flowchart LR
-NonLocalStmt -->|NameAtom| target
-```
-
-NonLocalStmt(kid: 'Sequence[UniNode]' = <factory>, *, target: 'Sequence[NameAtom]')
-
 ## Null
 
 ```mermaid
@@ -1033,6 +1009,16 @@ Null -->|int| pos_end_
 ```
 
 Null(orig_src: 'Source', name: 'str', value: 'str', line: 'int', end_line: 'int', col_start: 'int', col_end: 'int', pos_start: 'int', pos_end: 'int') -> 'None'
+
+## OpenStmt
+
+```mermaid
+flowchart LR
+OpenStmt -->|Expr| target
+OpenStmt -->|CodeBlockStmt| body
+```
+
+OpenStmt(kid: 'Sequence[UniNode]' = <factory>, *, target: 'Expr', body: 'Sequence[CodeBlockStmt]')
 
 ## ParamVar
 
@@ -1066,15 +1052,6 @@ RaiseStmt -->|Expr , None| from_target
 ```
 
 RaiseStmt(kid: 'Sequence[UniNode]' = <factory>, *, cause: 'Expr | None', from_target: 'Expr | None')
-
-## RegionStmt
-
-```mermaid
-flowchart LR
-RegionStmt -->|CodeBlockStmt| body
-```
-
-RegionStmt(kid: 'Sequence[UniNode]' = <factory>, *, body: 'Sequence[CodeBlockStmt]')
 
 ## ReportStmt
 

@@ -1,9 +1,3 @@
----
-name: ref/cli
-description: The jac command is your primary interface for working with Jac projects. It handles the full development lifecycle: running programs (jac run), type-checking code (jac check) ...
-source: docs/docs/reference/cli/index.md
----
-
 # CLI Reference
 
 The `jac` command is your primary interface for working with Jac projects. It handles the full development lifecycle: running programs (`jac run`), type-checking code (`jac check`), running tests (`jac test`), formatting and linting (`jac fmt`, `jac check --lint`), managing dependencies (`jac install`, `jac remove`, `jac update`), serving APIs (`jac start`), and even compiling to native binaries (`jac nacompile`, or `jac build --as native`). Think of it as combining the roles of `python`, `pip`, `pytest`, `black`, and `flask` into a single unified tool.
@@ -1835,7 +1829,7 @@ Generating JavaScript from Jac has moved under [`jac tool`](#jac-tool). Use **`j
 
 Show the curated Jac reference guides and the bundled documentation corpus -- the authoritative spec for writing correct, idiomatic Jac. AI coding agents and humans can read everything straight from the CLI; nothing to install.
 
-Besides the curated guides, four doc sets generated from this documentation site ship inside the CLI: `ref/` (language, CLI, config, diagnostics, and plugin reference), `learn/` (install, syntax cheatsheet, project kinds, FAQ, breaking changes), `tutorial/` (end-to-end worked tutorials), and `internals/` (compiler architecture and contributor orientation). A bare doc name resolves when unambiguous (`jac guide breaking-changes`); use the full `set/name` otherwise.
+Besides the curated guides, the agent-relevant sections of this documentation site ship inside the CLI as doc sets: `reference/` (language, CLI, config, diagnostics, and plugin reference), `quick-guide/` (install, syntax cheatsheet, project kinds, FAQ), `tutorials/` (end-to-end worked tutorials), `internals/` (compiler architecture and contributor orientation), and `community/` (the breaking-changes log and codebase guide). The CLI serves the same files this site is built from. A bare doc name resolves when unambiguous (`jac guide breaking-changes`); use the full `set/name` otherwise.
 
 ```bash
 jac guide [-h] [-s SEARCH] [-e EXPORT] [-j] [topic]
@@ -1843,7 +1837,7 @@ jac guide [-h] [-s SEARCH] [-e EXPORT] [-j] [topic]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `topic` | Guide or doc to print, or a doc set (`ref`, `learn`, `tutorial`, `internals`) to list; omit for the full index | None |
+| `topic` | Guide or doc to print, or a doc set (`reference`, `quick-guide`, `tutorials`, `internals`, `community`) to list; omit for the full index | None |
 | `-s, --search` | Grep every bundled guide and doc (`name:line:` hits) | None |
 | `-e, --export` | Export all guides as a Claude Code skills directory at this path | None |
 | `-j, --json` | Emit machine-readable JSON (for tools and agents) | `False` |
@@ -1858,10 +1852,10 @@ jac guide
 jac guide jac-types
 
 # Print a bundled reference doc
-jac guide ref/diagnostics
+jac guide reference/diagnostics
 
 # List every doc in a set
-jac guide ref
+jac guide reference
 
 # Grep all bundled content (guides + docs), grep-style output
 jac guide --search "breaking changes"

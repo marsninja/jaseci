@@ -334,3 +334,10 @@ plugins:
 
 hooks:
   - scripts/handle_jac_compile_data.py
+  # Mounts the canonical reference/quick-guide/tutorials/internals markdown
+  # (which lives in the jaclang package so `jac guide` can serve it offline)
+  # into the site at its usual paths.
+  - scripts/bundled_docs.py
+
+watch:
+  - ../jac/jaclang/cli/docs

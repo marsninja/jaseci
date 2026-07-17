@@ -1,9 +1,3 @@
----
-name: internals/jac_import_patterns
-description: This document provides a comprehensive reference of all JavaScript/ECMAScript import patterns and their Jac equivalents, showing which patterns are currently supported.
-source: docs/docs/internals/jac_import_patterns.md
----
-
 # Jac Client Import Patterns - Implementation Status
 
 This document provides a comprehensive reference of all JavaScript/ECMAScript import patterns and their Jac equivalents, showing which patterns are currently supported.

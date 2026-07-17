@@ -13,8 +13,9 @@ glob registry = get_registry();
             kind=ArgKind.POSITIONAL,
             default="",
             help=(
-                "Guide or doc to print, or a doc set (ref, learn, tutorial, "
-                "internals) to list; omit to show the full index"
+                "Guide or doc to print, or a doc set (reference, quick-guide, "
+                "tutorials, internals, community) to list; omit to show the "
+                "full index"
             )
         ),
         Arg.create(
@@ -43,8 +44,8 @@ glob registry = get_registry();
     examples=[
         ("jac guide", "List every bundled guide and doc set"),
         ("jac guide jac-types", "Print the jac-types guide"),
-        ("jac guide ref/diagnostics", "Print the bundled diagnostics reference"),
-        ("jac guide ref", "List every doc in the reference set"),
+        ("jac guide reference/diagnostics", "Print the bundled diagnostics reference"),
+        ("jac guide reference", "List every doc in the reference set"),
         ("jac guide --search 'breaking changes'", "Grep all bundled content"),
         ("jac guide --json", "Full guide/doc index as JSON for tooling"),
         ("jac guide --export ~/.claude/skills", "Export guides as Agent Skills"),

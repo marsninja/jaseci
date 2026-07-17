@@ -1,9 +1,3 @@
----
-name: internals/compiler_architecture
-description: Jac is a single source language that compiles to three different execution targets, called codespaces:
-source: docs/docs/internals/compiler_architecture.md
----
-
 # Compiler Architecture: Three Codespaces
 
 ## Overview

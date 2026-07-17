@@ -1,3 +1,4 @@
+import re;
 import from pathlib { Path }
 
 glob _CODE_GUIDE_MAP: dict[str, str] = {
@@ -75,22 +76,47 @@ glob GUIDE_GROUP_ORDER: list[str] = [
 
      };
 
-glob DOC_CORPUS_ORDER: list[str] = ["ref", "learn", "tutorial", "internals"],
+glob DOC_CORPUS_ORDER: list[str] = [
+         "reference",
+         "quick-guide",
+         "tutorials",
+         "internals",
+         "community",
+
+     ],
      _DOC_CORPUS_BLURBS: dict[str, str] = {
-         "ref": (
+         "reference": (
              "Exhaustive reference: language semantics, CLI, config, "
              "diagnostics, persistence, plugins"
          ),
-         "learn": (
-             "Getting started: install, syntax cheatsheet, project kinds, "
-             "FAQ, breaking changes"
+         "quick-guide": (
+             "Getting started: install, syntax cheatsheet, project kinds, FAQ"
          ),
-         "tutorial": (
+         "tutorials": (
              "End-to-end worked tutorials: full-stack, AI, native, "
              "production deployment"
          ),
          "internals": (
              "Compiler architecture, IR reference, and contributor " "orientation"
+         ),
+         "community": (
+             "Breaking changes across releases and the contributor " "codebase guide"
+         ),
+
+     };
+
+glob _DOC_EXCLUDES: set[str] = {
+         "reference/ninja",
+         "quick-guide/what-makes-jac-different",
+         "quick-guide/jac-vs-traditional-stack",
+
+     },
+     _DOC_DESCRIPTION_MAX: int = 180,
+     _DOC_DESCRIPTION_OVERRIDES: dict[str, str] = {
+         "internals/uniir_node": (
+             "Generated reference of every UniIR AST node class in the "
+             "compiler's unified IR: constructor signatures plus field "
+             "name/type diagrams."
          ),
 
      };
@@ -171,6 +197,92 @@ impl list_guides -> list[Guide] {
     return guides;
 }
 
+def _clean_markdown(text: str) -> str {
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text);
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text);
+    text = re.sub(r"[*_`]", "", text);
+    text = re.sub(r"\s*\{#[^}]*\}", "", text);
+    return " ".join(text.split());
+}
+
+def _derive_description(body: str) -> str {
+    title = "";
+    para: list[str] = [];
+    in_fence = False;
+
+    for raw in body.splitlines() {
+        stripped = raw.strip();
+        if stripped.startswith("```") {
+            if para {
+                break;
+            }
+            in_fence = not in_fence;
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
+        if not stripped {
+            if para {
+                break;
+            }
+            continue;
+        }
+        if stripped.startswith("#") {
+            if para {
+                break;
+            }
+            if not title {
+                title = stripped.lstrip("#").strip();
+            }
+            continue;
+        }
+
+        if stripped.startswith(("!!!", "???", "===", "<", "|", "---", "- ", "* ")) {
+            if para {
+                break;
+            }
+            continue;
+        }
+        if re.match(r"^\d+\. ", stripped) or raw.startswith(("    ", "\t")) {
+            if para {
+                break;
+            }
+            continue;
+        }
+        para.append(stripped);
+    }
+    text = _clean_markdown(" ".join(para)) or _clean_markdown(title);
+    if len(text) > _DOC_DESCRIPTION_MAX {
+        cut = text[:_DOC_DESCRIPTION_MAX + 1];
+        text = cut[:cut.rfind(" ")].rstrip(" ,;:") + " ...";
+    }
+    return text;
+}
+
+def _doc_name(rel: Path) -> str {
+    parts = list(rel.parts);
+    parts[-1] = rel.stem;
+
+    if parts[-1] == "index" and len(parts) > 2 {
+        parts.pop();
+    }
+    return "/".join(parts);
+}
+
+def _load_doc(path: Path, name: str) -> Guide | None {
+    g = parse_guide(path);
+    if g is None {
+        return None;
+    }
+    description = (
+        _DOC_DESCRIPTION_OVERRIDES.get(name)
+        or g.description
+        or _derive_description(g.body)
+    );
+    return Guide(name=name, description=description, body=g.body, path=g.path);
+}
+
 impl list_docs -> list[Guide] {
     ddir = docs_dir();
     if not ddir.is_dir() {
@@ -179,7 +291,11 @@ impl list_docs -> list[Guide] {
     docs: list[Guide] = [];
 
     for f in sorted(ddir.rglob("*.md"), key=lambda (p: Path) { str(p); }) {
-        g = parse_guide(f);
+        name = _doc_name(f.relative_to(ddir));
+        if name in _DOC_EXCLUDES {
+            continue;
+        }
+        g = _load_doc(f, name);
         if g is not None {
             docs.append(g);
         }
@@ -233,9 +349,17 @@ impl get_guide(name: str) -> Guide | None {
             return skill;
         }
     }
-    doc_path = docs_dir() / f"{clean}.md";
-    if doc_path.is_file() {
-        return parse_guide(doc_path);
+    if clean not in _DOC_EXCLUDES {
+        ddir = docs_dir();
+        candidates = [ddir / f"{clean}.md"];
+        if "/" in clean {
+            candidates.append(ddir / clean / "index.md");
+        }
+        for candidate in candidates {
+            if candidate.is_file() {
+                return _load_doc(candidate, clean);
+            }
+        }
     }
     return _resolve_by_suffix(clean);
 }

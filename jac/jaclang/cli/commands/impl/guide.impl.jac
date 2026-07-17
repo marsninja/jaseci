@@ -190,10 +190,10 @@ impl guide(
     }
     console.print();
     console.print("Read a guide or doc:  jac guide <name>", style="muted");
-    console.print(
-        "List a doc set:       jac guide ref | learn | tutorial | internals",
-        style="muted"
-    );
+    if corpora {
+        sets = " | ".join([ns for (ns, _) in corpora]);
+        console.print(f"List a doc set:       jac guide {sets}", style="muted");
+    }
     console.print("Search everything:    jac guide --search <keywords>", style="muted");
     console.print("Full index as JSON:   jac guide --json", style="muted");
     console.print();

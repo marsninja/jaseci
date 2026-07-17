@@ -1,9 +1,3 @@
----
-name: internals/codebase-guide
-description: This repository builds the Jac programming language -- a Python-superset with a multi-target compiler (Python bytecode, LLVM native, JavaScript), a graph-native runtime, and ...
-source: docs/docs/community/codebase-guide.md
----
-
 # Codebase Orientation for New Contributors
 
 This repository builds the **Jac programming language** -- a Python-superset with a multi-target compiler (Python bytecode, LLVM native, JavaScript), a graph-native runtime, and built-in subsystems for AI, full-stack web, and cloud deployment. If you're looking to contribute, this guide gives you the mental model and the map you need to navigate the codebase.
@@ -47,7 +41,7 @@ Here's a quick map from contribution type to the right part of the codebase:
 | Improve IDE support | `jac/jaclang/lsp/` + `langserve/` |
 | Work on the scale subsystem | `jac/jaclang/scale/` (built-in deployment provider) |
 | Work on a built-in subsystem | `jac/jaclang/byllm/`, `jac/jaclang/cli/mcp/`, `jac/jaclang/scale/`, etc. |
-| Write or fix docs | `docs/docs/reference/` (most features go here) |
+| Write or fix docs | `jac/jaclang/cli/docs/reference/` (most features go here; served by `jac guide` and mounted into the docs site) |
 | Add a test | `jac/tests/` (mirror the directory of the code you're testing) |
 
 ---

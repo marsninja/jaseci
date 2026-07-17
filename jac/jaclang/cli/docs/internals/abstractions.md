@@ -1,9 +1,3 @@
----
-name: internals/abstractions
-description: This document is a complete inventory of every abstraction Jac exposes to user code, organized into the three categories established in the design essay Designing New Abstractions ...
-source: docs/docs/internals/abstractions.md
----
-
 # Jac Abstractions: Architectural Inventory
 
 This document is a complete inventory of every abstraction Jac exposes to user

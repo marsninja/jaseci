@@ -12,7 +12,19 @@ from jaclang.utils.lang_tools import AstTool
 EXTRACTED_FOLDER = "docs/playground"
 PLAYGROUND_ZIP_PATH = os.path.join(EXTRACTED_FOLDER, "jaclang.zip")
 ZIP_FOLDER_NAME = "jaclang"
-UNIIR_NODE_DOC = "docs/internals/uniir_node.md"
+# The internals corpus lives in the jaclang package tree (served offline by
+# `jac guide`, mounted into this site by scripts/bundled_docs.py).
+UNIIR_NODE_DOC = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..",
+    "..",
+    "jac",
+    "jaclang",
+    "cli",
+    "docs",
+    "internals",
+    "uniir_node.md",
+)
 AST_TOOL = AstTool()
 # Directory basenames to exclude
 EXCLUDE_DIRS = {"__pycache__", ".pytest_cache", ".git", "tests"}

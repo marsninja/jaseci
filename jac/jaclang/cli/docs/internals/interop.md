@@ -1,9 +1,3 @@
----
-name: internals/interop
-description: Jac compiles one source language to three first-class codespaces -- sv (server / Python), cl (client / JavaScript), and na (native / LLVM) -- and a single .jac file may mix all ...
-source: docs/docs/internals/interop.md
----
-
 # Cross-Codespace & Foreign Interop
 
 ## Overview
