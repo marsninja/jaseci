@@ -30,6 +30,7 @@ glob BENCH = Path(__file__).resolve().parent.parent,
              "vm": ["5000", "4000"],
              "rbtree": ["100000", "8"],
              "deriv": ["120", "400"],
+
          },
          "small": {
              "binarytrees": ["10"],
@@ -38,7 +39,9 @@ glob BENCH = Path(__file__).resolve().parent.parent,
              "vm": ["500", "200"],
              "rbtree": ["5000", "3"],
              "deriv": ["40", "10"],
+
          },
+
      };
 
 """nacompile flags for a memory mode."""
@@ -101,6 +104,7 @@ def parse_opts(argv: list[str]) -> dict {
         "sizes": "default",
         "out": str(BENCH / "results" / "results.json"),
         "skip_compile": False,
+
     };
     i = 1;
     while i < len(argv) {
@@ -125,8 +129,16 @@ def parse_opts(argv: list[str]) -> dict {
 
 """Measure every requested (kernel, mode) cell and write results JSON."""
 def main(opts: dict) {
-    kernels = [k for k in opts["kernels"].split(",") if k];
-    modes = [m for m in opts["modes"].split(",") if m];
+    kernels = [
+        k
+        for k in opts["kernels"].split(",")
+        if k
+    ];
+    modes = [
+        m
+        for m in opts["modes"].split(",")
+        if m
+    ];
     results: dict = {};
     identity_fail = False;
 
@@ -139,7 +151,11 @@ def main(opts: dict) {
                 binary = compile_kernel(kernel, mode);
             }
             runs = [run_once(binary, args) for _ in range(opts["invocations"])];
-            times = [r["ns"] for r in runs if r["ns"] is not None];
+            times = [
+                r["ns"]
+                for r in runs
+                if r["ns"] is not None
+            ];
             digests = {r["digest"] for r in runs};
             if len(digests) != 1 {
                 sys.exit(f"{kernel}/{mode}: nondeterministic output across runs");
@@ -153,6 +169,7 @@ def main(opts: dict) {
                 "stdev_ns": int(statistics.stdev(times)) if len(times) > 1 else 0,
                 "max_rss_kb": max([r["max_rss_kb"] for r in runs]),
                 "digest": digests.pop(),
+
             };
             cell = per_mode[mode];
             print(
@@ -162,9 +179,7 @@ def main(opts: dict) {
         }
         cross = {m["digest"] for m in per_mode.values()};
         if len(cross) != 1 {
-            print(
-                f"{kernel}: DIGEST MISMATCH ACROSS MODES {cross}", file=sys.stderr
-            );
+            print(f"{kernel}: DIGEST MISMATCH ACROSS MODES {cross}", file=sys.stderr);
             identity_fail = True;
         } else {
             print(f"{kernel:12s} identity: OK");

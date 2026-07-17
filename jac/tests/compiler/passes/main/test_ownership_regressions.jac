@@ -20,7 +20,12 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 import from tests.support { JAC_ROOT }
 
 glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures",
+         JAC_ROOT,
+         "tests",
+         "compiler",
+         "passes",
+         "main",
+         "fixtures",
          "ownership_regress"
      );
 
@@ -40,9 +45,7 @@ def ownership_codes(prog: JacProgram) -> list[str] {
     codes: set[str] = set();
     for alert in (list(prog.errors_had) + list(prog.warnings_had)) {
         if alert.code is not None
-        and (
-            alert.code.code.startswith("E13") or alert.code.code.startswith("E14")
-        ) {
+        and (alert.code.code.startswith("E13") or alert.code.code.startswith("E14")) {
             codes.add(alert.code.code);
         }
     }

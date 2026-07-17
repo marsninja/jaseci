@@ -33,6 +33,7 @@ glob OWNBENCH = str(Path(__file__).resolve().parents[4] / "examples" / "ownbench
          "vm": ["200", "50"],
          "rbtree": ["1000", "2"],
          "deriv": ["20", "3"],
+
      };
 
 """nacompile flags for a memory mode."""
@@ -46,9 +47,10 @@ def _mode_flags(mode: str) -> list[str] {
 """Compile `src` to `out_bin` under `mode`; assert success."""
 def _nacompile(src: str, mode: str, out_bin: str) {
     comp = subprocess.run(
-        [sys.executable, "-m", "jaclang", "nacompile", src]
-        + _mode_flags(mode)
-        + ["-o", out_bin],
+        [sys.executable, "-m", "jaclang", "nacompile", src] + _mode_flags(mode) + [
+            "-o",
+            out_bin
+        ],
         capture_output=True,
         text=True,
         timeout=300,

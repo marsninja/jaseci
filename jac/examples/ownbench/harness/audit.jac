@@ -46,9 +46,8 @@ def audit(kernel: str, mode: str) -> dict {
         "rc_symbol_refs": len(re.findall(r"@__rc_\w+", text)),
         "rc_symbols": sorted({*re.findall(r"@(__rc_\w+)", text)}),
         "trace_fns": len({*re.findall(r"define[^\n]*@(__trace_\w+)", text)}),
-        "collector_refs": len(
-            re.findall(r"@__rc_collect_cycles|@__rc_recycler", text)
-        ),
+        "collector_refs": len(re.findall(r"@__rc_collect_cycles|@__rc_recycler", text)),
+
     };
 }
 
@@ -58,6 +57,7 @@ def parse_opts(argv: list[str]) -> dict {
         "kernels": ",".join(KERNELS),
         "modes": ",".join(MODES),
         "out": str(BENCH / "results" / "ir_audit.json"),
+
     };
     i = 1;
     while i < len(argv) {
@@ -76,9 +76,17 @@ def parse_opts(argv: list[str]) -> dict {
 def main(opts: dict) {
     census: dict = {};
     bad = False;
-    for kernel in [k for k in opts["kernels"].split(",") if k] {
+    for kernel in [
+        k
+        for k in opts["kernels"].split(",")
+        if k
+    ] {
         census[kernel] = {};
-        for mode in [m for m in opts["modes"].split(",") if m] {
+        for mode in [
+            m
+            for m in opts["modes"].split(",")
+            if m
+        ] {
             a = audit(kernel, mode);
             census[kernel][mode] = a;
             print(
