@@ -1,3 +1,5 @@
+import from jaclang.jac0core.constant { OwnershipKind }
+
 glob RC_INTRINSIC_NAMES: frozenset[str] = frozenset(
          {
              "__rc_debug_enable",
@@ -850,6 +852,61 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         } else {
             coerced.append(arg);
             release_args.append(arg);
+        }
+    }
+    if self._nogc_headerless() {
+        _skip_own: set = set();
+        if isinstance(nd.target, uni.Name)
+        and nd.target.sym_name in self.arch_ast_map {
+            for _oi in range(len(release_args)) {
+                _skip_own.add(_oi);
+            }
+        } else {
+            _sig = self._callee_sig_of(nd);
+            _sig_params = [p for p in (_sig.params or [])] if _sig is not None else [];
+            if _sig is not None and len(_sig_params) == len(release_args) {
+                for (_oi, _op) in enumerate(_sig_params) {
+                    if _op.type_tag is not None
+                    and _op.type_tag.ownership == OwnershipKind.OWN {
+                        _skip_own.add(_oi);
+                    }
+                }
+            }
+        }
+        if _skip_own {
+            _kept: list = [];
+            for (_ri, _rv) in enumerate(release_args) {
+                if _ri not in _skip_own {
+                    _kept.append(_rv);
+                }
+            }
+            release_args = _kept;
+            _ast_args = [p for p in (nd.params or [])];
+            _all_positional = True;
+            for _pa in _ast_args {
+                if isinstance(_pa, uni.KWPair) {
+                    _all_positional = False;
+                }
+            }
+            if _all_positional {
+                for _mi in _skip_own {
+                    if _mi >= len(_ast_args) {
+                        continue;
+                    }
+                    _anode = _ast_args[_mi];
+                    if not isinstance(_anode, uni.Name) {
+                        continue;
+                    }
+                    _salloca = self.local_vars.get(_anode.sym_name);
+                    if _salloca is not None
+                    and isinstance(_salloca.type, ir.PointerType)
+                    and isinstance(_salloca.type.pointee, ir.PointerType) {
+                        self.builder.store(
+                            ir.Constant(_salloca.type.pointee, None), _salloca
+                        );
+                    }
+                }
+            }
         }
     }
     result = self.builder.call(func, coerced, name=f"call.{func_name}");

@@ -470,6 +470,10 @@ impl JacAutoLintPass.can_convert_to_glob(assignment: uni.Assignment) -> bool {
             return False;
         }
     }
+    if isinstance(assignment.value, uni.FuncCall)
+    or len(assignment.value.get_all_sub_nodes(uni.FuncCall)) > 0 {
+        return False;
+    }
     return True;
 }
 
@@ -483,8 +487,10 @@ impl JacAutoLintPass.names_unsafe_to_globalize(module: uni.Module) -> set[str] {
             }
         } elif isinstance(stmt, uni.ModuleCode) and stmt.name is None {
             for inner_stmt in stmt.body {
-                if isinstance(inner_stmt, uni.Assignment)
-                and self.can_convert_to_glob(inner_stmt) {
+                for assign in inner_stmt.get_all_sub_nodes(uni.Assignment) {
+                    target_lists.append(assign.target);
+                }
+                if isinstance(inner_stmt, uni.Assignment) {
                     target_lists.append(inner_stmt.target);
                 }
             }
