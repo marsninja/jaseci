@@ -17,10 +17,10 @@ import from .ui.alert_dialog {
     AlertDialogCancel
 }
 import from ..lib.utils { cn }
-sv import from ..social_graph { TweetView }
+sv import from ..social_graph { Tweet }
 
 def:pub TweetCard(
-    tweet: TweetView,
+    tweet: Tweet,
     myUsername: str,
     onLike: Callable[[str], None],
     onComment: Callable[[str, str], None],
@@ -30,6 +30,9 @@ def:pub TweetCard(
     has showComments: bool = False,
         commentText: str = "";
 
+    # Whose tweet this is falls out of data the client already holds -
+    # no server round trip needed to answer a viewer-relative question.
+    is_mine = tweet.author_username == myUsername;
     is_liked = myUsername in tweet.likes;
     like_count = len(tweet.likes);
     comment_count = len(tweet.comments);
@@ -83,7 +86,7 @@ def:pub TweetCard(
                     </span>
                     <span className="text-muted-foreground">·</span>
                     <span className="text-muted-foreground">{date_str}</span>
-                    {if tweet.is_mine {
+                    {if is_mine {
                         <div className="ml-auto">
                             <AlertDialog>
                                 <AlertDialogTrigger asChild={True}>
@@ -108,7 +111,7 @@ def:pub TweetCard(
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                                         <AlertDialogAction
                                             className="bg-destructive text-white hover:bg-destructive/90"
-                                            onClick={lambda { onDelete(tweet.id); }}
+                                            onClick={lambda { onDelete(jid(tweet)); }}
                                         >
                                             Delete
                                         </AlertDialogAction>
@@ -150,7 +153,7 @@ def:pub TweetCard(
                                     size="sm"
                                     className="h-8 gap-1.5 rounded-full px-2 text-muted-foreground hover:bg-repost/10 hover:text-repost"
                                     onClick={lambda { onRepost(
-                                        tweet.id, tweet.content, tweet.author_username
+                                        jid(tweet), tweet.content, tweet.author_username
                                     ); }}
                                 >
                                     <Repeat2 size={16}/>
@@ -169,7 +172,7 @@ def:pub TweetCard(
                                             if is_liked
                                             else "text-muted-foreground"
                                     )}
-                                    onClick={lambda { onLike(tweet.id); }}
+                                    onClick={lambda { onLike(jid(tweet)); }}
                                 >
                                     <Heart
                                         size={16}
@@ -226,7 +229,7 @@ def:pub TweetCard(
                                 onChange={lambda (e: ChangeEvent) { commentText = e.target.value; }}
                                 onKeyDown={lambda (e: KeyboardEvent) { if e.key == "Enter"
                                 and commentText.strip() {
-                                    onComment(tweet.id, commentText);
+                                    onComment(jid(tweet), commentText);
                                     commentText = "";
                                 }}}
                             />
@@ -234,7 +237,7 @@ def:pub TweetCard(
                                 size="icon"
                                 disabled={not commentText.strip()}
                                 onClick={lambda { if commentText.strip() {
-                                    onComment(tweet.id, commentText);
+                                    onComment(jid(tweet), commentText);
                                     commentText = "";
                                 }}}
                             >
