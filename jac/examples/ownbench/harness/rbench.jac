@@ -90,7 +90,8 @@ def measure(binary: Path, args: list[str], invocations: int) -> dict {
         if r["ns"] is not None
     ];
     med: dict = {};
-    for key in runs[0]["metrics"] {
+    first_metrics: dict = runs[0]["metrics"];
+    for key in first_metrics.keys() {
         med[key] = int(statistics.median([r["metrics"][key] for r in runs]));
     }
     return {
@@ -147,12 +148,13 @@ def make_bare(src: Path, dst: Path) -> Path {
     if r.returncode != 0 {
         sys.exit(f"rerase failed: {r.stderr}");
     }
+    dst.parent.mkdir(exist_ok=True);
     dst.write_text(r.stdout);
     return dst;
 }
 
 def main(opts: dict) {
-    inv = opts["invocations"];
+    inv = int(opts["invocations"]);
     results: dict = {};
     fail = False;
 
