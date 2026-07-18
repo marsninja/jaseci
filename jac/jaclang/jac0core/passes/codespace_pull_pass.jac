@@ -49,10 +49,11 @@ def _ref_top_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
 }
 
 obj CodespacePullPass(Transform[uni.Module, uni.Module]) {
-    static has PROVIDES: tuple = ('codespace-pull', );
     has ir_in: uni.Module,
         prog: any,
         cancel_token: any = None;
+
+    static has PROVIDES: tuple = ('codespace-pull', );
 
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;

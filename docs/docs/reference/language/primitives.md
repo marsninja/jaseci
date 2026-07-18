@@ -93,7 +93,9 @@ The single-statement prefix is ideal for a one-off pin -- most usefully `sv`, to
 ```jac
 def add(a: int, b: int) -> int { return a + b; }   # server (default)
 
-sv def audit_log(msg: str) -> None { ... }          # pinned server, even if client code references it
+sv def audit_log(msg: str) -> None {                # pinned server, even if
+    print("audit:", msg);                           # client code references it
+}
 ```
 
 Reach for explicit markers when you want a declaration somewhere inference would not put it, when a file with no client-only syntax should still ship to the browser, or simply when you prefer the boundary to be visible in the source.
