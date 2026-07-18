@@ -90,7 +90,8 @@ impl PyastGenPass.enter_node(nd: uni.UniNode) -> None {
         isinstance(nd, uni.ContextAwareNode)
         and (nd.code_context == CodeContext.NATIVE)
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
-        and not isinstance(nd, uni.Import)
+        and not isinstance(nd, (uni.Import, uni.Test))
+        and not self._is_native_ext_module()
     ) {
         first_native = True;
         for sib in self.ir_in.body {
@@ -139,15 +140,29 @@ impl PyastGenPass.enter_node(nd: uni.UniNode) -> None {
     super.enter_node(nd);
 }
 
+impl PyastGenPass._is_native_ext_module -> bool {
+    import from jaclang.jac0core.ext_registry { is_native_module }
+    mod_path = self.ir_in.loc.mod_path if (self.ir_in and self.ir_in.loc) else '';
+    return bool(mod_path) and is_native_module(mod_path);
+}
+
 impl PyastGenPass.exit_node(nd: uni.UniNode) -> None {
     if isinstance(nd, (uni.ClientBlock, uni.NativeBlock)) {
         return;
     }
     if (
         isinstance(nd, uni.ContextAwareNode)
-        and (nd.code_context in (CodeContext.CLIENT, CodeContext.NATIVE))
+        and (nd.code_context == CodeContext.CLIENT)
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
-        and not (isinstance(nd, uni.Import) and nd.code_context == CodeContext.NATIVE)
+    ) {
+        return;
+    }
+    if (
+        isinstance(nd, uni.ContextAwareNode)
+        and (nd.code_context == CodeContext.NATIVE)
+        and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
+        and not isinstance(nd, (uni.Import, uni.Test))
+        and not self._is_native_ext_module()
     ) {
         return;
     }
