@@ -105,7 +105,7 @@ For example, configuring a Mongo database under `[scale.database]` makes `jac in
 
 | Capability | What it needs | When you need it |
 |-------|-------------|-----------------|
-| _(core serving)_ | FastAPI, uvicorn, JWT auth | Always available -- ships with `jaclang` |
+| *(core serving)* | FastAPI, uvicorn, JWT auth | Always available -- ships with `jaclang` |
 | Mongo/Redis storage | pymongo, redis | Using MongoDB/Redis for storage (`jac start` with `[scale.database]`) |
 | Firestore | google-cloud-firestore | Using Firestore with `kvstore(db_type='firestore')` |
 | Cloud object storage | boto3 | Using S3-compatible cloud storage |
