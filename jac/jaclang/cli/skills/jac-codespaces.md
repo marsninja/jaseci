@@ -1,6 +1,6 @@
 ---
 name: jac-codespaces
-description: Inferred client/server/native code placement - how the compiler decides what runs where (JSX/npm imports mark code client, references pull helpers along), what never moves (def:pub endpoints, walkers, shared objs), and the explicit cl/sv/na overrides. Load when deciding where code runs, pinning a declaration server-side with `sv`, or debugging why something landed in the wrong bundle.
+description: Inferred client/server/native code placement - how the compiler decides what runs where (JSX/npm imports mark code client, extern C declarations mark code native, references pull helpers along), what never moves (def:pub endpoints, walkers, shared objs), and the explicit cl/sv/na overrides. Load when deciding where code runs, pinning a declaration server-side with `sv`, or debugging why something landed in the wrong bundle.
 ---
 
 **Codespaces are inferred - you do not have to mark client code.** Jac compiles one language to three codespaces: server (Python - the default), client (JavaScript/JSX), and native (LLVM). The compiler decides placement from the code itself; the `cl`/`sv`/`na` markers still exist but are optional overrides, and markerless code compiles **byte-identical** to its marker-annotated equivalent.
@@ -10,7 +10,7 @@ description: Inferred client/server/native code placement - how the compiler dec
 1. **Client is structural.** JSX and string-path npm imports (`import from "react" { ... }`) are client-only syntax; a declaration carrying either is placed client automatically.
 2. **Placement propagates through references.** Helpers, `glob`s, and imports that client code uses join the client bundle, transitively. Propagation is scope-aware: a local that shadows a module-level name does NOT pull the module-level one in.
 3. **Server is the default** for unmarked code that no client code references.
-4. **Native is never inferred** - see below.
+4. **Native is seeded by extern C declarations** - an import whose braces declare C-ABI functions infers native placement for itself and its users; see below.
 
 A complete markerless full-stack module - every placement is inferred:
 
@@ -91,13 +91,26 @@ sv def summarize(text: str) -> str {     # stays server even though app() calls 
 - **From client code**: generates the async JS RPC stub (always `await` the calls). See `jac-fullstack-patterns`.
 - **From server code**: declares a server-to-server **microservice boundary** - the provider runs as its own service and calls become HTTP RPCs. See `jac-sv-microservices`.
 
-## Native is never inferred - by design
+## Native inference - extern C declarations are the seed
 
-Native-compatible code is not the same as code that *should* be built natively, so nothing is ever silently promoted. The native codespace always requires an explicit ask: an `na { ... }` block, a `.na.jac` file, or the explicit verbs `jac nacompile` / `jac run --autonative`. See `jac-native`.
+An import whose braces contain C-ABI function **declarations** is an FFI surface only the native backend can satisfy, so it seeds native placement - and the declarations that use those extern names (plus the helpers/`glob`s/`obj`s they reference) follow through the same reference propagation:
+
+```jac
+import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }   # extern decls -> native seed
+
+def open_window() -> None {        # uses InitWindow -> native
+    InitWindow(800, 600, "hi");
+}
+```
+
+- **Consuming a native module is NOT a signal.** `import from mymod { fast_fn }` where `mymod` is native code stays a server-side import - that is the server-to-native ctypes interop crossing, not a reason to relocate the importer.
+- **Referenced by both sides -> stays server.** Client and native inference run independently in one markerless file; a declaration referenced by BOTH sides is placed server, where each side can bridge to it (auto-RPC for the client, py-interop for native).
+- **Native-compatible pure code still defaults to server.** Compatibility is not intent: with no FFI seed, going native remains an explicit build choice - an `na { ... }` block, a `.na.jac` file, or `jac nacompile` / `jac run --autonative` auto-promotion. See `jac-native`.
+- **Explicit markers never act as propagation sources.** An `na { }` block or `.na.jac` file pins its own contents; it does not pull referenced code native the way an extern seed does.
 
 ## Rules
 
-- **Markerless first.** Write plain `.jac` and let JSX/npm imports plus references decide. Reach for markers to pin, not to enable.
+- **Markerless first.** Write plain `.jac` and let JSX/npm imports, extern C declarations, plus references decide. Reach for markers to pin, not to enable.
 - **Client code must carry the structural signal.** A component infers client because it contains JSX or an npm import (directly or through what it references); a pure helper with neither stays server until client code references it.
 - **`def:pub` + JSX body = client component; `def:pub` without client-only syntax = server endpoint**, RPC-bridged when the client calls it.
 - **Pin with `sv`** when client code references something that must stay server-side (secrets, server-only deps).
@@ -108,5 +121,5 @@ Native-compatible code is not the same as code that *should* be built natively, 
 - `jac-fullstack-patterns` - entry wiring, RPC call styles, endpoint registration
 - `jac-cl-organization` - file layout for multi-component client apps
 - `jac-sv-microservices` - `sv import` between services
-- `jac-native` - the explicit native codespace
+- `jac-native` - the native codespace
 - `jac-project-kinds` - which codespaces each project kind combines

@@ -37,7 +37,7 @@ Most of the time the codespace is chosen *for* you. An import inherits the codes
 - A **quoted npm path** (`import from "react-dom" { render }`) is client-only by construction, so it lands in the client codespace automatically -- and the declarations that use it become client too.
 - A **bare-name npm import** (`import from react { useState }`) is placed through its consumers: when JSX components use the imported names, the import joins the client bundle with them.
 - **Python / PyPI imports** are server code -- the default for anything unmarked.
-- **Native imports are never inferred** -- `na` always takes an explicit marker.
+- An **extern-decl C import** -- braces containing C-ABI function declarations (`import from "libm.so" { def sqrt(x: f64) -> f64; }`) -- can only be satisfied by the native backend, so it lands in the native codespace automatically, and the declarations that use it become native too. Merely importing *from* a native module is not a native signal, and pure native-compatible code stays on the server -- without an FFI seed, `na` takes an explicit marker.
 
 Explicit markers override inference. When you want to pin an import's context (or simply make the split visible), there are three ways to set it:
 
@@ -228,7 +228,7 @@ na {
 }
 ```
 
-The headline native feature is **C library interop**. Point `import from` at a shared library path and declare the foreign functions you need right inside the braces -- the compiler generates the C-ABI bridge:
+The headline native feature is **C library interop**. Point `import from` at a shared library path and declare the foreign functions you need right inside the braces -- the compiler generates the C-ABI bridge. An extern-decl import like this is also a *native signal*: in a markerless file it seeds native placement for itself and the declarations that use it, so the `na { }` blocks below are the explicit style, not a requirement:
 
 ```jac
 na {

@@ -41,6 +41,9 @@ def stamp_of(mod: uni.Module, name: str) -> str {
                 }
             }
         } elif isinstance(stmt, uni.Import) {
+            if (stmt.from_loc is not None and stmt.from_loc.base_module_name == name) {
+                found = True;
+            }
             for item in stmt.items {
                 if (
                     isinstance(item, uni.ModuleItem)
@@ -118,8 +121,27 @@ test "locals shadowing client names do not pull" {
     assert stamp_of(mod, "server_side") == 'server' , "shadowed names resolve to locals - no pull";
 }
 
-test "native placement is never inferred" {
+test "native compatibility alone does not infer native" {
     mod = compile_fixture("pure_stays_server.jac");
     assert stamp_of(mod, "add") == 'server' , "native-compatible code still defaults to server";
     assert stamp_of(mod, "mul_add") == 'server';
+}
+
+test "extern decl imports seed native and pull the module" {
+    mod = compile_fixture("infer_native_ffi.jac");
+    assert stamp_of(mod, "fakelib") == 'native' , "extern-decl import seeds native";
+    assert stamp_of(mod, "frame_count") == 'native' , "glob used by native code follows";
+    assert stamp_of(mod, "Particle") == 'native' , "obj used by native code follows (no client-style auto-share for native)";
+    assert stamp_of(mod, "step") == 'native';
+    assert stamp_of(mod, "boot") == 'native';
+    assert stamp_of(mod, "server_info") == 'server' , "unreferenced def:pub stays a server endpoint";
+}
+
+test "two colors infer independently and conflicts stay server" {
+    mod = compile_fixture("infer_mixed_colors.jac");
+    assert stamp_of(mod, "clsx") == 'client';
+    assert stamp_of(mod, "fastlib") == 'native';
+    assert stamp_of(mod, "native_calc") == 'native' , "uses extern names, joins native";
+    assert stamp_of(mod, "app") == 'client';
+    assert stamp_of(mod, "shared_const") == 'server' , "referenced by both colors: conflict resolves to server";
 }

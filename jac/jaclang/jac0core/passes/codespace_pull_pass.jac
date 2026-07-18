@@ -66,6 +66,7 @@ impl CodespacePullPass.postinit -> None {
 impl CodespacePullPass.transform(ir_in: uni.Module) -> uni.Module {
     module = ir_in;
     client_tops: list[uni.UniNode] = [];
+    native_tops: list[uni.UniNode] = [];
     inferable: list[uni.UniNode] = [];
     for stmt in module.body {
         if isinstance(stmt, (uni.ClientBlock, uni.ServerBlock, uni.NativeBlock)) {
@@ -80,6 +81,12 @@ impl CodespacePullPass.transform(ir_in: uni.Module) -> uni.Module {
             }
             continue;
         }
+        if stmt.code_context == CodeContext.NATIVE {
+            if stmt._source_context_token() is None {
+                native_tops.append(stmt);
+            }
+            continue;
+        }
 
         is_placement_pinned = (
             stmt._source_context_token() is not None
@@ -90,43 +97,94 @@ impl CodespacePullPass.transform(ir_in: uni.Module) -> uni.Module {
         }
         inferable.append(stmt);
     }
-    if (not client_tops or not inferable) {
+    if ((not client_tops and not native_tops) or not inferable) {
         return module;
     }
-    import from jaclang.jac0core.compiler { _stamp_client_element }
+    import from jaclang.jac0core.compiler { _stamp_context_element }
 
-    pull_source_ids: set[int] = set();
-    client_ref_ids: set[int] = set();
+    cl_sources: set[int] = set();
+    cl_ref_ids: set[int] = set();
+    na_sources: set[int] = set();
+    na_ref_ids: set[int] = set();
     uses_map: dict[int, set[int]] = {};
 
     def _is_sv_import(elem: uni.UniNode) -> bool {
         return isinstance(elem, uni.Import) and elem.is_sv_marked;
     }
+
+    def _pullable_native(elem: uni.UniNode) -> bool {
+        return not _is_sv_import(elem);
+    }
+    cl_seed_ids: set[int] = set();
+    na_seed_ids: set[int] = set();
     for elem in client_tops {
         if not _is_sv_import(elem) {
-            pull_source_ids.add(id(elem));
+            cl_sources.add(id(elem));
+            cl_seed_ids.add(id(elem));
         }
-        client_ref_ids.update(_ref_top_ids(module, elem));
+        cl_ref_ids.update(_ref_top_ids(module, elem));
+    }
+    for elem in native_tops {
+        if not _is_sv_import(elem) {
+            na_sources.add(id(elem));
+            na_seed_ids.add(id(elem));
+        }
+        na_ref_ids.update(_ref_top_ids(module, elem));
     }
     for elem in inferable {
         uses_map[id(elem)] = _ref_top_ids(module, elem);
     }
+    hard_remaining: list[uni.UniNode] = [];
+    for elem in inferable {
+        refs = uses_map[id(elem)];
+        hard_cl = not cl_seed_ids.isdisjoint(refs);
+        hard_na = not na_seed_ids.isdisjoint(refs);
+        if (hard_cl and hard_na) {
+            continue;
+        }
+        if hard_na {
+            _stamp_context_element(elem, CodeContext.NATIVE);
+            na_sources.add(id(elem));
+            na_ref_ids.update(refs);
+        } elif hard_cl {
+            _stamp_context_element(elem, CodeContext.CLIENT);
+            cl_sources.add(id(elem));
+            cl_ref_ids.update(refs);
+        } else {
+            hard_remaining.append(elem);
+        }
+    }
+    inferable = hard_remaining;
     changed = True;
     while changed {
         changed = False;
         remaining: list[uni.UniNode] = [];
         for elem in inferable {
             refs = uses_map[id(elem)];
-            pull = (
-                not pull_source_ids.isdisjoint(refs)
-                or (id(elem) in client_ref_ids and _pullable_by_client_reference(elem))
+            want_cl = (
+                not cl_sources.isdisjoint(refs)
+                or (id(elem) in cl_ref_ids and _pullable_by_client_reference(elem))
             );
-            if pull {
-                _stamp_client_element(elem);
+            want_na = (
+                not na_sources.isdisjoint(refs)
+                or (id(elem) in na_ref_ids and _pullable_native(elem))
+            );
+            if (want_cl and want_na) {
+                continue;
+            }
+            if want_na {
+                _stamp_context_element(elem, CodeContext.NATIVE);
                 if not _is_sv_import(elem) {
-                    pull_source_ids.add(id(elem));
+                    na_sources.add(id(elem));
                 }
-                client_ref_ids.update(refs);
+                na_ref_ids.update(refs);
+                changed = True;
+            } elif want_cl {
+                _stamp_context_element(elem, CodeContext.CLIENT);
+                if not _is_sv_import(elem) {
+                    cl_sources.add(id(elem));
+                }
+                cl_ref_ids.update(refs);
                 changed = True;
             } else {
                 remaining.append(elem);

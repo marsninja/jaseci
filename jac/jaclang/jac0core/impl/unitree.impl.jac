@@ -730,7 +730,10 @@ impl ContextAwareNode.postinit -> None {
 
 impl ContextAwareNode._source_context_token -> (Token | None) {
     for kid in self.kid {
-        if (isinstance(kid, Token) and (kid.name in (Tok.KW_CLIENT, Tok.KW_SERVER))) {
+        if (
+            isinstance(kid, Token)
+            and (kid.name in (Tok.KW_CLIENT, Tok.KW_SERVER, Tok.KW_NATIVE))
+        ) {
             return kid;
         }
     }
@@ -1190,7 +1193,14 @@ impl Import.is_virtual_jac.getter -> bool {
     return False;
 }
 
+impl Import.has_clib_decls.getter -> bool {
+    return bool(self.clib_decls);
+}
+
 impl Import.ecosystem.getter -> str {
+    if self.has_clib_decls {
+        return 'clib';
+    }
     if self.is_virtual_jac {
         return 'virtual';
     }

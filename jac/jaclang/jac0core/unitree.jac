@@ -480,6 +480,7 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     has is_jac: bool { getter; }
     has __jac_detected: bool { getter; }
     has has_string_path: bool { getter; }
+    has has_clib_decls: bool { getter; }
     has is_sv_marked: bool { getter; }
     has is_cl_marked: bool { getter; }
     has is_virtual_jac: bool { getter; }

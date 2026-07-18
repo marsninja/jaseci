@@ -378,43 +378,49 @@ def _module_top_element(module: uni.Module, nd: uni.UniNode) -> (uni.UniNode | N
     return cur;
 }
 
-def _stamp_client_element(elem: uni.UniNode) {
+def _stamp_context_element(elem: uni.UniNode, context: CodeContext) {
     if not isinstance(elem, uni.ContextAwareNode) {
         return;
     }
-    elem.code_context = CodeContext.CLIENT;
+    elem.code_context = context;
     if (isinstance(elem, uni.ModuleCode) and elem.body) {
         for inner in elem.body {
             if isinstance(inner, uni.ContextAwareNode) {
-                inner.code_context = CodeContext.CLIENT;
+                inner.code_context = context;
             }
         }
     }
 }
 
+def _stamp_client_element(elem: uni.UniNode) {
+    _stamp_context_element(elem, CodeContext.CLIENT);
+}
+
 def _seed_module_codespace(module: uni.Module) {
-    signal_top_ids: set[int] = set();
+    client_top_ids: set[int] = set();
+    native_top_ids: set[int] = set();
     for jsx in module.get_all_sub_nodes(uni.JsxElement) {
         top = _module_top_element(module, jsx);
         if top is not None {
-            signal_top_ids.add(id(top));
+            client_top_ids.add(id(top));
         }
     }
     for imp in module.get_all_sub_nodes(uni.Import) {
-        if imp.has_string_path {
-            top = _module_top_element(module, imp);
-            if top is not None {
-                signal_top_ids.add(id(top));
-            }
+        top = _module_top_element(module, imp);
+        if top is None {
+            continue;
+        }
+        if imp.has_clib_decls {
+            native_top_ids.add(id(top));
+        } elif imp.has_string_path {
+            client_top_ids.add(id(top));
         }
     }
-    if not signal_top_ids {
+    if (not client_top_ids and not native_top_ids) {
         return;
     }
     for stmt in module.body {
-        if (
-            not isinstance(stmt, uni.ContextAwareNode) or id(stmt) not in signal_top_ids
-        ) {
+        if not isinstance(stmt, uni.ContextAwareNode) {
             continue;
         }
         if (
@@ -423,7 +429,11 @@ def _seed_module_codespace(module: uni.Module) {
         ) {
             continue;
         }
-        _stamp_client_element(stmt);
+        if id(stmt) in native_top_ids {
+            _stamp_context_element(stmt, CodeContext.NATIVE);
+        } elif id(stmt) in client_top_ids {
+            _stamp_context_element(stmt, CodeContext.CLIENT);
+        }
     }
 }
 

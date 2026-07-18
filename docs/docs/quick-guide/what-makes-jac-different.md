@@ -27,8 +27,8 @@ graph LR
 How inference decides:
 
 - **JSX and npm imports are client signals.** A declaration containing JSX or a string-path npm import (`import from "react-dom" { ... }`) is client-only by construction, so the compiler places it in the client codespace automatically. Placement then propagates through references: helpers, `glob`s, and imports that client code uses join the client bundle too.
+- **Extern C declarations are native signals.** An import whose braces declare C-ABI functions (`import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) is an FFI surface only the native backend can satisfy, so the compiler places it -- and the declarations that use it -- in the native codespace automatically. Merely importing *from* a native module is not a native signal: that stays a server-side import, bridged by interop.
 - **Everything else defaults to the server codespace** -- unmarked code compiles to Python, exactly as before.
-- **Native is never inferred.** Compiling natively is a build decision, so the native codespace is always marked explicitly (see below).
 
 Here's a file that spans two codespaces -- with no markers anywhere:
 
@@ -80,14 +80,14 @@ Inference can always be overridden. To pin code to a codespace -- or simply to m
 - `prog.sv.jac` -- top-level code defaults to server
 - `prog.cl.jac` -- top-level code defaults to client
 - `prog.na.jac` -- top-level code defaults to native
-- `prog.jac` -- placement is inferred (server unless client signals say otherwise)
+- `prog.jac` -- placement is inferred (server unless client or native signals say otherwise)
 
 Any `.jac` file can still use all codespace forms regardless of its extension. The extension only changes what the default is for untagged code.
 
 Three rules make the two styles interchangeable:
 
 - **Markers always win.** Inference never moves anything tagged with a block, prefix, or extension -- the most useful pin is `sv` on a declaration you want kept server-side even though client code references it.
-- **Native is explicit-only.** Code that *could* compile natively is not the same as code that *should* -- that call is yours, made via `na { }`, `.na.jac`, or `jac nacompile`.
+- **Native compatibility is not intent.** Extern C declarations infer native placement, but pure code that merely *could* compile natively stays on the server -- without an FFI seed, taking it native is your call, made via `na { }`, `.na.jac`, or `jac nacompile`.
 - **The two styles compile identically.** A markerless file produces byte-identical output to its marker-annotated equivalent; the example above wrapped in an explicit `cl { ... }` block is the same program.
 
 Codespaces are similar to namespaces, but instead of organizing names, they organize where code executes. Interop between them -- function calls, spawn calls, type sharing -- is handled by the compiler and runtime.

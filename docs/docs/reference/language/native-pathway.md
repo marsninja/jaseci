@@ -37,11 +37,16 @@ Native compilation is ideal for:
 
 ## Quick Reference
 
-Native placement is always **explicit** -- unlike the client codespace,
-which the compiler infers from JSX and npm imports, code is never routed to
-the native backend by inference. Whether native-compatible code *should* be
-compiled natively is a build decision, so one of the selectors below is
-required:
+Native placement is **inferred from extern C declarations** -- an import
+whose braces declare C-ABI functions, e.g. `import from raylib {
+def InitWindow(w: i32, h: i32, title: str) -> None; }`, is an FFI surface
+only the native backend can satisfy, so the compiler routes it -- and the
+declarations that use it -- to the native codespace automatically, just as
+JSX and npm imports infer the client codespace. Merely importing *from* a
+native module is not such a signal, and native-compatible pure code still
+defaults to the server: without an FFI seed, whether code *should* be
+compiled natively is a build decision, made with one of the selectors
+below (all of which remain valid as explicit overrides):
 
 | Aspect | Details |
 |--------|---------|

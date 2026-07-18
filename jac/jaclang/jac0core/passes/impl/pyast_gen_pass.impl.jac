@@ -87,6 +87,32 @@ impl PyastGenPass.enter_node(nd: uni.UniNode) -> None {
         return;
     }
     if (
+        isinstance(nd, uni.ContextAwareNode)
+        and (nd.code_context == CodeContext.NATIVE)
+        and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
+        and not isinstance(nd, uni.Import)
+    ) {
+        first_native = True;
+        for sib in self.ir_in.body {
+            if sib is nd {
+                break;
+            }
+            if (
+                isinstance(sib, uni.ContextAwareNode)
+                and sib.code_context == CodeContext.NATIVE
+                and not isinstance(sib, uni.Import)
+            ) {
+                first_native = False;
+                break;
+            }
+        }
+        if first_native {
+            self._gen_native_interop_stubs(nd);
+        }
+        self.prune();
+        return;
+    }
+    if (
         isinstance(nd, uni.ClientBlock)
         or (
             isinstance(nd, uni.ContextAwareNode)
@@ -119,8 +145,9 @@ impl PyastGenPass.exit_node(nd: uni.UniNode) -> None {
     }
     if (
         isinstance(nd, uni.ContextAwareNode)
-        and (nd.code_context == CodeContext.CLIENT)
+        and (nd.code_context in (CodeContext.CLIENT, CodeContext.NATIVE))
         and ((nd.parent is None) or isinstance(nd.parent, uni.Module))
+        and not (isinstance(nd, uni.Import) and nd.code_context == CodeContext.NATIVE)
     ) {
         return;
     }
@@ -135,7 +162,7 @@ impl PyastGenPass.exit_node(nd: uni.UniNode) -> None {
     super.exit_node(nd);
 }
 
-impl PyastGenPass._gen_native_interop_stubs(nd: uni.NativeBlock) -> None {
+impl PyastGenPass._gen_native_interop_stubs(nd: uni.UniNode) -> None {
     manifest = self.ir_in.gen.interop_manifest;
     parts: list[str] = [];
     if (manifest and manifest.bindings) {
@@ -164,10 +191,12 @@ impl PyastGenPass._gen_native_interop_stubs(nd: uni.NativeBlock) -> None {
         out.extend(parsed.body);
     }
 
-    for stmt in nd.body {
-        if isinstance(stmt, uni.Test) {
-            self.exit_test(stmt);
-            out.extend(stmt.gen.py_ast);
+    if isinstance(nd, uni.NativeBlock) {
+        for stmt in nd.body {
+            if isinstance(stmt, uni.Test) {
+                self.exit_test(stmt);
+                out.extend(stmt.gen.py_ast);
+            }
         }
     }
     if out {

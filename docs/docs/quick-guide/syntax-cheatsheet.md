@@ -1295,7 +1295,9 @@ obj Res {
 #   unmarked code             => server (the default, as always)
 #   def:pub / walkers         => stay server endpoints (client calls
 #                                become RPC bridges automatically)
-#   na (native)               => never inferred; explicit markers only
+#   C extern-decl import      => declaration placed native; consumers
+#                                follow (importing a native module is
+#                                NOT a signal; pure code stays server)
 #   explicit markers          => always win over inference
 # Explicit override markers:
 #   sv { } = server (Python/PyPI)
@@ -1346,10 +1348,11 @@ cl import from react { useState }
 # ============================================================
 # Extensions pin a file's default codespace explicitly -- an
 # override, not a requirement (a plain .jac file infers placement):
-# .jac           Default (server; client parts inferred from JSX/npm)
+# .jac           Default (server; client/native parts inferred from
+#                JSX/npm and C extern-decl imports)
 # .sv.jac        Server-only variant (explicit)
 # .cl.jac        Client-only variant (explicit client codespace)
-# .na.jac        Native variant (required for native -- never inferred)
+# .na.jac        Native variant (explicit native codespace)
 # .impl.jac      Implementation annex (method bodies)
 # .test.jac      Test annex
 # .style.css     Scoped CSS annex (auto-scopes classes for the matching .cl.jac)

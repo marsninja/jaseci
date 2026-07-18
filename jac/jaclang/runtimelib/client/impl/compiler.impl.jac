@@ -28,21 +28,15 @@ impl ViteCompiler.compile_and_bundle(
 }
 
 impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
-    import re;
     import from jaclang.jac0core.ext_registry { is_native_module }
-    try {
-        src = module_path.read_text(encoding='utf-8');
-    } except (FileNotFoundError, OSError) {
-        return;
+    import from jaclang.jac0core.constant { CodeContext }
+    import from jaclang { JacRuntime as Jac }
+    has_na = is_native_module(module_path.name);
+    if not has_na {
+        compiled = Jac.program.mod.hub.get(str(module_path.resolve()));
+        has_na = compiled is not None
+        and compiled.declares_codespace(CodeContext.NATIVE);
     }
-    has_na = bool(
-        re.search(r'(^|[\s;}])na\s*\{', src)
-        or re.search(r'(^|\n)\s*to\s+na\s*:', src)
-        or re.search(
-            r'(^|[\s;])na\s+(def|can|impl|obj|node|walker|glob|class|enum)\b', src
-        )
-        or is_native_module(module_path.name)
-    );
     if not has_na {
         return;
     }
