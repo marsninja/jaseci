@@ -189,6 +189,21 @@ test "guide <corpus> and guide <doc> JSON surfaces work" {
 }
 
 
+test "grep_guides falls back to doc-level matches for sentence queries" {
+    hits = grep_guides("filter predicate unknown type W1051 dynamic value");
+    assert hits , "sentence-length query should produce doc-level matches";
+    assert all([h.line_no == 0 for h in hits]) , "fallback hits are doc-level";
+    top = {h.guide for h in hits[:3]};
+    assert "reference/diagnostics" in top , f"top hits: {top}";
+    assert "open: jac guide" in hits[0].text;
+}
+
+test "guide_for_diagnostic routes unmapped codes to the diagnostics reference" {
+    import from jaclang.cli.guide_store { guide_for_diagnostic }
+    assert guide_for_diagnostic("W3037") == "jac-types" , "mapped code broke";
+    assert guide_for_diagnostic("W9999") == "reference/diagnostics";
+}
+
 test "guide --search JSON emits grep hits" {
     hits = _capture_json(lambda { guide(search="walker", as_json=True); });
     assert hits , "expected search hits for 'walker'";

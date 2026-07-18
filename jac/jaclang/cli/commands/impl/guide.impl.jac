@@ -80,6 +80,11 @@ def _search_guides(query: str, as_json: bool) -> int {
     }
     if not hits {
         console.warning(f"No matches for '{query}' in any bundled guide or doc.");
+        console.print(
+            "Line hits need every term on one line -- try fewer or more "
+            "specific terms.",
+            style="muted"
+        );
         return 0;
     }
     for h in hits {

@@ -436,7 +436,50 @@ impl grep_guides(
             }
         }
     }
-    return hits[:max_total];
+    if hits {
+        return hits[:max_total];
+    }
+    return _doc_level_hits(terms);
+}
+
+def _doc_level_hits(terms: list[str]) -> list[GrepHit] {
+    if len(terms) < 2 {
+        return [];
+    }
+    scored: list[tuple[int, str]] = [];
+
+    for g in (list_guides() + list_docs()) {
+        text = f"{g.name}\n{g.description}\n{g.body}".lower();
+        matched = len(
+            [
+                t
+                for t in terms
+                if t in text
+            ]
+        );
+        if matched >= 2 {
+            scored.append((-matched, g.name));
+        }
+    }
+    scored.sort();
+    out: list[GrepHit] = [];
+
+    for (neg, name) in scored[:10] {
+        matched = -neg;
+        if matched == len(terms) {
+            detail = (
+                f"all {matched} terms appear in this doc "
+                f"(no single line has them all) -- open: jac guide {name}"
+            );
+        } else {
+            detail = (
+                f"{matched}/{len(terms)} terms appear in this doc -- "
+                f"open: jac guide {name}"
+            );
+        }
+        out.append(GrepHit(guide=name, line_no=0, text=detail));
+    }
+    return out;
 }
 
 impl guide_for_diagnostic(code: str, category: str = "") -> str | None {
@@ -444,11 +487,11 @@ impl guide_for_diagnostic(code: str, category: str = "") -> str | None {
     if name is None and category {
         name = _CATEGORY_GUIDE_MAP.get(category);
     }
-    if name is None {
-        return None;
-    }
-    if (guides_dir() / f"{name}.md").exists() {
+    if name is not None and (guides_dir() / f"{name}.md").exists() {
         return name;
+    }
+    if (docs_dir() / "reference" / "diagnostics.md").is_file() {
+        return "reference/diagnostics";
     }
     return None;
 }
