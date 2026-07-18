@@ -134,22 +134,40 @@ impl CodespacePullPass.transform(ir_in: uni.Module) -> uni.Module {
     for elem in inferable {
         uses_map[id(elem)] = _ref_top_ids(module, elem);
     }
+    def _hard_closure(seed_ids: set[int]) -> set[int] {
+        result: set[int] = set(seed_ids);
+        grew = True;
+        while grew {
+            grew = False;
+            for elem in inferable {
+                if (id(elem) in result or _is_sv_import(elem)) {
+                    continue;
+                }
+                if not result.isdisjoint(uses_map[id(elem)]) {
+                    result.add(id(elem));
+                    grew = True;
+                }
+            }
+        }
+        return result;
+    }
+    cl_star = _hard_closure(cl_seed_ids);
+    na_star = _hard_closure(na_seed_ids);
     hard_remaining: list[uni.UniNode] = [];
     for elem in inferable {
-        refs = uses_map[id(elem)];
-        hard_cl = not cl_seed_ids.isdisjoint(refs);
-        hard_na = not na_seed_ids.isdisjoint(refs);
-        if (hard_cl and hard_na) {
+        in_cl = id(elem) in cl_star;
+        in_na = id(elem) in na_star;
+        if (in_cl and in_na) {
             continue;
         }
-        if hard_na {
+        if in_na {
             _stamp_context_element(elem, CodeContext.NATIVE);
             na_sources.add(id(elem));
-            na_ref_ids.update(refs);
-        } elif hard_cl {
+            na_ref_ids.update(uses_map[id(elem)]);
+        } elif in_cl {
             _stamp_context_element(elem, CodeContext.CLIENT);
             cl_sources.add(id(elem));
-            cl_ref_ids.update(refs);
+            cl_ref_ids.update(uses_map[id(elem)]);
         } else {
             hard_remaining.append(elem);
         }

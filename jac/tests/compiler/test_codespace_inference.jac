@@ -144,4 +144,6 @@ test "two colors infer independently and conflicts stay server" {
     assert stamp_of(mod, "native_calc") == 'native' , "uses extern names, joins native";
     assert stamp_of(mod, "app") == 'client';
     assert stamp_of(mod, "shared_const") == 'server' , "referenced by both colors: conflict resolves to server";
+    assert stamp_of(mod, "styled_len") == 'client' , "uses npm names transitively, hard client";
+    assert stamp_of(mod, "render_mixed") == 'server' , "hard-native seed use plus hard-client callee: indirect conflict resolves to server";
 }

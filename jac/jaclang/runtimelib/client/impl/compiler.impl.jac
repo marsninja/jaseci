@@ -34,8 +34,13 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
     has_na = is_native_module(module_path.name);
     if not has_na {
         compiled = Jac.program.mod.hub.get(str(module_path.resolve()));
-        has_na = compiled is not None
-        and compiled.declares_codespace(CodeContext.NATIVE);
+        if compiled is None {
+            console.warning(
+                f"'{module_path.name}' not found in the compile hub; cannot " + "check for inferred-native code, so no wasm will be emitted " + "for it (explicit .na.jac modules are unaffected)."
+            );
+            return;
+        }
+        has_na = compiled.declares_codespace(CodeContext.NATIVE);
     }
     if not has_na {
         return;

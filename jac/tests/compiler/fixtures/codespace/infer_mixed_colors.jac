@@ -21,3 +21,11 @@ def native_calc -> int {
 def:pub app -> JsxElement {
     return <div class={clsx(["x"])}>{shared_const()}</div>;
 }
+
+def styled_len -> int {
+    return len(clsx(["a", "b"]));
+}
+
+def render_mixed -> int {
+    return int(fast_mix(styled_len(), 1));
+}
