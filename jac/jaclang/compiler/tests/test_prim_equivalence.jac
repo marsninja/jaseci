@@ -200,6 +200,16 @@ test "generators yield" {
     );
 }
 
+test "chained comparisons with membership and identity" {
+    run_with_both(
+        "prim_chain_cmp.jac",
+        "chain_cmp_py",
+        "chain_cmp_cl",
+        "chain_cmp_na",
+        require=["na"]
+    );
+}
+
 test "zlib bundled" {
     run_with_both("prim_zlib.jac", "zlib_py", "zlib_cl", "zlib_na", require=["na"]);
 }

@@ -335,17 +335,6 @@ impl native_capability_violations(mod: uni.Module) -> list {
                 continue;
             }
 
-            if isinstance(nd, uni.CompareExpr) and len(nd.ops) > 1 {
-                _plain_ops = (Tok.EE, Tok.NE, Tok.LT, Tok.GT, Tok.LTE, Tok.GTE);
-                for _o in nd.ops {
-                    _oname = _o.name if isinstance(_o, uni.Token) else str(_o);
-                    if _oname not in _plain_ops {
-                        out.append((nd, "chained comparison operator", _oname, None));
-                        break;
-                    }
-                }
-            }
-
             if isinstance(nd, uni.FormattedValue) {
                 _conv = nd.conversion if nd.conversion is not None else -1;
                 if _conv not in (-1, 115) {

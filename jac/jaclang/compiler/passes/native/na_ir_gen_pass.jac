@@ -286,6 +286,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.CompareExpr, left: ir.Value
     ) -> (ir.Value | None);
 
+    def _codegen_compare_link(
+        op: str,
+        left: ir.Value,
+        right: ir.Value,
+        left_node: uni.UniNode,
+        right_node: uni.UniNode,
+        release_operands: bool = True
+    ) -> (ir.Value | None);
+
     def _codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None);
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _codegen_rc_intrinsic(func_name: str) -> bool;

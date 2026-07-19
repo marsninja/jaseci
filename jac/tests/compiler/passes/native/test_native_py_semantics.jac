@@ -63,6 +63,31 @@ test "chained comparison: three-link chain with mixed directions" {
     assert result == 1 , f"Expected 1 (1<2<3>2), got {result}";
 }
 
+# --- #7593 item 2: membership/identity links in chains ---
+test "chained comparison: membership links lower like single 'in'" {
+    (eng, _) = compile_native("py_chain_cmp_mixed.na.jac");
+    get_func(eng, "jac_entry", None)();
+    cases = get_func(eng, "chain_in_cases", ctypes.c_int64);
+    result = cases();
+    assert result == 10111 , f"Expected 10111, got {result}";
+}
+
+test "chained comparison: identity links lower like single 'is'" {
+    (eng, _) = compile_native("py_chain_cmp_mixed.na.jac");
+    get_func(eng, "jac_entry", None)();
+    cases = get_func(eng, "chain_is_cases", ctypes.c_int64);
+    result = cases();
+    assert result == 1001 , f"Expected 1001, got {result}";
+}
+
+test "chained comparison: membership middle operand evaluated once" {
+    (eng, _) = compile_native("py_chain_cmp_mixed.na.jac");
+    get_func(eng, "jac_entry", None)();
+    once = get_func(eng, "chain_middle_once", ctypes.c_int64);
+    result = once();
+    assert result == 11 , f"Expected 11 (true, one bump), got {result}";
+}
+
 # --- 2b: or/and yield the deciding operand value, not a truth bit ---
 test "bool ops: int or/and return the operand value" {
     (eng, _) = compile_native("py_bool_ops.na.jac");
