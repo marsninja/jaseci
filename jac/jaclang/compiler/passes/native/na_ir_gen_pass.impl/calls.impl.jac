@@ -40,7 +40,10 @@ impl NaIRGenPass._default_arg_fallback(t: ir.Type) -> ir.Value {
         }
         return ir.Constant(t, None);
     }
-    return ir.Constant(t, 0);
+    if isinstance(t, (ir.IntType, ir.DoubleType)) {
+        return ir.Constant(t, 0);
+    }
+    return ir.Constant(t, None);
 }
 
 impl NaIRGenPass._codegen_bound_args(
@@ -108,6 +111,29 @@ impl NaIRGenPass._codegen_bound_args(
         v = self._codegen_expr(positional[pix]);
         if v is not None {
             args.append(v);
+        }
+    }
+
+    _nc_name = nd.target.sym_name if isinstance(nd.target, uni.Name) else None;
+    _nc_entry = self.nested_captures.get(_nc_name) if _nc_name is not None else None;
+    if _nc_entry is not None and _nc_entry[0] is func {
+        for (_cname, _cmode) in _nc_entry[1] {
+            _c_slot = self.local_vars.get(_cname);
+            if _c_slot is None {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="function",
+                    name=f"{_nc_name} (captured '{_cname}' not in the calling frame)",
+                    help_text="A capturing nested function can only be called from the frame that defines its captures. Pass the value as an explicit parameter instead."
+                );
+                return args;
+            }
+            if _cmode == "ptr" {
+                args.append(_c_slot);
+            } else {
+                args.append(self.builder.load(_c_slot, name=f"cap.{_cname}"));
+            }
         }
     }
 

@@ -240,6 +240,21 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
 
 impl NaIRGenPass._codegen_name(nd: uni.Name) -> (ir.Value | None) {
     var_name = nd.value;
+    _has_caps = var_name in self.lambda_captures or var_name in self.nested_captures;
+    if _has_caps {
+        _np = nd.parent;
+        _is_call_target = isinstance(_np, uni.FuncCall) and _np.target is nd;
+        if not _is_call_target {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="expression",
+                name=f"'{var_name}' (capturing closure used as a value)",
+                help_text="A closure that captures enclosing locals is bound to its defining frame; it can only be called directly here. To pass or return callable behavior, use a non-capturing function, or an object holding the state."
+            );
+            return None;
+        }
+    }
     if var_name in self.local_vars {
         alloca = self.local_vars[var_name];
         return self.builder.load(alloca, name=var_name);

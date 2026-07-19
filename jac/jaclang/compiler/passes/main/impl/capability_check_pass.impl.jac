@@ -308,27 +308,6 @@ impl native_capability_violations(mod: uni.Module) -> list {
                 continue;
             }
 
-            if isinstance(nd, uni.Ability)
-            and nd.find_parent_of_type(uni.Ability) is not None {
-                import from jaclang.compiler.symbol_utils { ability_of_symbol }
-                _data_caps = [
-                    _cs
-                    for _cs in nd.get_enclosing_captures()
-                    if ability_of_symbol(_cs) is None
-                ];
-                if _data_caps {
-                    out.append(
-                        (
-                            nd,
-                            "statement",
-                            "Ability (nested function capturing enclosing locals)",
-                            None
-                        )
-                    );
-                    continue;
-                }
-            }
-
             if isinstance(nd, uni.BinaryExpr)
             and isinstance(nd.op, uni.Token)
             and nd.op.name == Tok.WALRUS_EQ

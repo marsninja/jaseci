@@ -301,7 +301,8 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
     } elif isinstance(func_ret_type, ir.PointerType) {
         self.builder.ret(ir.Constant(func_ret_type, None));
     } else {
-        self.builder.ret(ir.Constant(func_ret_type, 0));
+        _fb = 0 if isinstance(func_ret_type, (ir.IntType, ir.DoubleType)) else None;
+        self.builder.ret(ir.Constant(func_ret_type, _fb));
     }
 }
 

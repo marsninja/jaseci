@@ -293,7 +293,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
 
     has lambda_captures: dict[str, list[tuple]] = {},
-        _pending_lambda_captures: (list[tuple] | None) = None;
+        _pending_lambda_captures: (list[tuple] | None) = None,
+        nested_captures: dict[str, tuple] = {};
 
     def _codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None);
     def _get_or_declare_extern(

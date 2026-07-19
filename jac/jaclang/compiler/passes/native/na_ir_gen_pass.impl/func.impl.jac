@@ -449,14 +449,20 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
         for s in nd.get_enclosing_captures()
         if s.sym_name in self.local_vars
     ];
-    if free_vars {
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="statement",
-            name="Ability (nested function capturing enclosing locals)"
-        );
-        return;
+
+    rebound: set = set();
+    for _scope in ([nd] + nd.get_all_sub_nodes(typ=uni.UniScopeNode)) {
+        for _rn in _scope.implicit_rebinds {
+            rebound.add(_rn);
+        }
+    }
+    captures: list[tuple] = [];
+    for fv_name in free_vars {
+        cap_alloca = self.local_vars[fv_name];
+        cap_mode = "ptr" if fv_name in rebound else "val";
+        cap_type = cap_alloca.type if cap_mode == "ptr" else cap_alloca.type.pointee;
+        captures.append((fv_name, cap_mode, cap_type));
+        param_types.append(cap_type);
     }
 
     self._str_count += 1;
@@ -467,10 +473,18 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     for (i, arg) in enumerate(fn.args) {
         if i < len(param_names) {
             arg.name = param_names[i];
+        } else {
+            arg.name = f"cap.{captures[i - len(param_names)][0]}";
         }
     }
 
     self.func_symtab[name] = fn;
+    if captures {
+        self.nested_captures[name] = (
+            fn,
+            [(cname, cmode) for (cname, cmode, _ct) in captures]
+        );
+    }
 
     saved_builder = self._builder;
     saved_locals = self.local_vars;
@@ -483,10 +497,22 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self.param_vars = set();
     self.var_list_elem_struct = {};
     for (i, arg) in enumerate(fn.args) {
-        alloca = self._entry_alloca(arg.type, param_names[i]);
-        self.builder.store(arg, alloca);
-        self.local_vars[param_names[i]] = alloca;
-        self.param_vars.add(param_names[i]);
+        if i < len(param_names) {
+            alloca = self._entry_alloca(arg.type, param_names[i]);
+            self.builder.store(arg, alloca);
+            self.local_vars[param_names[i]] = alloca;
+            self.param_vars.add(param_names[i]);
+            continue;
+        }
+        (cap_name, cap_mode, _cap_type) = captures[i - len(param_names)];
+        if cap_mode == "ptr" {
+            self.local_vars[cap_name] = arg;
+        } else {
+            alloca = self._entry_alloca(arg.type, cap_name);
+            self.builder.store(arg, alloca);
+            self.local_vars[cap_name] = alloca;
+        }
+        self.param_vars.add(cap_name);
     }
     if body is not None {
         self._codegen_body(body);

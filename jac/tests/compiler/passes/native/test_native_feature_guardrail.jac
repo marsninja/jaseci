@@ -82,21 +82,11 @@ test "guardrail: structural match pattern is rejected" {
     )}";
 }
 
-# Non-capturing nested functions are supported (see test_native_gen_pass.jac).
-# A nested function that captures an enclosing-function local is still
-# rejected, since closure capture is not yet implemented.
-test "guardrail: nested function capturing an enclosing local is rejected" {
-    prog = compile_na_inline(
-        "nested_def_capture",
-        "def outer(y: int) -> int {\n"
-        "    def inner(x: int) -> int { return x * y; }\n"
-        "    return inner(5);\n"
-        "}\n"
-    );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for capturing nested Ability, got: {fmt_errors(
-        prog
-    )}";
-}
+# Nested functions capturing enclosing locals lower natively (read captures
+# bind by value at each call, rebound captures write through a frame-slot
+# pointer); behavioral coverage lives in test_native_closures.jac. Only the
+# escape shapes (a capturing closure used as a value) remain rejected, with
+# a structured E5092 from codegen.
 
 # NOTE (issue #6146, Phase 4c): the `visit` / `disengage` / `report` guardrails
 # were removed because these statements are now LOWERED to the portable kernel

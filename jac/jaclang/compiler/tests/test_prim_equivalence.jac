@@ -188,6 +188,12 @@ test "os.path bundled" {
     );
 }
 
+test "closures nested capture" {
+    run_with_both(
+        "prim_closures.jac", "closures_py", "closures_cl", "closures_na", require=["na"]
+    );
+}
+
 test "zlib bundled" {
     run_with_both("prim_zlib.jac", "zlib_py", "zlib_cl", "zlib_na", require=["na"]);
 }
