@@ -194,6 +194,12 @@ test "closures nested capture" {
     );
 }
 
+test "generators yield" {
+    run_with_both(
+        "prim_generators.jac", "gens_py", "gens_cl", "gens_na", require=["na"]
+    );
+}
+
 test "zlib bundled" {
     run_with_both("prim_zlib.jac", "zlib_py", "zlib_cl", "zlib_na", require=["na"]);
 }

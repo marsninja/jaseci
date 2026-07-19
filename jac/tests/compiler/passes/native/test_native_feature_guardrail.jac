@@ -128,11 +128,15 @@ test "guardrail: union trigger with mismatched field layout is rejected" {
 # ─────────────────────────────────────────────────────────────────────
 # Expression-level gaps
 # ─────────────────────────────────────────────────────────────────────
-test "guardrail: yield expression is rejected" {
+# Generators lower natively (state-machine resume over the JacIter ABI);
+# behavioral coverage lives in test_native_generators.jac. A yield in a
+# function that does not declare a generator-family return type is still a
+# structured error, never a silent drop.
+test "guardrail: yield without a generator return type is rejected" {
     prog = compile_na_inline(
         "yield_expr", "def gen() -> int {\n" "    yield 1;\n" "    return 0;\n" "}\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for YieldExpr, got: {fmt_errors(
+    assert has_error_code(prog, "E5092") , f"Expected E5092 for yield in a non-generator signature, got: {fmt_errors(
         prog
     )}";
 }

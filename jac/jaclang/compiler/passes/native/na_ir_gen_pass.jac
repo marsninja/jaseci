@@ -294,8 +294,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     has lambda_captures: dict[str, list[tuple]] = {},
         _pending_lambda_captures: (list[tuple] | None) = None,
-        nested_captures: dict[str, tuple] = {};
+        nested_captures: dict[str, tuple] = {},
+        generator_fns: dict[str, uni.Ability] = {},
+        _gen_ctx: (dict | None) = None;
 
+    def _ability_is_generator(nd: uni.Ability) -> bool;
+    def _codegen_yield(nd: uni.YieldExpr) -> (ir.Value | None);
+    def _adapter_callee_fn(fn_expr: uni.UniNode) -> (ir.Function | None);
+    def _generator_elem_type(nd: uni.Ability) -> (ir.Type | None);
+    def _codegen_generator(nd: uni.Ability, func: ir.Function) -> None;
+    def _emit_generator_drop_fn(name: str, slots: list[tuple]) -> ir.Function;
+    def _abi_sizeof(t: ir.Type) -> int;
     def _codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None);
     def _get_or_declare_extern(
         name: str, ret_type: ir.Type, arg_types: list[ir.Type], var_arg: bool = False

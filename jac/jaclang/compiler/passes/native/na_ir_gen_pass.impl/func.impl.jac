@@ -33,7 +33,13 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
         );
     }
 
-    ret_type = self._resolve_jac_type(sig.return_type);
+    if self._ability_is_generator(nd) {
+        self._ensure_iter_types();
+        self.generator_fns[name] = nd;
+        ret_type = self._jac_iter_type.as_pointer();
+    } else {
+        ret_type = self._resolve_jac_type(sig.return_type);
+    }
 
     fnty = ir.FunctionType(ret_type, param_types);
     func = ir.Function(self.llvm_module, fnty, name=name);
@@ -282,6 +288,11 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     }
 
     if name in self.clib_extern_names {
+        return;
+    }
+
+    if name in self.generator_fns and self.generator_fns[name] is nd {
+        self._codegen_generator(nd, func);
         return;
     }
 
@@ -536,6 +547,260 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_var_list_struct;
     nd.gen.llvm_ir = fn;
+}
+
+impl NaIRGenPass._ability_is_generator(nd: uni.Ability) -> bool {
+    for y in nd.get_all_sub_nodes(typ=uni.YieldExpr) {
+        if y.find_parent_of_type(uni.Ability) is nd {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl NaIRGenPass._generator_elem_type(nd: uni.Ability) -> (ir.Type | None) {
+    sig = nd.signature;
+    if not isinstance(sig, uni.FuncSignature) or sig.return_type is None {
+        return None;
+    }
+    rt = sig.return_type;
+    if not isinstance(rt, uni.Expr) or rt.type is None {
+        return None;
+    }
+    mangled = rt.type.mangle();
+    if mangled.startswith("type[") {
+        mangled = mangled[5:];
+    }
+    for prefix in ("Iterator[", "Generator[", "Iterable[") {
+        if mangled.startswith(prefix) {
+            targs = rt.type.private.type_args or [];
+            if targs {
+                return self._lower_type(targs[0]);
+            }
+        }
+    }
+    return None;
+}
+
+impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None {
+    name = nd.name_ref.sym_name if nd.name_ref else "unnamed";
+    i1 = ir.IntType(1);
+    i8 = ir.IntType(8);
+    i8p = i8.as_pointer();
+    i64 = ir.IntType(64);
+    i64p = i64.as_pointer();
+    self._ensure_iter_types();
+
+    elem_type = self._generator_elem_type(nd);
+    if elem_type is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="function",
+            name=name,
+            help_text="A native generator must declare a generator-family return type with a lowerable element, e.g. `-> Iterator[int]`."
+        );
+        return;
+    }
+    for y in nd.get_all_sub_nodes(typ=uni.YieldExpr) {
+        if y.find_parent_of_type(uni.Ability) is nd
+        and y.find_parent_of_type(uni.TryStmt) is not None {
+            self.emit(
+                E5092,
+                node_override=y,
+                kind="expression",
+                name="yield inside try",
+                help_text="Suspending inside a try block is not supported on native yet; move the yield outside the try or the try into the consumer."
+            );
+            return;
+        }
+    }
+
+    resume_fnty = ir.FunctionType(i1, [i8p, i8p]);
+    resume_fn = ir.Function(
+        self.llvm_module, resume_fnty, name=f"__jac_gen_{name}_next"
+    );
+    resume_fn.linkage = "private";
+    resume_fn.args[0].name = "frame";
+    resume_fn.args[1].name = "out";
+
+    saved_builder = self._builder;
+    saved_locals = self.local_vars if self?.local_vars else {};
+    saved_params = self.param_vars;
+    saved_nogc = self.nogc_stack_vars;
+    saved_region = self.region_handle_vars;
+
+    entry_bb = resume_fn.append_basic_block("entry");
+    self._builder = ir.IRBuilder(entry_bb);
+    self.local_vars = {};
+    self.param_vars = set();
+    self.nogc_stack_vars = set();
+    self.region_handle_vars = set();
+
+    gc: dict = {
+        "resume_fn": resume_fn,
+        "frame_i8": resume_fn.args[0],
+        "out_i8": resume_fn.args[1],
+        "elem_type": elem_type,
+        "cursor": 8,
+        "slots": [],
+        "resume_blocks": [],
+        "func_name": name
+    };
+    self._gen_ctx = gc;
+
+    param_slots: list[tuple] = [];
+    sig = nd.signature;
+    sig_params = sig.get_parameters() if sig is not None else [];
+    for (i, p) in enumerate(sig_params) {
+        pname = p.name.value if p.name else f"arg{i}";
+        ptype = func.args[i].type;
+        slot = self._entry_alloca(ptype, pname);
+        (_sn, _soff, _st) = gc["slots"][-1];
+        param_slots.append((pname, _soff, ptype));
+        self.local_vars[pname] = slot;
+        self.param_vars.add(pname);
+    }
+
+    dispatch_bb = resume_fn.append_basic_block("dispatch");
+    body_bb = resume_fn.append_basic_block("body");
+    self.builder.position_at_end(body_bb);
+
+    body = ModuleCodegenPass.unwrap_body(nd);
+    if body is not None {
+        _symtab_before = dict(self.func_symtab);
+        self._codegen_body(body);
+        self.func_symtab = _symtab_before;
+    }
+
+    if not self.builder.block.is_terminated {
+        _gd_loc = f"{self.ir_in.loc.mod_path}:{nd.loc.last_line if nd.loc else 0}";
+        self._emit_scope_cleanup(skip_var=None, loc=_gd_loc);
+        _ip_done = self.builder.bitcast(gc["frame_i8"], i64p, name="gen.ip.done");
+        self.builder.store(ir.Constant(i64, -1), _ip_done);
+        self.builder.ret(ir.Constant(i1, 0));
+    }
+    self.builder.position_at_end(entry_bb);
+    self.builder.branch(dispatch_bb);
+
+    self.builder.position_at_end(dispatch_bb);
+    ip_slot = self.builder.bitcast(gc["frame_i8"], i64p, name="gen.ip.slot");
+    ip = self.builder.load(ip_slot, name="gen.ip");
+    default_bb = resume_fn.append_basic_block("gen.exhausted");
+    dispatch_targets: list[tuple] = [(0, body_bb)];
+    for (k, rbb) in enumerate(gc["resume_blocks"]) {
+        dispatch_targets.append((k + 1, rbb));
+    }
+    for (di, (dval, dtgt)) in enumerate(dispatch_targets) {
+        is_here = self.builder.icmp_signed(
+            "==", ip, ir.Constant(i64, dval), name=f"gen.ip.is{dval}"
+        );
+        if di + 1 < len(dispatch_targets) {
+            chk_bb = resume_fn.append_basic_block(f"gen.chk{dval + 1}");
+            self.builder.cbranch(is_here, dtgt, chk_bb);
+            self.builder.position_at_end(chk_bb);
+        } else {
+            self.builder.cbranch(is_here, dtgt, default_bb);
+        }
+    }
+    self.builder.position_at_end(default_bb);
+    self.builder.ret(ir.Constant(i1, 0));
+
+    for bb in resume_fn.basic_blocks {
+        if not bb.is_terminated {
+            tb = ir.IRBuilder(bb);
+            tb.ret(ir.Constant(i1, 0));
+        }
+    }
+
+    frame_size = (gc["cursor"] + 7) // 8 * 8;
+    frame_slots = list(gc["slots"]);
+    self._gen_ctx = None;
+    self._builder = saved_builder;
+    self.local_vars = saved_locals;
+    self.param_vars = saved_params;
+    self.nogc_stack_vars = saved_nogc;
+    self.region_handle_vars = saved_region;
+
+    drop_fn = self._emit_generator_drop_fn(name, frame_slots);
+
+    block = func.append_basic_block(name="entry");
+    self._builder = ir.IRBuilder(block);
+    self.local_vars = {};
+    self.param_vars = set();
+    self.nogc_stack_vars = set();
+    self.region_handle_vars = set();
+
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    raw = self.builder.call(
+        self.rc_alloc_fn, [ir.Constant(i64, frame_size)], name="gen.frame"
+    );
+    memset_fn = self._get_or_declare_extern("memset", i8p, [i8p, ir.IntType(32), i64]);
+    self.builder.call(
+        memset_fn, [raw, ir.Constant(ir.IntType(32), 0), ir.Constant(i64, frame_size)]
+    );
+    dtor_slot = self.builder.gep(raw, [ir.Constant(i64, -8)], name="gen.dtor.slot");
+    dtor_slot_p = self.builder.bitcast(dtor_slot, i64p, name="gen.dtor.p");
+    self.builder.store(
+        self.builder.ptrtoint(drop_fn, i64, name="gen.dtor.i64"), dtor_slot_p
+    );
+
+    for (pi, (pname, poff, ptype)) in enumerate(param_slots) {
+        arg = func.args[pi];
+        p_raw = self.builder.gep(raw, [ir.Constant(i64, poff)], name=f"gen.p.{pname}");
+        p_slot = self.builder.bitcast(
+            p_raw, ptype.as_pointer(), name=f"gen.ps.{pname}"
+        );
+        self.builder.store(arg, p_slot);
+        if isinstance(ptype, ir.PointerType) {
+            self._emit_rc_retain(arg, op="gen_param", loc=name);
+        }
+    }
+
+    ji = self._make_jac_iter(resume_fn, raw);
+    self.builder.ret(ji);
+
+    self._builder = None;
+    self.local_vars = {};
+    nd.gen.llvm_ir = func;
+    nd.code_context = CodeContext.NATIVE;
+    self.has_native_code = True;
+}
+
+impl NaIRGenPass._emit_generator_drop_fn(name: str, slots: list[tuple]) -> ir.Function {
+    i8 = ir.IntType(8);
+    i8p = i8.as_pointer();
+    i64 = ir.IntType(64);
+    fnty = ir.FunctionType(ir.VoidType(), [i8p]);
+    fn = ir.Function(self.llvm_module, fnty, name=f"__jac_gen_{name}_drop");
+    fn.linkage = "private";
+    fn.args[0].name = "frame";
+
+    saved_builder = self._builder;
+    bb = fn.append_basic_block("entry");
+    self._builder = ir.IRBuilder(bb);
+    for (sname, soff, stype) in slots {
+        if not isinstance(stype, ir.PointerType) {
+            continue;
+        }
+        if isinstance(stype.pointee, ir.FunctionType) {
+            continue;
+        }
+        s_raw = self.builder.gep(
+            fn.args[0], [ir.Constant(i64, soff)], name=f"drop.{sname}"
+        );
+        s_slot = self.builder.bitcast(
+            s_raw, stype.as_pointer(), name=f"drop.s.{sname}"
+        );
+        val = self.builder.load(s_slot, name=f"drop.v.{sname}");
+        self._emit_rc_release_typed(val, op="gen_drop", loc=name);
+        self.builder.store(ir.Constant(stype, None), s_slot);
+    }
+    self.builder.ret_void();
+    self._builder = saved_builder;
+    return fn;
 }
 
 impl NaIRGenPass._define_function(name: str, fnty: ir.FunctionType) -> ir.Function {
