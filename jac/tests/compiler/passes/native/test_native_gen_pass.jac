@@ -1090,6 +1090,39 @@ test "cross-module chained method calls" {
     assert f() == 12;
 }
 
+# Regression test for: a TRANSITIVE from-import chain (a -> b -> c) failed
+# native lowering with E5092 ("type 'int'") under inferred-native, while a
+# flat diamond (a imports b and c directly) lowered fine.
+test "cross-module transitive chain executes via native inference" {
+    import from jaclang.jac0core.codeinfo {
+        set_effective_default_codespace,
+        get_effective_default_codespace_override
+    }
+    _prev = get_effective_default_codespace_override();
+    prog = JacProgram();
+    try {
+        ir = prog.compile(
+            file_path=os.path.join(
+                TESTS_DIR,
+                "compiler",
+                "fixtures",
+                "codespace",
+                "nadefault_transchain_a.jac"
+            ),
+            options=CompileOptions(default_codespace="native")
+        );
+    } finally {
+        set_effective_default_codespace(_prev);
+    }
+    assert not prog.errors_had , (
+        f"errors: {[str(e) for e in prog.errors_had]}"
+    );
+    eng = ir.gen.native_engine;
+    assert eng is not None , "transitive chain did not produce a native engine";
+    f = get_func(eng, "fa", ctypes.c_int64);
+    assert f() == 5;
+}
+
 # --- TestNativeBuiltins ---
 test "builtins char at" {
     (eng, _) = compile_native("builtins.na.jac");

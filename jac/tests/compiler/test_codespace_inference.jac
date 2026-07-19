@@ -293,6 +293,14 @@ test "capped chain still infers native under the default cap" {
     assert mod.gen.native_engine is not None;
 }
 
+test "transitive import chain infers native under native default" {
+    mod = compile_with_default("nadefault_transchain_a.jac", "native", cgen=True);
+    assert mod.decided_codespace == 'native' , (
+        "a -> b -> c transitive pure chain must lower native"
+    );
+    assert mod.gen.native_engine is not None;
+}
+
 test "census records demotion with first error code" {
     import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
     na_census_begin();
