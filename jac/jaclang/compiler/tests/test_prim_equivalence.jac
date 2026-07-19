@@ -200,6 +200,12 @@ test "generators yield" {
     );
 }
 
+test "container repr" {
+    run_with_both(
+        "prim_repr.jac", "repr_py", "repr_cl", "repr_na", require=["na"]
+    );
+}
+
 test "chained comparisons with membership and identity" {
     run_with_both(
         "prim_chain_cmp.jac",

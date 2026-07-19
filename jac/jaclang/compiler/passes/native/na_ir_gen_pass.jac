@@ -176,6 +176,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _bytes_struct_type: (object | None) = None,
         _bytes_repr_function: (object | None) = None,
         _float_repr_function: (object | None) = None,
+        _repr_fns: dict[str, object] = {},
         _jac_iter_type: (object | None) = None,
         _iter_structs_registered: bool = False,
         _iter_next_fns: dict[str, ir.Function] = {},
@@ -502,6 +503,37 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_obj_str(val: ir.Value) -> (ir.Value | None);
     def _emit_default_obj_repr(val: ir.Value, type_name: str) -> ir.Value;
+    def _emit_container_repr(
+        val: ir.Value, type_key: (str | None)
+    ) -> (ir.Value | None);
+
+    def _repr_fn_for_type_key(type_key: str) -> (ir.Function | None);
+    def _repr_str_fn -> ir.Function;
+    def _repr_leaf_fn(kind: str) -> (ir.Function | None);
+    def _repr_obj_fn(arch_name: str) -> ir.Function;
+    def _repr_list_fn(type_key: str) -> (ir.Function | None);
+    def _repr_dict_fn(type_key: str) -> (ir.Function | None);
+    def _repr_set_fn(type_key: str) -> (ir.Function | None);
+    def _repr_tuple_fn(type_key: str) -> (ir.Function | None);
+    def _repr_seq_fn(
+        fn_name: str,
+        cont_ptr_ty: ir.Type,
+        elem_fn: ir.Function,
+        open_text: str,
+        close_text: str,
+        empty_text: (str | None)
+    ) -> ir.Function;
+
+    def _repr_elem_spec_of_key(elem_key: str) -> (tuple | None);
+    def _repr_field_llvm_of_key(field_key: str) -> (ir.Type | None);
+    def _split_type_args(s: str, sep: str = ",") -> list[str];
+    def _repr_const_str(text: str) -> ir.Value;
+    def _repr_acc_concat(acc_slot: ir.Value, piece: ir.Value, own_piece: bool) -> None;
+    def _repr_maybe_sep(
+        fn: ir.Function, i_val: ir.Value, acc_slot: ir.Value, sep_g: ir.Value
+    ) -> None;
+
+    def _repr_call_elem_fn(elem_fn: ir.Function, elem: ir.Value) -> ir.Value;
     def _codegen_field_access(
         obj_val: ir.Value, field_name: str, type_name: str
     ) -> (ir.Value | None);
@@ -876,7 +908,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         func_name: str,
         args: list[ir.Value],
         kwargs: (dict | None) = None,
-        kw_node: (uni.UniNode | None) = None
+        kw_node: (uni.UniNode | None) = None,
+        type_key: str = ""
     ) -> (ir.Value | None);
 
     def _split_call_kwargs(nd: uni.FuncCall) -> dict;

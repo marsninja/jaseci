@@ -62,6 +62,9 @@ impl NaIRGenPass._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
             args.append(self._emit_float_repr(val));
         } elif isinstance(val.type, ir.PointerType) {
             obj_s = self._emit_obj_str(val);
+            if obj_s is None {
+                obj_s = self._emit_container_repr(val, self._type_key_of(param));
+            }
             if obj_s is not None {
                 if self._is_owned(val) {
                     self._emit_rc_release_typed(val, op="print_obj_src", loc="");
@@ -82,6 +85,19 @@ impl NaIRGenPass._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
             }
             fmt_parts.append("%s");
             args.append(val);
+        } elif isinstance(val.type, ir.LiteralStructType) {
+            _tup_s = self._emit_container_repr(val, self._type_key_of(param));
+            if _tup_s is None {
+                self.emit(
+                    E5092,
+                    node_override=param,
+                    kind="print argument",
+                    name=type(param).__name__
+                );
+                return None;
+            }
+            fmt_parts.append("%s");
+            args.append(_tup_s);
         }
     }
 
@@ -400,6 +416,11 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 } elif want == "str" {
                     if val.type != ir.IntType(8).as_pointer() {
                         obj_s = self._emit_obj_str(val);
+                        if obj_s is None {
+                            obj_s = self._emit_container_repr(
+                                val, self._type_key_of(part.format_part)
+                            );
+                        }
                         if obj_s is not None {
                             if self._is_owned(val) {
                                 self._emit_rc_release_typed(
@@ -408,6 +429,14 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                             }
                             val = obj_s;
                             obj_strs.append(obj_s);
+                        } else {
+                            self.emit(
+                                E5092,
+                                node_override=part,
+                                kind="f-string value",
+                                name=type(part.format_part).__name__
+                            );
+                            return None;
                         }
                     }
                     fmt_parts.append(directive);
@@ -430,15 +459,44 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 args.append(self._emit_float_repr(val));
             } elif isinstance(val.type, ir.PointerType) {
                 obj_s = self._emit_obj_str(val);
+                if obj_s is None {
+                    obj_s = self._emit_container_repr(
+                        val, self._type_key_of(part.format_part)
+                    );
+                }
                 if obj_s is not None {
                     if self._is_owned(val) {
                         self._emit_rc_release_typed(val, op="fstr_obj_src", loc="");
                     }
                     val = obj_s;
                     obj_strs.append(obj_s);
+                } elif val.type != ir.IntType(8).as_pointer() {
+                    self.emit(
+                        E5092,
+                        node_override=part,
+                        kind="f-string value",
+                        name=type(part.format_part).__name__
+                    );
+                    return None;
                 }
                 fmt_parts.append("%s");
                 args.append(val);
+            } elif isinstance(val.type, ir.LiteralStructType) {
+                _tup_s = self._emit_container_repr(
+                    val, self._type_key_of(part.format_part)
+                );
+                if _tup_s is None {
+                    self.emit(
+                        E5092,
+                        node_override=part,
+                        kind="f-string value",
+                        name=type(part.format_part).__name__
+                    );
+                    return None;
+                }
+                obj_strs.append(_tup_s);
+                fmt_parts.append("%s");
+                args.append(_tup_s);
             }
         }
     }

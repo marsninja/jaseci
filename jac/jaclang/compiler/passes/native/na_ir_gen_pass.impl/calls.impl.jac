@@ -625,7 +625,8 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                         func_name,
                         [arg_val],
                         kwargs=self._split_call_kwargs(nd),
-                        kw_node=nd
+                        kw_node=nd,
+                        type_key=(self._type_key_of(params_l[0]) or "")
                     );
 
                     if isinstance(arg_val.type, ir.PointerType)

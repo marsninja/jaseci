@@ -5674,6 +5674,10 @@ impl NativeBuiltinEmitter.emit_str(
             if obj_s is not None {
                 return obj_s;
             }
+            cont_s = p._emit_container_repr(arg_val, ctx.type_key or None);
+            if cont_s is not None {
+                return cont_s;
+            }
             return b.bitcast(arg_val, i8p, name="str.identity");
         }
 
@@ -5686,6 +5690,13 @@ impl NativeBuiltinEmitter.emit_str(
 
     if isinstance(arg_val.type, ir.DoubleType) {
         return p._emit_float_repr(arg_val);
+    }
+
+    if isinstance(arg_val.type, ir.LiteralStructType) {
+        cont_s = p._emit_container_repr(arg_val, ctx.type_key or None);
+        if cont_s is not None {
+            return cont_s;
+        }
     }
     rc_alloc_fn = p.rc_alloc_fn;
     buf_ptr = b.call(rc_alloc_fn, [ir.Constant(ir.IntType(64), 32)], name="str.buf");

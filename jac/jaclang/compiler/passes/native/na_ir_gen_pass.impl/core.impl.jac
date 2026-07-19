@@ -991,7 +991,8 @@ impl NaIRGenPass._dispatch_builtin(
     func_name: str,
     args: list[ir.Value],
     kwargs: (dict | None) = None,
-    kw_node: (uni.UniNode | None) = None
+    kw_node: (uni.UniNode | None) = None,
+    type_key: str = ""
 ) -> (ir.Value | None) {
     self._ensure_emitters();
     _emit_fn = getattr(self._native_builtin_emitter, "emit_" + func_name, None);
@@ -1008,7 +1009,7 @@ impl NaIRGenPass._dispatch_builtin(
         return None;
     }
     _ctx = self._native_emit_ctx_class(
-        pass_ref=self, type_key="", call_kwargs=(kwargs or {})
+        pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
     );
     return _emit_fn(_ctx, args);
 }
