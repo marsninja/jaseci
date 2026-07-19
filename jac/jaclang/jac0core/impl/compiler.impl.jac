@@ -782,12 +782,7 @@ impl JacCompiler.compile(
     and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
     is_client_mod = mod_targ is not None
     and mod_targ.declares_codespace(_CodeCtx.CLIENT, path_hint=file_path);
-    is_native_mod = is_explicit_native
-    or (
-        actual_program._auto_promote_native
-        and mod_targ?.gen
-        and mod_targ.gen.native_compat
-    );
+    is_native_mod = is_explicit_native;
 
     run_inference = options.type_check
     or is_native_mod

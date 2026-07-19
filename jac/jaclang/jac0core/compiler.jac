@@ -94,9 +94,6 @@ def get_ir_gen_sched(
     try {
         import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
         import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
-        import from jaclang.compiler.passes.main.capability_check_pass {
-            CapabilityCheckPass
-        }
         import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
             JsxIntrinsicGuardPass
         }
@@ -117,7 +114,6 @@ def get_ir_gen_sched(
             import from jaclang.compiler.passes.main.mtir_gen_pass { MTIRGenPass }
             passes.append(MTIRGenPass);
         }
-        passes.append(CapabilityCheckPass);
         passes.append(JsxIntrinsicGuardPass);
         passes.append(CodespacePullPass);
         return passes;
