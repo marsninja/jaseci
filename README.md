@@ -75,6 +75,14 @@ Open the repository of any well-built product and count what a maintainer must r
 
 The deeper cost isn't the reading; it's that **no compiler can see across any of those seams**. Rename one field and TypeScript checks the frontend, Python checks the backend, and *nothing* checks the wire format, the ORM mapping, the OpenAPI document, or the prompt template between them. The whole-program type checker of the modern stack is `grep`. That is where bugs pool, and it's why teams staff a specialist per boundary: the org chart is a picture of the glue.
 
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/docs/assets/readme/why-jac-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/docs/assets/readme/why-jac-light.svg">
+    <img alt="In a best-practice stack, one value crosses six artifacts in five notations, and no checker spans the seams between them. In Jac, one declaration serves server, browser, and native code inside one compiler's jurisdiction, memory discipline is a dial, and the physics stays visible." src="docs/docs/assets/readme/why-jac-light.svg" width="880">
+  </picture>
+</div>
+
 <details>
 <summary><strong>The four-copy record (what one field costs in a conventional stack)</strong></summary>
 
@@ -113,7 +121,7 @@ Four copies, three type systems, and one landmine: the fourth copy renames `disp
 
 </details>
 
-Jac's bet is that these boundaries are habits, not physics. One language spans frontend, backend, and native code -- and inherits each one's ecosystem (PyPI, npm, the C world) through a plain `import` -- so one compiler sees both sides of every call: rename a field and every stale use -- server, client, or native -- is a **compile error**, not a production incident. And the boundaries that *are* physics stay visible on purpose: a cross-tier call is `async` because the network is real, write conflicts surface as typed errors, and sharing data across users takes an explicit `grant`. Jac deletes the paperwork, not the physics.
+Jac's bet is that these boundaries are habits, not physics. One language spans frontend, backend, and native code -- and inherits each one's ecosystem (PyPI, npm, the C world) through a plain `import` -- so one compiler sees both sides of every call: rename a field and every stale use -- server, client, or native -- is a **compile error**, not a production incident. The continuity runs all the way down to memory: the oldest seam in software is the one that splits the garbage-collected languages from the ownership-checked ones, and in Jac it's a dial instead -- GC by default, with `own`, `&`, and `&mut` [adopted binding by binding](https://docs.jaseci.org/reference/language/ownership-borrowing/), statically checked, and unannotated code completely untouched. And the boundaries that *are* physics stay visible on purpose: a cross-tier call is `async` because the network is real, write conflicts surface as typed errors, and sharing data across users takes an explicit `grant`. Jac deletes the paperwork, not the physics.
 
 We call a language with this property **synechic** (from the Greek *synecheia*, continuity): one continuous, checked medium across ecosystems, tiers, and toolchains. Building the first production synechic language is the whole point of Jac. The full argument, side by side with a conventional stack: [Jac vs a Traditional Stack](https://docs.jaseci.org/quick-guide/jac-vs-traditional-stack/) and [The Ideas Behind Jac](https://docs.jaseci.org/quick-guide/ideas-behind-jac/).
 

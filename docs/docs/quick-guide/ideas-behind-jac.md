@@ -31,7 +31,10 @@ cost. Glue is code whose only job is to carry meaning across such a boundary:
 the ORM model that restates the SQL schema, the Pydantic schema that restates
 the ORM model, the TypeScript interface that restates the Pydantic schema, the
 route table that names functions a second time in URL vocabulary, the prompt
-template that restates your types in English.
+template that restates your types in English -- and, oldest of all, the
+binding layer that lets the managed language call the native core it secretly
+depends on, where a stale signature fails not as a type error but as a
+segfault.
 
 ```mermaid
 graph LR
@@ -106,6 +109,16 @@ Concretely, being synechic is why:
   representation in between. Rename a field and every stale use in every tier
   is a compile error. In the conventional stack, that same rename is a textual
   search whose misses ship.
+- **Memory discipline is a dial, not a language choice.** The deepest
+  boundary in the census is drawn where memory management changes: it is why
+  "the Python kind" and "the Rust kind" of language are different languages,
+  and why every managed app with a native core carries binding glue between
+  the two. Jac renders that divide as a gradient inside one checked medium:
+  garbage-collected by default, with ownership and borrowing (`own`, `&`,
+  `&mut`) adopted binding by binding, verified statically, required on the
+  native pathway, and leaving unannotated code completely unaffected --
+  every step reversible. See
+  [Ownership & Borrowing](../reference/language/ownership-borrowing.md).
 - **The toolchain is inside the language.** Version skew is a discontinuity in
   *time* -- the same marshaling failure, with the filesystem as the wire
   format -- so the `jac` binary internalizes the interpreter, compilers,
@@ -258,6 +271,7 @@ defined here once for reference:
 | **Topokinetic** | The mobile locus of computation over a topology of data is a first-class semantic construct. Object-Spatial Programming is the paradigm that realizes it. |
 | **Meaning types** | Semantic annotations (`sem`, plus names and types) from which prompts are synthesized automatically, making LLM delegation a typed language feature rather than string engineering. |
 | **Scale invariance** | Program semantics are invariant under deployment-scale change: one user to N, one machine to M, transient to persistent -- same program text. |
+| **Gradual ownership** | Memory discipline as a continuum within one language: collector-managed by default, ownership and borrowing (`own`, `&`, `&mut`) adopted per binding and verified statically, reversible at every step. |
 | **Lawful boundary** | A boundary that is physics (latency, partial failure, cost) and is therefore surfaced as typed semantics rather than dissolved. |
 | **Jurisdiction** | The reach of a verifier -- the set of program points a compiler or checker can actually examine. |
 
