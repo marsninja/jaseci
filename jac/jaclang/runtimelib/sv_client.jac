@@ -4,10 +4,6 @@ glob _registry: dict[str, str] = {},
      _test_clients: dict[str, any] = {},
      _consumer_providers: dict[str, list[str]] = {};
 
-"""Argv (after the launcher) for running a module as a headless sibling
-service. Every spawn site must build its command through here: the flags are
-a contract with the CLI's argparse layer, and each site validates against the
-real parser in tests/runtimelib/test_service_spawn_argv.jac."""
 def headless_start_args(entry_file: str, port: int) -> list[str] {
     return ["start", entry_file, "--port", str(port), "--no-client"];
 }

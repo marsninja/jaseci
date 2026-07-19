@@ -20,7 +20,7 @@ import from jaclang.runtimelib { sv_client }
 
 
 """Assert the parser the `jac` entrypoint builds accepts `argv` headless."""
-def _parse_with_real_cli(argv: list) -> None {
+def _parse_with_real_cli(argv: list) {
     parser = get_registry().finalize();
     try {
         ns = parser.parse_args(argv);

@@ -658,9 +658,6 @@ class JacScalePlugin {
         }
     }
 
-    """Whether the httpx-backed sv transport can run here. When it cannot,
-    the core runtime must keep the call on its stdlib transport - silently
-    returning None from the calls below is never an option."""
     static def sv_transport_available -> bool {
         try {
             import httpx;
