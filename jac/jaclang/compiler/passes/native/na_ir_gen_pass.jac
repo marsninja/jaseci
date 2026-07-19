@@ -636,6 +636,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _emit_sys_argv -> (ir.Value | None);
+    def _emit_sys_stream(stream: str) -> (ir.Value | None);
     def _emit_sys_exit(args: list[ir.Value]) -> (ir.Value | None);
     def _emit_math_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_math_const(name: str) -> (ir.Value | None);

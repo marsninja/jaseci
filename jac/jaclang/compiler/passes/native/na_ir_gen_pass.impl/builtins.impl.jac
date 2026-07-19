@@ -971,6 +971,74 @@ impl NaIRGenPass._emit_sys_argv -> (ir.Value | None) {
     return new_list;
 }
 
+impl NaIRGenPass._emit_sys_stream(stream: str) -> (ir.Value | None) {
+    i1 = ir.IntType(1);
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    i8p = ir.IntType(8).as_pointer();
+    file_st = self._get_file_struct_type();
+    self._emit_file_helpers();
+
+    import platform as _plat;
+    libc_name = stream;
+    if _plat.system() == "Darwin" {
+        libc_name = "__stdoutp" if stream == "stdout" else "__stderrp";
+    }
+    if libc_name not in self.extern_funcs {
+        libc_gv = ir.GlobalVariable(self.llvm_module, i8p, name=libc_name);
+        libc_gv.linkage = "external";
+        self.extern_funcs[libc_name] = libc_gv;
+    }
+    libc_gv = self.extern_funcs[libc_name];
+
+    sing_key = f"__jac_sys_{stream}";
+    if sing_key not in self.extern_funcs {
+        hdr_ty = ir.LiteralStructType([i64, i64, file_st]);
+        sing = ir.GlobalVariable(self.llvm_module, hdr_ty, name=f".sys.{stream}");
+        sing.linkage = "private";
+        sing.initializer = ir.Constant(
+            hdr_ty,
+            [
+                ir.Constant(i64, RC_SENTINEL),
+                ir.Constant(i64, 0),
+                ir.Constant(
+                    file_st,
+                    [
+                        ir.Constant(i8p, None),
+                        ir.Constant(i8p, None),
+                        ir.Constant(i8p, None),
+                        ir.Constant(i1, 0)
+                    ]
+                )
+            ]
+        );
+        self.extern_funcs[sing_key] = sing;
+    }
+    sing = self.extern_funcs[sing_key];
+
+    z32 = ir.Constant(i32, 0);
+    file_ptr = self.builder.gep(
+        sing, [z32, ir.Constant(i32, 2)], name=f"sys.{stream}.obj"
+    );
+    handle = self.builder.load(libc_gv, name=f"sys.{stream}.handle");
+    self.builder.store(
+        handle, self.builder.gep(file_ptr, [z32, z32], name=f"sys.{stream}.hp")
+    );
+    self.builder.store(
+        self._make_global_string(f"<{stream}>"),
+        self.builder.gep(file_ptr, [z32, ir.Constant(i32, 1)], name=f"sys.{stream}.pp")
+    );
+    self.builder.store(
+        self._make_global_string("w"),
+        self.builder.gep(file_ptr, [z32, ir.Constant(i32, 2)], name=f"sys.{stream}.mp")
+    );
+    self.builder.store(
+        ir.Constant(i1, 0),
+        self.builder.gep(file_ptr, [z32, ir.Constant(i32, 3)], name=f"sys.{stream}.cp")
+    );
+    return file_ptr;
+}
+
 impl NaIRGenPass._emit_sys_exit(args: list[ir.Value]) -> (ir.Value | None) {
     i32 = ir.IntType(32);
     exit_fn = self._get_or_declare_extern("exit", ir.VoidType(), [i32]);

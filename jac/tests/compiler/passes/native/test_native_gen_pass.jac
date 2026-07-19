@@ -3241,6 +3241,72 @@ test "sys argv via nacompile" {
     }
 }
 
+test "native sys stream write returns count and hits the real fds" {
+    (eng, _) = compile_native("sys_streams.na.jac");
+    wout = get_func(eng, "write_out", ctypes.c_int64);
+    (r, w) = os.pipe();
+    saved = os.dup(1);
+    os.dup2(w, 1);
+    os.close(w);
+    try {
+        n = wout();
+    } finally {
+        os.dup2(saved, 1);
+        os.close(saved);
+    }
+    got = os.read(r, 64);
+    os.close(r);
+    assert n == 10 , f"write must return the byte count, got {n}";
+    assert got == b"out-bytes\n" , f"fd1 bytes wrong: {got!r}";
+    werr = get_func(eng, "write_err", ctypes.c_int64);
+    (r2, w2) = os.pipe();
+    saved2 = os.dup(2);
+    os.dup2(w2, 2);
+    os.close(w2);
+    try {
+        n2 = werr();
+    } finally {
+        os.dup2(saved2, 2);
+        os.close(saved2);
+    }
+    got2 = os.read(r2, 64);
+    os.close(r2);
+    assert n2 == 6 , f"stderr write count wrong, got {n2}";
+    assert got2 == b"err-7\n" , f"fd2 bytes wrong: {got2!r}";
+}
+
+test "sys stdout/stderr streams via nacompile" {
+    import tempfile;
+    fixture = str(os.path.join(FIXTURES, "sys_streams_bin.jac"));
+    with tempfile.TemporaryDirectory() as tmpdir {
+        out_bin = os.path.join(tmpdir, "sys_streams_bin");
+        comp = subprocess.run(
+            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            capture_output=True,
+            text=True,
+            timeout=120
+        );
+        assert comp.returncode == 0 , (
+            f"nacompile failed: exit={comp.returncode}\n"
+            f"stderr: {comp.stderr[-500:] if comp.stderr else '(empty)'}"
+        );
+        result = subprocess.run(
+            [out_bin], capture_output=True, text=True, timeout=10
+        );
+        assert result.returncode == 0 , (
+            f"Native binary crashed: exit={result.returncode}\n"
+            f"stderr: {result.stderr[-500:] if result.stderr else '(empty)'}"
+        );
+        assert result.stdout == "A:bc\nn 2\n" , (
+            f"stream writes must share the stdio buffer with print, "
+            f"got stdout: {result.stdout!r}"
+        );
+        assert result.stderr == "E:err\n" , (
+            f"stderr bytes must stay on fd 2, got: {result.stderr!r}"
+        );
+    }
+}
+
 test "native osp kernel links transitively through an imported module (issue #6669)" {
     # A thin entry that uses no OSP itself but imports a module whose `run_it`
     # does the `spawn`. The kernel's glob-init is referenced only transitively,

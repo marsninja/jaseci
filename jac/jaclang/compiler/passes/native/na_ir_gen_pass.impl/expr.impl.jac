@@ -1271,6 +1271,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     import sys as _sys;
                     return self._make_global_string(_sys.byteorder);
                 }
+                if right_name == "stdout" or right_name == "stderr" {
+                    return self._emit_sys_stream(right_name);
+                }
             }
 
             if (
