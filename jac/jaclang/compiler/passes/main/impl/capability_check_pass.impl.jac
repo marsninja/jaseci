@@ -81,9 +81,12 @@ glob JS_GLOBALS: dict[str, str] = {
          "In a value-returning function, use an explicit `return` to exit early."
      ),
      _NATIVE_DECORATOR_HELP: str = (
-         "Decorators are not lowered by the native backend; compiling would "
-         "silently run the undecorated body. Remove the decorator or move the "
-         "decorated definition to a @sv/Python context."
+         "Native lowers decorators only on module-level, non-generator "
+         "functions, and only when each decorator is a plain name resolving "
+         "to a native function (applied at module glob-init). Method, "
+         "archetype, and dynamically-computed decorators would silently run "
+         "the undecorated body; remove the decorator or move the definition "
+         "to a @sv/Python context."
      );
 
 
@@ -259,20 +262,36 @@ impl native_capability_violations(mod: uni.Module) -> list {
 
             if isinstance(nd, (uni.Ability, uni.ArchSpec, uni.ImplDef))
             and nd.decorators {
-                _dec_owner = "?";
-                if isinstance(nd, uni.Ability) and nd.name_ref {
-                    _dec_owner = nd.name_ref.sym_name;
-                } elif isinstance(nd, uni.Archetype) and nd.name {
-                    _dec_owner = nd.name.value;
-                }
-                out.append(
-                    (
-                        nd.decorators[0],
-                        "decorator",
-                        f"on {_dec_owner}",
-                        _NATIVE_DECORATOR_HELP
-                    )
+                _dec_static_fn = (
+                    isinstance(nd, uni.Ability)
+                    and not isinstance(nd.parent, uni.Archetype)
+                    and nd.find_parent_of_type(uni.Ability) is None
+                    and not nd.get_all_sub_nodes(typ=uni.YieldExpr)
                 );
+                if _dec_static_fn {
+                    for _dexpr in nd.decorators {
+                        if not isinstance(_dexpr, uni.Name) {
+                            _dec_static_fn = False;
+                            break;
+                        }
+                    }
+                }
+                if not _dec_static_fn {
+                    _dec_owner = "?";
+                    if isinstance(nd, uni.Ability) and nd.name_ref {
+                        _dec_owner = nd.name_ref.sym_name;
+                    } elif isinstance(nd, uni.Archetype) and nd.name {
+                        _dec_owner = nd.name.value;
+                    }
+                    out.append(
+                        (
+                            nd.decorators[0],
+                            "decorator",
+                            f"on {_dec_owner}",
+                            _NATIVE_DECORATOR_HELP
+                        )
+                    );
+                }
             }
 
             if isinstance(nd, uni.ParamVar) and nd.unpack is not None {

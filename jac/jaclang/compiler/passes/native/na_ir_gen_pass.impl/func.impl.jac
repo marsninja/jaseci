@@ -42,7 +42,34 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     }
 
     fnty = ir.FunctionType(ret_type, param_types);
-    func = ir.Function(self.llvm_module, fnty, name=name);
+
+    _dec_names: list[str] = [];
+    if nd.decorators
+    and not isinstance(nd.parent, uni.Archetype)
+    and nd.find_parent_of_type(uni.Ability) is None
+    and name not in self.generator_fns {
+        for _dx in nd.decorators {
+            if isinstance(_dx, uni.Name) {
+                _dec_names.append(_dx.value);
+            }
+        }
+        if len(_dec_names) != len(nd.decorators) {
+            _dec_names = [];
+        }
+    }
+
+    if _dec_names {
+        func = ir.Function(self.llvm_module, fnty, name=f"__jac_dec_raw_{name}");
+        func.linkage = "private";
+        slot_gv = ir.GlobalVariable(
+            self.llvm_module, fnty.as_pointer(), name=f"{name}.__decslot"
+        );
+        slot_gv.linkage = "private";
+        slot_gv.initializer = ir.Constant(fnty.as_pointer(), None);
+        self.decorated_fns[name] = (func, slot_gv, _dec_names, fnty);
+    } else {
+        func = ir.Function(self.llvm_module, fnty, name=name);
+    }
 
     for (i, p) in enumerate(sig.get_parameters()) {
         func.args[i].name = p.name.value if p.name else f"arg{i}";
@@ -876,6 +903,7 @@ impl NaIRGenPass._emit_glob_init_func -> None {
             }
         }
     }
+    self._apply_static_decorators();
     self.builder.ret_void();
 
     self._finalize_di_locations(func, 0);
@@ -885,6 +913,57 @@ impl NaIRGenPass._emit_glob_init_func -> None {
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
     self._di_current_sp = saved_di_sp;
+}
+
+impl NaIRGenPass._apply_static_decorators -> None {
+    if not self.decorated_fns {
+        return;
+    }
+    i64 = ir.IntType(64);
+    i8p = ir.IntType(8).as_pointer();
+    for (fname, dec_entry) in self.decorated_fns.items() {
+        (raw_fn, slot_gv, dec_names, fnty) = dec_entry;
+        cur: ir.Value = raw_fn;
+        ok = True;
+        for dec in reversed(dec_names) {
+            d_fn = self.func_symtab.get(dec);
+            if d_fn is None or not d_fn.args {
+                self.emit(
+                    E5092,
+                    node_override=self.ir_in,
+                    kind="decorator",
+                    name=dec,
+                    help_text="A native decorator must resolve to a module-level native function taking one argument."
+                );
+                ok = False;
+                break;
+            }
+            d_param = d_fn.args[0].type;
+            if self?.jacval_type and d_param == self.jacval_type {
+                d_arg = self._box_to_jacval(
+                    self.builder.bitcast(cur, i8p, name="dec.fn.i8")
+                );
+            } elif isinstance(d_param, ir.PointerType) {
+                d_arg = self.builder.bitcast(cur, d_param, name="dec.fn.cast");
+            } else {
+                d_arg = self.builder.ptrtoint(cur, i64, name="dec.fn.i64");
+            }
+            res = self.builder.call(d_fn, [d_arg], name=f"dec.{dec}.{fname}");
+            if self?.jacval_type and res.type == self.jacval_type {
+                payload = self.builder.extract_value(res, 1, name="dec.res.payload");
+                cur = self.builder.inttoptr(
+                    payload, fnty.as_pointer(), name="dec.res.fn"
+                );
+            } elif isinstance(res.type, ir.PointerType) {
+                cur = self.builder.bitcast(res, fnty.as_pointer(), name="dec.res.cast");
+            } else {
+                cur = self.builder.inttoptr(res, fnty.as_pointer(), name="dec.res.i2p");
+            }
+        }
+        if ok {
+            self.builder.store(self._coerce_type(cur, fnty.as_pointer()), slot_gv);
+        }
+    }
 }
 
 impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {

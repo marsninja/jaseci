@@ -172,6 +172,25 @@ impl NaIRGenPass._emit_take_ref(value: ir.Value, op: str, loc: str = "") -> None
     }
 }
 
+impl NaIRGenPass._codegen_decorated_call(
+    nd: uni.FuncCall, func_name: str
+) -> (ir.Value | None) {
+    (raw_fn, slot_gv, _dec_names, fnty) = self.decorated_fns[func_name];
+    args: list[ir.Value] = self._codegen_bound_args(nd, raw_fn, self_offset=0);
+    coerced: list[ir.Value] = [];
+    for (i, arg) in enumerate(args) {
+        if i < len(fnty.args) {
+            coerced.append(self._coerce_type(arg, fnty.args[i]));
+        } else {
+            coerced.append(arg);
+        }
+    }
+    fptr = self.builder.load(slot_gv, name=f"decslot.{func_name}");
+    result = self.builder.call(fptr, coerced, name=f"call.{func_name}");
+    self._release_owned_args(coerced, op="call_arg");
+    return result;
+}
+
 impl NaIRGenPass._emit_unsupported_builtin_call(
     nd: uni.FuncCall, func_name: str
 ) -> None {
@@ -776,6 +795,9 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
     if func_name in self.struct_types {
         return self._codegen_instantiation(nd);
+    }
+    if func_name in self.decorated_fns {
+        return self._codegen_decorated_call(nd, func_name);
     }
     func = self.func_symtab.get(func_name);
     if func is None {

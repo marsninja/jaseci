@@ -296,8 +296,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _pending_lambda_captures: (list[tuple] | None) = None,
         nested_captures: dict[str, tuple] = {},
         generator_fns: dict[str, uni.Ability] = {},
-        _gen_ctx: (dict | None) = None;
+        _gen_ctx: (dict | None) = None,
+        decorated_fns: dict[str, tuple] = {};
 
+    def _apply_static_decorators -> None;
+    def _codegen_decorated_call(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
     def _ability_is_generator(nd: uni.Ability) -> bool;
     def _codegen_yield(nd: uni.YieldExpr) -> (ir.Value | None);
     def _adapter_callee_fn(fn_expr: uni.UniNode) -> (ir.Function | None);

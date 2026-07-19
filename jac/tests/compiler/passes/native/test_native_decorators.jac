@@ -39,19 +39,71 @@ def fmt_errors(prog: JacProgram) -> str {
     return str([str(e) for e in prog.errors_had]);
 }
 
-# A decorated module-level function must not compile with the decorator
-# silently dropped. Until static decoration lands, the only acceptable
-# outcome is a structured E5090 from the capability gate.
-test "guardrail: decorated module-level function is rejected, not dropped" {
+"""Compile a .na.jac fixture, run module glob-init (as init_native_globals
+does in production), and return the JIT engine."""
+def compile_fixture(fixture: str) -> object {
+    import ctypes;
+    import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
+    prog = JacProgram();
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES_DIR, fixture)));
+    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
+    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
+    eng = ir.gen.native_engine;
+    assert eng is not None , f"No native engine produced for {fixture}";
+    gi_addr = eng.get_function_address("__jac_glob_init");
+    if gi_addr {
+        ctypes.CFUNCTYPE(None)(gi_addr)();
+    }
+    return eng;
+}
+
+"""Get a ctypes-callable function from the JIT engine."""
+def get_func(eng: object, name: str, restype: object, *argtypes: object) -> object {
+    import ctypes;
+    addr = eng.get_function_address(name);
+    assert addr != 0 , f"Function '{name}' not found in JIT engine";
+    functype = ctypes.CFUNCTYPE(restype, *argtypes);
+    return functype(addr);
+}
+
+# Static decoration on module-level functions: the decorator chain is
+# applied at glob-init to the raw function, calls go through the slot.
+test "decorator: registration decorator runs at glob-init, calls pass through" {
+    import ctypes;
+    eng = compile_fixture("decorators.na.jac");
+    f = get_func(eng, "use_val", ctypes.c_int64);
+    # val(4) = 5 through the identity-decorated slot; marks counted 3
+    # glob-init applications module-wide (val once, stacked twice).
+    assert f() == 503 , "expected val(4)*100 + marks == 503";
+}
+
+test "decorator: a decorator returning another function redirects calls" {
+    import ctypes;
+    eng = compile_fixture("decorators.na.jac");
+    f = get_func(eng, "use_val2", ctypes.c_int64);
+    assert f() == 42 , "val2 must route to alt via the slot, not the raw body";
+}
+
+test "decorator: stacked decorators apply and calls still resolve" {
+    import ctypes;
+    eng = compile_fixture("decorators.na.jac");
+    f = get_func(eng, "use_stacked", ctypes.c_int64);
+    assert f() == 93 , "stacked(10)=9 through slot; marks==3 at call time";
+}
+
+# A decorator that is not statically resolvable (an arbitrary expression)
+# stays rejected: silent mis-binding is never acceptable.
+test "guardrail: non-static decorator expression is rejected" {
     prog = compile_na_inline(
-        "module_fn",
-        "def double(fn: any) -> any { return fn; }\n"
-        "@ double\n"
+        "dynamic_dec",
+        "def pick(fn: any) -> any { return fn; }\n"
+        "glob decs: list = [];\n"
+        "@ (decs[0])\n"
         "def val(x: int) -> int { return x; }\n"
     );
     assert has_error_code(prog, "E5090") , (
-        f"Expected E5090 for a decorated native function (silent decorator "
-        f"drop), got: {fmt_errors(prog)}"
+        f"Expected E5090 for a non-static decorator expression, got: "
+        f"{fmt_errors(prog)}"
     );
 }
 
