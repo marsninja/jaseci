@@ -539,7 +539,11 @@ impl NaIRGenPass._abi_sizeof(t: ir.Type) -> int {
         }
         return total;
     }
-    return 16;
+    raise RuntimeError(
+        f"native codegen internal error: _abi_sizeof has no layout for {t!r}. "
+        f"A generator-frame slot of unknown size would silently corrupt "
+        f"adjacent slots; teach _abi_sizeof this type instead."
+    );
 }
 
 impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {

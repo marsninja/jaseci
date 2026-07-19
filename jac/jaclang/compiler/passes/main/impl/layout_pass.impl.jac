@@ -66,7 +66,16 @@ impl LayoutPass._collect_archetypes(module: uni.Module) -> dict[str, uni.Archety
 }
 
 impl LayoutPass._collect_isinstance_targets(module: uni.Module) -> None {
-    for call in module.get_all_sub_nodes(typ=uni.FuncCall) {
+    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.jac0core.constant { CodeContext }
+    calls: list = [];
+    for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
+        if isinstance(stmt, uni.FuncCall) {
+            calls.append(stmt);
+        }
+        calls.extend(stmt.get_all_sub_nodes(typ=uni.FuncCall));
+    }
+    for call in calls {
         tgt = call.target;
         if not (isinstance(tgt, uni.Name) and tgt.value == "isinstance") {
             continue;

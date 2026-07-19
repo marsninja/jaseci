@@ -714,21 +714,10 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     ip_slot = self.builder.bitcast(gc["frame_i8"], i64p, name="gen.ip.slot");
     ip = self.builder.load(ip_slot, name="gen.ip");
     default_bb = resume_fn.append_basic_block("gen.exhausted");
-    dispatch_targets: list[tuple] = [(0, body_bb)];
+    sw = self.builder.switch(ip, default_bb);
+    sw.add_case(ir.Constant(i64, 0), body_bb);
     for (k, rbb) in enumerate(gc["resume_blocks"]) {
-        dispatch_targets.append((k + 1, rbb));
-    }
-    for (di, (dval, dtgt)) in enumerate(dispatch_targets) {
-        is_here = self.builder.icmp_signed(
-            "==", ip, ir.Constant(i64, dval), name=f"gen.ip.is{dval}"
-        );
-        if di + 1 < len(dispatch_targets) {
-            chk_bb = resume_fn.append_basic_block(f"gen.chk{dval + 1}");
-            self.builder.cbranch(is_here, dtgt, chk_bb);
-            self.builder.position_at_end(chk_bb);
-        } else {
-            self.builder.cbranch(is_here, dtgt, default_bb);
-        }
+        sw.add_case(ir.Constant(i64, k + 1), rbb);
     }
     self.builder.position_at_end(default_bb);
     self.builder.ret(ir.Constant(i1, 0));
@@ -927,13 +916,13 @@ impl NaIRGenPass._apply_static_decorators -> None {
         ok = True;
         for dec in reversed(dec_names) {
             d_fn = self.func_symtab.get(dec);
-            if d_fn is None or not d_fn.args {
+            if d_fn is None or len(d_fn.args) != 1 {
                 self.emit(
                     E5092,
                     node_override=self.ir_in,
                     kind="decorator",
                     name=dec,
-                    help_text="A native decorator must resolve to a module-level native function taking one argument."
+                    help_text="A native decorator must resolve to a module-level native function taking exactly one argument."
                 );
                 ok = False;
                 break;

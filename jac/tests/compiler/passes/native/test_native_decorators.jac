@@ -91,6 +91,20 @@ test "decorator: stacked decorators apply and calls still resolve" {
     assert f() == 93 , "stacked(10)=9 through slot; marks==3 at call time";
 }
 
+# A decorator whose native signature does not take exactly one argument
+# would emit a malformed call at glob-init; it must be a structured error.
+test "guardrail: multi-argument decorator is rejected at apply time" {
+    prog = compile_na_inline(
+        "arity_dec",
+        "def two(fn: any, extra: int) -> any { return fn; }\n"
+        "@ two\n"
+        "def val(x: int) -> int { return x; }\n"
+    );
+    assert has_error_code(prog, "E5092") , (
+        f"Expected E5092 for a 2-arg decorator, got: {fmt_errors(prog)}"
+    );
+}
+
 # A decorator that is not statically resolvable (an arbitrary expression)
 # stays rejected: silent mis-binding is never acceptable.
 test "guardrail: non-static decorator expression is rejected" {
