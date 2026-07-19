@@ -64,23 +64,10 @@ def fmt_errors(prog: JacProgram) -> str {
 # ─────────────────────────────────────────────────────────────────────
 # Statement-level gaps
 # ─────────────────────────────────────────────────────────────────────
-# Value / OR / capture / wildcard / guard match patterns are supported
-# (see test_native_gen_pass.jac). Structural patterns (sequence/mapping/
-# class) are not yet lowered and must still raise E5090.
-test "guardrail: structural match pattern is rejected" {
-    prog = compile_na_inline(
-        "match_seq",
-        "def classify(x: list[int]) -> int {\n"
-        "    match x {\n"
-        "        case [1, 2]: return 1;\n"
-        "        case _: return 0;\n"
-        "    }\n"
-        "}\n"
-    );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for MatchSequence, got: {fmt_errors(
-        prog
-    )}";
-}
+# All match pattern kinds are supported (value / OR / capture / wildcard /
+# guard in test_native_gen_pass.jac; sequence / mapping / star / class in
+# test_native_match_patterns.jac), so the structural-pattern guardrail was
+# deleted per this file's convention.
 
 # Nested functions capturing enclosing locals lower natively (read captures
 # bind by value at each call, rebound captures write through a frame-slot

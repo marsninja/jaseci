@@ -330,6 +330,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
 
     struct_type.set_body(*field_types);
     self.struct_field_indices[arch_name] = field_index_map;
+    self.struct_field_order[arch_name] = [f.name for f in layout.fields];
     self.struct_field_types[arch_name] = field_type_map;
     self.struct_field_defaults[arch_name] = field_default_map;
     self.struct_field_opaque[arch_name] = opaque_fields;

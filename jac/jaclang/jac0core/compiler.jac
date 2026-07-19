@@ -447,11 +447,7 @@ glob NATIVE_DEFAULT_SV_SIGNAL_NODES: tuple = (
          uni.ClientBlock,
          uni.ServerBlock,
          uni.JsxElement,
-         uni.Test,
-         uni.MatchSequence,
-         uni.MatchMapping,
-         uni.MatchArch,
-         uni.MatchStar
+         uni.Test
      ),
      _na_default_scan_cache: dict[str, tuple] = {},
      _na_demotion_memo: dict[str, tuple] = {},

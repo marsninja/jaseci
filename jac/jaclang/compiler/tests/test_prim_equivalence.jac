@@ -588,3 +588,31 @@ test "builtins introspection" {
         "builtins_introspection_na"
     );
 }
+
+test "match sequence" {
+    run_with_both(
+        "prim_match.jac", "match_seq_py", "match_seq_cl", "match_seq_na",
+        require=["na"]
+    );
+}
+
+test "match star" {
+    run_with_both(
+        "prim_match.jac", "match_star_py", "match_star_cl", "match_star_na",
+        require=["na"]
+    );
+}
+
+test "match mapping" {
+    run_with_both(
+        "prim_match.jac", "match_map_py", "match_map_cl", "match_map_na",
+        require=["na"]
+    );
+}
+
+test "match class" {
+    run_with_both(
+        "prim_match.jac", "match_arch_py", "match_arch_cl", "match_arch_na",
+        require=["na"]
+    );
+}

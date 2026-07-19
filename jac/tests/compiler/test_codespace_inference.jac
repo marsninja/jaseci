@@ -207,6 +207,13 @@ test "pure markerless module infers native under native default" {
     assert stamp_of(mod, "add") == 'native';
 }
 
+test "structural match no longer forces server under native default" {
+    mod = compile_with_default("nadefault_match.jac", "native", cgen=True);
+    assert mod.decided_codespace == 'native' , (
+        "structural match patterns lower natively and are not server signals"
+    );
+}
+
 test "pure markerless module stays server under server default" {
     mod = compile_with_default("nadefault_pure.jac", "server");
     assert mod.decided_codespace == '' , "server default keeps markerless modules undecided";
