@@ -849,6 +849,23 @@ impl NaIRGenPass._emit_glob_init_func -> None {
     self.region_handle_vars = set();
 
     self._attach_di_subprogram(func, "__jac_glob_init", 0);
+    _i8 = ir.IntType(8);
+    _gi_done_gv = ir.GlobalVariable(self.llvm_module, _i8, name="__jac_gi_done");
+    _gi_done_gv.linkage = "internal";
+    _gi_done_gv.initializer = ir.Constant(_i8, 0);
+    _gi_run = func.append_basic_block(name="gi.run");
+    _gi_done = func.append_basic_block(name="gi.done");
+    self.builder.cbranch(
+        self.builder.icmp_unsigned(
+            "!=", self.builder.load(_gi_done_gv, name="gi.flag"), ir.Constant(_i8, 0)
+        ),
+        _gi_done,
+        _gi_run
+    );
+    self.builder.position_at_end(_gi_done);
+    self.builder.ret_void();
+    self.builder.position_at_end(_gi_run);
+    self.builder.store(ir.Constant(_i8, 1), _gi_done_gv);
     if self?._global_init_nodes and self._global_init_nodes {
         for init_tuple in self._global_init_nodes {
             var_name = init_tuple[0];
@@ -1032,10 +1049,6 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
         b_cyc.branch(_cyc_cont);
         self._builder = ir.IRBuilder(_cyc_cont);
     }
-    if glob_init_fn is not None {
-        self.builder.call(glob_init_fn, []);
-    }
-
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
     _all_na_sources = _manifest.native_transitive_sources if _manifest else [];
     _seen_init_mods: set = set();
@@ -1119,6 +1132,10 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
             self.builder.branch(_gk_done);
             self.builder.position_at_end(_gk_done);
         }
+    }
+
+    if glob_init_fn is not None {
+        self.builder.call(glob_init_fn, []);
     }
 
     for _ent in nodes {

@@ -764,36 +764,6 @@ def _native_default_deps_ok(root_path: str, root_deps: list[str]) -> bool {
             }
         }
     }
-    color: dict[str, int] = {};
-    for start in edges {
-        if color.get(start, 0) != 0 {
-            continue;
-        }
-        stack: list[tuple[str, int]] = [(start, 0)];
-        while stack {
-            (nd, idx) = stack.pop();
-            if idx == 0 {
-                if color.get(nd, 0) != 0 {
-                    continue;
-                }
-                color[nd] = 1;
-            }
-            kids = edges.get(nd, []);
-            if idx < len(kids) {
-                stack.append((nd, idx + 1));
-                kid = kids[idx];
-                kc = color.get(kid, 0);
-                if kc == 1 {
-                    return False;
-                }
-                if kc == 0 {
-                    stack.append((kid, 0));
-                }
-            } else {
-                color[nd] = 2;
-            }
-        }
-    }
     return True;
 }
 
@@ -828,7 +798,7 @@ def _native_default_closure_verdict(module: uni.Module) -> tuple[bool, str] {
         return (False, sv_reason);
     }
     if not _native_default_deps_ok(os.path.abspath(mod_path), deps) {
-        return (False, "import-closure (sv dep, cycle, or cap)");
+        return (False, "import-closure (sv dep or cap)");
     }
     return (True, '');
 }

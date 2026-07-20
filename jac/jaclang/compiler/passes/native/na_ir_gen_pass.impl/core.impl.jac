@@ -448,16 +448,28 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         and ((not _has_native_code) or (not is_bundled_native_module(mod_name))) {
             continue;
         }
-        wq.append((mod_name, entry_base));
+        wq.append((mod_name, entry_base, None));
     }
 
+    _self_key = (
+        os.path.realpath(self.ir_in.loc.mod_path) if (self.ir_in?.loc) else None
+    );
+    dep_edges: dict = {};
     qi = 0;
     while qi < len(wq) {
-        (mod_name, cur_base) = wq[qi];
+        (mod_name, cur_base, parent_src) = wq[qi];
         qi += 1;
         (src_mod_str, full_path) = resolve_native_module(mod_name, cur_base);
         if src_mod_str is None or full_path is None {
             continue;
+        }
+        if _self_key is not None and os.path.realpath(full_path) == _self_key {
+            continue;
+        }
+        if parent_src in dep_edges {
+            dep_edges[parent_src].append(src_mod_str);
+        } else {
+            dep_edges[parent_src] = [src_mod_str];
         }
         abs_key = os.path.abspath(full_path);
         if abs_key in processed_modules {
@@ -496,20 +508,41 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         ] {
             sub_name = self._extract_import_module_name(sub_imp);
             if sub_name {
-                wq.append((sub_name, sub_base));
+                wq.append((sub_name, sub_base, src_mod_str));
             }
         }
     }
 
     self._foreign_modules = [m for (_s, m) in imported_mods];
 
+    _own_code_srcs: set = set();
     for (src_mod_str, imported_mod) in imported_mods {
         _has_own_code = any(
             not isinstance(s, uni.Import)
             for s in ModuleCodegenPass.iter_context_stmts(imported_mod)
         );
-        if _has_own_code and src_mod_str not in manifest.native_transitive_sources {
-            manifest.native_transitive_sources.append(src_mod_str);
+        if _has_own_code {
+            _own_code_srcs.add(src_mod_str);
+        }
+    }
+    _visited: set = set();
+    _order_stack: list = [(None, 0)];
+    while _order_stack {
+        (_nd, _idx) = _order_stack.pop();
+        _kids = dep_edges.get(_nd, []);
+        if _idx < len(_kids) {
+            _order_stack.append((_nd, _idx + 1));
+            _kid = _kids[_idx];
+            if _kid not in _visited {
+                _visited.add(_kid);
+                _order_stack.append((_kid, 0));
+            }
+        } elif (
+            _nd is not None
+            and _nd in _own_code_srcs
+            and _nd not in manifest.native_transitive_sources
+        ) {
+            manifest.native_transitive_sources.append(_nd);
         }
     }
 

@@ -317,6 +317,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
     _compiler_fp = _comp_h.hexdigest()[:8];
 
     linked_modules: dict = {};
+    if module.loc {
+        linked_modules[os.path.realpath(module.loc.mod_path)] = None;
+    }
 
     symbol_origins: dict = {};
 

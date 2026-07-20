@@ -237,10 +237,13 @@ test "server signal poisons the import closure" {
     assert stamp_of(mod, "helper") == 'server';
 }
 
-test "import cycles fall back to server under native default" {
-    mod = compile_with_default("nadefault_cyc_a.jac", "native");
-    assert mod.decided_codespace == '' , "native backend cannot link circular imports";
-    assert stamp_of(mod, "fa") == 'server';
+test "import cycles infer native under native default" {
+    mod = compile_with_default("nadefault_cyc_a.jac", "native", cgen=True);
+    assert mod.decided_codespace == 'native' , "cyclic pure closures lower natively";
+    assert stamp_of(mod, "fa") == 'native';
+    assert mod.gen.native_engine is not None , (
+        "cyclic closure should produce a native engine"
+    );
 }
 
 test "osp constructs keep module server under native default" {
