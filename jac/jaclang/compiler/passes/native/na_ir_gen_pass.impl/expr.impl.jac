@@ -1350,6 +1350,9 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
 }
 
 impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None) {
+    if isinstance(nd.right, uni.FilterCompr) {
+        return self._codegen_chained_filter(nd);
+    }
     if nd.is_attr {
         target_name = self._get_name(nd.target);
         right_name = self._get_name(nd.right);

@@ -483,6 +483,16 @@ impl NaIRGenPass._codegen_test(nd: uni.Test) -> None {
 impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     name = nd.name_ref.sym_name if nd.name_ref else "unnamed";
     sig = nd.signature;
+    if sig is not None and not isinstance(sig, uni.FuncSignature) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="function",
+            name=name,
+            help_text="An event ability (`can ... with entry/exit`) cannot lower as a nested native function; it belongs on an archetype in a server context."
+        );
+        return;
+    }
 
     param_types: list = [];
     param_names: list = [];

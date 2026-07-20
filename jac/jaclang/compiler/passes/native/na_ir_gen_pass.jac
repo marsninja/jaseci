@@ -364,6 +364,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _find_source_ability(
         mod_name: str, func_name: str
     ) -> (uni.Ability | None);
+
+    def _codegen_chained_filter(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _adapter_callee(fn_expr: uni.UniNode) -> (tuple | None);
     def _adapter_clos_parts(clos: ir.Value) -> (tuple | None);
     def _generator_elem_type(nd: uni.Ability) -> (ir.Type | None);
