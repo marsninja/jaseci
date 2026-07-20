@@ -248,50 +248,34 @@ test "arithmetic float add" {
 # crashing the binop/compare emitters.
 test "arithmetic f32 promotion binops" {
     (eng, _) = compile_native("f32_promotion.na.jac");
-    ma = get_func(
-        eng, "mixed_add", ctypes.c_double, ctypes.c_float, ctypes.c_double
-    );
+    ma = get_func(eng, "mixed_add", ctypes.c_double, ctypes.c_float, ctypes.c_double);
     assert ma(1.5, 2.25) == 3.75;
     mr = get_func(
         eng, "mixed_add_rev", ctypes.c_double, ctypes.c_double, ctypes.c_float
     );
     assert mr(2.25, 1.5) == 3.75;
-    sa = get_func(
-        eng, "same_add", ctypes.c_double, ctypes.c_float, ctypes.c_float
-    );
+    sa = get_func(eng, "same_add", ctypes.c_double, ctypes.c_float, ctypes.c_float);
     assert sa(1.5, 2.25) == 3.75;
-    mm = get_func(
-        eng, "mixed_mul", ctypes.c_double, ctypes.c_float, ctypes.c_double
-    );
+    mm = get_func(eng, "mixed_mul", ctypes.c_double, ctypes.c_float, ctypes.c_double);
     assert mm(1.5, 2.0) == 3.0;
-    md = get_func(
-        eng, "mixed_div", ctypes.c_double, ctypes.c_float, ctypes.c_double
-    );
+    md = get_func(eng, "mixed_div", ctypes.c_double, ctypes.c_float, ctypes.c_double);
     assert md(1.5, 0.5) == 3.0;
-    mo = get_func(
-        eng, "mixed_mod", ctypes.c_double, ctypes.c_float, ctypes.c_double
-    );
+    mo = get_func(eng, "mixed_mod", ctypes.c_double, ctypes.c_float, ctypes.c_double);
     assert mo(5.5, 2.0) == 1.5;
     mf = get_func(
         eng, "mixed_floordiv", ctypes.c_double, ctypes.c_float, ctypes.c_double
     );
     assert mf(5.5, 2.0) == 2.0;
-    fi = get_func(
-        eng, "f32_int_add", ctypes.c_double, ctypes.c_float, ctypes.c_int64
-    );
+    fi = get_func(eng, "f32_int_add", ctypes.c_double, ctypes.c_float, ctypes.c_int64);
     assert fi(1.5, 2) == 3.5;
 }
 
 test "arithmetic f32 promotion comparisons" {
     (eng, _) = compile_native("f32_promotion.na.jac");
-    cl = get_func(
-        eng, "cmp_mixed_lt", ctypes.c_bool, ctypes.c_float, ctypes.c_double
-    );
+    cl = get_func(eng, "cmp_mixed_lt", ctypes.c_bool, ctypes.c_float, ctypes.c_double);
     assert cl(1.5, 2.25);
     assert not cl(2.5, 2.25);
-    cs = get_func(
-        eng, "cmp_same_lt", ctypes.c_bool, ctypes.c_float, ctypes.c_float
-    );
+    cs = get_func(eng, "cmp_same_lt", ctypes.c_bool, ctypes.c_float, ctypes.c_float);
     assert cs(1.5, 2.25);
     assert not cs(2.25, 1.5);
     cc = get_func(
@@ -1114,9 +1098,7 @@ test "cross-module transitive chain executes via native inference" {
     } finally {
         set_effective_default_codespace(_prev);
     }
-    assert not prog.errors_had , (
-        f"errors: {[str(e) for e in prog.errors_had]}"
-    );
+    assert not prog.errors_had , (f"errors: {[str(e) for e in prog.errors_had]}");
     eng = ir.gen.native_engine;
     assert eng is not None , "transitive chain did not produce a native engine";
     f = get_func(eng, "fa", ctypes.c_int64);
@@ -3323,9 +3305,7 @@ test "sys stdout/stderr streams via nacompile" {
             f"nacompile failed: exit={comp.returncode}\n"
             f"stderr: {comp.stderr[-500:] if comp.stderr else '(empty)'}"
         );
-        result = subprocess.run(
-            [out_bin], capture_output=True, text=True, timeout=10
-        );
+        result = subprocess.run([out_bin], capture_output=True, text=True, timeout=10);
         assert result.returncode == 0 , (
             f"Native binary crashed: exit={result.returncode}\n"
             f"stderr: {result.stderr[-500:] if result.stderr else '(empty)'}"
@@ -5351,4 +5331,42 @@ test "ptr subscript read/write: no E5090 and correct GEP IR (#6707, #6708)" {
     assert "ptr.elem.ptr" in s , "Expected array-element GEP (ptr.elem.ptr)";
     # Write path (#6707): GEP the element, load the source struct value, store.
     assert "arr.val.struct" in s , "Expected struct load for write (arr.val.struct)";
+}
+
+# ─── #7593 item 10: bare `import x` of a sibling plain .jac module ───────────
+# Before the fix, `import bare_import_helper;` in a .na.jac emitted E5090
+# "Python module import 'bare_import_helper'". After the fix, unaliased
+# single-segment bare imports of resolvable Jac modules register the dep and
+# `mod.fn()` / `mod.GLOB` resolve at compile time to the linked symbols.
+test "bare import of user jac module compiles and links" {
+    (eng, _) = compile_native("bare_import_main.na.jac");
+    assert eng is not None;
+}
+
+test "bare import module-qualified call resolves to linked symbol" {
+    (eng, _) = compile_native("bare_import_main.na.jac");
+    entry_fn = get_func(eng, "jac_entry", None);
+    entry_fn();
+    use_fn = get_func(eng, "use_fn", ctypes.c_int64);
+    assert use_fn() == 42 , f"Expected 42, got {use_fn()}";
+    use_twice = get_func(eng, "use_twice", ctypes.c_int64, ctypes.c_int64);
+    assert use_twice(21) == 42 , f"Expected 42, got {use_twice(21)}";
+}
+
+test "bare import module glob attr reads dep glob" {
+    (eng, _) = compile_native("bare_import_main.na.jac");
+    entry_fn = get_func(eng, "jac_entry", None);
+    entry_fn();
+    read_glob = get_func(eng, "read_glob", ctypes.c_int64);
+    assert read_glob() == 7 , f"Expected 7, got {read_glob()}";
+}
+
+test "from-imported plain jac dep with glob does not demote" {
+    # Pins the dep-glob type-tag path: `glob G: int` in a plain .jac dep must
+    # lower via the inferred tag type instead of demoting with E5092.
+    (eng, _) = compile_native("glob_dep_main.na.jac");
+    entry_fn = get_func(eng, "jac_entry", None);
+    entry_fn();
+    use_dep_glob = get_func(eng, "use_dep_glob", ctypes.c_int64);
+    assert use_dep_glob() == 5 , f"Expected 5, got {use_dep_glob()}";
 }

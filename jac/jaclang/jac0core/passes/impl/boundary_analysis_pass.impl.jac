@@ -287,7 +287,9 @@ impl BoundaryAnalysisPass.enter_import(
         for item in nd.items {
             if isinstance(item, uni.ModulePath) and item.path {
                 whole_name = '.'.join(getattr(p, 'value', str(p)) for p in item.path);
-                if whole_name and is_bundled_native_module(whole_name) {
+                _eligible = is_bundled_native_module(whole_name)
+                or (item.alias is None and len(item.path) == 1);
+                if whole_name and _eligible {
                     native_path = self._resolve_native_module(whole_name);
                     if native_path {
                         self._imported_native_modules[whole_name] = (

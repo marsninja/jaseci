@@ -355,6 +355,31 @@ test "include chain stays server under server default" {
     );
 }
 
+test "bare jac import infers native under native default" {
+    mod = compile_with_default("nadefault_bare.jac", "native", cgen=True);
+    assert mod.decided_codespace == 'native' , (
+        "bare import of a resolvable plain .jac module is a dep edge, not a "
+        "server signal"
+    );
+    assert mod.gen.native_engine is not None;
+}
+
+test "aliased bare jac import stays server under native default" {
+    mod = compile_with_default("nadefault_bare_alias.jac", "native");
+    assert mod.decided_codespace == '' , (
+        "aliased bare imports are not lowered natively (call sites key on the "
+        "alias, which never matches the module symbol set)"
+    );
+}
+
+test "bare import of a cl module stays server under native default" {
+    mod = compile_with_default("nadefault_bare_cl.jac", "native");
+    assert mod.decided_codespace == '' , (
+        "a .cl.jac sibling is a cl/sv server signal even when its body has no "
+        "other signals"
+    );
+}
+
 test "explicit .na.jac mandate still fails loudly" {
     import from jaclang.jac0core.compile_options { CompileOptions }
     prog = JacProgram();

@@ -429,10 +429,11 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         if (self.ir_in?.loc)
         else os.getcwd();
 
-    _has_native_code: bool = any(
-        True
+    _native_ids: set = {
+        id(_s)
         for _s in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
-    );
+    };
+    _has_native_code: bool = len(_native_ids) > 0;
     wq: list = [];
     for imp in [
         s
@@ -443,10 +444,29 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         if not mod_name {
             continue;
         }
-        if (not imp.from_loc)
-        and (not imp.is_absorb)
-        and ((not _has_native_code) or (not is_bundled_native_module(mod_name))) {
-            continue;
+        if (not imp.from_loc) and (not imp.is_absorb) {
+            if not _has_native_code {
+                continue;
+            }
+            if not is_bundled_native_module(mod_name) {
+                _item0 = next(
+                    (
+                        i
+                        for i in imp.items
+                        if isinstance(i, uni.ModulePath)
+                    ),
+                    None
+                );
+                if (
+                    id(imp) not in _native_ids
+                    or _item0 is None
+                    or _item0.alias is not None
+                    or len(_item0.path) != 1
+                    or resolve_native_module(mod_name, entry_base)[1] is None
+                ) {
+                    continue;
+                }
+            }
         }
         wq.append((mod_name, entry_base, None));
     }
@@ -830,16 +850,33 @@ impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
         if not stmt.clib_decls {
             if stmt.items {
                 for item in stmt.items {
+                    import os;
                     import from jaclang.compiler.passes.main.capability_check_pass {
                         classify_native_import
                     }
-                    import from jaclang.jac0core.codeinfo { is_bundled_native_module }
+                    import from jaclang.jac0core.codeinfo {
+                        is_bundled_native_module,
+                        resolve_native_module
+                    }
                     (mod_name, _supported) = classify_native_import(item);
                     if _supported {
                         self._native_stdlib_modules.add(mod_name);
                     } elif mod_name is not None
                     and is_bundled_native_module(mod_name) {
                         self._native_module_imports.add(mod_name);
+                    } elif (
+                        mod_name is not None
+                        and not stmt.is_absorb
+                        and isinstance(item, uni.ModulePath)
+                        and item.alias is None
+                        and len(item.path) == 1
+                    ) {
+                        _mb = os.path.dirname(os.path.abspath(module.loc.mod_path))
+                            if module?.loc
+                            else '.';
+                        if resolve_native_module(mod_name, _mb)[1] is not None {
+                            self._native_module_imports.add(mod_name);
+                        }
                     }
                 }
             }

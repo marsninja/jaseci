@@ -1287,6 +1287,18 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
             }
 
+            if (
+                self?._native_module_imports
+                and target_name in self._native_module_imports
+                and target_name not in self.local_vars
+                and target_name not in self.struct_types
+                and right_name in self.global_vars
+            ) {
+                return self.builder.load(
+                    self.global_vars[right_name], name=f"modglob.{right_name}"
+                );
+            }
+
             full_name = f"{target_name}.{right_name}";
             if full_name in self.enum_values {
                 return self.enum_values[full_name];
