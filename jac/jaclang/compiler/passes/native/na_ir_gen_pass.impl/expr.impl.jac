@@ -223,11 +223,15 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     saved_builder = self._builder;
     saved_locals = self.local_vars;
     saved_func_symtab = dict(self.func_symtab);
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
     entry_bb = anon_fn.append_basic_block("entry");
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
     self.nogc_stack_vars = set();
     self.region_handle_vars = set();
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     for (i, arg) in enumerate(anon_fn.args) {
         alloca = self._entry_alloca(arg.type, all_param_names[i]);
@@ -271,8 +275,29 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     self._builder = saved_builder;
     self.local_vars = saved_locals;
     self.func_symtab = saved_func_symtab;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 
     if captures {
+        _all_cells = True;
+        for (cap_name, _cap_val, _cap_type) in captures {
+            if cap_name not in self.closure_cell_handles {
+                _all_cells = False;
+                break;
+            }
+        }
+        if _all_cells {
+            cap_info: list = [];
+            for (cap_name, _cap_val, cap_type) in captures {
+                cap_info.append((cap_name, "val", cap_type));
+            }
+            declared_fnty = ir.FunctionType(ret_type, param_types);
+            _clos_val = self._emit_closure_pair(anon_fn, declared_fnty, cap_info);
+            if _clos_val is not None {
+                self._pending_lambda_captures = None;
+                return _clos_val;
+            }
+        }
         capture_info: list[tuple] = [];
         for (cap_name, _cap_val, _cap_type) in captures {
             capture_info.append((cap_name, self.local_vars[cap_name]));
@@ -291,13 +316,11 @@ impl NaIRGenPass._codegen_name(nd: uni.Name) -> (ir.Value | None) {
         _np = nd.parent;
         _is_call_target = isinstance(_np, uni.FuncCall) and _np.target is nd;
         if not _is_call_target {
-            self.emit(
-                E5092,
-                node_override=nd,
-                kind="expression",
-                name=f"'{var_name}' (capturing closure used as a value)",
-                help_text="A closure that captures enclosing locals is bound to its defining frame; it can only be called directly here. To pass or return callable behavior, use a non-capturing function, or an object holding the state."
-            );
+            _clos_val = self._emit_closure_value(var_name, nd);
+            if _clos_val is not None {
+                return _clos_val;
+            }
+            self._emit_closure_escape_error(var_name, nd);
             return None;
         }
     }

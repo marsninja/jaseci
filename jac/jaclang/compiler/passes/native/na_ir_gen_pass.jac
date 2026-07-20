@@ -309,8 +309,35 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nested_captures: dict[str, tuple] = {},
         generator_fns: dict[str, uni.Ability] = {},
         _gen_ctx: (dict | None) = None,
-        decorated_fns: dict[str, tuple] = {};
+        decorated_fns: dict[str, tuple] = {},
+        closure_cell_vars: set[str] = set(),
+        closure_cell_handles: dict[str, ir.Value] = {},
+        closure_sig_registry: dict[str, tuple] = {},
+        _closure_sig_keys: dict[str, str] = {},
+        _closure_cell_structs: dict[str, str] = {},
+        closure_thunks: dict[str, ir.Function] = {},
+        _closure_uid: int = 0;
 
+    def _scan_closure_escapes(nd: uni.UniNode, body: (list | tuple)) -> None;
+    def _closure_sig_struct(fnty: ir.FunctionType) -> tuple;
+    def _closure_struct_of(val_type: ir.Type) -> (str | None);
+    def _closure_cell_struct(slot_type: ir.Type) -> str;
+    def _emit_closure_cell(var_name: str, slot_type: ir.Type) -> ir.Value;
+    def _emit_closure_thunk(
+        target_fn: ir.Function, declared_count: int, cap_info: list
+    ) -> ir.Function;
+
+    def _emit_closure_pair(
+        target_fn: ir.Function, declared_fnty: ir.FunctionType, cap_info: list
+    ) -> (ir.Value | None);
+
+    def _emit_closure_value(var_name: str, nd: uni.UniNode) -> (ir.Value | None);
+    def _emit_closure_escape_error(var_name: str, nd: uni.UniNode) -> None;
+    def _codegen_closure_call(
+        nd: uni.FuncCall, clos_val: ir.Value, struct_name: str
+    ) -> (ir.Value | None);
+
+    def _lower_function_type_raw(t: any) -> ir.Type;
     def _apply_static_decorators -> None;
     def _codegen_decorated_call(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
     def _ability_is_generator(nd: uni.Ability) -> bool;

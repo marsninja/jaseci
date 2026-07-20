@@ -295,7 +295,18 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         _is_opaque = False;
         if var is not None and var.type_tag is not None {
             if finfo.owner in self.clib_struct_names {
-                ftype = self._resolve_jac_type(var.type_tag);
+                _cf_fnty = False;
+                try {
+                    import from jaclang.compiler.type_system.types {
+                        FunctionType as _ClibFnType
+                    }
+                    _cf_fnty = isinstance(var?.type, _ClibFnType);
+                } except ImportError { }
+                if _cf_fnty {
+                    ftype = self._lower_function_type_raw(var.type);
+                } else {
+                    ftype = self._resolve_jac_type(var.type_tag);
+                }
             } else {
                 (ftype, _is_opaque) = self._try_resolve_field_type(var);
                 if _is_opaque {
@@ -438,10 +449,14 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
     saved_list_elem_struct = dict(self.var_list_elem_struct);
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_list_elem_struct = {};
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     saved_self_arch = self._self_arch;
     self._self_arch = arch_name;
@@ -449,6 +464,12 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
     );
+
+    _scan_body = ModuleCodegenPass.unwrap_body(method);
+    if _scan_body is not None {
+        _scan_owner = method.body if isinstance(method.body, uni.ImplDef) else method;
+        self._scan_closure_escapes(_scan_owner, _scan_body);
+    }
 
     _is_static = method.is_static;
     _base = 0;
@@ -463,6 +484,15 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     for (i, p) in enumerate(sig.get_parameters()) {
         param_name = p.name.value if p.name else f"arg{i}";
         arg_val = func.args[i + _base];
+        if param_name in self.closure_cell_vars {
+            slot = self._emit_closure_cell(param_name, arg_val.type);
+            self.builder.store(arg_val, slot);
+            self.local_vars[param_name] = slot;
+            if isinstance(arg_val.type, ir.PointerType) {
+                self._emit_rc_retain(arg_val, op="param_cell", loc=full_name);
+            }
+            continue;
+        }
         alloca = self.builder.alloca(arg_val.type, name=param_name);
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
@@ -525,6 +555,8 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._self_arch = saved_self_arch;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 
     if _isolate {
         self._demote_method_if_unlowerable(full_name, func, _err_mark, _local_mark);
@@ -594,11 +626,15 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     saved_param_vars = self.param_vars;
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_self_arch = self._self_arch;
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
     self._self_arch = arch_name;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_list_elem_struct = {};
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
@@ -630,6 +666,8 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._self_arch = saved_self_arch;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 }
 
 impl NaIRGenPass._trigger_member_structs(tag: (uni.UniNode | None)) -> list[str] {
@@ -761,11 +799,15 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     saved_param_vars = self.param_vars;
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_self_arch = self._self_arch;
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
     self._self_arch = arch_name;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_list_elem_struct = {};
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
     );
@@ -809,6 +851,8 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._self_arch = saved_self_arch;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 }
 
 impl NaIRGenPass._stack_alloc_target_ok(nd: uni.UniNode) -> bool {

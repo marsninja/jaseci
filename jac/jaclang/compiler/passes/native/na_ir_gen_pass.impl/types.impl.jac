@@ -349,6 +349,12 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
 }
 
 impl NaIRGenPass._lower_function_type(t: any) -> ir.Type {
+    raw = self._lower_function_type_raw(t);
+    (_sig_name, sig_st, _fnty_env) = self._closure_sig_struct(raw.pointee);
+    return sig_st.as_pointer();
+}
+
+impl NaIRGenPass._lower_function_type_raw(t: any) -> ir.Type {
     ret_type: ir.Type = ir.VoidType();
     if t.return_type is not None {
         _r = self._lower_type(t.return_type);
@@ -405,6 +411,14 @@ impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
 impl NaIRGenPass._try_resolve_field_type(var: uni.UniNode) -> tuple {
     _ptb = var?.type;
     if _ptb is not None {
+        try {
+            import from jaclang.compiler.type_system.types {
+                FunctionType as _FieldFnType
+            }
+            if isinstance(_ptb, _FieldFnType) {
+                return (self._lower_function_type_raw(_ptb), False);
+            }
+        } except ImportError { }
         lowered = self._lower_type(_ptb);
         if lowered is not None {
             return (lowered, False);
@@ -466,6 +480,15 @@ impl NaIRGenPass._resolve_clib_type(type_expr: (uni.UniNode | None)) -> ir.Type 
     if type_name == "bytes" or type_name == "bytearray" {
         return ir.IntType(8).as_pointer();
     }
+
+    try {
+        import from jaclang.compiler.type_system.types {
+            FunctionType as _ClibSigFnType
+        }
+        if isinstance(type_expr?.type, _ClibSigFnType) {
+            return self._lower_function_type_raw(type_expr.type);
+        }
+    } except ImportError { }
 
     return self._resolve_jac_type(type_expr);
 }
@@ -753,6 +776,56 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
 
     if isinstance(val.type, ir.FloatType) and isinstance(target_type, ir.DoubleType) {
         return self.builder.fpext(val, target_type, name="fpext");
+    }
+
+    _clos_tgt = self._closure_struct_of(target_type);
+    if _clos_tgt is not None {
+        _src_is_fn = isinstance(val.type, ir.FunctionType)
+        or (
+            isinstance(val.type, ir.PointerType)
+            and isinstance(val.type.pointee, ir.FunctionType)
+        );
+        if _src_is_fn {
+            if self._pending_lambda_captures is not None {
+                self._pending_lambda_captures = None;
+                self.emit(
+                    E5092,
+                    kind="expression",
+                    name="capturing lambda used as a value",
+                    help_text="This lambda captures enclosing locals that could not be promoted to shared heap cells in this frame, so it cannot escape as a value here. Bind the lambda's inputs through parameters, or use a named nested function."
+                );
+                return ir.Constant(target_type, None);
+            }
+            if self.rc_alloc_fn is None {
+                self._emit_rc_helpers();
+            }
+            _wi32 = ir.IntType(32);
+            _wi64 = ir.IntType(64);
+            _wi8p = ir.IntType(8).as_pointer();
+            _wfn = val;
+            if isinstance(_wfn.type, ir.FunctionType) {
+                _wfn = self.builder.bitcast(
+                    _wfn, _wfn.type.as_pointer(), name="clos.wrap.fnp"
+                );
+            }
+            _wclos = self._alloc_iter_struct(_clos_tgt);
+            _wfn_slot = self.builder.gep(
+                _wclos,
+                [ir.Constant(_wi32, 0), ir.Constant(_wi32, 0)],
+                name="clos.wrap.fn.slot"
+            );
+            self.builder.store(
+                self.builder.ptrtoint(_wfn, _wi64, name="clos.wrap.fn.i64"), _wfn_slot
+            );
+            _wenv_slot = self.builder.gep(
+                _wclos,
+                [ir.Constant(_wi32, 0), ir.Constant(_wi32, 1)],
+                name="clos.wrap.env.slot"
+            );
+            self.builder.store(ir.Constant(_wi8p, None), _wenv_slot);
+            self._mark_owned(_wclos);
+            return _wclos;
+        }
     }
 
     if isinstance(val.type, ir.PointerType)

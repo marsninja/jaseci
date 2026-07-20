@@ -1095,6 +1095,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         if func_name in self.local_vars {
             _alloca = self.local_vars[func_name];
             _loaded = self.builder.load(_alloca, name=f"fptr.{func_name}");
+            _clos_name = self._closure_struct_of(_loaded.type);
+            if _clos_name is not None {
+                return self._codegen_closure_call(nd, _loaded, _clos_name);
+            }
             if (
                 isinstance(_loaded.type, ir.PointerType)
                 and isinstance(_loaded.type.pointee, ir.FunctionType)

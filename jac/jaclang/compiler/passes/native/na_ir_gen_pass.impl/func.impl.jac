@@ -316,15 +316,32 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     self.param_vars = set();
     self.nogc_stack_vars = set();
     self.region_handle_vars = set();
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     self._attach_di_subprogram(
         func, name, self._func_loc.get(name, nd.loc.first_line if nd.loc else 0)
     );
 
+    body = ModuleCodegenPass.unwrap_body(nd);
+    if body is not None {
+        _scan_owner = nd.body if isinstance(nd.body, uni.ImplDef) else nd;
+        self._scan_closure_escapes(_scan_owner, body);
+    }
+
     sig = (nd).signature;
     for (i, p) in enumerate(sig.get_parameters()) {
         param_name = p.name.value if p.name else f"arg{i}";
         arg_val = func.args[i];
+        if param_name in self.closure_cell_vars {
+            slot = self._emit_closure_cell(param_name, arg_val.type);
+            self.builder.store(arg_val, slot);
+            self.local_vars[param_name] = slot;
+            if isinstance(arg_val.type, ir.PointerType) {
+                self._emit_rc_retain(arg_val, op="param_cell", loc=name);
+            }
+            continue;
+        }
         alloca = self.builder.alloca(arg_val.type, name=param_name);
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
@@ -337,7 +354,6 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         }
     }
 
-    body = ModuleCodegenPass.unwrap_body(nd);
     if body is not None {
         _symtab_before_body = dict(self.func_symtab);
         self._codegen_body(body);
@@ -403,6 +419,13 @@ impl NaIRGenPass._codegen_test(nd: uni.Test) -> None {
     self.region_handle_vars = set();
     saved_param_vars = self.param_vars;
     self.param_vars = set();
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
+    if nd.body {
+        self._scan_closure_escapes(nd, nd.body);
+    }
     self._attach_di_subprogram(func, symbol, line);
 
     exc_state = self.builder.alloca(self._exc_state_type, name="exc.state");
@@ -439,6 +462,8 @@ impl NaIRGenPass._codegen_test(nd: uni.Test) -> None {
     self.builder.ret(exc_msg);
     self._finalize_di_locations(func, line);
     self.param_vars = saved_param_vars;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
     self._builder = None;
     desc = nd.description.lit_value if nd.description else "";
     self.native_tests.append((test_name, symbol, desc, line));
@@ -515,14 +540,30 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
     saved_var_list_struct = self.var_list_elem_struct;
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
     self._builder = ir.IRBuilder(fn.append_basic_block("entry"));
     self.local_vars = {};
     self.nogc_stack_vars = set();
     self.region_handle_vars = set();
     self.param_vars = set();
     self.var_list_elem_struct = {};
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
+    if body is not None {
+        self._scan_closure_escapes(nd, body);
+    }
     for (i, arg) in enumerate(fn.args) {
         if i < len(param_names) {
+            if param_names[i] in self.closure_cell_vars {
+                slot = self._emit_closure_cell(param_names[i], arg.type);
+                self.builder.store(arg, slot);
+                self.local_vars[param_names[i]] = slot;
+                if isinstance(arg.type, ir.PointerType) {
+                    self._emit_rc_retain(arg, op="param_cell", loc=name);
+                }
+                continue;
+            }
             alloca = self._entry_alloca(arg.type, param_names[i]);
             self.builder.store(arg, alloca);
             self.local_vars[param_names[i]] = alloca;
@@ -560,6 +601,8 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_var_list_struct;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
     nd.gen.llvm_ir = fn;
 }
 
@@ -643,6 +686,8 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     saved_params = self.param_vars;
     saved_nogc = self.nogc_stack_vars;
     saved_region = self.region_handle_vars;
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
 
     entry_bb = resume_fn.append_basic_block("entry");
     self._builder = ir.IRBuilder(entry_bb);
@@ -650,6 +695,8 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.param_vars = set();
     self.nogc_stack_vars = set();
     self.region_handle_vars = set();
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     gc: dict = {
         "resume_fn": resume_fn,
@@ -724,6 +771,8 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.param_vars = saved_params;
     self.nogc_stack_vars = saved_nogc;
     self.region_handle_vars = saved_region;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 
     drop_fn = self._emit_generator_drop_fn(name, frame_slots);
 
@@ -825,6 +874,8 @@ impl NaIRGenPass._emit_glob_init_func -> None {
     saved_locals = self.local_vars if self?.local_vars else {};
     saved_param_vars = self.param_vars;
     saved_di_sp = self._di_current_sp;
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
 
     fnty = ir.FunctionType(ir.VoidType(), []);
     func = self._define_function("__jac_glob_init", fnty);
@@ -834,6 +885,8 @@ impl NaIRGenPass._emit_glob_init_func -> None {
     self.param_vars = set();
     self.nogc_stack_vars = set();
     self.region_handle_vars = set();
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     self._attach_di_subprogram(func, "__jac_glob_init", 0);
     _i8 = ir.IntType(8);
@@ -906,6 +959,8 @@ impl NaIRGenPass._emit_glob_init_func -> None {
     self.local_vars = saved_locals;
     self.param_vars = saved_param_vars;
     self._di_current_sp = saved_di_sp;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 }
 
 impl NaIRGenPass._apply_static_decorators -> None {
@@ -936,6 +991,8 @@ impl NaIRGenPass._apply_static_decorators -> None {
                 d_arg = self._box_to_jacval(
                     self.builder.bitcast(cur, i8p, name="dec.fn.i8")
                 );
+            } elif self._closure_struct_of(d_param) is not None {
+                d_arg = self._coerce_type(cur, d_param);
             } elif isinstance(d_param, ir.PointerType) {
                 d_arg = self.builder.bitcast(cur, d_param, name="dec.fn.cast");
             } else {
@@ -946,6 +1003,31 @@ impl NaIRGenPass._apply_static_decorators -> None {
                 payload = self.builder.extract_value(res, 1, name="dec.res.payload");
                 cur = self.builder.inttoptr(
                     payload, fnty.as_pointer(), name="dec.res.fn"
+                );
+            } elif self._closure_struct_of(res.type) is not None {
+                _i32d = ir.IntType(32);
+                _denv_slot = self.builder.gep(
+                    res,
+                    [ir.Constant(_i32d, 0), ir.Constant(_i32d, 1)],
+                    name="dec.res.env.slot"
+                );
+                _denv = self.builder.load(_denv_slot, name="dec.res.env");
+                _denv_set = self.builder.icmp_unsigned(
+                    "!=", _denv, ir.Constant(i8p, None), name="dec.res.env.set"
+                );
+                self._emit_runtime_raise(
+                    _denv_set,
+                    "TypeError",
+                    "a native decorator returned a capturing closure; the decorated call slot holds a bare function pointer and cannot carry the closure environment"
+                );
+                _dfn_slot = self.builder.gep(
+                    res,
+                    [ir.Constant(_i32d, 0), ir.Constant(_i32d, 0)],
+                    name="dec.res.fn.slot"
+                );
+                _dfn_i64 = self.builder.load(_dfn_slot, name="dec.res.fn.i64");
+                cur = self.builder.inttoptr(
+                    _dfn_i64, fnty.as_pointer(), name="dec.res.unwrap"
                 );
             } elif isinstance(res.type, ir.PointerType) {
                 cur = self.builder.bitcast(res, fnty.as_pointer(), name="dec.res.cast");
@@ -978,6 +1060,8 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self.param_vars = set();
     self.nogc_stack_vars = set();
     self.region_handle_vars = set();
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     _first = nodes[0];
     entry_line = _first.loc.first_line if _first.loc else 0;

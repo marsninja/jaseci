@@ -71,9 +71,11 @@ def fmt_errors(prog: JacProgram) -> str {
 
 # Nested functions capturing enclosing locals lower natively (read captures
 # bind by value at each call, rebound captures write through a frame-slot
-# pointer); behavioral coverage lives in test_native_closures.jac. Only the
-# escape shapes (a capturing closure used as a value) remain rejected, with
-# a structured E5092 from codegen.
+# pointer), and escaping capturing closures lower via closure conversion
+# (RC heap cells + {fn, env} pairs); behavioral coverage lives in
+# test_native_closures.jac. Only a capture borrowed from an outer frame, a
+# closure call through an `any`-typed value, and capturing map/filter
+# lambda callbacks remain rejected, with a structured E5092 from codegen.
 
 # NOTE (issue #6146, Phase 4c): the `visit` / `disengage` / `report` guardrails
 # were removed because these statements are now LOWERED to the portable kernel

@@ -77,6 +77,9 @@ impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
         if name in self.region_handle_vars {
             continue;
         }
+        if name in self.closure_cell_handles {
+            continue;
+        }
         val = self.builder.load(alloca, name=f"lu.{name}");
         self._emit_rc_release_typed(val, op="last_use", loc="");
         self.builder.store(ir.Constant(slot_ty, None), alloca);
@@ -261,7 +264,8 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
             skip_var: (str | None) = None;
             if isinstance(nd.expr, uni.Name)
             and nd.expr.sym_name in self.local_vars
-            and nd.expr.sym_name not in self.param_vars {
+            and nd.expr.sym_name not in self.param_vars
+            and nd.expr.sym_name not in self.closure_cell_handles {
                 skip_var = nd.expr.sym_name;
             } elif isinstance(nd.expr, uni.TupleVal) {
                 tup_elems = nd.expr.values or [];
@@ -280,9 +284,19 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
                             isinstance(tup_alloca.type, ir.PointerType)
                             and isinstance(tup_alloca.type.pointee, ir.PointerType)
                         ) {
-                            self.builder.store(
-                                ir.Constant(tup_alloca.type.pointee, None), tup_alloca
-                            );
+                            if elem_name in self.closure_cell_handles {
+                                _tup_cell_val = self.builder.load(
+                                    tup_alloca, name=f"ret.cell.{elem_name}"
+                                );
+                                self._emit_rc_retain(
+                                    _tup_cell_val, op="return", loc=""
+                                );
+                            } else {
+                                self.builder.store(
+                                    ir.Constant(tup_alloca.type.pointee, None),
+                                    tup_alloca
+                                );
+                            }
                         }
                     }
                 }
@@ -2195,6 +2209,25 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
         } else {
             var_type = value.type;
             _pre_box_val = value;
+            if (
+                (not nd.type_tag or not nd.type_tag.tag)
+                and isinstance(value.type, ir.PointerType)
+                and self._closure_struct_of(value.type) is None
+                and isinstance(nd.value, uni.Expr)
+                and nd.value.type is not None
+            ) {
+                try {
+                    _clos_hint = self._lower_type(nd.value.type);
+                } except Exception {
+                    _clos_hint = None;
+                }
+                if _clos_hint is not None
+                and self._closure_struct_of(_clos_hint) is not None {
+                    value = self._coerce_type(value, _clos_hint);
+                    var_type = _clos_hint;
+                    _pre_box_val = value;
+                }
+            }
             if nd.type_tag and nd.type_tag.tag {
                 tag_node = nd.type_tag.tag;
 
@@ -2253,8 +2286,17 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 );
                 return;
             }
-            alloca = self._entry_alloca(var_type, var_name);
-            if isinstance(var_type, ir.PointerType) {
+            _mk_cell = (
+                var_name in self.closure_cell_vars
+                and var_name not in self.closure_cell_handles
+                and self._gen_ctx is None
+            );
+            if _mk_cell {
+                alloca = self._emit_closure_cell(var_name, var_type);
+            } else {
+                alloca = self._entry_alloca(var_type, var_name);
+            }
+            if isinstance(var_type, ir.PointerType) and not _mk_cell {
                 _func_e = self.builder.function;
                 _ebb = _func_e.entry_basic_block;
                 _cur_bb = self.builder.block;

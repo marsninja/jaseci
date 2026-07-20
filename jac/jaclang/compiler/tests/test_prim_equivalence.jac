@@ -222,6 +222,16 @@ test "closures nested capture" {
     );
 }
 
+test "closures escaping" {
+    run_with_both(
+        "prim_closures.jac",
+        "closures_escape_py",
+        "closures_escape_cl",
+        "closures_escape_na",
+        require=["na"]
+    );
+}
+
 test "generators yield" {
     run_with_both(
         "prim_generators.jac", "gens_py", "gens_cl", "gens_na", require=["na"]
