@@ -276,12 +276,13 @@ test "non-lowerable pure module demotes to server under native default" {
     assert stamp_of(mod, "build") == 'server';
 }
 
-test "implicit-ctor positional args demote to server under native default" {
+test "implicit-ctor positional args lower natively under native default" {
     mod = compile_with_default("nadefault_posctor.jac", "native", cgen=True);
-    assert mod.decided_codespace == '' , (
-        "positional implicit-ctor args do not lower; module must demote"
+    assert mod.decided_codespace == 'native' , (
+        "positional implicit-ctor args map onto has-field order and lower"
     );
-    assert stamp_of(mod, "make") == 'server';
+    assert mod.gen.native_engine is not None;
+    assert stamp_of(mod, "make") == 'native';
 }
 
 test "cascade: importer of a demoted module demotes with it" {

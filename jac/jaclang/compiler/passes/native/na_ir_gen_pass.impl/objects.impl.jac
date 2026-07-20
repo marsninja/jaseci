@@ -869,28 +869,50 @@ impl NaIRGenPass._stack_alloc_target_ok(nd: uni.UniNode) -> bool {
 }
 
 impl NaIRGenPass._codegen_instantiation(
-    nd: (uni.FuncCall | uni.Name)
+    nd: (uni.FuncCall | uni.Name),
+    type_name_override: (str | None) = None,
+    ctor_params: (list | None) = None
 ) -> (ir.Value | None) {
     _is_call = isinstance(nd, uni.FuncCall);
-    type_name = self._get_name(nd.target if _is_call else nd);
+    type_name = type_name_override
+        if type_name_override is not None
+        else self._get_name(nd.target if _is_call else nd);
     if type_name is None or type_name not in self.struct_types {
         return None;
     }
     struct_type = self.struct_types[type_name];
     struct_ptr_type = struct_type.as_pointer();
 
-    if _is_call
-    and any([not isinstance(p, uni.KWPair) for p in (nd.params or [])])
-    and f"{type_name}.init" not in self.method_funcs
-    and f"{type_name}.__init__" not in self.method_funcs {
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="constructor call",
-            name=type_name,
-            help_text=f"Positional arguments to '{type_name}' only lower natively when it declares an explicit init; pass has-fields as keyword arguments (field=value) or add an init method."
-        );
-        return None;
+    params = ctor_params
+        if ctor_params is not None
+        else ((nd.params or []) if _is_call else []);
+    _has_init = (
+        f"{type_name}.init" in self.method_funcs
+        or f"{type_name}.__init__" in self.method_funcs
+    );
+    _pos_field_pairs: list = [];
+    if not _has_init {
+        _pos_args = [
+            p
+            for p in params
+            if not isinstance(p, uni.KWPair)
+        ];
+        if _pos_args {
+            _order = self.struct_field_order.get(type_name);
+            if _order is None or len(_pos_args) > len(_order) {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="constructor call",
+                    name=type_name,
+                    help_text=f"Positional arguments to '{type_name}' lower natively only up to its declared has-field count and only when its field layout is visible to this module."
+                );
+                return None;
+            }
+            for (_pi, _pv) in enumerate(_pos_args) {
+                _pos_field_pairs.append((_order[_pi], _pv));
+            }
+        }
     }
 
     _vt_struct = type_name in self.clib_vtable_structs;
@@ -1113,82 +1135,86 @@ impl NaIRGenPass._codegen_instantiation(
     opaque_fields = self.struct_field_opaque.get(type_name, set());
 
     set_fields: set[str] = set();
-    params = (nd.params or []) if _is_call else [];
+    _field_inits: list = list(_pos_field_pairs);
     for param in params {
         if isinstance(param, uni.KWPair) {
-            key_name = param.key.sym_name if param.key else None;
-            if key_name is None or key_name not in field_indices {
-                continue;
+            _kn = param.key.sym_name if param.key else None;
+            if _kn is not None {
+                _field_inits.append((_kn, param.value));
             }
+        }
+    }
+    for (key_name, init_expr) in _field_inits {
+        if key_name not in field_indices or key_name in set_fields {
+            continue;
+        }
 
-            if key_name in opaque_fields {
-                continue;
-            }
-            val = self._codegen_expr(param.value);
-            if val is None {
-                ftype_probe = field_types.get(key_name);
-                if ftype_probe is not None
-                and isinstance(ftype_probe, ir.PointerType) {
-                    for (dict_key, dtype) in self.dict_types.items() {
-                        if ftype_probe == dtype.as_pointer() {
-                            helpers = self.dict_helpers.get(dict_key);
+        if key_name in opaque_fields {
+            continue;
+        }
+        val = self._codegen_expr(init_expr);
+        if val is None {
+            ftype_probe = field_types.get(key_name);
+            if ftype_probe is not None and isinstance(ftype_probe, ir.PointerType) {
+                for (dict_key, dtype) in self.dict_types.items() {
+                    if ftype_probe == dtype.as_pointer() {
+                        helpers = self.dict_helpers.get(dict_key);
+                        if helpers is not None {
+                            val = self.builder.call(
+                                helpers["new"], [], name=f"dict.ctor.{key_name}"
+                            );
+                        }
+                        break;
+                    }
+                }
+                if val is None {
+                    for (elem_key, ltype) in self.list_types.items() {
+                        if ftype_probe == ltype.as_pointer() {
+                            helpers = self.list_helpers.get(elem_key);
                             if helpers is not None {
                                 val = self.builder.call(
-                                    helpers["new"], [], name=f"dict.ctor.{key_name}"
+                                    helpers["new"], [], name=f"list.ctor.{key_name}"
                                 );
                             }
                             break;
                         }
                     }
-                    if val is None {
-                        for (elem_key, ltype) in self.list_types.items() {
-                            if ftype_probe == ltype.as_pointer() {
-                                helpers = self.list_helpers.get(elem_key);
-                                if helpers is not None {
-                                    val = self.builder.call(
-                                        helpers["new"], [], name=f"list.ctor.{key_name}"
-                                    );
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-                if val is None {
-                    continue;
                 }
             }
-            idx = field_indices[key_name];
-            ftype = field_types[key_name];
-
-            _is_clib_cb = (
-                type_name in self.clib_vtable_structs
-                and isinstance(ftype, ir.PointerType)
-                and isinstance(ftype.pointee, ir.FunctionType)
-            );
-            if _is_clib_cb {
-                val = self._clib_coerce_callback(val, ftype);
-            } else {
-                val = self._coerce_type(val, ftype);
+            if val is None {
+                continue;
             }
-
-            if not _vt_struct {
-                self._emit_take_ref(
-                    val,
-                    op="ctor_field",
-                    loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-                        if nd.loc
-                        else 0}"
-                );
-            }
-            field_ptr = self.builder.gep(
-                obj_ptr,
-                [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
-                name=f"field.{key_name}"
-            );
-            self.builder.store(val, field_ptr);
-            set_fields.add(key_name);
         }
+        idx = field_indices[key_name];
+        ftype = field_types[key_name];
+
+        _is_clib_cb = (
+            type_name in self.clib_vtable_structs
+            and isinstance(ftype, ir.PointerType)
+            and isinstance(ftype.pointee, ir.FunctionType)
+        );
+        if _is_clib_cb {
+            val = self._clib_coerce_callback(val, ftype);
+        } else {
+            val = self._coerce_type(val, ftype);
+        }
+
+        if not _vt_struct {
+            self._emit_take_ref(
+                val,
+                op="ctor_field",
+                loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                    if nd.loc
+                    else 0}"
+            );
+        }
+        field_ptr = self.builder.gep(
+            obj_ptr,
+            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
+            name=f"field.{key_name}"
+        );
+        self.builder.store(val, field_ptr);
+        set_fields.add(key_name);
     }
 
     for (fname, default_expr) in field_defaults.items() {

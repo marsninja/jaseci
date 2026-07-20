@@ -838,14 +838,14 @@ test "guardrail: f-string !a conversion is rejected" {
 }
 
 # Positional arguments to an archetype WITHOUT an explicit init map onto the
-# implicit field constructor in Python semantics, but the native implicit-ctor
-# lowering only maps keyword arguments -- positionals were silently DROPPED,
-# leaving default/zero fields (observed via item #19: inferred-native test
-# blocks flipped on wrong field values). Until positional field mapping lowers,
-# this must be a structured E5092, never a silent wrong-value compile.
-# Explicit-init positionals are supported (objects.na.jac KWInit coverage).
-test "guardrail: implicit-ctor positional args are rejected" {
-    prog = compile_na_inline(
+# implicit field constructor via the declared has-field order (#7593 item 14),
+# so `Vec(1.0, 3.0)` lowers cleanly instead of demoting. The remaining gaps
+# are the new() forms the checker's `*args` stub cannot reject: more
+# positional args than declared fields, and a dynamic (non-static) class
+# value. Both must stay a structured E5092, never a silent wrong-value
+# compile (sv raises TypeError at runtime for the overflow form).
+test "guardrail: implicit-ctor positionals lower; dynamic new() is rejected" {
+    ok = compile_na_inline(
         "pos_ctor",
         "obj Vec {\n"
         "    has x: float = 0.0;\n"
@@ -856,7 +856,33 @@ test "guardrail: implicit-ctor positional args are rejected" {
         "}\n"
         "with entry {}\n"
     );
-    assert has_error_code(prog, "E5092") , f"Expected E5092 for implicit-ctor positional args, got: {fmt_errors(
-        prog
+    assert not ok.errors_had , f"Implicit-ctor positional args must lower: {fmt_errors(
+        ok
+    )}";
+    over = compile_na_inline(
+        "new_overflow",
+        "obj Vec {\n"
+        "    has x: float = 0.0;\n"
+        "    has z: float = 0.0;\n"
+        "}\n"
+        "def make() -> float {\n"
+        "    v = new(Vec, 1.0, 2.0, 3.0);\n"
+        "    return v.z;\n"
+        "}\n"
+        "with entry {}\n"
+    );
+    assert has_error_code(over, "E5092") , f"Expected E5092 for new() arity overflow, got: {fmt_errors(
+        over
+    )}";
+    dyn = compile_na_inline(
+        "new_dynamic",
+        "def make(c: any) -> int {\n"
+        "    v = new(c, 1);\n"
+        "    return 0;\n"
+        "}\n"
+        "with entry {}\n"
+    );
+    assert has_error_code(dyn, "E5092") , f"Expected E5092 for a dynamic new() class value, got: {fmt_errors(
+        dyn
     )}";
 }

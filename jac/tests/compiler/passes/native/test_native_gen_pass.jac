@@ -5425,3 +5425,43 @@ test "from-imported plain jac dep with glob does not demote" {
     use_dep_glob = get_func(eng, "use_dep_glob", ctypes.c_int64);
     assert use_dep_glob() == 5 , f"Expected 5, got {use_dep_glob()}";
 }
+
+# ─── #7593 item 14 (M1): new(Cls, ...) builtin + positional implicit ctors ───
+# `new(Cls, args...)` is the builtin direct-constructor form (sv impl is
+# `cls(*args)`, positional-only). Natively it must delegate to the same
+# instantiation path as a direct `Cls(...)` call, and positional args on an
+# archetype WITHOUT an explicit init must map onto the declared has-field
+# order (dataclass semantics) instead of demoting with E5092.
+test "native new(): positional construction of a has-field obj" {
+    (eng, _) = compile_native("new_builtin.na.jac");
+    make_area = get_func(eng, "make_area", ctypes.c_int64, ctypes.c_int64);
+    assert make_area(5) == 25 , f"Expected 25, got {make_area(5)}";
+    assert make_area(0) == 0 , f"Expected 0, got {make_area(0)}";
+}
+
+test "native new(): forwards positionally to explicit init" {
+    (eng, _) = compile_native("new_builtin.na.jac");
+    make_sum = get_func(
+        eng, "make_sum", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64
+    );
+    assert make_sum(3, 4) == 7 , f"Expected 7, got {make_sum(3, 4)}";
+    assert make_sum(-2, 2) == 0 , f"Expected 0, got {make_sum(-2, 2)}";
+}
+
+test "native new(): no-arg call applies field defaults" {
+    (eng, _) = compile_native("new_builtin.na.jac");
+    make_tag = get_func(eng, "make_tag", ctypes.c_int64);
+    assert make_tag() == 7 , f"Expected 7, got {make_tag()}";
+}
+
+test "native positional construction maps has fields (parity with sv)" {
+    (eng, _) = compile_native("pos_ctor.na.jac");
+    direct_area = get_func(eng, "direct_area", ctypes.c_int64, ctypes.c_int64);
+    assert direct_area(5) == 25 , f"Expected 25, got {direct_area(5)}";
+    vec_mix = get_func(
+        eng, "vec_mix", ctypes.c_double, ctypes.c_double, ctypes.c_double
+    );
+    assert vec_mix(1.5, 3.25) == 153.25 , f"Expected 153.25, got {vec_mix(1.5, 3.25)}";
+    label_count = get_func(eng, "label_count", ctypes.c_int64, ctypes.c_int64);
+    assert label_count(9) == 12 , f"Expected 12, got {label_count(9)}";
+}

@@ -2263,7 +2263,7 @@ test "jac check native census ranks module outcomes" {
             f.write(
                 "obj Widget {\n    has size: int = 0;\n\n    def render -> str {\n"
                 + "        return \"ok\";\n    }\n}\n\ndef build -> str {\n"
-                + "    w = new(Widget, 5);\n    return w.render();\n}\n"
+                + "    w: any = Widget();\n    return w.render();\n}\n"
             );
         }
         with open(os.path.join(td, "blocked.jac"), "w") as f {

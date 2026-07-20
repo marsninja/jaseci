@@ -448,6 +448,37 @@ impl NaIRGenPass._emit_unsupported_builtin_call(
     );
 }
 
+impl NaIRGenPass._emit_new(nd: uni.FuncCall) -> (ir.Value | None) {
+    params_l = nd.params or [];
+    if not params_l or any([isinstance(p, uni.KWPair) for p in params_l]) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name="new",
+            help_text="new() takes a class followed by positional constructor arguments only."
+        );
+        return None;
+    }
+    cls_name = self._get_name(params_l[0]);
+    if cls_name is None or cls_name not in self.struct_types {
+        cls_name = self._struct_name_of(nd);
+    }
+    if cls_name is None or cls_name not in self.struct_types {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name="new",
+            help_text="new() lowers natively only when the first argument statically names an archetype whose native layout is visible to this module; dynamic class values are not supported in native code."
+        );
+        return None;
+    }
+    return self._codegen_instantiation(
+        nd, type_name_override=cls_name, ctor_params=list(params_l[1:])
+    );
+}
+
 impl NaIRGenPass._native_module_call_target(nd: uni.FuncCall) -> (str | None) {
     trailer = nd.target;
     if not isinstance(trailer, uni.AtomTrailer) or not trailer.is_attr {
@@ -519,6 +550,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 return self._codegen_expr(params_l[0]);
             }
             return None;
+        }
+
+        if func_name == "new" {
+            return self._emit_new(nd);
         }
 
         if func_name == "Region" {

@@ -634,3 +634,7 @@ test "match class" {
         require=["na"]
     );
 }
+
+test "new builtin and positional ctors" {
+    run_with_both("prim_new.jac", "new_py", "new_cl", "new_na", require=["na"]);
+}
