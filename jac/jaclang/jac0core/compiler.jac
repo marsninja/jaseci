@@ -435,11 +435,6 @@ def _seed_module_codespace(module: uni.Module) {
 }
 
 glob NATIVE_DEFAULT_SV_SIGNAL_NODES: tuple = (
-         uni.VisitStmt,
-         uni.DisengageStmt,
-         uni.ReportStmt,
-         uni.EdgeOpRef,
-         uni.DisconnectOp,
          uni.TypedCtxBlock,
          uni.PyInlineCode,
          uni.ClientBlock,
@@ -518,14 +513,18 @@ def _scan_native_default_signals(
             return (f"contains {typ.__name__}", deps);
         }
     }
-    for arch in module.get_all_sub_nodes(uni.Archetype) {
-        if arch.arch_type.name in (Tok.KW_NODE, Tok.KW_EDGE, Tok.KW_WALKER) {
-            return ("osp archetype", deps);
+    for svr in module.get_all_sub_nodes(uni.SpecialVarRef) {
+        if svr.orig.name == Tok.KW_ROOT {
+            return ("root access (persistent graph)", deps);
         }
     }
     for ab in module.get_all_sub_nodes(uni.Ability) {
-        if ab.is_async or isinstance(ab.signature, uni.EventSignature) {
-            return ("async/event ability", deps);
+        if ab.is_async {
+            return ("async ability", deps);
+        }
+        if isinstance(ab.signature, uni.EventSignature)
+        and ab.find_parent_of_type(uni.Archetype) is None {
+            return ("event ability outside an archetype", deps);
         }
     }
     for stmt in module.body {
