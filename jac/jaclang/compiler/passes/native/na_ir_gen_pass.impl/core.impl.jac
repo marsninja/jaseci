@@ -226,6 +226,18 @@ impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
                     return f"Tuple*";
                 }
             }
+
+            for (dkey, dtype) in self.dict_types.items() {
+                if ty.pointee == dtype {
+                    return f"{dtype.name}*";
+                }
+            }
+
+            for (sekey, setype) in self.set_types.items() {
+                if ty.pointee == setype {
+                    return f"{setype.name}*";
+                }
+            }
         }
         return "ptr";
     }
@@ -342,6 +354,15 @@ impl NaIRGenPass._export_native_layout -> None {
                 ret_enum = _rkey;
             }
         }
+
+        ret_elem: (list | None) = None;
+        if (
+            ret_type.startswith("List.")
+            or ret_type.startswith("Dict.")
+            or ret_type.startswith("Set.")
+        ) {
+            ret_elem = self.func_ret_elem_keys.get(fname);
+        }
         layout.functions[fname] = NativeFuncLayout(
             name=fname,
             param_types=param_types,
@@ -349,7 +370,8 @@ impl NaIRGenPass._export_native_layout -> None {
             ret_type=ret_type,
             ret_struct_name=ret_struct,
             ret_tuple_layout=ret_tuple,
-            ret_enum_type=ret_enum
+            ret_enum_type=ret_enum,
+            ret_elem_keys=ret_elem
         );
     }
 

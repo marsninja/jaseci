@@ -80,7 +80,8 @@ obj NativeFuncLayout {
         ret_type: str = "i64",
         ret_struct_name: (str | None) = None,
         ret_tuple_layout: (NativeTupleLayout | None) = None,
-        ret_enum_type: (str | None) = None;
+        ret_enum_type: (str | None) = None,
+        ret_elem_keys: (list | None) = None;
 }
 
 obj NativeTestLayout {
