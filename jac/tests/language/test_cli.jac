@@ -2261,20 +2261,15 @@ test "jac check native census ranks module outcomes" {
         }
         with open(os.path.join(td, "demote.jac"), "w") as f {
             f.write(
-                "obj Widget {\n    has size: int = 0;\n\n    def render -> str {\n"
-                + "        return \"ok\";\n    }\n}\n\ndef build -> str {\n"
-                + "    w: any = Widget();\n    return w.render();\n}\n"
+                "obj Widget {\n    has size: int = 0;\n\n    def render -> str {\n" + "        return \"ok\";\n    }\n}\n\ndef build -> str {\n" + "    w: any = Widget();\n    return w.render();\n}\n"
             );
         }
         with open(os.path.join(td, "blocked.jac"), "w") as f {
             f.write(
-                "node Item {\n    has label: str = \"\";\n}\n\nwalker Visitor {\n"
-                + "    can look with Item entry {\n        print(here.label);\n"
-                + "    }\n}\n"
+                "node Item {\n    has label: str = \"\";\n}\n\nwalker Visitor {\n" + "    can look with Item entry {\n        print(here.label);\n" + "    }\n}\n"
             );
         }
-        (captured_stdout, captured_stderr, old_stdout, old_stderr) =
-            _capture_output();
+        (captured_stdout, captured_stderr, old_stdout, old_stderr) = _capture_output();
         _reset_config();
         try {
             result = analysis.check([td], native_census=True);

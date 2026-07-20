@@ -726,6 +726,7 @@ impl JacCompiler.compile(
             _wrap_prog = self._resolve_program(file_path, target_program);
         }
         _pre_errs = len(_wrap_prog.errors_had);
+        _pre_warns = len(_wrap_prog.warnings_had);
         _mod: (uni.Module | None) = None;
         _crash: (Exception | None) = None;
         try {
@@ -767,6 +768,7 @@ impl JacCompiler.compile(
         na_census_record(_resolved, 'demoted', _demote_code, _first_err);
         _mark_demoted_native(_resolved);
         _wrap_prog.errors_had = _wrap_prog.errors_had[:_pre_errs];
+        _wrap_prog.warnings_had = _wrap_prog.warnings_had[:_pre_warns];
         try {
             _wrap_prog.invalidate_module(_resolved);
         } except Exception {
