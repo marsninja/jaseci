@@ -22,9 +22,10 @@ impl NaIRGenPass._split_type_args(s: str, sep: str = ",") -> list[str] {
 impl NaIRGenPass._repr_const_str(text: str) -> ir.Value {
     g = self._make_global_string(text, name_prefix=".repr.c");
     if self._nogc_headerless() {
-        i8p = ir.IntType(8).as_pointer();
+        i8p: any = ir.IntType(8).as_pointer();
         _strdup = self._get_or_declare_extern("strdup", i8p, [i8p]);
-        return self.builder.call(_strdup, [g], name="rp.c.dup");
+        _dup: any = self.builder.call(_strdup, [g], name="rp.c.dup");
+        return _dup;
     }
     return g;
 }
@@ -33,7 +34,7 @@ impl NaIRGenPass._repr_acc_concat(
     acc_slot: ir.Value, piece: ir.Value, own_piece: bool
 ) -> None {
     b = self.builder;
-    cur = b.load(acc_slot, name="rp.cur");
+    cur: any = b.load(acc_slot, name="rp.cur");
     res = self._emit_binary_op(Tok.PLUS, cur, piece);
     self._emit_rc_release_simple(cur, op="mstr_old", loc="");
     if own_piece {
@@ -58,9 +59,9 @@ impl NaIRGenPass._repr_maybe_sep(
 }
 
 impl NaIRGenPass._repr_call_elem_fn(elem_fn: ir.Function, elem: ir.Value) -> ir.Value {
-    _pty = elem_fn.args[0].type;
+    _pty: any = elem_fn.args[0].type;
     v = elem if elem.type == _pty else self._coerce_type(elem, _pty);
-    res = self.builder.call(elem_fn, [v], name="rp.piece");
+    res: any = self.builder.call(elem_fn, [v], name="rp.piece");
     return self._mark_owned(res);
 }
 
@@ -163,11 +164,11 @@ impl NaIRGenPass._repr_leaf_fn(kind: str) -> (ir.Function | None) {
         return _cached;
     }
     import from jaclang.jac0core.codeinfo { native_safe_sym }
-    i8p = ir.IntType(8).as_pointer();
+    i8p: any = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     fnty = ir.FunctionType(i8p, [i64]);
-    fn = ir.Function(
+    fn: any = ir.Function(
         self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym(kind)}"
     );
     fn.linkage = "private";
@@ -193,7 +194,7 @@ impl NaIRGenPass._repr_leaf_fn(kind: str) -> (ir.Function | None) {
         );
         fmt_g = self._make_global_string("%lld", name_prefix=".repr.fmt.int");
         cap = ir.Constant(i64, 24);
-        buf = b.call(self.rc_alloc_fn, [cap], name="rp.i.buf");
+        buf: any = b.call(self.rc_alloc_fn, [cap], name="rp.i.buf");
         b.call(snprintf, [buf, cap, fmt_g, v]);
         self._emit_set_type_tag(b, buf, "str");
         b.ret(buf);
@@ -211,10 +212,10 @@ impl NaIRGenPass._repr_str_fn -> ir.Function {
     import from jaclang.jac0core.codeinfo { native_safe_sym }
     i1 = ir.IntType(1);
     i8 = ir.IntType(8);
-    i8p = i8.as_pointer();
+    i8p: any = i8.as_pointer();
     i64 = ir.IntType(64);
     fnty = ir.FunctionType(i8p, [i8p]);
-    fn = ir.Function(
+    fn: any = ir.Function(
         self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym('str')}"
     );
     fn.linkage = "private";
@@ -268,7 +269,7 @@ impl NaIRGenPass._repr_str_fn -> ir.Function {
     quote = b.select(use_dq, DQ, SQ, name="rp.quote");
 
     cap = b.add(b.mul(slen, ir.Constant(i64, 4)), ir.Constant(i64, 3), name="rp.cap");
-    buf = b.call(self.rc_alloc_fn, [cap], name="rp.s.buf");
+    buf: any = b.call(self.rc_alloc_fn, [cap], name="rp.s.buf");
     b.store(quote, buf);
     oi = b.alloca(i64, name="rp.oi");
     wi = b.alloca(i64, name="rp.wi");
@@ -366,10 +367,11 @@ impl NaIRGenPass._repr_obj_fn(arch_name: str) -> ir.Function {
         return _cached;
     }
     import from jaclang.jac0core.codeinfo { native_safe_sym }
-    i8p = ir.IntType(8).as_pointer();
-    pty = self.struct_types[arch_name].as_pointer();
+    i8p: any = ir.IntType(8).as_pointer();
+    _pst: any = self.struct_types[arch_name];
+    pty = _pst.as_pointer();
     fnty = ir.FunctionType(i8p, [pty]);
-    fn = ir.Function(
+    fn: any = ir.Function(
         self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym(arch_name)}"
     );
     fn.linkage = "private";
@@ -386,11 +388,11 @@ impl NaIRGenPass._repr_obj_fn(arch_name: str) -> ir.Function {
     b.position_at_end(null_bb);
     b.ret(self._repr_const_str("None"));
     b.position_at_end(live_bb);
-    _m = self._resolve_method(arch_name, "__repr__");
+    _m: any = self._resolve_method(arch_name, "__repr__");
+    _res: any = None;
     if _m is None {
         _res = self._emit_default_obj_repr(o, arch_name);
     } else {
-        _res = None;
         if self._arch_has_vtable(arch_name) {
             _res = self._codegen_virtual_call(o, "__repr__", [o], arch_name);
         }
@@ -413,11 +415,11 @@ impl NaIRGenPass._repr_seq_fn(
     close_text: str,
     empty_text: (str | None)
 ) -> ir.Function {
-    i8p = ir.IntType(8).as_pointer();
+    i8p: any = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     fnty = ir.FunctionType(i8p, [cont_ptr_ty]);
-    fn = ir.Function(self.llvm_module, fnty, name=fn_name);
+    fn: any = ir.Function(self.llvm_module, fnty, name=fn_name);
     fn.linkage = "private";
     fn.args[0].name = "cont";
     c_arg = fn.args[0];
@@ -451,7 +453,7 @@ impl NaIRGenPass._repr_seq_fn(
     data = b.load(
         b.gep(c_arg, [z32, ir.Constant(i32, 2)], name="rp.data.p"), name="rp.data"
     );
-    acc = b.alloca(i8p, name="rp.acc");
+    acc: any = b.alloca(i8p, name="rp.acc");
     iv = b.alloca(i64, name="rp.i");
     b.store(self._rc_strdup(open_g, name="rp.acc0"), acc);
     b.store(ir.Constant(i64, 0), iv);
@@ -460,18 +462,18 @@ impl NaIRGenPass._repr_seq_fn(
     done_bb = fn.append_basic_block("rp.done");
     b.branch(cond_bb);
     b.position_at_end(cond_bb);
-    i_cur = b.load(iv, name="rp.iv");
+    i_cur: any = b.load(iv, name="rp.iv");
     b.cbranch(b.icmp_signed("<", i_cur, len_v, name="rp.more"), body_bb, done_bb);
     b.position_at_end(body_bb);
     self._repr_maybe_sep(fn, i_cur, acc, sep_g);
-    elem = b.load(b.gep(data, [i_cur], name="rp.elem.p"), name="rp.elem");
+    elem: any = b.load(b.gep(data, [i_cur], name="rp.elem.p"), name="rp.elem");
     piece = self._repr_call_elem_fn(elem_fn, elem);
     self._repr_acc_concat(acc, piece, True);
     b.store(b.add(i_cur, ir.Constant(i64, 1), name="rp.inc"), iv);
     b.branch(cond_bb);
     b.position_at_end(done_bb);
-    _fin = b.load(acc, name="rp.fin");
-    res = self._emit_binary_op(Tok.PLUS, _fin, close_g);
+    _fin: any = b.load(acc, name="rp.fin");
+    res: any = self._emit_binary_op(Tok.PLUS, _fin, close_g);
     self._emit_rc_release_simple(_fin, op="mstr_old", loc="");
     self._emit_set_type_tag(b, res, "str");
     b.ret(res);
@@ -491,7 +493,7 @@ impl NaIRGenPass._repr_list_fn(type_key: str) -> (ir.Function | None) {
         return None;
     }
     self._emit_list_helpers(_spec[0], _spec[1]);
-    _st = self.list_types.get(_spec[0]);
+    _st: any = self.list_types.get(_spec[0]);
     if _st is None {
         return None;
     }
@@ -517,7 +519,7 @@ impl NaIRGenPass._repr_set_fn(type_key: str) -> (ir.Function | None) {
         return None;
     }
     self._emit_set_helpers(_spec[0], _spec[1]);
-    _st = self.set_types.get(_spec[0]);
+    _st: any = self.set_types.get(_spec[0]);
     if _st is None {
         return None;
     }
@@ -548,7 +550,7 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
         return None;
     }
     self._emit_dict_helpers(_kspec[0], _vspec[0], _kspec[1], _vspec[1]);
-    _st = self.dict_types.get(f"{_kspec[0]}:{_vspec[0]}");
+    _st: any = self.dict_types.get(f"{_kspec[0]}:{_vspec[0]}");
     if _st is None {
         return None;
     }
@@ -557,7 +559,7 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     i64 = ir.IntType(64);
     pty = _st.as_pointer();
     fnty = ir.FunctionType(i8p, [pty]);
-    fn = ir.Function(
+    fn: any = ir.Function(
         self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym(type_key)}"
     );
     fn.linkage = "private";
@@ -586,7 +588,7 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     vals = b.load(
         b.gep(d_arg, [z32, ir.Constant(i32, 3)], name="rp.d.vals.p"), name="rp.d.vals"
     );
-    acc = b.alloca(i8p, name="rp.acc");
+    acc: any = b.alloca(i8p, name="rp.acc");
     iv = b.alloca(i64, name="rp.i");
     b.store(self._rc_strdup(open_g, name="rp.acc0"), acc);
     b.store(ir.Constant(i64, 0), iv);
@@ -595,20 +597,20 @@ impl NaIRGenPass._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     done_bb = fn.append_basic_block("rp.done");
     b.branch(cond_bb);
     b.position_at_end(cond_bb);
-    i_cur = b.load(iv, name="rp.iv");
+    i_cur: any = b.load(iv, name="rp.iv");
     b.cbranch(b.icmp_signed("<", i_cur, len_v, name="rp.more"), body_bb, done_bb);
     b.position_at_end(body_bb);
     self._repr_maybe_sep(fn, i_cur, acc, sep_g);
-    k_el = b.load(b.gep(keys, [i_cur], name="rp.k.p"), name="rp.k");
+    k_el: any = b.load(b.gep(keys, [i_cur], name="rp.k.p"), name="rp.k");
     self._repr_acc_concat(acc, self._repr_call_elem_fn(kfn, k_el), True);
     self._repr_acc_concat(acc, colon_g, False);
-    v_el = b.load(b.gep(vals, [i_cur], name="rp.v.p"), name="rp.v");
+    v_el: any = b.load(b.gep(vals, [i_cur], name="rp.v.p"), name="rp.v");
     self._repr_acc_concat(acc, self._repr_call_elem_fn(vfn, v_el), True);
     b.store(b.add(i_cur, ir.Constant(i64, 1), name="rp.inc"), iv);
     b.branch(cond_bb);
     b.position_at_end(done_bb);
-    _fin = b.load(acc, name="rp.fin");
-    res = self._emit_binary_op(Tok.PLUS, _fin, close_g);
+    _fin: any = b.load(acc, name="rp.fin");
+    res: any = self._emit_binary_op(Tok.PLUS, _fin, close_g);
     self._emit_rc_release_simple(_fin, op="mstr_old", loc="");
     self._emit_set_type_tag(b, res, "str");
     b.ret(res);
@@ -640,7 +642,7 @@ impl NaIRGenPass._repr_tuple_fn(type_key: str) -> (ir.Function | None) {
     i32 = ir.IntType(32);
     pty = ir.LiteralStructType(_ftys).as_pointer();
     fnty = ir.FunctionType(i8p, [pty]);
-    fn = ir.Function(
+    fn: any = ir.Function(
         self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym(type_key)}"
     );
     fn.linkage = "private";
@@ -663,14 +665,14 @@ impl NaIRGenPass._repr_tuple_fn(type_key: str) -> (ir.Function | None) {
         ",)" if len(_ffns) == 1 else ")", name_prefix=".repr.close"
     );
     z32 = ir.Constant(i32, 0);
-    cur = self._rc_strdup(open_g, name="rp.t.acc0");
+    cur: any = self._rc_strdup(open_g, name="rp.t.acc0");
     for (idx, ffn) in enumerate(_ffns) {
         if idx > 0 {
             nxt = self._emit_binary_op(Tok.PLUS, cur, sep_g);
             self._emit_rc_release_simple(cur, op="mstr_old", loc="");
             cur = nxt;
         }
-        fld = b.load(
+        fld: any = b.load(
             b.gep(t_arg, [z32, ir.Constant(i32, idx)], name=f"rp.t.{idx}.p"),
             name=f"rp.t.{idx}"
         );
@@ -680,7 +682,7 @@ impl NaIRGenPass._repr_tuple_fn(type_key: str) -> (ir.Function | None) {
         self._emit_rc_release_simple(piece, op="mstr_val", loc="");
         cur = nxt;
     }
-    res = self._emit_binary_op(Tok.PLUS, cur, close_g);
+    res: any = self._emit_binary_op(Tok.PLUS, cur, close_g);
     self._emit_rc_release_simple(cur, op="mstr_old", loc="");
     self._emit_set_type_tag(b, res, "str");
     b.ret(res);
@@ -721,7 +723,7 @@ impl NaIRGenPass._emit_container_repr(
                 if boxed.type == fn.args[0].type
                 else self.builder.bitcast(boxed, fn.args[0].type, name="tup.repr.arg")
         );
-        res = self.builder.call(fn, [arg], name="tup.repr");
+        res: any = self.builder.call(fn, [arg], name="tup.repr");
         self._mark_owned(res);
         self._emit_rc_release_simple(boxed, op="mstr_val", loc="");
         return res;
@@ -730,8 +732,8 @@ impl NaIRGenPass._emit_container_repr(
         return None;
     }
     _pointee = val.type.pointee;
-    _pname = getattr(_pointee, "name", "") or "";
-    ok = False;
+    _pname: any = getattr(_pointee, "name", "") or "";
+    ok: any = False;
     if base.startswith("list[") {
         ok = _pname.startswith("List.");
     } elif base.startswith("dict[") {
@@ -753,6 +755,6 @@ impl NaIRGenPass._emit_container_repr(
             if val.type == fn.args[0].type
             else self.builder.bitcast(val, fn.args[0].type, name="cont.repr.arg")
     );
-    res = self.builder.call(fn, [arg], name="cont.repr");
+    res: any = self.builder.call(fn, [arg], name="cont.repr");
     return self._mark_owned(res);
 }

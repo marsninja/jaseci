@@ -72,6 +72,7 @@ impl NaIRGenPass._get_fmt_kernel_fn(name: str) -> (ir.Function | None) {
         self.func_symtab[name] = existing;
         return existing;
     }
-    self._walk_imported_module_abilities(self._fmt_kernel_mod);
+    _km: any = self._fmt_kernel_mod;
+    self._walk_imported_module_abilities(_km);
     return self.func_symtab.get(name);
 }

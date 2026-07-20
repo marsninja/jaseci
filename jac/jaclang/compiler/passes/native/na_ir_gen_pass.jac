@@ -178,7 +178,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _bytes_struct_type: (object | None) = None,
         _bytes_repr_function: (object | None) = None,
         _float_repr_function: (object | None) = None,
-        _repr_fns: dict[str, object] = {},
+        _repr_fns: dict[str, ir.Function] = {},
         _jac_iter_type: (object | None) = None,
         _iter_structs_registered: bool = False,
         _iter_next_fns: dict[str, ir.Function] = {},
