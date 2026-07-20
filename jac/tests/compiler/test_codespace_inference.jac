@@ -220,6 +220,14 @@ test "generator module infers native under native default" {
     assert stamp_of(mod, "evens") == 'native';
 }
 
+test "lambda module infers native under native default" {
+    mod = compile_with_default("nadefault_lambda.jac", "native", cgen=True);
+    assert mod.decided_codespace == 'native' , (
+        "closures lower natively (escaping pairs, adapter callbacks) and are not server signals"
+    );
+    assert stamp_of(mod, "scale_all") == 'native';
+}
+
 test "structural match no longer forces server under native default" {
     mod = compile_with_default("nadefault_match.jac", "native", cgen=True);
     assert mod.decided_codespace == 'native' , (

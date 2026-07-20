@@ -333,6 +333,7 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     }
 
     body = nd.body;
+    _lam_errs0 = len(self.errors_had);
     if isinstance(body, list) {
         tail = nd.tail_return_expr();
         if tail is not None {
@@ -340,6 +341,15 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
             if val is not None {
                 self.builder.ret(self._coerce_type(val, ret_type));
             } else {
+                if len(self.errors_had) == _lam_errs0 {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="expression",
+                        name="lambda body",
+                        help_text="An expression in this lambda body could not lower natively; an unresolvable name here usually means the lambda reads a variable its enclosing frame cannot expose (e.g. a module-entry local)."
+                    );
+                }
                 self.builder.ret(ir.Constant(ret_type, 0));
             }
         } else {
@@ -350,6 +360,15 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
         if val is not None {
             self.builder.ret(self._coerce_type(val, ret_type));
         } else {
+            if len(self.errors_had) == _lam_errs0 {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="expression",
+                    name="lambda body",
+                    help_text="An expression in this lambda body could not lower natively; an unresolvable name here usually means the lambda reads a variable its enclosing frame cannot expose (e.g. a module-entry local)."
+                );
+            }
             self.builder.ret(ir.Constant(ret_type, 0));
         }
     }

@@ -347,7 +347,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_yield_from(nd: uni.YieldExpr) -> (ir.Value | None);
     def _emit_yield_suspend(v: ir.Value) -> None;
     def _stack_entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
-    def _adapter_callee_fn(fn_expr: uni.UniNode) -> (ir.Function | None);
+    def _adapter_callee(fn_expr: uni.UniNode) -> (tuple | None);
+    def _adapter_clos_parts(clos: ir.Value) -> (tuple | None);
     def _generator_elem_type(nd: uni.Ability) -> (ir.Type | None);
     def _codegen_generator(nd: uni.Ability, func: ir.Function) -> None;
     def _emit_generator_drop_fn(name: str, slots: list[tuple]) -> ir.Function;
@@ -939,8 +940,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _make_iter_from_value(val: ir.Value, expr: uni.UniNode) -> (tuple | None);
     def _build_iter_from_expr(expr: uni.UniNode) -> (tuple | None);
     def _codegen_next(nd: uni.FuncCall) -> (ir.Value | None);
-    def _make_map_iter(up: tuple, fn: ir.Function) -> (tuple | None);
-    def _make_filter_iter(up: tuple, pred: ir.Function) -> (tuple | None);
+    def _make_map_iter(up: tuple, callee: tuple) -> (tuple | None);
+    def _make_filter_iter(up: tuple, callee: tuple) -> (tuple | None);
     def _make_enumerate_iter(up: tuple) -> (tuple | None);
     def _make_zip_iter(up_a: tuple, up_b: tuple) -> (tuple | None);
     def _resolve_method_owner(arch_name: str, method_name: str) -> (str | None);

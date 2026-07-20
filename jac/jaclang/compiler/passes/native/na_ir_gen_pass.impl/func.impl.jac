@@ -896,6 +896,11 @@ impl NaIRGenPass._emit_glob_init_func -> None {
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
+    if self?._global_init_nodes and self._global_init_nodes {
+        self._scan_closure_escapes(
+            self.ir_in, [t[1] for t in self._global_init_nodes]
+        );
+    }
 
     self._attach_di_subprogram(func, "__jac_glob_init", 0);
     _i8 = ir.IntType(8);
@@ -1071,6 +1076,11 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self.region_handle_vars = set();
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
+    for _ent_scan in nodes {
+        if (_ent_scan).body {
+            self._scan_closure_escapes(_ent_scan, (_ent_scan).body);
+        }
+    }
 
     _first = nodes[0];
     entry_line = _first.loc.first_line if _first.loc else 0;

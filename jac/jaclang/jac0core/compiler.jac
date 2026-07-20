@@ -441,7 +441,6 @@ glob NATIVE_DEFAULT_SV_SIGNAL_NODES: tuple = (
          uni.EdgeOpRef,
          uni.DisconnectOp,
          uni.TypedCtxBlock,
-         uni.LambdaExpr,
          uni.PyInlineCode,
          uni.ClientBlock,
          uni.ServerBlock,
