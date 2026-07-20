@@ -5416,6 +5416,24 @@ test "bare import module glob attr reads dep glob" {
     assert read_glob() == 7 , f"Expected 7, got {read_glob()}";
 }
 
+test "default-codespace option does not leak across compiles in one process" {
+    # Regression: JacCompiler used to stamp the process-wide effective
+    # default codespace from CompileOptions.default_codespace and never
+    # restore it, so one server-pinned compile disabled plain-.jac native
+    # dep resolution (bare and from-import) for every later program in the
+    # same process.
+    prog0 = JacProgram();
+    prog0.compile(
+        str(os.path.join(FIXTURES, "na_py_interop_multi.jac")),
+        options=CompileOptions(default_codespace='server')
+    );
+    assert not prog0.errors_had , f"Errors: {prog0.errors_had}";
+    (eng_a, _) = compile_native("bare_import_main.na.jac");
+    assert eng_a is not None;
+    (eng_b, _) = compile_native("glob_dep_main.na.jac");
+    assert eng_b is not None;
+}
+
 test "from-imported plain jac dep with glob does not demote" {
     # Pins the dep-glob type-tag path: `glob G: int` in a plain .jac dep must
     # lower via the inferred tag type instead of demoting with E5092.
