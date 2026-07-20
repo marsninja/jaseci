@@ -68,7 +68,7 @@ impl NaIRGenPass._closure_sig_struct(fnty: ir.FunctionType) -> tuple {
     self._closure_uid += 1;
     name = f"JacClosure.{self._closure_uid}";
     i64 = ir.IntType(64);
-    i8p = ir.IntType(8).as_pointer();
+    i8p: any = ir.IntType(8).as_pointer();
     self._register_iter_struct(name, ["fn", "env"], [i64, i8p]);
     fnty_env = ir.FunctionType(fnty.return_type, list(fnty.args) + [i8p]);
     st = self.struct_types[name];
@@ -81,7 +81,7 @@ impl NaIRGenPass._closure_struct_of(val_type: ir.Type) -> (str | None) {
     if not isinstance(val_type, ir.PointerType) {
         return None;
     }
-    pname = val_type.pointee?.name;
+    pname: any = val_type.pointee?.name;
     if pname is not None and pname in self.closure_sig_registry {
         return pname;
     }
@@ -107,7 +107,7 @@ impl NaIRGenPass._emit_closure_cell(var_name: str, slot_type: ir.Type) -> ir.Val
     }
     cell_name = self._closure_cell_struct(slot_type);
     i32 = ir.IntType(32);
-    func = self.builder.function;
+    func: any = self.builder.function;
     entry_block = func.entry_basic_block;
     cur_block = self.builder.block;
     if entry_block.instructions {
@@ -116,7 +116,7 @@ impl NaIRGenPass._emit_closure_cell(var_name: str, slot_type: ir.Type) -> ir.Val
         self.builder.position_at_start(entry_block);
     }
     cell = self._alloc_iter_struct(cell_name);
-    slot = self.builder.gep(
+    slot: any = self.builder.gep(
         cell, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name=f"cell.{var_name}"
     );
     if isinstance(slot_type, ir.IntType) {
@@ -141,17 +141,18 @@ impl NaIRGenPass._emit_closure_thunk(
     field_names: list = [];
     field_types: list = [];
     for (cname, cmode, hidden_ty) in cap_info {
-        slot_ty = hidden_ty.pointee if cmode == "ptr" else hidden_ty;
-        cell_struct = self.struct_types[self._closure_cell_struct(slot_ty)];
+        _ht: any = hidden_ty;
+        slot_ty = _ht.pointee if cmode == "ptr" else _ht;
+        cell_struct: any = self.struct_types[self._closure_cell_struct(slot_ty)];
         field_names.append(cname);
         field_types.append(cell_struct.as_pointer());
     }
     self._register_iter_struct(env_name, field_names, field_types);
 
-    fnty = target_fn.function_type;
+    fnty: any = target_fn.function_type;
     declared = list(fnty.args)[:declared_count];
     thunk_ty = ir.FunctionType(fnty.return_type, declared + [i8p]);
-    thunk = ir.Function(
+    thunk: any = ir.Function(
         self.llvm_module, thunk_ty, name=f"__jac_closure_{target_fn.name}"
     );
     thunk.linkage = "private";
@@ -159,9 +160,8 @@ impl NaIRGenPass._emit_closure_thunk(
 
     saved_builder = self._builder;
     self._builder = ir.IRBuilder(thunk.append_basic_block("entry"));
-    envp = self.builder.bitcast(
-        thunk.args[-1], self.struct_types[env_name].as_pointer(), name="env.typed"
-    );
+    _env_st: any = self.struct_types[env_name];
+    envp = self.builder.bitcast(thunk.args[-1], _env_st.as_pointer(), name="env.typed");
     call_args = list(thunk.args)[:-1];
     for (i, (cname, cmode, _hidden_ty)) in enumerate(cap_info) {
         fslot = self.builder.gep(
@@ -204,16 +204,17 @@ impl NaIRGenPass._emit_closure_pair(
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     (sig_name, _sig_st, _fnty_env) = self._closure_sig_struct(declared_fnty);
-    thunk = self.closure_thunks.get(target_fn.name);
+    _tname: any = target_fn.name;
+    thunk: any = self.closure_thunks.get(_tname);
     if thunk is None {
         thunk = self._emit_closure_thunk(target_fn, len(declared_fnty.args), cap_info);
-        self.closure_thunks[target_fn.name] = thunk;
+        self.closure_thunks[_tname] = thunk;
     }
-    env_name = thunk.jac_env_struct;
+    env_name: any = thunk.jac_env_struct;
     env_field_types = self.struct_field_types[env_name];
     env = self._alloc_iter_struct(env_name);
     for (i, (cname, _cmode, _ht)) in enumerate(cap_info) {
-        cell = self.closure_cell_handles[cname];
+        cell: any = self.closure_cell_handles[cname];
         fty = env_field_types[cname];
         cellv = cell
             if cell.type == fty
@@ -240,11 +241,12 @@ impl NaIRGenPass._emit_closure_pair(
 impl NaIRGenPass._emit_closure_value(
     var_name: str, nd: uni.UniNode
 ) -> (ir.Value | None) {
-    entry = self.nested_captures.get(var_name);
-    if entry is None {
+    cap_entry = self.nested_captures.get(var_name);
+    if cap_entry is None {
         return None;
     }
-    (fn, caps) = entry;
+    fn: any = cap_entry[0];
+    caps: any = cap_entry[1];
     declared_count = len(fn.args) - len(caps);
     if declared_count < 0 {
         return None;
@@ -301,6 +303,7 @@ impl NaIRGenPass._codegen_closure_call(
         clos_val, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="ccall.env.slot"
     );
     env = self.builder.load(env_slot, name="ccall.env");
+    result: any = None;
     if isinstance(fnty_env.return_type, ir.VoidType) {
         result = self.builder.call(fn_ptr, coerced + [env]);
     } else {
