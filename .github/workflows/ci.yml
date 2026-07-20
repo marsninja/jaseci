@@ -1316,8 +1316,11 @@ jobs:
   # -- you can only enumerate individual contexts, and anything you forget to
   # list silently stops blocking merges. This job depends on EVERY other job so
   # branch protection can require this ONE context ("Everything Passed") and get
-  # true "all checks passed" behavior: add a job above and it is covered here
-  # automatically, with nothing to re-list in repo settings.
+  # true "all checks passed" behavior. Maintenance note: GitHub Actions has no
+  # wildcard for `needs`, so a NEW job must still be added to the `needs:` list
+  # below by hand -- forgetting silently drops it from the gate. That list is the
+  # only place to update, though; the required-checks set in repo settings never
+  # changes again.
   #
   # `always()` so the gate runs even when an upstream job fails, is skipped, or
   # the run is cancelled -- otherwise a failed dependency would just skip the
