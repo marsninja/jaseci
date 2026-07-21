@@ -264,7 +264,10 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
                 render_payload = self.introspector.render_page(
                     base_route_app, {}, Con.GUEST.value
                 );
-                return HTMLResponse(content=render_payload['html']);
+                return HTMLResponse(
+                    content=render_payload['html'],
+                    status_code=self.introspector.spa_fallback_status(file_path)
+                );
             } except ValueError {
                 return HTMLResponse(content="<h1>404 Not Found</h1>", status_code=404);
             } except RuntimeError {
