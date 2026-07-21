@@ -37,7 +37,7 @@ nav:
       - Language Fundamentals:
           - New to Programming?: "tutorials/language/coding_primer.md"
           - Jac Fundamentals: "tutorials/language/basics.md"
-          - Graphs & Walkers: "tutorials/language/osp.md"
+          - Object-Spatial Programming: "tutorials/language/osp.md"
           - Debugging: "tutorials/language/debugging.md"
       - Build to Learn — AI Day Planner: "tutorials/first-app/build-ai-day-planner.md"
       - Full-Stack Tutorials:
@@ -83,13 +83,13 @@ nav:
           - Concurrency: "reference/language/concurrency.md"
           - Comprehensions & Filters: "reference/language/advanced.md"
           - Walker Patterns: "reference/language/walker-responses.md"
-          - Ownership & Borrowing: "reference/language/ownership-borrowing.md"
+          - Gradual Ownership: "reference/language/ownership-borrowing.md"
           - Ownership Checker Specification: "reference/language/ownership-checker-spec.md"
           - Appendices: "reference/language/appendices.md"
           - Syntax Cheatsheet: "reference/language/syntax-cheatsheet.md"
       - Native Compilation: "reference/language/native-pathway.md"
       - Capabilities & Plugins:
-          - byLLM (AI, built-in): "reference/plugins/byllm.md"
+          - byLLM (Meaning Types, built-in): "reference/plugins/byllm.md"
           - Scale (Deploy, built-in):
               - Overview: "reference/plugins/jac-scale.md"
               - HTTP API & Walkers: "reference/plugins/jac-scale-http.md"

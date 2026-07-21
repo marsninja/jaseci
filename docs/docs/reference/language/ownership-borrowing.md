@@ -1,4 +1,18 @@
-# Ownership & Borrowing
+# Gradual Ownership
+
+Jac's memory discipline is *gradual ownership*: a continuum within one
+language rather than a divide between languages. Unannotated code retains
+fully managed semantics, ownership annotations introduce affine values with
+moves, borrows, deep immutability, and deterministic destruction, adoptable
+one declaration at a time, and a closed, checked boundary (the *membrane*,
+[below](#sealing-back-into-managed-storage-the-membrane)) mediates every
+value that crosses between the two regimes. Adoption strengthens
+monotonically, from fully managed code, through annotated declarations,
+to [enforced modules and headerless native codegen](native-pathway.md#zero-rc-ownership-compilation)
+with no reference counting and no collector in the artifact. The divide
+between managed languages and systems languages is a discontinuity like the
+others Jac dissolves ([The Two Ideas](../../quick-guide/ideas-behind-jac.md#synechic)),
+rendered here as a gradient walked by degrees, never crossed.
 
 Jac has an opt-in ownership and borrow-checking surface: `own` marks a local or parameter as the unique owner of a value, `&`/`&mut` take a shared or mutable borrow of an owned value, and `OwnershipCheckPass` statically verifies that owned values aren't used after they move and that borrows never outlive or conflict with their owner. Unannotated bindings are completely unaffected -- the checker only tracks names it sees tagged `own`, `imm`, or `borrow` (`&`/`&mut`), plus allocations under an `in <handle> {}` region open. (A `linear` must-use marker is planned but not yet implemented -- see below.)
 

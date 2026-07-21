@@ -22,7 +22,7 @@
 
 ### 1 What is OSP?
 
-Object-Spatial Programming models data as graphs and computation as mobile agents (walkers) that traverse the graph. Instead of calling functions on objects, walkers visit nodes and perform operations based on location.
+*Object-Spatial Programming* (OSP) is the paradigm realizing Jac's *topokinetic* property: programs expressed as walkers traversing a persistent topology of nodes and edges, with abilities triggered by arrival. Where object-*oriented* programming organizes computation around encapsulated objects that are invoked, object-*spatial* programming organizes it around located objects that are visited: walkers visit nodes and perform operations based on location, and dispatch happens by arrival rather than by call. The property beneath the paradigm is defined in [The Two Ideas](../../quick-guide/ideas-behind-jac.md#topokinetic).
 
 ### 2 Why OSP?
 

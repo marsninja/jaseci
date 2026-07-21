@@ -19,7 +19,7 @@
 
 ### 1 What is Jac?
 
-Jac is an AI-native full-stack programming language with Python-like syntax that compiles to Python bytecode, JavaScript, and native machine code (C-ABI compatible). It introduces Object-Spatial Programming (OSP) and novel constructs for AI-integrated programming (such as `by llm()`), providing a unified language for backend, frontend, and AI development with full access to the PyPI, npm, and native ecosystems.
+Jac is a full-stack programming language with Python-like syntax that compiles to Python bytecode, JavaScript, and native machine code (C-ABI compatible). It is *synechic* (one continuous, compiler-checked medium across tiers, ecosystems, and toolchains) and *topokinetic* (computation moves through a topology of data, realized as Object-Spatial Programming), with meaning-typed constructs for AI-integrated programming (such as `by llm()`). One language serves backend, frontend, native, and AI development with full access to the PyPI, npm, and native ecosystems. The two properties are defined in [The Two Ideas](../../quick-guide/ideas-behind-jac.md).
 
 ```jac
 with entry {
@@ -31,11 +31,11 @@ with entry {
 
 | Principle | Description |
 |-----------|-------------|
-| **AI-Native** | LLMs as first-class citizens through Meaning Typed Programming |
-| **Full-Stack** | Backend and frontend in one unified language |
-| **Multi-Target** | Compiles to Python bytecode, JS, and native machine code -- full PyPI, npm, and native ecosystem access |
+| **Meaning-Typed** | LLMs as first-class citizens: prompts derived from names, types, and `sem` |
+| **Synechic** | Backend, frontend, and native code in one continuous, compiler-checked medium |
+| **Multi-Ecosystem** | Compiles to Python bytecode, JS, and native machine code -- full PyPI, npm, and native ecosystem access |
 | **Object-Spatial** | Graph-based domain modeling with mobile walkers |
-| **Cloud-Native** | One-command deployment with automatic scaling |
+| **Scale-Invariant** | Same program text at every deployment scale, one-command deployment |
 | **Human & AI Friendly** | Readable structure for both humans and AI models |
 
 ### 3 Designed for Humans and AI

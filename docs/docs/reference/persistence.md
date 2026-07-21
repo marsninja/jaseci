@@ -1,6 +1,6 @@
 # Persistence & Schema Migration
 
-Jac apps persist their object-spatial graph automatically. Anything reachable from `root` survives across runs -- but the schema of your `node`/`obj`/`edge`/`walker` archetypes inevitably evolves: you add a field, rename one, change a type, rename a class. This page covers what happens when you do.
+Jac apps persist their object-spatial graph automatically, under one rule: whatever is reachable from `root` persists. The rule is called *persistence by reachability*, and the `root` node is the distinguished node anchoring every topology (each served user is issued a root of their own). But the schema of your `node`/`obj`/`edge`/`walker` archetypes inevitably evolves: you add a field, rename one, change a type, rename a class. This page covers what happens when you do.
 
 The short version: **edits never delete persisted data**. Schema changes are tolerated, type changes are coerced, and rows that genuinely can't be loaded land in a quarantine sidecar instead of being dropped. You inspect and rescue them with [`jac db`](cli/index.md#database-operations). For changes that need intent -- a field rename, a custom value transform -- archetypes declare their history in a [`__jac_schema__` hook](#declared-drift-rules-__jac_schema__) and the runtime repairs old documents on load.
 

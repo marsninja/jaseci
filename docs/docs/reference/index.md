@@ -5,6 +5,7 @@ The complete technical reference for Jac -- pure lookup, organized by subject. I
 ## How to use this reference
 
 - **Looking up language syntax?** → [Language](#language) below.
+- **Meeting a term like *synechic* or *walker* for the first time?** → [The Vocabulary of Jac](../quick-guide/vocabulary.md).
 - **Looking up a `jac` command?** → [CLI Commands](cli/index.md).
 - **Configuring a project?** → [Configuration (`jac.toml`)](config/index.md).
 - **Wiring AI, deployment, or the full-stack client?** → [Capabilities and Plugins](#capabilities-and-plugins).
