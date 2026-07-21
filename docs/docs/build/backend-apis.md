@@ -42,7 +42,42 @@ Interactive API docs are served at `/docs` (Swagger) and a live graph view at `/
 
 ## Scale out to a service mesh {#service-mesh}
 
-The same code runs as a monolith *or* as several independently-deployed services -- the only change is the `sv import` keyword. When both modules are server-context, the compiler turns the import into an HTTP client stub: calls become RPCs, but the source still reads like a normal import. Set `kind = "service-mesh"` and one `jac start` brings up the whole cluster; the consumer auto-starts every service it imports from. Point consumers at remote providers with `JAC_SV_<MODULE>_URL` environment variables -- no source change.
+The same code runs as a monolith *or* as several independently-deployed services -- the only change is the `sv import` keyword. When both modules are server-context, the compiler turns the import into an HTTP client stub: calls become RPCs, but the source still reads like a normal import.
+
+```jac
+# math_service.jac  (the provider)
+def:pub add(a: int, b: int) -> int {
+    return a + b;
+}
+
+def:pub multiply(a: int, b: int) -> int {
+    return a * b;
+}
+```
+
+```jac
+# calculator_service.jac  (the consumer)
+sv import from math_service { add, multiply }
+
+def:pub dot_product(a: list[int], b: list[int]) -> int {
+    result = 0;
+    for i in range(len(a)) {
+        result = add(result, multiply(a[i], b[i]));  # each call is a POST over HTTP
+    }
+    return result;
+}
+```
+
+With a `jac.toml` in the directory, one command brings up the whole cluster -- the consumer auto-starts every service it imports from:
+
+```bash
+jac start calculator_service.jac --port 8002
+
+curl -X POST http://localhost:8002/function/dot_product \
+  -H "Content-Type: application/json" -d '{"a": [1,2,3], "b": [4,5,6]}'
+```
+
+To split services across hosts, point each consumer at its providers with `JAC_SV_<MODULE>_URL` environment variables -- no source change. `jac setup microservice --add <file>` records which files become services for production deploys.
 
 ## Your learning path
 

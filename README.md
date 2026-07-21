@@ -253,7 +253,7 @@ Each of those deliverables is a **project kind**: `jac create myapp --kind <kind
 | `desktop` 🧪 | Native desktop binary | The same app wrapped in the **OS webview** as one compiled binary -- no Electron, no Rust, no PyInstaller |
 | `mobile` 🧪 | Android / iOS app | The same `cl` bundle wrapped by Capacitor, or true-native React Native via mobUI -- JS tooling runs on the bundled Bun, no Node.js |
 
-The full cookbook, with a small working example of each: [What You Can Build](https://docs.jaseci.org/quick-guide/project-kinds/).
+The full matrix, with a working recipe and guided track for each: [What You Can Build](https://docs.jaseci.org/quick-guide/project-kinds/).
 
 ## AI, graphs, and UIs are language features
 
