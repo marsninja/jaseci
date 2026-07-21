@@ -8,7 +8,7 @@ Scale ships **built into `jaclang` core** as the `scale` subsystem (importable a
 
 ## The scale-invariance contract
 
-Scale exists to keep one promise: **your program text does not change with the shape of its deployment.** The program that runs as a script serves as an API and deploys to a cluster --
+Scale exists to keep one promise: **your program text does not change with the shape of its deployment.** The property is *scale invariance*: program semantics are invariant under deployment-scale transformation, one user to N users, one machine to M machines, transient to persistent. Delivered, it presents a *single system image*: processes, machines, and users appear to the program as one continuous machine. The program that runs as a script serves as an API and deploys to a cluster --
 
 ```bash
 jac run main.jac             # one user, one process, local store
