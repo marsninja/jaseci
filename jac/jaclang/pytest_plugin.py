@@ -181,7 +181,7 @@ def pytest_collect_file(
     return JacFile.from_parent(parent, path=file_path)
 
 
-def _module_is_client(file_path) -> bool:
+def _module_is_client(file_path: Path) -> bool:
     """True when the module at *file_path* lives in the client codespace."""
     try:
         from jaclang.runtimelib.cl_test_runner import module_is_client
