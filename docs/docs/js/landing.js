@@ -652,7 +652,7 @@ with entry { # Generate random points
 }`,
         codeLang: "python",
         output: `Distance: 5.79 , Circle area: 26.35`,
-        link: "https://www.jac-lang.org/tutorials/language/syntax/"
+        link: "/tutorials/language/basics/"
     },
     {
         tagline: "Programming Abstractions for AI",
@@ -688,7 +688,7 @@ with entry {
 Customer sentiment: Negative. The customer expresses disappointment with product quality, which clearly indicates dissatisfaction.
 Translated result: Negativo. El cliente expresa decepción con la calidad del producto, lo que indica claramente insatisfacción.
     `,
-        link: "https://www.jac-lang.org/learn/jac-byllm/with_llm/"
+        link: "/reference/plugins/byllm/"
     },
     {
         tagline: "An Agentic Programming Model",
@@ -824,7 +824,7 @@ with entry {
 
 Ensure to hydrate and listen to your body throughout the program. Adjust weights and reps as needed based on your fitness level.
     `,
-        link: "https://www.jac-lang.org/learn/introduction/#beyond-oop-an-agentic-programming-model"
+        link: "/quick-guide/ideas-behind-jac/#topokinetic"
     },
     {
         tagline: "Object-spatial programming",
@@ -892,7 +892,7 @@ def scale_demo():
 `,
         codeLang: "python",
         output: "Scaling with Jac is seamless!",
-        link: "https://www.jac-lang.org/learn/jac-scale/introduction/"
+        link: "/reference/plugins/jac-scale/"
     }
 ];
 
