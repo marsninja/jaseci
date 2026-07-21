@@ -508,15 +508,13 @@ impl install(
     }
     if shadcn or npm {
         channel = "--shadcn" if shadcn else "--npm";
-        ineffective: list[str] = [
-            flag
-            for (enabled, flag) in [
-                (no_save, "--no-save"),
-                (dry_run, "--dry-run"),
-                (install_global, "--global")
-            ]
-            if enabled
-        ];
+        # --global now installs npm tools into the jac-owned global store (run
+        # with 'jac x --global'), so it is only ineffective for shadcn.
+        flag_checks: list = [(no_save, "--no-save"), (dry_run, "--dry-run")];
+        if shadcn {
+            flag_checks.append((install_global, "--global"));
+        }
+        ineffective: list[str] = [flag for (enabled, flag) in flag_checks if enabled];
         if ineffective {
             console.warning(
                 f"{', '.join(ineffective)} has no effect with {channel} "
@@ -530,7 +528,7 @@ impl install(
     }
     if npm {
         import from jaclang.runtimelib.client.cli { run_npm_add }
-        return run_npm_add(packages, dev);
+        return run_npm_add(packages, dev, install_global);
     }
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
