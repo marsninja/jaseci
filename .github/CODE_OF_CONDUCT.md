@@ -8,7 +8,7 @@ This is what Claude said I should say when I asked it:
 
 Building well with Jac and Jaseci rewards a certain mindset: careful reasoning, curiosity, and a bias toward solving the problem in front of us. That's the energy we want here. Heat and ego—flame wars, status games, drama for its own sake--don't move the work forward, so we keep them out. Bring your judgment and your standards; leave the friction at the door.
 
-But with that, here are guidelines to follow (more of what I say):
+Both true, but with that, here are guidelines to follow (more of what I say):
 
 * Bring joy to others as a default. But not at the cost of what is logical and reasonably true in the realm of Jac realizing its potential.
 
@@ -16,6 +16,8 @@ But with that, here are guidelines to follow (more of what I say):
 
 * Use your common sense.
 
-* AI is a tool for learning and execution, it would be irrational to use it for only one of thoese things.
+* AI is a tool for learning and execution, it would be irrational not to use it nor to use it for only one of thoese things.
 
 * Only make Jac better, never worse.
+
+* Politics, ideology, and piety is brain-rot when the participant links their identity (exercised by the limbic system) to it and will be treated as such, phylosopy on the other hand (excercised by the cerebral cortex) is helpful when examined in good faith.
