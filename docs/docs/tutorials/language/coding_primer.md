@@ -1635,7 +1635,7 @@ Data is arranged in space → You send computation to travel through the data
 - **OOP**: You're at home, you call restaurants and have food delivered to you
 - **OSP**: You send a robot out to visit different restaurants and collect food
 
-### 10.2 The Three Pillars of OSP
+### 10.2 The Three Archetypes of OSP
 
 Jac introduces three special types:
 

@@ -291,7 +291,7 @@ node Task {
 }
 ```
 
-The syntax looks almost identical to an `obj`, but nodes have a crucial additional capability: they can be connected to other nodes with **edges** (also `obj`-style classes), forming a graph. Think about the difference this makes. In traditional programming, objects exist independently in memory -- relationships between them must be maintained manually through references, foreign keys, or join tables. In Jac, relationships are structural. Objects are connected, and those connections form first-class graphs in the language.
+The syntax looks almost identical to an `obj`, but nodes have one decisive additional capability: they can be connected to other nodes with **edges** (also `obj`-style classes), forming a graph. Think about the difference this makes. In traditional programming, objects exist independently in memory -- relationships between them must be maintained manually through references, foreign keys, or join tables. In Jac, relationships are structural. Objects are connected, and those connections form first-class graphs in the language.
 
 Every node automatically gets a unique identifier from the runtime, accessible via `jid(node)`. You never need to manage IDs manually -- Jac handles this for you. You'll see `jid()` in action starting in Part 3.
 
@@ -907,7 +907,7 @@ cl def:pub app -> JsxElement {
 There are several important patterns to understand in this code:
 
 - **List comprehensions** transform and filter lists inline (e.g., `[expr for t in tasks]`, `[t for t in tasks if cond]`). These are the same Python-style comprehensions you may already know, and they're essential for working with reactive state.
-- **Replacing items** in a list uses `[updated if jid(t) == id else t for t in tasks]`. Since `toggle_task` returns the updated `Task` object directly, you can swap it in place -- crucial for immutable state updates.
+- **Replacing items** in a list uses `[updated if jid(t) == id else t for t in tasks]`. Since `toggle_task` returns the updated `Task` object directly, you can swap it in place, which is exactly what immutable state updates require.
 - **`tasks + [task]`** creates a new list with the item appended, rather than mutating the existing list. This immutability is important because the reactive system needs to detect that the list has changed.
 - **`async`** marks methods that call the server, since network calls are inherently asynchronous.
 
@@ -1138,7 +1138,7 @@ Before using AI, you need a way to constrain its output. An **enum** defines a f
 enum Category { WORK, PERSONAL, SHOPPING, HEALTH, FITNESS, OTHER }
 ```
 
-This is a crucial concept: the enum constrains the AI to return *exactly one* of these predefined values. Without it, an LLM might return "shopping", "Shopping", "groceries", or "grocery shopping" -- all meaning the same thing but impossible to handle consistently in code. The enum eliminates that ambiguity entirely, making AI output as predictable as any other function return value.
+This is the central concept: the enum constrains the AI to return *exactly one* of these predefined values. Without it, an LLM might return "shopping", "Shopping", "groceries", or "grocery shopping" -- all meaning the same thing but impossible to handle consistently in code. The enum eliminates that ambiguity entirely, making AI output as predictable as any other function return value.
 
 !!! tip "Typed-base enums"
     For cases where you want enum members to behave as a primitive type, use `enum X: T { ... }`. `enum Status: str { OK = "ok", FAIL = "fail" }` makes members real `str` instances (no `.value` needed); `enum Code: int { ... }` does the same for `int`. Plain `enum` (used here) stays the right choice when the member identity matters more than the underlying value.
@@ -1984,7 +1984,7 @@ Open [http://localhost:8000](http://localhost:8000). The app now has two columns
 4. **Type "chicken stir fry for 4"** in the meal planner and click Generate -- a structured shopping list appears with quantities, units, costs, and carb flags
 5. **Restart the server** -- everything persists (both tasks and shopping list)
 
-The AI can only pick from the enum values you defined -- `Category` for tasks, `Unit` for ingredients. This is the key takeaway of this part: **Jac's type system constrains the LLM's output automatically**. You don't write prompt engineering logic or output parsers. The types *are* the constraints.
+The AI can only pick from the enum values you defined -- `Category` for tasks, `Unit` for ingredients. This is the key takeaway of this part: **Jac's type system constrains the LLM's output automatically**. You don't write prompt-assembly logic or output parsers. The types *are* the constraints.
 
 !!! tip "Visualize the graph"
     Visit [http://localhost:8000/graph](http://localhost:8000/graph) to see both `Task` and `ShoppingItem` nodes connected to `root`. After generating a shopping list, you'll see the graph grow with ingredient nodes alongside your tasks.

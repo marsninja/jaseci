@@ -47,7 +47,7 @@ The same code runs as a monolith *or* as several independently-deployed services
 ## Your learning path
 
 - **Concepts you need** → [Core Concepts](../quick-guide/what-makes-jac-different.md) -- codespaces, persistence, per-user graph isolation
-- **Learn the language** → [Jac Fundamentals](../tutorials/language/basics.md) · [Graphs & Walkers](../tutorials/language/osp.md)
+- **Learn the language** → [Jac Fundamentals](../tutorials/language/basics.md) · [Object-Spatial Programming](../tutorials/language/osp.md)
 - **Build it for real** → [Local API Server](../tutorials/production/local.md) · [Microservices with `sv import`](../tutorials/production/microservices.md)
 - **Look it up** → [Walker patterns & responses](../reference/language/walker-responses.md) · [Scale reference](../reference/plugins/jac-scale.md)
 - **Ship it** → [Kubernetes deployment](../tutorials/production/kubernetes.md) -- `jac start --scale`

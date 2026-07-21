@@ -14,7 +14,7 @@ By the end of this tutorial, you'll be comfortable writing functions, objects, c
 
 ## Jac and Python
 
-Jac compiles to Python bytecode, so all Python libraries work natively and familiar Python concepts apply directly. Jac extends these with new paradigms -- graph-native types, object-spatial programming, and AI-native constructs. The main syntactic differences from Python are:
+Jac compiles to Python bytecode, so all Python libraries work natively and familiar Python concepts apply directly. Jac extends these with new paradigms -- graph-native types, Object-Spatial Programming, and meaning-typed AI constructs. The main syntactic differences from Python are:
 
 | Python | Jac |
 |--------|-----|

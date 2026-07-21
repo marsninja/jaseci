@@ -1294,4 +1294,4 @@ walker:priv GetStats {
 - [Walker Responses](walker-responses.md) - Patterns for handling `.reports` array
 - [Build an AI Day Planner](../../tutorials/first-app/build-ai-day-planner.md) - Full-stack tutorial using OSP concepts
 - [OSP Tutorial](../../tutorials/language/osp.md) - Hands-on tutorial with exercises
-- [What Makes Jac Different](../../quick-guide/what-makes-jac-different.md) - Gentle introduction to Jac's core concepts
+- [Core Concepts](../../quick-guide/what-makes-jac-different.md) - Gentle introduction to Jac's core concepts

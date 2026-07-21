@@ -107,7 +107,7 @@ Hello, Alan!
 !!! tip "`root` persists"
     The graph hanging off `root` is automatically saved between runs. Run it twice and you'll see the people accumulate -- that persistence is the same machinery that backs Jac servers, with no database to set up.
 
-:octicons-arrow-right-24: Full tutorial: [Jac Fundamentals](../tutorials/language/basics.md) · [Graphs & Walkers](../tutorials/language/osp.md)
+:octicons-arrow-right-24: Full tutorial: [Jac Fundamentals](../tutorials/language/basics.md) · [Object-Spatial Programming](../tutorials/language/osp.md)
 
 ### Native binary
 
@@ -535,7 +535,7 @@ Set `client_kind = "mobui"` under `[project]` in `jac.toml` to opt in. The scaff
 
 ## On the roadmap
 
-These aren't missing "kinds" -- they're **capability combinations that aren't wired end-to-end yet**. Here's the honest status and the closest thing you can do today.
+These aren't missing "kinds" -- they're **capability combinations that aren't wired end-to-end yet**. Here's the status, stated plainly, and the closest thing you can do today.
 
 - **Full-stack package** (`sv` + `cl` + *attach*) -- An installable feature that brings its own routes, UI components, and data models into your app (think "drop in payments and get a checkout button + endpoints + models"). `sv import` composes *services* over HTTP, but there's no attachable in-process package yet. This needs a no-entry "package" artifact and conflict-resolution semantics across the three runtimes.
 

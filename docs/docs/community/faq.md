@@ -88,7 +88,7 @@ Answers to common questions about Jac, organized by topic. Click a category to e
     ??? question "How does byLLM differ from calling OpenAI/Anthropic directly?"
         - Standardized interface across AI providers
         - Integrated model management in Jac
-        - Simplified prompt engineering
+        - Prompts derived from your names, types, and `sem` annotations, so there is no prompt text to maintain
         See [API key setup](https://docs.jaseci.org/tutorials/first-app/build-ai-day-planner/#part-5-making-it-smart-with-ai)
 
     ??? question "How do I structure by llm() functions so that the output is deterministic and parseable?"
