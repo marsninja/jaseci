@@ -4,11 +4,11 @@ This directory holds the documentation site for Jac and the Jaseci stack, built 
 
 ## Layout
 
-- `mkdocs.yml` — site config and the single nav tree (Start Here · Learn · Reference · Community · Internals)
-- `docs/` — all page sources (markdown), plus the static landing page (`docs/index.html`), `llms.txt`, and assets
-- `overrides/` — Material theme partials (header, footer)
-- `scripts/` — the build hook (`handle_jac_compile_data.py`), the code-block validator (`validate_docs_code.jac`), and the container server (`mkdocs_serve.py`)
-- `tests/` — docs tests, including the Playwright e2e test for interactive code blocks
+- `mkdocs.yml` -- site config and the single nav tree (Start Here · Learn · Reference · Community · Internals)
+- `docs/` -- all page sources (markdown), plus the static landing page (`docs/index.html`), `llms.txt`, and assets
+- `overrides/` -- Material theme partials (header, footer)
+- `scripts/` -- the build hook (`handle_jac_compile_data.py`), the code-block validator (`validate_docs_code.jac`), and the container server (`mkdocs_serve.py`)
+- `tests/` -- docs tests, including the Playwright e2e test for interactive code blocks
 
 To add a page: create the markdown file under `docs/` and add it to the `nav:` section of `mkdocs.yml`. `mkdocs build --strict` fails on broken links and anchors, so run a build before pushing.
 
