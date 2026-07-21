@@ -1088,11 +1088,7 @@ def _tool_tiers(use_global: bool, use_node: bool) -> list {
     }
 
     config = get_config();
-    # A tier is (scope, kind, loc): scope in {"project","global"}, kind in
-    # {"py","node"}. The universe is ordered locality-first (project before
-    # global) and, within a scope, python before node -- like a shell PATH
-    # preferring the closest tool. --global/--node are orthogonal filters over
-    # it, so every scope/ecosystem combination stays reachable.
+
     universe: list = [];
     proj_py = python_project_site(config);
     if proj_py is not None {
