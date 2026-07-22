@@ -1551,9 +1551,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 if _env_key is not None and isinstance(value.type, ir.PointerType) {
                     _i8p_env = ir.IntType(8).as_pointer();
                     _setenv_fn = self._get_or_declare_extern(
-                        "setenv",
-                        ir.IntType(32),
-                        [_i8p_env, _i8p_env, ir.IntType(32)]
+                        "setenv", ir.IntType(32), [_i8p_env, _i8p_env, ir.IntType(32)]
                     );
                     self.builder.call(
                         _setenv_fn,
@@ -1583,16 +1581,17 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 _ba_sl = target_expr.right.slices[0];
                 _ba_start = (
                     self._codegen_expr(_ba_sl.start)
-                    if _ba_sl?.start is not None
-                    else ir.Constant(ir.IntType(64), 0)
+                        if _ba_sl?.start is not None
+                        else ir.Constant(ir.IntType(64), 0)
                 );
                 _ba_stop = (
                     self._codegen_expr(_ba_sl.stop)
-                    if _ba_sl?.stop is not None
-                    else ir.Constant(ir.IntType(64), 9223372036854775807)
+                        if _ba_sl?.stop is not None
+                        else ir.Constant(ir.IntType(64), 9223372036854775807)
                 );
                 _ba_src = self._bytearray_src_of(value);
-                if _ba_start is not None and _ba_stop is not None
+                if _ba_start is not None
+                and _ba_stop is not None
                 and _ba_src is not None {
                     _ba_fns = self._bytearray_runtime_fns();
                     _i64_ba = ir.IntType(64);

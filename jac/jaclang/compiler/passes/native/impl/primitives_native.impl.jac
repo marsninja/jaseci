@@ -3329,9 +3329,7 @@ impl NativeDictEmitter.emit_get(
         if p.rc_retain_fn is None {
             p._emit_rc_helpers();
         }
-        _res_cast = b.bitcast(
-            result, ir.IntType(8).as_pointer(), name="dget.ret.cast"
-        );
+        _res_cast = b.bitcast(result, ir.IntType(8).as_pointer(), name="dget.ret.cast");
         b.call(p.rc_retain_fn, [_res_cast]);
     }
     return result;
@@ -6034,10 +6032,7 @@ impl NativeBuiltinEmitter.emit_bytes(
     i8 = ir.IntType(8);
     i64 = ir.IntType(64);
     val = args[0];
-    if (
-        "u8" in p.list_types
-        and val.type == p.list_types["u8"].as_pointer()
-    ) {
+    if ("u8" in p.list_types and val.type == p.list_types["u8"].as_pointer()) {
         # bytes(bytearray): freeze by copying the raw buffer. The builtin
         # dispatcher releases the owned source arg itself.
         _src = p._bytearray_src_of(val);
@@ -6113,6 +6108,17 @@ impl NativeBuiltinEmitter.emit_bytearray(
         # The builtin dispatcher releases the owned source arg itself.
         b.call(fns["extend_raw"], [buf, src[0], src[1]], name="");
         return buf;
+    }
+    # bytearray([ints...]): reuse the list->bytes conversion loop, then copy
+    # the frozen intermediate into the buffer and drop it.
+    _bv = self.emit_bytes(ctx, [a0]);
+    if _bv is not None and p._is_bytes_value(_bv) {
+        _bsrc = p._bytearray_src_of(_bv);
+        if _bsrc is not None {
+            b.call(fns["extend_raw"], [buf, _bsrc[0], _bsrc[1]], name="");
+            p._emit_rc_release_simple(_bv, op="ba_ctor_list", loc="");
+            return buf;
+        }
     }
     return None;
 }

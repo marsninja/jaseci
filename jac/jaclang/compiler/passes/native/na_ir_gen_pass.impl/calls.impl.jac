@@ -181,9 +181,9 @@ impl NaIRGenPass._codegen_bound_args(
         _has_pack = False;
     }
     if _has_pack {
-        _chk = self_offset - _self_skip + len(
-            callee_sig.posonly_params or []
-        ) + len(callee_sig.params or []);
+        _chk = self_offset - _self_skip + len(callee_sig.posonly_params or []) + len(
+            callee_sig.params or []
+        );
         if callee_sig.varargs is not None {
             _vt_ok = False;
             if _chk < len(func.args)
@@ -402,9 +402,7 @@ impl NaIRGenPass._codegen_bound_args(
                 # above, and a short arg list would crash the IR builder
                 # instead of reporting it.
                 while len(args) < len(func.args) {
-                    args.append(
-                        self._default_arg_fallback(func.args[len(args)].type)
-                    );
+                    args.append(self._default_arg_fallback(func.args[len(args)].type));
                 }
                 return args;
             }

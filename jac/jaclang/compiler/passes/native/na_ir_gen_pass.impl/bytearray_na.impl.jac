@@ -58,7 +58,11 @@ impl NaIRGenPass._bytearray_runtime_fns -> dict {
     b = ir.IRBuilder(done_bb);
     b.ret_void();
 
-    # __bytearray_extend_raw(buf, src, n): append n raw bytes.
+    # __bytearray_extend_raw(buf, src, n): append n raw bytes. The source
+    # may alias the buffer itself (b.extend(b), b += b): growth can move the
+    # data, so an in-buffer source is re-derived from its offset after the
+    # reserve. The copied region [off, off+n) lies within the old length and
+    # the destination starts at len, so the regions never overlap.
     ext_fnty = ir.FunctionType(ir.VoidType(), [ba_ptr, i8p, i64]);
     ext_fn = ir.Function(self.llvm_module, ext_fnty, name="__bytearray_extend_raw");
     ext_fn.linkage = "private";
@@ -73,11 +77,21 @@ impl NaIRGenPass._bytearray_runtime_fns -> dict {
     e_len_p = b.gep(e_buf, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="len.p");
     e_data_p = b.gep(e_buf, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="data.p");
     e_len = b.load(e_len_p, name="len");
+    e_old_data = b.load(e_data_p, name="old.data");
+    e_src_i = b.ptrtoint(e_src, i64, name="src.i");
+    e_old_i = b.ptrtoint(e_old_data, i64, name="old.i");
+    e_old_end = b.add(e_old_i, e_len, name="old.end");
+    e_in_lo = b.icmp_unsigned(">=", e_src_i, e_old_i, name="alias.lo");
+    e_in_hi = b.icmp_unsigned("<", e_src_i, e_old_end, name="alias.hi");
+    e_alias = b.and_(e_in_lo, e_in_hi, name="alias");
+    e_off = b.sub(e_src_i, e_old_i, name="alias.off");
     e_need = b.add(e_len, e_n, name="need");
     b.call(res_fn, [e_buf, e_need]);
     e_data = b.load(e_data_p, name="data");
+    e_re = b.gep(e_data, [e_off], name="src.rederived");
+    e_src2 = b.select(e_alias, e_re, e_src, name="src.eff");
     e_dst = b.gep(e_data, [e_len], name="dst");
-    b.call(memcpy_fn, [e_dst, e_src, e_n]);
+    b.call(memcpy_fn, [e_dst, e_src2, e_n]);
     b.store(e_need, e_len_p);
     b.ret_void();
 
@@ -102,6 +116,13 @@ impl NaIRGenPass._bytearray_runtime_fns -> dict {
     s_len_p = b.gep(s_buf, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="len.p");
     s_data_p = b.gep(s_buf, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="data.p");
     s_len = b.load(s_len_p, name="len");
+    # Snapshot the source: it may alias this buffer (b[a:c] = b), and both
+    # the reserve and the tail shift below would mutate it mid-splice.
+    malloc_fn = self._get_or_declare_extern("malloc", i8p, [i64]);
+    free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+    s_tmp = b.call(malloc_fn, [s_n], name="src.snap");
+    b.call(memcpy_fn, [s_tmp, s_src, s_n]);
+    s_src = s_tmp;
     # clamp negatives/overruns to python slice semantics on a known-len buf
     zero = ir.Constant(i64, 0);
     st_neg = b.icmp_signed("<", s_start, zero, name="st.neg");
@@ -135,6 +156,7 @@ impl NaIRGenPass._bytearray_runtime_fns -> dict {
     b.call(memmove_fn, [tail_dst, tail_src, tail_n]);
     ins_dst = b.gep(s_data, [start_c], name="ins.dst");
     b.call(memcpy_fn, [ins_dst, s_src, s_n]);
+    b.call(free_fn, [s_tmp]);
     b.store(new_len, s_len_p);
     b.ret_void();
 
@@ -152,8 +174,7 @@ impl NaIRGenPass._bytearray_src_of(val: ir.Value) -> (tuple | None) {
     if self._is_bytes_value(val) {
         return (self._bytes_data_ptr(val), self._bytes_len_val(val));
     }
-    if "u8" in self.list_types
-    and val.type == self.list_types["u8"].as_pointer() {
+    if "u8" in self.list_types and val.type == self.list_types["u8"].as_pointer() {
         i32 = ir.IntType(32);
         d_p = self.builder.gep(
             val, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="ba.data.p"
@@ -184,12 +205,8 @@ impl NaIRGenPass._dispatch_bytearray_method(
         if v is None {
             return None;
         }
-        byte_v = self.builder.trunc(
-            self._coerce_type(v, i64), i8, name="ba.append.b"
-        );
-        self.builder.call(
-            self.list_helpers["u8"]["append"], [recv, byte_v], name=""
-        );
+        byte_v = self.builder.trunc(self._coerce_type(v, i64), i8, name="ba.append.b");
+        self.builder.call(self.list_helpers["u8"]["append"], [recv, byte_v], name="");
         return ir.Constant(i64, 0);
     }
     if method_name == "extend" {
@@ -238,7 +255,17 @@ impl NaIRGenPass._emit_struct_pack_into(
         );
         return None;
     }
-    off_val = self._coerce_type(self._codegen_expr(params[2]), i64);
+    _off_raw = self._codegen_expr(params[2]);
+    if _off_raw is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="struct.pack_into offset",
+            name="offset expression did not lower"
+        );
+        return None;
+    }
+    off_val = self._coerce_type(_off_raw, i64);
 
     _expected = len(
         [

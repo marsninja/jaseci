@@ -222,23 +222,21 @@ def get_type_of_binary_operation(
         }
     }
 
-    if evaluator.is_explicit_any(left_type)
-    or evaluator.is_explicit_any(right_type)
-    or left_type.is_any_type()
-    or right_type.is_any_type() {
+    _l_anycls = evaluator.is_explicit_any(left_type);
+    _r_anycls = evaluator.is_explicit_any(right_type);
+    if (
+        left_type.is_any_type() or right_type.is_any_type() or (_l_anycls and _r_anycls)
+    ) {
+        # Special-form Any operands take the silent early-out (the
+        # checker_prod_unknown_* pins: the result stays strict Unknown and
+        # surfaces at the next typed seam). A single typeshed `Any`-class
+        # operand instead falls through so the other operand's reflected
+        # method can resolve (`unpack(...)[0] * 1000` is int) -- but when
+        # BOTH operands are the Any class (e.g. two values unpacked from a
+        # `tuple[Any, ...]` stub) there is nothing to reflect off, and the
+        # op would otherwise die as a spurious E1055.
         if not (isinstance(expr.op, uni.Token) and expr.op.name == Tok.BW_OR) {
-            return jtypes.AnyType();
-        }
-    }
-
-    if isinstance(left_type, jtypes.UnknownType)
-    or isinstance(right_type, jtypes.UnknownType) {
-        # The operand site already carries the W1051 diagnostic; resolving a
-        # magic method on Unknown can only fail, and a second error on the op
-        # is cascade noise. Propagate a diagnosed Unknown so downstream
-        # assignment/parameter seams stay quiet too.
-        if not (isinstance(expr.op, uni.Token) and expr.op.name == Tok.BW_OR) {
-            return jtypes.UnknownType(is_diagnosed=True);
+            return jtypes.UnknownType();
         }
     }
 

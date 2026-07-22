@@ -536,7 +536,6 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
             for s in nd.get_enclosing_captures()
             if s.sym_name in self.local_vars
         ];
-
         rebound: set = set();
         for _scope in ([nd] + nd.get_all_sub_nodes(typ=uni.UniScopeNode)) {
             for _rn in _scope.implicit_rebinds {
@@ -582,7 +581,6 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
             captures.append((fv_name, cap_mode, cap_type));
             param_types.append(cap_type);
         }
-
         self._str_count += 1;
         mangled = f"__jac_nested_{name}_{self._str_count}";
         fn_type = ir.FunctionType(ret_type, param_types);
@@ -595,7 +593,6 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
                 arg.name = f"cap.{captures[i - len(param_names)][0]}";
             }
         }
-
         self.func_symtab[name] = fn;
         if captures {
             self.nested_captures[name] = (
@@ -708,10 +705,7 @@ impl NaIRGenPass._predeclare_nested_siblings(nd: uni.Ability) -> None {
         if (
             isinstance(_st, uni.Ability)
             and _st.name_ref
-            and (
-                _st.signature is None
-                or isinstance(_st.signature, uni.FuncSignature)
-            )
+            and (_st.signature is None or isinstance(_st.signature, uni.FuncSignature))
             and not self._ability_is_generator(_st)
             and not getattr(_st, "type_params", None)
             and _st not in self._nested_predecl
@@ -756,10 +750,7 @@ impl NaIRGenPass._predeclare_nested_siblings(nd: uni.Ability) -> None {
                 # func_symtab and the sibling fixpoint, not value capture.
                 continue;
             }
-            if (
-                _sym.sym_name in self.local_vars
-                or _sym.parent_tab is _frame
-            ) {
+            if (_sym.sym_name in self.local_vars or _sym.parent_tab is _frame) {
                 _ord.append(_sym.sym_name);
                 _md[_sym.sym_name] = "ptr" if _sym.sym_name in _reb else "val";
                 if _sym.sym_name not in _cap_syms {
@@ -812,9 +803,7 @@ impl NaIRGenPass._predeclare_nested_siblings(nd: uni.Ability) -> None {
             _slot = self.local_vars.get(_cn);
             if _slot is not None {
                 _cap_types[_cn] = (
-                    _slot.type
-                    if _cap_modes[s][_cn] == "ptr"
-                    else _slot.type.pointee
+                    _slot.type if _cap_modes[s][_cn] == "ptr" else _slot.type.pointee
                 );
                 continue;
             }
@@ -825,8 +814,8 @@ impl NaIRGenPass._predeclare_nested_siblings(nd: uni.Ability) -> None {
             _csym = _cap_syms.get(_cn);
             _cvt = (
                 self._lower_type(_csym.decl.type)
-                if _csym is not None and _csym.decl?.type is not None
-                else None
+                    if _csym is not None and _csym.decl?.type is not None
+                    else None
             );
             if _cvt is None {
                 _defer = True;

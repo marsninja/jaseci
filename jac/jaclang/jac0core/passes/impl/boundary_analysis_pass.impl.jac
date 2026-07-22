@@ -555,7 +555,11 @@ impl BoundaryAnalysisPass.enter_ability(
 impl BoundaryAnalysisPass.enter_func_call(
     self: BoundaryAnalysisPass, nd: uni.FuncCall
 ) -> None {
-    if isinstance(nd.target, uni.Name) and nd.target.sym is not None {
+    if (
+        isinstance(nd.target, uni.Name)
+        and nd.target.sym is not None
+        and nd.target.sym.decl is not None
+    ) {
         _decl_ab = nd.target.sym.decl.find_parent_of_type(uni.Ability);
         if (
             _decl_ab is not None

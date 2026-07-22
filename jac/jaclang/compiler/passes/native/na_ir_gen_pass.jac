@@ -830,9 +830,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _dispatch_bytearray_method(
         method_name: str, recv: ir.Value, nd: uni.FuncCall
     ) -> (ir.Value | None);
+
     def _emit_struct_pack_into(
         nd: uni.FuncCall, params: list, fields: list, total: int, little: bool
     ) -> (ir.Value | None);
+
     def _emit_struct_pack(
         nd: uni.FuncCall, params: list, fields: list, total: int, little: bool
     ) -> (ir.Value | None);

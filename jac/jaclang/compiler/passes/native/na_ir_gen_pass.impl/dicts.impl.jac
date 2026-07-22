@@ -487,7 +487,6 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
             val_type_name = self._dict_val_spec(val_type);
         }
         dict_key = f"{key_type_name}:{val_type_name}";
-
         self._emit_dict_helpers(
             key_type_name, val_type_name, key_type, val_type, key_size
         );
@@ -506,8 +505,8 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
 
     first_store_val = (
         self._box_to_jacval(first_val)
-        if use_jacval
-        else self._coerce_type(first_val, val_type)
+            if use_jacval
+            else self._coerce_type(first_val, val_type)
     );
     self._rc_call_with_ctx(
         helpers["set"],

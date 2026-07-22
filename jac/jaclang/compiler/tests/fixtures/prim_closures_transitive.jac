@@ -55,6 +55,10 @@ cl def transitive_cl -> dict {
     return {};
 }
 
+cl def fwd_mutual_cl -> dict {
+    return {};
+}
+
 na {
     def transitive_na -> dict[str, any] {
         toks = ["a", "a", "b"];
