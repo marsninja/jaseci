@@ -120,7 +120,8 @@ impl NaIRGenPass._emit_closure_cell(var_name: str, slot_type: ir.Type) -> ir.Val
     func: any = self.builder.function;
     _gc = self._gen_ctx;
     if _gc is not None and func is _gc["resume_fn"] {
-        cell_ptr_ty = self.struct_types[cell_name].as_pointer();
+        _cell_st: any = self.struct_types[cell_name];
+        cell_ptr_ty: ir.Type = _cell_st.as_pointer();
         handle_slot = self._entry_alloca(cell_ptr_ty, f"__cell_{var_name}");
         (_sn, _soff, _st) = _gc["slots"][-1];
         _gc["cell_inits"].append(
@@ -135,7 +136,7 @@ impl NaIRGenPass._emit_closure_cell(var_name: str, slot_type: ir.Type) -> ir.Val
         entry_block = func.entry_basic_block;
         cur_block = self.builder.block;
         self.builder.position_at_end(entry_block);
-        cell = self.builder.load(handle_slot, name=f"cellh.{var_name}");
+        cell: any = self.builder.load(handle_slot, name=f"cellh.{var_name}");
         slot: any = self.builder.gep(
             cell, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name=f"cell.{var_name}"
         );
