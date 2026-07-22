@@ -1205,6 +1205,15 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
 
+        if func_name in self.global_vars {
+            _gvar = self.global_vars[func_name];
+            _gloaded = self.builder.load(_gvar, name=f"fptr.{func_name}");
+            _gclos_name = self._closure_struct_of(_gloaded.type);
+            if _gclos_name is not None {
+                return self._codegen_closure_call(nd, _gloaded, _gclos_name);
+            }
+        }
+
         if _call_kind != "builtin" {
             self.emit(E5092, node_override=nd, kind="function", name=func_name);
         }

@@ -50,6 +50,26 @@ def osp_refs(origin: int, dir: int, edge_tag: int, edges_only: int) -> list {
     return out;
 }
 
+def osp_refs_many(origins: list, dir: int, edge_tag: int, edges_only: int) -> list {
+    out: list = [];
+    i = 0;
+    n = len(origins);
+    while i < n {
+        hop = osp_refs(origins[i], dir, edge_tag, edges_only);
+        i = i + 1;
+        j = 0;
+        m = len(hop);
+        while j < m {
+            o = hop[j];
+            j = j + 1;
+            if o not in out {
+                out.append(o);
+            }
+        }
+    }
+    return out;
+}
+
 def osp_wrap1(x: int) -> list {
     out: list = [];
     out.append(x);

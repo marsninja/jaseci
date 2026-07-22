@@ -2290,21 +2290,37 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             _mk_cell = (
                 var_name in self.closure_cell_vars
                 and var_name not in self.closure_cell_handles
-                and self._gen_ctx is None
             );
             if _mk_cell {
                 alloca = self._emit_closure_cell(var_name, var_type);
             } else {
                 alloca = self._entry_alloca(var_type, var_name);
             }
-            if isinstance(var_type, ir.PointerType) and not _mk_cell {
+            _in_gen_frame = (
+                self._gen_ctx is not None
+                and self.builder.function is self._gen_ctx["resume_fn"]
+            );
+            if isinstance(var_type, ir.PointerType)
+            and not _mk_cell
+            and not _in_gen_frame {
+                # Zero-init the fresh slot up in the entry block. Generator
+                # frame slots are excluded: the resume fn's entry block runs
+                # on EVERY resume (nulling live slots mid-iteration), and the
+                # creation fn already memsets the whole frame to zero.
                 _func_e = self.builder.function;
                 _ebb = _func_e.entry_basic_block;
                 _cur_bb = self.builder.block;
                 _entry_instrs = list(_ebb.instructions);
-
-                if len(_entry_instrs) >= 2 {
-                    self.builder.position_before(_entry_instrs[1]);
+                _anchor_idx: (int | None) = None;
+                for (_ei, _einstr) in enumerate(_entry_instrs) {
+                    if _einstr is alloca {
+                        _anchor_idx = _ei;
+                        break;
+                    }
+                }
+                if _anchor_idx is not None
+                and _anchor_idx + 1 < len(_entry_instrs) {
+                    self.builder.position_before(_entry_instrs[_anchor_idx + 1]);
                 } else {
                     self.builder.position_at_end(_ebb);
                 }

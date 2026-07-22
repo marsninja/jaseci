@@ -94,6 +94,30 @@ test "mono: an uncalled generic def emits no code and no error" {
     );
 }
 
+test "mono: generic generator specializes per element type" {
+    # #7626 A3: the generator transform runs under the active substitution
+    # with spec-keyed resume/drop symbols, so int and str instantiations
+    # of one generic generator coexist.
+    (eng, _) = compile_native("generics_generators.na.jac");
+    f = get_func(eng, "sum_int_pairs", ctypes.c_int64);
+    assert f() == 6 , "1+2+3 through pairs[int]";
+    g = get_func(eng, "count_str_pairs", ctypes.c_int64);
+    assert g() == 3 , "len('ab')+len('c') through pairs[str]";
+}
+
+test "mono: generic method on an archetype stamps per call site" {
+    # #7626 A4: `def pick[T]` on an archetype registers as a method
+    # template (no declaration-time unlowerable-type error); call sites
+    # stamp self-prepended specializations.
+    (eng, _) = compile_native("generics_methods.na.jac");
+    f = get_func(eng, "pick_int", ctypes.c_int64, ctypes.c_int64);
+    assert f(1) == 7 , "val>0 picks first";
+    assert f(0) == 9 , "val==0 picks second";
+    g = get_func(eng, "pick_str_len", ctypes.c_int64, ctypes.c_int64);
+    assert g(1) == 2 , "picks 'xx'";
+    assert g(0) == 3 , "picks 'yyy'";
+}
+
 test "mono guardrail: a generic function used as a value stays rejected" {
     prog = compile_na_inline(
         "generic_as_value",

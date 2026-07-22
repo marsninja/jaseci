@@ -310,6 +310,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nested_captures: dict[str, tuple] = {},
         generator_fns: dict[str, uni.Ability] = {},
         generic_fns: dict[str, uni.Ability] = {},
+        _generic_methods: dict[str, uni.Ability] = {},
         _mono_fns: dict[str, ir.Function] = {},
         _mono_solution: (dict | None) = None,
         _mono_mangle_map: (dict | None) = None,
@@ -356,6 +357,13 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _instantiate_generic(nd: uni.FuncCall, func_name: str) -> (ir.Function | None);
     def _stamp_mono_fn(
         ability: uni.Ability, spec_name: str, memo_key: str
+    ) -> (ir.Function | None);
+    def _instantiate_generic_method(
+        nd: uni.FuncCall, owner_arch: str, method_name: str
+    ) -> (ir.Function | None);
+    def _stamp_mono_method(
+        ability: uni.Ability, arch_name: str, method_name: str,
+        spec_name: str, memo_key: str
     ) -> (ir.Function | None);
 
     def _find_source_ability(mod_name: str, func_name: str) -> (uni.Ability | None);
@@ -600,6 +608,13 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_report(nd: uni.ReportStmt) -> None;
     def _codegen_connect(nd: uni.BinaryExpr) -> (ir.Value | None);
     def _codegen_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> (ir.Value | None);
+    def _emit_osp_predicate_filter(
+        src: ir.Value,
+        arch_name: str,
+        compares: list[uni.CompareExpr],
+        nd: uni.UniNode
+    ) -> (ir.Value | None);
+    def _elem_arch_name_of(expr: (uni.UniNode | None)) -> (str | None);
     def _osp_visit_targets(target: uni.UniNode) -> (ir.Value | None);
     def _osp_generic_edge -> (ir.Value | None);
     def _spawn_operand_name(nd: uni.UniNode) -> (str | None);
@@ -867,6 +882,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _register_globals(module: uni.Module) -> None;
+    def _register_entry_globals(module: uni.Module) -> None;
     def _codegen_global_vars(nd: uni.GlobalVars) -> None;
     def _infer_global_init_type(value_node: uni.UniNode) -> (ir.Type | None);
     def _codegen_const_expr(
