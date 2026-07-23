@@ -1442,6 +1442,23 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if method_name is None {
         return None;
     }
+    if (
+        method_name in ("get", "keys", "values", "items", "setdefault", "update", "pop")
+        and self._type_key_of(trailer.target) in ("any", "Any")
+    ) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="method",
+            name=f"{method_name} (on an `any` receiver)",
+            help_text=(
+                "Method calls on an `any`-typed dict are not lowered natively "
+                "yet; annotate the receiver with a concrete dict[...] type or "
+                "move this code to a @sv/Python context."
+            )
+        );
+        return None;
+    }
 
     if (
         target_name is not None
@@ -1455,6 +1472,23 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 _sfull = _cand;
                 break;
             }
+        }
+        if _sfull is not None
+        and (
+            _sfull in self._native_skipped_methods or _sfull not in self.method_funcs
+        ) {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="method",
+                name=_sfull,
+                help_text=(
+                    f"'{method_name}' has no native lowering and was demoted "
+                    f"to its Python implementation; it cannot be called from "
+                    f"native code. Call it from a Python/@sv context instead."
+                )
+            );
+            return None;
         }
         if _sfull is not None {
             _sfunc = self.method_funcs[_sfull];
