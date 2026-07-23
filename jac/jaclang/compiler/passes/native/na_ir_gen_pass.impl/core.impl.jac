@@ -726,9 +726,34 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
                 _imp_layout = _wl_slim.native_layout;
                 break;
             }
+            try {
+                _imp_layout = self.prog._get_compiler().get_native_layout(
+                    _wl_key, self.prog
+                );
+            } except Exception {
+                _imp_layout = None;
+            }
+            if _imp_layout is not None {
+                break;
+            }
         }
     }
 
+    _wl_internal = False;
+    if _imp_layout is None and imported_mod?.loc and imported_mod.loc.mod_path {
+        import os as _wl_os2;
+        _wl_internal = (_wl_os2.sep + "jaclang" + _wl_os2.sep) in _wl_os2.path.abspath(
+            imported_mod.loc.mod_path
+        );
+        if _wl_internal {
+            try {
+                import from jaclang.jac0core { sealed as _wl_sealed }
+                _wl_internal = _wl_sealed._jaclang_image() is not None;
+            } except Exception {
+                _wl_internal = False;
+            }
+        }
+    }
     for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if not isinstance(_imp_arch, uni.Archetype)
         or _imp_arch.body is None
@@ -743,7 +768,8 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
                 and isinstance(_imp_stmt.signature, uni.FuncSignature)
             ) {
                 _im_full = f"{_ia_name}.{_imp_stmt.name_ref.sym_name}";
-                if _imp_layout is None or _im_full not in _imp_layout.methods {
+                if (_imp_layout is not None and _im_full not in _imp_layout.methods)
+                or (_imp_layout is None and _wl_internal) {
                     self._native_skipped_methods.add(_im_full);
                 }
             }
