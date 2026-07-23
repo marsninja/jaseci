@@ -11,3 +11,7 @@ def:pub fetch_msg(who: str) -> str {
 def local_helper(n: int) -> str {
     return "item " + str(n);
 }
+
+def local_helper_two(n: int) -> str {
+    return "row " + str(n);
+}

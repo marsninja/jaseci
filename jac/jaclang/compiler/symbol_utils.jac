@@ -548,6 +548,7 @@ def report_dead_client_import(
             e.code is E5082
             and e.loc.mod_path == item.loc.mod_path
             and e.loc.first_line == item.loc.first_line
+            and e.loc.col_start == item.loc.col_start
         ) {
             return;
         }
