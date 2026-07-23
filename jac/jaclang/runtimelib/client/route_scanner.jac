@@ -1,4 +1,62 @@
+import re;
 import from pathlib { Path }
+
+glob _ROUTE_ROLE_SUFFIXES: list = ['.impl.', '.test.'];
+glob _JSX_ELEMENT_EXPORT_RE: str = (
+    r'def(?::\w+)?\s+(\w+)\s*(?:\([^)]*\))?\s*->\s*JsxElement\b'
+);
+glob _ROUTE_TYPE_RE: str = r'->\s*(?:JsxPage|JsxLayout)\b';
+
+"""Diagnostic for a pages/ tree that produced zero routes.
+
+A pages/ directory with modules but no recognized route mounts the app
+without a router, which renders a blank page — silently, unless the
+compiler says so. Returns the warning lines to emit: a headline naming the
+outcome and the rule, plus one hint per file that matches the retired
+name-based convention (an export returning JsxElement where a JsxPage or
+JsxLayout return type is now required). Returns an empty list when the
+tree has no route-candidate modules at all.
+"""
+def describe_pages_without_routes(pages_dir: Path) -> list[str] {
+    candidates: list[Path] = [];
+    try {
+        for f in sorted(pages_dir.rglob('*.jac')) {
+            if any(suffix in f.name for suffix in _ROUTE_ROLE_SUFFIXES) {
+                continue;
+            }
+            candidates.append(f);
+        }
+    } except OSError {
+        return [];
+    }
+    if not candidates {
+        return [];
+    }
+    lines: list[str] = [
+        f"{pages_dir} contains {len(candidates)} module(s) but no recognized "
+        + "routes — the app will mount without a router and render a blank page.",
+        "A route is an export returning JsxPage (JsxLayout for layouts); "
+        + "the export name and filename are free."
+    ];
+    for f in candidates {
+        try {
+            source = f.read_text(encoding='utf-8');
+        } except OSError {
+            continue;
+        }
+        if re.search(_ROUTE_TYPE_RE, source) {
+            continue;
+        }
+        for hit in re.finditer(_JSX_ELEMENT_EXPORT_RE, source) {
+            kind = 'JsxLayout' if 'layout' in hit.group(1).lower() else 'JsxPage';
+            lines.append(
+                f"  {f}: '{hit.group(1)}' returns JsxElement — change the "
+                + f"return type to {kind} to make it a route."
+            );
+        }
+    }
+    return lines;
+}
 
 obj RouteEntry {
     has path: str,
