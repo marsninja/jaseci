@@ -44,6 +44,11 @@ def alerts_with_code(prog: JacProgram, code: str) -> list {
     ];
 }
 
+"""Message + help text of the given alerts, joined for content assertions."""
+def alert_blob(alerts: list) -> str {
+    return " ".join([f"{a} {a.help_text or ''}" for a in alerts]);
+}
+
 """Format errors for assertion messages."""
 def fmt_errors(prog: JacProgram) -> str {
     return str([str(e) for e in prog.errors_had]);
@@ -104,7 +109,7 @@ test "del of an archetype attribute is rejected, not a silent no-op" {
         ),
         "del_attr"
     );
-    help_blob = " ".join([str(a) for a in hits]);
+    help_blob = alert_blob(hits);
     assert "None" in help_blob , (
         f"del-attr help should point at optional fields (`x: int | None`) or a "
         f"sentinel as the native alternative, got: {help_blob}"
@@ -234,7 +239,7 @@ test "__class__ assignment is rejected and anchored on the attribute, not the RH
         ),
         "class_reassign"
     );
-    blob = " ".join([str(a) for a in hits]);
+    blob = alert_blob(hits);
     assert "__class__" in blob , (
         f"the diagnostic must name the __class__ construct (anchored on the "
         f"assignment target, not the RHS name), got: {blob}"
@@ -254,7 +259,7 @@ test "method monkey-patching on a class object is rejected by design" {
         ),
         "monkey_patch"
     );
-    blob = " ".join([str(a) for a in hits]);
+    blob = alert_blob(hits);
     assert "m" in blob , f"the diagnostic must name the patched attribute, got: {blob}";
 }
 
@@ -268,7 +273,7 @@ test "undeclared field store through an any-typed receiver gets the sealed-layou
         ),
         "any_receiver_store"
     );
-    blob = " ".join([str(a) for a in hits]);
+    blob = alert_blob(hits);
     assert "has" in blob , (
         f"the help must point at declaring the field with `has`, got: {blob}"
     );
