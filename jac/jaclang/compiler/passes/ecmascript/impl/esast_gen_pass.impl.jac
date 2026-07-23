@@ -1648,6 +1648,7 @@ impl EsastGenPass._try_lower_server_rpc_call(
     }
     func_name = nd.target.sym_name;
     if isinstance(ability_node.signature, uni.FuncSignature) {
+        import re;
         import from jaclang.jac0core.diagnostics { W6005 }
         _sig = ability_node.signature;
         for _plist in [_sig.posonly_params, _sig.params or [], _sig.kwonlyargs] {
@@ -1655,7 +1656,7 @@ impl EsastGenPass._try_lower_server_rpc_call(
                 if (
                     _p.type_tag is not None
                     and _p.type_tag.tag is not None
-                    and ('Callable' in _p.type_tag.tag.unparse())
+                    and re.search(r"\bCallable\b", _p.type_tag.tag.unparse())
                 ) {
                     self.emit(
                         W6005, node_override=nd, func=func_name, param=_p.name.sym_name

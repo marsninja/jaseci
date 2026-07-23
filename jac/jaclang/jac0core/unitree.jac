@@ -195,10 +195,8 @@ obj AstAccessNode(UniNode) {
 }
 
 obj ContextAwareNode(UniNode) {
-    has code_context: CodeContext postinit;
-    # Set when a cross-module codespace pull places this element client while
-    # its module stays importable from server code: emit BOTH python and JS.
-    has codespace_dual: bool = False;
+    has code_context: CodeContext postinit,
+        codespace_dual: bool = False;
 
     def postinit -> None;
     def _source_context_token -> (Token | None);

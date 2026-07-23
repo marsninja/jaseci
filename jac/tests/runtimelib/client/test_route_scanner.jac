@@ -20,7 +20,8 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
 import from jaclang.runtimelib.client.route_scanner {
-    RouteScanner, describe_pages_without_routes
+    RouteScanner,
+    describe_pages_without_routes
 }
 
 
@@ -276,9 +277,7 @@ test "sidecar annexes do not trigger the zero-route diagnostic" {
     with TemporaryDirectory() as tmp {
         proj = Path(tmp);
         _write(
-            proj,
-            "pages/budget.impl.jac",
-            "impl budget.view { return <div>x</div>; }",
+            proj, "pages/budget.impl.jac", "impl budget.view { return <div>x</div>; }",
         );
         _write(proj, "pages/budget.test.jac", "test \"t\" { assert True; }");
         assert describe_pages_without_routes(proj / "pages") == [];
@@ -291,11 +290,7 @@ candidates and no routes) without per-file hints."""
 test "non-legacy zero-route tree gets the headline only" {
     with TemporaryDirectory() as tmp {
         proj = Path(tmp);
-        _write(
-            proj,
-            "pages/util.jac",
-            "def helper() -> int { return 1; }",
-        );
+        _write(proj, "pages/util.jac", "def helper() -> int { return 1; }",);
         lines = describe_pages_without_routes(proj / "pages");
         assert lines , "candidate modules with zero routes must warn";
         joined = "\n".join(lines);

@@ -536,9 +536,7 @@ def hub_module(prog: JacProgram, name_suffix: str) -> object {
 
 test "client import pulls a pure markerless module cross-module" {
     prog = JacProgram();
-    mod = prog.compile(
-        os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"), no_cgen=False
-    );
+    mod = prog.compile(os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"), no_cgen=False);
     assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
     js = mod.gen.js;
     assert '__jacCallFunction("register"' not in js , (
@@ -573,8 +571,11 @@ test "cross-module pulled elements dual-emit for the server side" {
     util = hub_module(prog, "infer_xmod_util.jac");
     assert util is not None;
     for stmt in util.body {
-        if (isinstance(stmt, uni.Ability) and isinstance(stmt.name_ref, uni.Name)
-            and stmt.name_ref.value == "register") {
+        if (
+            isinstance(stmt, uni.Ability)
+            and isinstance(stmt.name_ref, uni.Name)
+            and stmt.name_ref.value == "register"
+        ) {
             assert stmt.codespace_dual , (
                 "cross-module pulled element must keep python emission (dual)"
             );
@@ -599,16 +600,12 @@ test "cross-module pulled elements dual-emit for the server side" {
 
 test "client call to endpoint with function-typed param warns W6005" {
     prog = JacProgram();
-    prog.compile(
-        os.path.join(FIXTURE_DIR, "infer_rpc_callable.jac"), no_cgen=False
-    );
-    warned = any(
-        'W6005' in w.pretty_print()
-        for w in prog.warnings_had
-    );
+    prog.compile(os.path.join(FIXTURE_DIR, "infer_rpc_callable.jac"), no_cgen=False);
+    warned = any('W6005' in w.pretty_print() for w in prog.warnings_had);
     assert warned , (
-        "RPC-bridged call passing a function must warn W6005; got: "
-        + f"{[w.pretty_print().split(chr(10))[0] for w in prog.warnings_had]}"
+        "RPC-bridged call passing a function must warn W6005; got: " + f"{[
+            w.pretty_print().split(chr(10))[0] for w in prog.warnings_had
+        ]}"
     );
 }
 
