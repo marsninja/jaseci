@@ -1,5 +1,5 @@
-import from dateutil.parser { parse } #<-- from Python
-import from "canvas-confetti" { default as confetti } #
+import from dateutil.parser { parse }  #<-- from Python
+import from "canvas-confetti" { default as confetti }  #<-- from npm
 
 node Todo {
     has title: str,
