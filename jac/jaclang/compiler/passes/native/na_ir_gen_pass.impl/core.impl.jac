@@ -713,24 +713,38 @@ impl NaIRGenPass._walk_imported_module_types(imported_mod: uni.Module) -> None {
 
 impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> None {
     _imp_layout = imported_mod.gen.native_layout;
-    if _imp_layout is not None {
-        for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
-            if not isinstance(_imp_arch, uni.Archetype)
-            or _imp_arch.body is None
-            or _imp_arch.name is None {
-                continue;
+    if _imp_layout is None and imported_mod?.loc and imported_mod.loc.mod_path {
+        import os as _wl_os;
+        _wl_raw = imported_mod.loc.mod_path;
+        for _wl_key in (
+            _wl_raw,
+            _wl_os.path.abspath(_wl_raw),
+            _wl_os.path.realpath(_wl_raw)
+        ) {
+            _wl_slim = self.prog._native_cache.get(_wl_key);
+            if _wl_slim is not None and _wl_slim.native_layout is not None {
+                _imp_layout = _wl_slim.native_layout;
+                break;
             }
-            _ia_name = _imp_arch.name.value;
-            for _imp_stmt in _imp_arch.body {
-                if (
-                    isinstance(_imp_stmt, uni.Ability)
-                    and _imp_stmt.name_ref
-                    and isinstance(_imp_stmt.signature, uni.FuncSignature)
-                ) {
-                    _im_full = f"{_ia_name}.{_imp_stmt.name_ref.sym_name}";
-                    if _im_full not in _imp_layout.methods {
-                        self._native_skipped_methods.add(_im_full);
-                    }
+        }
+    }
+
+    for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+        if not isinstance(_imp_arch, uni.Archetype)
+        or _imp_arch.body is None
+        or _imp_arch.name is None {
+            continue;
+        }
+        _ia_name = _imp_arch.name.value;
+        for _imp_stmt in _imp_arch.body {
+            if (
+                isinstance(_imp_stmt, uni.Ability)
+                and _imp_stmt.name_ref
+                and isinstance(_imp_stmt.signature, uni.FuncSignature)
+            ) {
+                _im_full = f"{_ia_name}.{_imp_stmt.name_ref.sym_name}";
+                if _imp_layout is None or _im_full not in _imp_layout.methods {
+                    self._native_skipped_methods.add(_im_full);
                 }
             }
         }
